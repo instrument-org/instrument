@@ -26,6 +26,7 @@ type Place = { name: string; path: string };
 export function FolderNameMenu({
   ancestors,
   folder,
+  iconOnly = false,
   onGo,
   places,
 }: {
@@ -33,6 +34,8 @@ export function FolderNameMenu({
   ancestors: Place[];
   /** The folder on screen; a path of "" is the recents. */
   folder: Place;
+  /** Folded to the folder's icon and the menu's arrow, for the search beside it to have the room. */
+  iconOnly?: boolean;
   /** A folder picked from the menu, by its path, or "" for the recents. */
   onGo: (path: string) => void;
   /** The sidebar's lists, in its order, each under its label if it has one. */
@@ -44,15 +47,22 @@ export function FolderNameMenu({
         <DropdownMenuTrigger asChild>
           <Button
             className={toolbarClassName({
-              className:
-                "min-w-0 flex-1 justify-start gap-1 px-1.5 has-[>svg]:px-1.5 text-foreground data-[state=open]:bg-muted",
+              className: cn(
+                "justify-start gap-1 px-1.5 text-foreground has-[>svg]:px-1.5 data-[state=open]:bg-muted",
+                iconOnly ? "shrink-0" : "min-w-0 flex-1",
+              ),
               pressed: false,
             })}
             size="sm"
             variant="ghost"
+            {...(iconOnly ? { "aria-label": folder.name } : {})}
           >
             <FolderMark size="large" path={folder.path} />
-            <span className="min-w-0 truncate font-medium">{folder.name}</span>
+            {iconOnly ? null : (
+              <span className="min-w-0 truncate font-medium">
+                {folder.name}
+              </span>
+            )}
             <CaretDownIcon className="size-2.5 shrink-0 text-muted-foreground" />
           </Button>
         </DropdownMenuTrigger>

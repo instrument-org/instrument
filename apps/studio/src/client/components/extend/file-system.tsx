@@ -41,6 +41,9 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { LOADER_DELAY_MS } from "@/client/components/ui/delayed";
@@ -50,7 +53,6 @@ import {
   Popover,
   PopoverAnchor,
   PopoverContent,
-  PopoverTrigger,
 } from "@/client/components/ui/popover";
 import {
   ScrollArea as InlineScrollArea,
@@ -397,6 +399,11 @@ export type FileSystemProps = {
   /** The search field's text changed, typed or cleared, or emptied by walking to a folder. */
   onSearchChange?: (search: string) => void;
   /**
+   * Whether the toolbar's search field, in a narrow toolbar, takes the room
+   * beside it: beside a file, the folder's name folds to its icon for it.
+   */
+  onSearchNeedsRoomChange?: (needsRoom: boolean) => void;
+  /**
    * The selection moved. `item` is the one of it the keyboard is on, the last
    * picked; `items` is all of it, several after a ⌘- or Shift-click.
    */
@@ -419,8 +426,12 @@ export type FileSystemProps = {
   renderHeaderLead?: () => React.ReactNode;
   /** The host's primary action, drawn after the folder's name and before the view switcher. */
   renderHeaderPrimary?: () => React.ReactNode;
-  /** Controls drawn among the toolbar's own, between the filters and the search. */
-  renderHeaderActions?: () => React.ReactNode;
+  /**
+   * Controls drawn among the toolbar's own, between sort and the search: the
+   * host's More menu. Below 480px the views and sort fold into it as `folded`,
+   * menu items for the head of that menu.
+   */
+  renderHeaderActions?: (folded?: React.ReactNode) => React.ReactNode;
   /**
    * Narrowed to this width beside a file open from it, in CSS px: the
    * columns give up their preview of the selected file, which is open beside
@@ -440,10 +451,8 @@ export type FileSystemProps = {
   besideOpenPath?: string;
   /**
    * Where the toolbar's controls go instead of a header of their own: `lead`
-   * takes the views, sort and filter, and `tail` the host's primary action,
-   * its actions and the search. With no `tail` the views fold into a menu,
-   * the search ends `lead`, and the host's own controls are left out, for a
-   * folder narrowed beside an open file.
+   * takes the views, sort, the host's actions and the search, at its right
+   * edge, and `tail` the host's primary action.
    */
   toolbarInto?: { lead: HTMLElement | null; tail?: HTMLElement | null };
   /**
@@ -1996,6 +2005,7 @@ export function FileSystem({
   onOpenFolderChange: onOpenFolderChangeGiven,
   onRenameCommit: onRenameCommitGiven,
   onSearchChange: onSearchChangeGiven,
+  onSearchNeedsRoomChange: onSearchNeedsRoomChangeGiven,
   onGroupChange: onGroupChangeGiven,
   onSelectionChange: onSelectionChangeGiven,
   onShowHiddenFilesChange: onShowHiddenFilesChangeGiven,
@@ -2042,6 +2052,7 @@ export function FileSystem({
     onOpenFolderChange,
     onRenameCommit,
     onSearchChange,
+    onSearchNeedsRoomChange,
     onGroupChange,
     onSelectionChange,
     onShowHiddenFilesChange,
@@ -2070,6 +2081,7 @@ export function FileSystem({
     onOpenFolderChange: onOpenFolderChangeGiven,
     onRenameCommit: onRenameCommitGiven,
     onSearchChange: onSearchChangeGiven,
+    onSearchNeedsRoomChange: onSearchNeedsRoomChangeGiven,
     onGroupChange: onGroupChangeGiven,
     onSelectionChange: onSelectionChangeGiven,
     onShowHiddenFilesChange: onShowHiddenFilesChangeGiven,
@@ -2536,20 +2548,25 @@ export function FileSystem({
         : { direction: defaultSortDirection(key), key },
     );
   };
-  // Below 560px the search input collapses into a popover, and below 360px the
-  // folder name is dropped too. The view switcher answers to the toolbar's
-  // container instead.
+  // The toolbar folds as the folder narrows, as the Finder's does: from 720px
+  // the four views, below it their menu, below 480px the views and sort fold
+  // into More, and below 320px the search field into a button (and the
+  // folder's name in a header of its own is dropped).
   const rootRef = React.useRef<HTMLDivElement | null>(null);
-  const [headerLayout, setHeaderLayout] = React.useState<
-    "compact" | "full" | "minimal"
-  >("full");
+  const [headerLayout, setHeaderLayout] = React.useState<ToolbarLayout>("full");
   React.useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root || typeof ResizeObserver === "undefined") return;
     const applyWidth = (width: number | undefined) => {
       if (width === undefined) return;
       setHeaderLayout(
-        width < 360 ? "minimal" : width < 560 ? "compact" : "full",
+        width < 320
+          ? "minimal"
+          : width < 480
+            ? "narrow"
+            : width < 720
+              ? "compact"
+              : "full",
       );
     };
     const observer = new ResizeObserver((observerEntries) =>
@@ -3458,8 +3475,9 @@ export function FileSystem({
     treeExpansion,
     ...(openFolders === undefined ? {} : { openFolders, onOpenFolderChange }),
   };
-  // ⌘F focuses the toolbar search. Below 560px the field is in a popover,
-  // outside the component, so a press with the caret already in it is ours too.
+  // ⌘F focuses the toolbar search. The field may be portalled into the host's
+  // row, outside the component, so a press with the caret already in it is
+  // ours too.
   useFindTarget({
     anchor: rootRef,
     holdsKeyboard: () => document.activeElement === searchInputRef.current,
@@ -3553,38 +3571,108 @@ export function FileSystem({
       </TabsList>
     </Tabs>
   );
+  const sortMenuProps = {
+    group,
+    onGroupChange: setGroup,
+    onKeyChange: applySortKey,
+    onShowHiddenFilesChange: setShowHiddenFiles,
+    // `some`, not every, so a recent that has gone since is no reason to
+    // take the order away.
+    options: items.some(
+      (item) => item.kind === "file" && item.openedAt !== undefined,
+    )
+      ? [OPENED_SORT_OPTION, ...SORT_OPTIONS]
+      : SORT_OPTIONS,
+    showHiddenFiles,
+    sort,
+  };
   const sortMenu = (
-    <FileSystemSortMenu
-      // `some`, not every, so a recent that has gone since is no reason to
-      // take the order away.
-      options={
-        items.some(
-          (item) => item.kind === "file" && item.openedAt !== undefined,
-        )
-          ? [OPENED_SORT_OPTION, ...SORT_OPTIONS]
-          : SORT_OPTIONS
-      }
-      group={group}
-      onClosed={focusListing}
-      onGroupChange={setGroup}
-      onKeyChange={applySortKey}
-      onShowHiddenFilesChange={setShowHiddenFiles}
-      showHiddenFiles={showHiddenFiles}
-      sort={sort}
-    />
+    <FileSystemSortMenu {...sortMenuProps} onClosed={focusListing} />
   );
-  const searchField = (layout: "compact" | "full" | "minimal" | "row") => (
+  // Below 480px the views and sort fold into the host's More menu, which
+  // takes them at its head; a host with no More keeps them in the toolbar.
+  const isFoldedIntoMore =
+    renderHeaderActions !== undefined &&
+    (headerLayout === "narrow" || headerLayout === "minimal");
+  const foldedIntoMore = (
+    <>
+      <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+        View
+      </DropdownMenuLabel>
+      <DropdownMenuRadioGroup
+        onValueChange={(value) => setView(value as FileSystemView)}
+        value={view}
+      >
+        {VIEW_OPTIONS.map((option) => (
+          <DropdownMenuRadioItem key={option.value} value={option.value}>
+            <option.icon className="size-4" />
+            {option.label}
+          </DropdownMenuRadioItem>
+        ))}
+      </DropdownMenuRadioGroup>
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger>
+          {group === null ? "Sort by" : "Group by"}
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="min-w-44">
+          <FileSystemSortItems {...sortMenuProps} />
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+      <DropdownMenuSeparator />
+    </>
+  );
+  // The field stays open wherever it fits, and below 320px is a button until
+  // asked for. Narrow, while it is in use, it takes the room beside it.
+  const isSearchFieldOpen = headerLayout !== "minimal" || isSearchExpanded;
+  const searchNeedsRoom =
+    isSearchFieldOpen &&
+    (headerLayout === "minimal" ||
+      (headerLayout === "narrow" && (isSearchExpanded || isSearching)));
+  React.useLayoutEffect(() => {
+    onSearchNeedsRoomChange?.(searchNeedsRoom);
+  }, [onSearchNeedsRoomChange, searchNeedsRoom]);
+  const searchField = (
     <FileSystemSearchField
+      className={
+        searchNeedsRoom
+          ? "min-w-32 flex-1"
+          : headerLayout === "full"
+            ? "w-56 min-w-32"
+            : headerLayout === "compact"
+              ? "w-42 min-w-28"
+              : "w-40 min-w-24"
+      }
       inputRef={searchInputRef}
+      isAlwaysOpen={headerLayout !== "minimal"}
       isExpanded={isSearchExpanded}
       kinds={searchKinds}
-      layout={layout}
       offeredKinds={offeredKinds}
       onExpandedChange={setIsSearchExpanded}
       onKindsChange={setSearchKinds}
       onValueChange={changeSearch}
+      placeholder={
+        headerLayout === "full" || headerLayout === "compact"
+          ? `Search ${currentFolderName}`
+          : "Search"
+      }
       value={searchInput}
     />
+  );
+  // The folder's controls, at the toolbar's right edge as the Finder has
+  // them, the search last.
+  const toolbarControls = (
+    <>
+      {isFoldedIntoMore
+        ? null
+        : headerLayout === "full"
+          ? viewTabs("gap-0")
+          : viewSelect}
+      {isFoldedIntoMore ? null : sortMenu}
+      {renderHeaderActions
+        ? renderHeaderActions(isFoldedIntoMore ? foldedIntoMore : undefined)
+        : null}
+      {searchField}
+    </>
   );
   // Whether one of the views is drawn, rather than what stands for the
   // folder when it has nothing to show.
@@ -3682,53 +3770,12 @@ export function FileSystem({
           {toolbarInto.lead &&
             createPortal(
               <div
-                className={cn(
-                  "flex min-w-0 items-center gap-1.5",
-                  toolbarInto.tail === undefined && "flex-1",
-                )}
+                className="flex min-w-0 flex-1 items-center justify-end gap-1.5"
                 onContextMenu={(event) => {
                   event.preventDefault();
                 }}
               >
-                {/* Search, while it has the keyboard, takes the folder's
-                    controls' place, the way the Finder's toolbar opens its
-                    field over the items beside it; Esc or a click away gives
-                    them back. */}
-                {isSearchExpanded ? (
-                  searchField("row")
-                ) : (
-                  <>
-                    {/* In a narrow row (a draft's well, a pane) the four
-                        views fold into their menu, so the field beside them
-                        keeps room to say where the folder is. */}
-                    {toolbarInto.tail === undefined ? (
-                      viewSelect
-                    ) : (
-                      <>
-                        <div className="flex @2xl/tabrow:hidden">
-                          {viewSelect}
-                        </div>
-                        {viewTabs("hidden gap-0 @2xl/tabrow:flex")}
-                      </>
-                    )}
-                    {sortMenu}
-                    {/* With the folder alone, its menu and search follow
-                        sort, beside the rows they act on and where search
-                        stands beside a file; beside a file, search alone, at
-                        the section's end. */}
-                    {toolbarInto.tail === undefined ? (
-                      <>
-                        <span className="flex-1" />
-                        {searchField("row")}
-                      </>
-                    ) : (
-                      <>
-                        {renderHeaderActions ? renderHeaderActions() : null}
-                        {searchField("row")}
-                      </>
-                    )}
-                  </>
-                )}
+                {toolbarControls}
               </div>,
               toolbarInto.lead,
             )}
@@ -3747,7 +3794,7 @@ export function FileSystem({
         </>
       ) : (
         <div
-          className="@container/finder-header relative flex h-12 shrink-0 items-center gap-1.5 border-b bg-muted/40 px-2"
+          className="relative flex h-12 shrink-0 items-center gap-1.5 border-b bg-muted/40 px-2"
           // The toolbar is not the folder, and nothing is made or acted on here.
           onContextMenu={(event) => {
             event.preventDefault();
@@ -3762,15 +3809,8 @@ export function FileSystem({
             )}
           </div>
           {renderHeaderPrimary ? renderHeaderPrimary() : null}
-          {/* The switcher folds into a select only once the toolbar's own width
-            cannot hold the segmented control beside the rest; the folder name
-            truncates first. Both are mounted and the container decides. */}
-          <div className="flex @md/finder-header:hidden">{viewSelect}</div>
-          {viewTabs("hidden gap-0 @md/finder-header:flex")}
           <div className="flex min-w-0 items-center justify-end gap-1.5">
-            {sortMenu}
-            {renderHeaderActions ? renderHeaderActions() : null}
-            {searchField(headerLayout)}
+            {toolbarControls}
           </div>
         </div>
       )}
@@ -3935,35 +3975,41 @@ const TOOLBAR_SELECT_TRIGGER_CLASSNAME = cn(
   TOOLBAR_CONTROL_CLASSNAME,
   "min-h-8 w-auto min-w-0 shrink-0 gap-1 bg-none px-1.5 has-[>svg]:px-1.5 dark:border-0 [&>svg:last-child]:size-2.5",
 );
-// macOS Finder-style toolbar search. At the full layout it sits inline in
-// the header's right column; at compact widths it collapses into a ghost
-// icon button that opens the input in a popover (a dot marks the button
-// while a query keeps filtering the views).
+// How much of the toolbar the folder's width has room for, widest first.
+type ToolbarLayout = "full" | "compact" | "narrow" | "minimal";
+// macOS Finder-style toolbar search: a field at the toolbar's end wherever it
+// fits, and where it does not, a magnifying glass that opens it.
 const SEARCH_TITLE = `Search (${formatAcceleratorText(WINDOW_SHORTCUTS.findInPage.accelerator)})`;
 function FileSystemSearchField({
+  className,
   inputRef,
+  isAlwaysOpen,
   isExpanded,
   kinds,
-  layout,
   offeredKinds,
   onExpandedChange,
   onKindsChange,
   onValueChange,
+  placeholder,
   value,
 }: {
+  /** The open field's width in the toolbar. */
+  className: string;
   inputRef: React.RefObject<HTMLInputElement | null>;
+  /** Whether the field is shown whether asked for or not; otherwise a button until asked for. */
+  isAlwaysOpen: boolean;
+  /** Whether the field is asked for and has the keyboard. */
   isExpanded: boolean;
   /** The kinds the search narrows to, shown as tokens before the words. */
   kinds: readonly string[];
-  layout: "compact" | "full" | "minimal" | "row";
   /** The kinds the folder has, each with a row of it for its icon, offered under the field while it has no words. */
   offeredKinds: ReadonlyArray<{ kind: string; sample: FileSystemEntry }>;
   onExpandedChange: (isExpanded: boolean) => void;
   onKindsChange: (kinds: readonly string[]) => void;
   onValueChange: (value: string) => void;
+  placeholder: string;
   value: string;
 }) {
-  const isInline = layout === "full";
   React.useEffect(() => {
     if (isExpanded) inputRef.current?.focus();
   }, [inputRef, isExpanded]);
@@ -3973,7 +4019,7 @@ function FileSystemSearchField({
   const [isOffering, setIsOffering] = React.useState(true);
   if (!isExpanded && !isOffering) setIsOffering(true);
   const suggestions =
-    layout === "row" && isExpanded && isOffering && value === ""
+    isExpanded && isOffering && value === ""
       ? offeredKinds
           .filter(({ kind }) => !kinds.includes(kind))
           .map(({ kind }) => kind)
@@ -4002,7 +4048,6 @@ function FileSystemSearchField({
       className={cn(
         TOOLBAR_CONTROL_CLASSNAME,
         "relative flex min-w-0 flex-1 items-center gap-1 overflow-hidden pr-6 pl-2 text-sm text-foreground transition-shadow outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background",
-        isInline && "max-w-56",
       )}
     >
       <Search className="pointer-events-none size-3.5 shrink-0 text-muted-foreground" />
@@ -4078,7 +4123,8 @@ function FileSystemSearchField({
             event.currentTarget.blur();
           }
         }}
-        placeholder={kinds.length > 0 ? "" : "Search"}
+        onFocus={() => onExpandedChange(true)}
+        placeholder={kinds.length > 0 ? "" : placeholder}
         ref={inputRef}
         role="searchbox"
         type="text"
@@ -4105,152 +4151,87 @@ function FileSystemSearchField({
   const searchedLabel = [kinds.map(shortKind).join(", "), value.trim()]
     .filter(Boolean)
     .join(" · ");
-  if (isInline) {
-    // A magnifying glass until asked for, the way the Finder's toolbar keeps
-    // its search: the field opens in its place, and closes again when the
-    // keyboard leaves it with nothing typed.
-    if (!isExpanded && !value) {
-      return (
-        <button
-          aria-label="Search"
-          className={TOOLBAR_ICON_BUTTON_CLASSNAME}
-          onClick={() => onExpandedChange(true)}
-          title={SEARCH_TITLE}
-          type="button"
-        >
-          <Search className="size-4" />
-        </button>
-      );
-    }
-    // A fixed basis (not flex-1) keeps the whole toolbar cluster packed
-    // against the header's right edge; the input shrinks first when the
-    // header tightens.
-    return (
-      <div
-        className="flex w-56 min-w-32 items-center"
-        onBlur={(event) => {
-          if (
-            !value &&
-            !(
-              event.relatedTarget instanceof Node &&
-              event.currentTarget.contains(event.relatedTarget)
-            )
-          ) {
-            onExpandedChange(false);
-          }
-        }}
+  // Where the field does not fit, a button until asked for; asked for, the
+  // field, which folds back into the button, naming what it holds, once the
+  // keyboard leaves it.
+  if (!isAlwaysOpen && !isExpanded) {
+    // Searched, the button says for what, so a folder showing less than it
+    // has says why at a glance.
+    return isSearched ? (
+      <button
+        aria-label={`Search: ${searchedLabel}`}
+        className={cn(
+          TOOLBAR_CONTROL_CLASSNAME,
+          "flex max-w-32 min-w-0 shrink items-center gap-1.5 bg-primary/10 px-2 text-sm text-primary outline-none not-disabled:hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary/15 dark:not-disabled:hover:bg-primary/20",
+        )}
+        onClick={() => onExpandedChange(true)}
+        title={`Search: ${searchedLabel}`}
+        type="button"
       >
-        {input}
-      </div>
-    );
-  }
-  // Searched, the button says for what, so a folder showing less than it has
-  // says why at a glance.
-  const searchedButton = (onPress?: () => void) => (
-    <button
-      aria-label={`Search: ${searchedLabel}`}
-      className={cn(
-        TOOLBAR_CONTROL_CLASSNAME,
-        "flex max-w-32 min-w-0 shrink items-center gap-1.5 bg-primary/10 px-2 text-sm text-primary outline-none not-disabled:hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary/15 dark:not-disabled:hover:bg-primary/20",
-      )}
-      onClick={onPress}
-      title={`Search: ${searchedLabel}`}
-      type="button"
-    >
-      <Search className="size-3.5 shrink-0" />
-      <span className="truncate">{searchedLabel}</span>
-    </button>
-  );
-  if (layout === "row") {
-    // A button until asked for; asked for, the field across the row the
-    // folder's controls stood in, which folds back into the button, naming
-    // what it holds, once the keyboard leaves it.
-    if (!isExpanded) {
-      return isSearched ? (
-        searchedButton(() => onExpandedChange(true))
-      ) : (
-        <button
-          aria-label="Search"
-          className={TOOLBAR_ICON_BUTTON_CLASSNAME}
-          onClick={() => onExpandedChange(true)}
-          title={SEARCH_TITLE}
-          type="button"
-        >
-          <Search className="size-4" />
-        </button>
-      );
-    }
-    return (
-      <Popover open={suggestions.length > 0}>
-        <PopoverAnchor asChild>
-          <div
-            className="flex w-56 max-w-full min-w-0 items-center"
-            onBlur={(event) => {
-              if (
-                !(
-                  event.relatedTarget instanceof Node &&
-                  event.currentTarget.contains(event.relatedTarget)
-                )
-              ) {
-                onExpandedChange(false);
-              }
-            }}
-          >
-            {input}
-          </div>
-        </PopoverAnchor>
-        {/* The kinds the folder has, picked with the arrows and Return or a
-            click, while the keyboard stays in the field. */}
-        <PopoverContent
-          align="start"
-          className="w-(--radix-popover-trigger-width) min-w-48 p-1"
-          onOpenAutoFocus={(event) => event.preventDefault()}
-          sideOffset={6}
-        >
-          <div className="px-2 pt-1 pb-1 text-xs text-muted-foreground">
-            Show only
-          </div>
-          <div role="listbox" aria-label="Kinds">
-            {suggestions.map((kind, at) => (
-              <div
-                aria-selected={at === highlighted}
-                className={cn(
-                  "flex h-7 items-center gap-2 rounded-md px-2 text-sm",
-                  at === highlighted && "bg-accent",
-                )}
-                key={kind}
-                onClick={() => pickKind(kind)}
-                onMouseDown={(event) => event.preventDefault()}
-                onMouseEnter={() => setHighlight(at)}
-                role="option"
-              >
-                {kindGlyph(kind)}
-                {kind}
-              </div>
-            ))}
-          </div>
-        </PopoverContent>
-      </Popover>
+        <Search className="size-3.5 shrink-0" />
+        <span className="truncate">{searchedLabel}</span>
+      </button>
+    ) : (
+      <button
+        aria-label="Search"
+        className={TOOLBAR_ICON_BUTTON_CLASSNAME}
+        onClick={() => onExpandedChange(true)}
+        title={SEARCH_TITLE}
+        type="button"
+      >
+        <Search className="size-4" />
+      </button>
     );
   }
   return (
-    <Popover onOpenChange={onExpandedChange} open={isExpanded}>
-      <PopoverTrigger asChild>
-        {isSearched ? (
-          searchedButton()
-        ) : (
-          <button
-            aria-label="Search"
-            className={TOOLBAR_ICON_BUTTON_CLASSNAME}
-            title={SEARCH_TITLE}
-            type="button"
-          >
-            <Search className="size-4" />
-          </button>
-        )}
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-64 p-1" sideOffset={6}>
-        {input}
+    <Popover open={suggestions.length > 0}>
+      <PopoverAnchor asChild>
+        <div
+          className={cn("flex max-w-full items-center", className)}
+          onBlur={(event) => {
+            if (
+              !(
+                event.relatedTarget instanceof Node &&
+                event.currentTarget.contains(event.relatedTarget)
+              )
+            ) {
+              onExpandedChange(false);
+            }
+          }}
+        >
+          {input}
+        </div>
+      </PopoverAnchor>
+      {/* The kinds the folder has, picked with the arrows and Return or a
+            click, while the keyboard stays in the field. */}
+      <PopoverContent
+        align="start"
+        className="w-(--radix-popover-trigger-width) min-w-48 p-1"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+        sideOffset={6}
+      >
+        <div className="px-2 pt-1 pb-1 text-xs text-muted-foreground">
+          Show only
+        </div>
+        <div role="listbox" aria-label="Kinds">
+          {suggestions.map((kind, at) => (
+            <div
+              aria-selected={at === highlighted}
+              className={cn(
+                "flex h-7 items-center gap-2 rounded-md px-2 text-sm",
+                at === highlighted && "bg-accent",
+              )}
+              key={kind}
+              onClick={() => pickKind(kind)}
+              onMouseDown={(event) => event.preventDefault()}
+              onMouseEnter={() => setHighlight(at)}
+              role="option"
+            >
+              {kindGlyph(kind)}
+              {kind}
+            </div>
+          ))}
+        </div>
       </PopoverContent>
     </Popover>
   );
@@ -4259,26 +4240,13 @@ function FileSystemSearchField({
 // press away, and the folder itself shows it. It also holds what changes
 // which rows the folder lists, as the Finder's view options do.
 function FileSystemSortMenu({
-  group,
   onClosed,
-  onGroupChange,
-  onKeyChange,
-  onShowHiddenFilesChange,
-  options,
-  showHiddenFiles,
-  sort,
-}: {
-  group: FileSystemGroupKey | null;
+  ...props
+}: FileSystemSortItemsProps & {
   /** Put away, for the keyboard to go back to the listing rather than stay on the button. */
   onClosed: () => void;
-  onGroupChange: (group: FileSystemGroupKey | null) => void;
-  onKeyChange: (key: FileSystemSortKey) => void;
-  onShowHiddenFilesChange: (showHiddenFiles: boolean) => void;
-  /** The orders it offers. */
-  options: readonly { key: FileSystemSortKey; label: string }[];
-  showHiddenFiles: boolean;
-  sort: FileSystemSortState;
 }) {
+  const { group } = props;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -4302,61 +4270,87 @@ function FileSystemSortMenu({
           onClosed();
         }}
       >
-        {/* Grouped, the groups are the order, so Sort by goes the way the
-            Finder's does; List's column headers still order the rows within
-            each group. */}
-        {group === null ? (
-          <>
-            <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-              Sort by
-            </DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              onValueChange={(value) => {
-                const option = options.find((each) => each.key === value);
-                if (option) onKeyChange(option.key);
-              }}
-              value={sort.key}
-            >
-              {options.map((option) => (
-                <DropdownMenuRadioItem key={option.key} value={option.key}>
-                  {option.label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-            <DropdownMenuSeparator />
-          </>
-        ) : null}
-        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-          Group by
-        </DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          onValueChange={(value) => {
-            onGroupChange(
-              GROUP_OPTIONS.find((each) => each.key === value)?.key ?? null,
-            );
-          }}
-          value={group ?? "none"}
-        >
-          <DropdownMenuRadioItem value="none">None</DropdownMenuRadioItem>
-          {GROUP_OPTIONS.map((option) => (
-            <DropdownMenuRadioItem key={option.key} value={option.key}>
-              {option.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-        <DropdownMenuSeparator />
-        {/* The menu stays open on a toggle: watching the dotfiles arrive or
-            leave is the whole point of the item, and a menu that closes to
-            show it makes the second thought a second trip. */}
-        <DropdownMenuCheckboxItem
-          checked={showHiddenFiles}
-          onCheckedChange={onShowHiddenFilesChange}
-          onSelect={(event) => event.preventDefault()}
-        >
-          Show hidden files
-        </DropdownMenuCheckboxItem>
+        <FileSystemSortItems {...props} />
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+type FileSystemSortItemsProps = {
+  group: FileSystemGroupKey | null;
+  onGroupChange: (group: FileSystemGroupKey | null) => void;
+  onKeyChange: (key: FileSystemSortKey) => void;
+  onShowHiddenFilesChange: (showHiddenFiles: boolean) => void;
+  /** The orders it offers. */
+  options: readonly { key: FileSystemSortKey; label: string }[];
+  showHiddenFiles: boolean;
+  sort: FileSystemSortState;
+};
+// The sort menu's items, in its own menu or in the More menu it folds into.
+function FileSystemSortItems({
+  group,
+  onGroupChange,
+  onKeyChange,
+  onShowHiddenFilesChange,
+  options,
+  showHiddenFiles,
+  sort,
+}: FileSystemSortItemsProps) {
+  return (
+    <>
+      {/* Grouped, the groups are the order, so Sort by goes the way the
+            Finder's does; List's column headers still order the rows within
+            each group. */}
+      {group === null ? (
+        <>
+          <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+            Sort by
+          </DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            onValueChange={(value) => {
+              const option = options.find((each) => each.key === value);
+              if (option) onKeyChange(option.key);
+            }}
+            value={sort.key}
+          >
+            {options.map((option) => (
+              <DropdownMenuRadioItem key={option.key} value={option.key}>
+                {option.label}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+          <DropdownMenuSeparator />
+        </>
+      ) : null}
+      <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+        Group by
+      </DropdownMenuLabel>
+      <DropdownMenuRadioGroup
+        onValueChange={(value) => {
+          onGroupChange(
+            GROUP_OPTIONS.find((each) => each.key === value)?.key ?? null,
+          );
+        }}
+        value={group ?? "none"}
+      >
+        <DropdownMenuRadioItem value="none">None</DropdownMenuRadioItem>
+        {GROUP_OPTIONS.map((option) => (
+          <DropdownMenuRadioItem key={option.key} value={option.key}>
+            {option.label}
+          </DropdownMenuRadioItem>
+        ))}
+      </DropdownMenuRadioGroup>
+      <DropdownMenuSeparator />
+      {/* The menu stays open on a toggle: watching the dotfiles arrive or
+            leave is the whole point of the item, and a menu that closes to
+            show it makes the second thought a second trip. */}
+      <DropdownMenuCheckboxItem
+        checked={showHiddenFiles}
+        onCheckedChange={onShowHiddenFilesChange}
+        onSelect={(event) => event.preventDefault()}
+      >
+        Show hidden files
+      </DropdownMenuCheckboxItem>
+    </>
   );
 }
 /**

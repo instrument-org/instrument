@@ -418,6 +418,8 @@ export function ComputerPage({
   const keptPaths = useAtomValue(keptPathsAtom);
   const isBesideOpen = beside !== undefined && !beside.isClosing;
   const [rowTools, setRowTools] = useState<HTMLElement | null>(null);
+  // The folder's search, beside a file, takes the room its name stands in.
+  const [searchNeedsRoom, setSearchNeedsRoom] = useState(false);
   const placesWidth = useAtomValue(finderPlacesWidthAtom);
   const { resolvedTheme } = useTheme();
   const queryClient = useQueryClient();
@@ -2526,8 +2528,12 @@ export function ComputerPage({
           ? createPortal(
               <>
                 <div
+                  // With the folder alone the section takes the row, for the
+                  // folder's controls to sit at its right edge.
+                  data-fills-row={isBesideOpen ? undefined : true}
                   className={cn(
                     "-ml-1.5 flex h-11 shrink-0 items-center gap-1.5 pl-1.5 transition-[width] [interpolate-size:allow-keywords]",
+                    !isBesideOpen && "min-w-0 flex-1",
                     EDGE_DIVIDER_CLASSNAME,
                     BESIDE_MOTION_CLASSNAME,
                     beside?.isResizing && "transition-none",
@@ -2570,6 +2576,7 @@ export function ComputerPage({
                     <FolderNameMenu
                       ancestors={besideAncestors}
                       folder={besideFolder}
+                      iconOnly={searchNeedsRoom}
                       onGo={besideTo}
                       places={besidePlaces}
                     />
@@ -2577,7 +2584,7 @@ export function ComputerPage({
                   <div
                     className={cn(
                       "flex min-w-0 items-center",
-                      isBesideOpen && "shrink-0",
+                      isBesideOpen && !searchNeedsRoom ? "shrink-0" : "flex-1",
                       isBesideOpen && !beside.isFolderShown && "hidden",
                     )}
                     ref={setRowTools}
@@ -2961,13 +2968,15 @@ export function ComputerPage({
                           </span>
                         ),
                       })}
-                  renderHeaderActions={() => (
+                  renderHeaderActions={(folded) => (
                     <FolderOverflowMenu
                       {...menuActionsFor(selectedItem)}
+                      folded={folded}
                       item={selectedItem}
                       onClosed={afterMenuClosed}
                     />
                   )}
+                  onSearchNeedsRoomChange={setSearchNeedsRoom}
                   // Where the folder's contents would be: the whole browser for
                   // the folder on screen, its column's place beside the folder
                   // above it in the columns, a line under it in the list.
@@ -3215,15 +3224,18 @@ function FolderMenu({
  * way to make one.
  */
 function FolderOverflowMenu({
+  folded,
   onClosed,
   ...props
 }: FolderMenuActions & {
+  /** The folder's views and sort, at the menu's head, where the toolbar has no room for them. */
+  folded?: ReactNode;
   item: FileSystemItem | undefined;
   onClosed: () => void;
 }) {
   // The recents with nothing selected have nothing to make or paste, so the
   // menu would open empty.
-  if (!props.item && !props.onNewFolder && !props.paste) {
+  if (!folded && !props.item && !props.onNewFolder && !props.paste) {
     return null;
   }
   return (
@@ -3247,6 +3259,7 @@ function FolderOverflowMenu({
           onClosed();
         }}
       >
+        {folded}
         <FolderMenuItems
           {...props}
           menuComponents={dropdownMenuComponents}

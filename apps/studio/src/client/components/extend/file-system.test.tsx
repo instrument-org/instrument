@@ -1,3 +1,9 @@
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
 import { renderWithProviders } from "@/tests/render";
 import { installWindowStubs } from "@/tests/window-stubs";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
@@ -1877,5 +1883,113 @@ describe("FileSystem's List", () => {
     fireEvent.click(first);
     fireEvent.keyDown(first, { key: "z" });
     expect(reported()).toEqual(["b.md"]);
+  });
+});
+
+describe("the toolbar", () => {
+  const ITEMS: FileSystemItem[] = [
+    { kind: "file", path: "notes.txt" },
+    { kind: "file", path: "pricing.md" },
+  ];
+  /** The browser at `width`, its controls drawn into a row of the host's beside its More menu. */
+  function renderToolbar(width: number) {
+    const measured = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockReturnValue(width);
+    const lead = document.createElement("div");
+    document.body.append(lead);
+    onTestFinished(() => {
+      measured.mockRestore();
+      lead.remove();
+    });
+    const onViewChange = vi.fn();
+    renderWithProviders(
+      <FileSystem
+        defaultView="icons"
+        items={ITEMS}
+        onViewChange={onViewChange}
+        renderHeaderActions={(folded) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger aria-label="More">⋯</DropdownMenuTrigger>
+            <DropdownMenuContent>
+              {folded}
+              <DropdownMenuItem>New Folder</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        toolbarInto={{ lead, tail: null }}
+      />,
+    );
+    const controls = () =>
+      [...lead.querySelectorAll("button, input")].map(
+        (control) =>
+          control.getAttribute("aria-label") ??
+          control.getAttribute("placeholder"),
+      );
+    return { controls, onViewChange };
+  }
+
+  it("keeps the views, sort and More beside the field while searching", () => {
+    const { controls } = renderToolbar(800);
+    expect(controls()).toEqual([
+      "Grid view",
+      "Table view",
+      "Columns view",
+      "List view",
+      "Sort by",
+      "More",
+      "Search files",
+    ]);
+    expect(screen.getByRole("searchbox").getAttribute("placeholder")).toBe(
+      "Search Files",
+    );
+
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "pricing" },
+    });
+
+    expect(controls()).toEqual([
+      "Grid view",
+      "Table view",
+      "Columns view",
+      "List view",
+      "Sort by",
+      "More",
+      "Search files",
+      "Clear search",
+    ]);
+  });
+
+  it("folds the views and sort into More where the toolbar is narrow", () => {
+    const { controls, onViewChange } = renderToolbar(400);
+    expect(controls()).toEqual(["More", "Search files"]);
+    expect(screen.getByRole("searchbox").getAttribute("placeholder")).toBe(
+      "Search",
+    );
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "More" }), {
+      button: 0,
+      pointerType: "mouse",
+    });
+    expect(
+      screen.getAllByRole("menuitemradio").map((item) => item.textContent),
+    ).toEqual(["Grid", "Table", "Columns", "List"]);
+    expect(screen.getByRole("menuitem", { name: "Sort by" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "List" }));
+    expect(onViewChange).toHaveBeenCalledWith("list");
+  });
+
+  it("shows a search button under 320px, which folds back to the words searched", () => {
+    const { controls } = renderToolbar(300);
+    expect(controls()).toEqual(["More", "Search"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "pricing" },
+    });
+    fireEvent.blur(screen.getByRole("searchbox"));
+
+    expect(controls()).toEqual(["More", "Search: pricing"]);
   });
 });

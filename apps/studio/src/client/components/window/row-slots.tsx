@@ -36,9 +36,11 @@ export function useRowSlots() {
       // the field. It takes the field's rounding, so what draws to the
       // field's edges in it (the load line) is cut by the field's corners.
       fieldEnd: <div className="contents rounded-[inherit]" ref={setField} />,
+      // Taking the row's room where what is drawn into it asks for it (the
+      // folder's controls, with no file beside it, at the row's right edge).
       leading: (
         <div
-          className="flex shrink-0 items-center empty:hidden"
+          className="peer flex shrink-0 items-center empty:hidden has-[>[data-fills-row]]:min-w-0 has-[>[data-fills-row]]:flex-1"
           ref={setLead}
         />
       ),
@@ -63,9 +65,12 @@ export function useRowSlots() {
         ref={setView}
       />
     ),
-    /** The `viewTools` slot, for the middle of a `ScreenToolsRow`. */
+    /** The `viewTools` slot, for the middle of a `ScreenToolsRow`, away while the lead takes the row. */
     viewTools: (
-      <div className="flex min-w-0 flex-1 items-center" ref={setViewTools} />
+      <div
+        className="flex min-w-0 flex-1 items-center peer-has-[>[data-fills-row]]:hidden"
+        ref={setViewTools}
+      />
     ),
   };
 }

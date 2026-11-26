@@ -37,13 +37,16 @@ In this order:
 
 - **Cut what the screen already says.** A title or button that explains itself needs no description, and a true clause that changes nothing ("then comes right back here"), spells out the obvious, or repeats another screen goes: "Drag a file here to add it to this folder you're looking at" is "Drag a file here to add it."
 - **Use the familiar phrase**: what macOS, Chrome or ChatGPT say for the same thing, or what the app's own sibling message says.
+- **Name a concept as familiar software does**: tab, window, tab group, chat, folder, page, with that convention's shortcut (⌘T a tab, ⌘N a window). Never coin a noun people haven't met in software.
 - **State what happened or what the person can do**, not the mechanism behind it. A status or an error can be a fragment or passive: "Thanks! Feedback submitted.", "Error sending your feedback", "Icon updated". A description is a full sentence.
 - **Trust the reader with the ordinary word**: "Scale the app" over "Make the app larger or smaller". Data is stored, and a folder the app won't open is protected. Say has, fits, continues, or shows over "can hold", "carries on" or "sends back"; agents reach for "hold" far more often than people do, so rewrite a line where it turns up. Name the real noun over "something like", or cut the clause.
 - **Keep the app a tool.** It has no "we" or "us" and doesn't keep, want, hear or know, and a thing has no possessions ("model limits" over "the model's limit"). The people behind it are "the Instrument team".
 - **Echo the button.** A line beside Send again says "try sending again".
 - **Put warmth in a word**: "Thanks!", "Please check your edits", "enjoy". "Create an account to enjoy free AI usage" says "enjoy" on purpose, so a cleanup pass leaves a word like that alone.
 
-Also avoid telegraphic descriptions that drop the subject or the small words ("Adds to what Instrument already knows"), negative contrast that denies what nobody claimed ("Adds to your memories, never replaces them"), and clipped commands with a vague "it" ("Repeat it for each AI you use"). A line that works: "Importing adds to what Instrument remembers, so you can bring in memories from every AI you use."
+A person who misread or missed something is not helped by a longer line, since people skim: change what is shown, where it lives, or a control's label or state, and keep any copy to a small part of that.
+
+Also avoid telegraphic descriptions that drop the subject or the small words ("Adds to what Instrument already knows"), negative contrast that denies what nobody claimed ("Adds to your memories, never replaces them"), clipped commands with a vague "it" ("Repeat it for each AI you use"), and a switch row's description that changes with the switch: it reads true on or off, and the switch alone shows the state. A line that works: "Importing adds to what Instrument remembers, so you can bring in memories from every AI you use."
 
 An email from a person on the team is the other voice: "Hi Sam", "we", contractions, whole sentences the way you'd talk.
 
@@ -76,6 +79,8 @@ Move its pin with `pnpm scripts:update-registry`, which takes the skills repo's 
 - Avoid casts. Prefer `satisfies`; use `as` only for genuinely different types (e.g. unknown payloads), and say why.
 - Reuse existing types/interfaces rather than redefining per file. Prefer short inline non-exported types.
 - Use `radashi` for common lodash-style functions.
+- A `check:types` error listing members the file on disk does not have is a stale `apps/studio/tsconfig.tsbuildinfo` (the app config is incremental): delete it and run again.
+- Scripts run as `node x.ts` with Node's type stripping. `import { type X } from` still loads the module; take a type from a module that can't load under plain node with a top-level `import type`, and give relative imports their `.ts`.
 - `tsc` is TypeScript 7, the native compiler; run it through `check:types` (below) or lean on built-in diagnostics. `typescript` 7 has no compiler JS API, so a tool that needs one cannot use it.
 
 ## Tailwind
@@ -128,7 +133,10 @@ It does not cover type errors, tests in another package that import what you edi
 
 - After a manual `git worktree add`, run `.claude/hooks/worktree-setup.sh <path>` (env files Studio needs, `registry/`, deps). Hooks do it only for sessions started inside a worktree or via EnterWorktree.
 - A worktree Claude Code makes starts from the local `HEAD`, main's unpushed commits included. Land it with `scripts/land.sh` from inside it; its header covers the checks, `--onto` and the CI gate. Never push a worktree's commits straight to a shared branch on origin, which leaves the local one behind, and never discard or stash another session's uncommitted edits to get a landing through.
+- A branch pushed for a pull request carries those unpushed commits too, and the repo is public: check `git rev-list --count origin/main..main` before its first push, and when main is ahead, push main first or base the branch on `origin/main`.
+- After a worktree rebases (`land.sh` included), run `pnpm install` there before trusting a test or type failure: a dependency main gained shows up as `Failed to resolve import` or TS2307, not as an install error. When pnpm says "Already up to date" over a broken tree, delete `node_modules/.pnpm-workspace-state-v1.json` (and `node_modules/.package-map.json`, where there is one) and install again.
 - In a checkout other sessions commit in (the primary one above all), commit by path with `scripts/commit.sh -F <message-file> <path>...` and amend your own commit with `scripts/commit.sh --amend <sha>`, never `git commit --amend`. Usage in its header.
+- A green suite in a checkout other sessions edit tests their edits as well as your commit. To check a commit made there, check it out detached in a throwaway worktree (`git worktree add --detach <tmp> <sha>`, `worktree-setup.sh <tmp>`) and run `pnpm check-and-test:ci` there with `TURBO_FORCE=1`, so Turbo serves no cached pass.
 - Run Studio with `studio-drive.mjs boot --purpose <purpose>` (`studio-chrome-devtools` skill), never `pnpm dev` directly: several checkouts can run at once, and the skill covers ports and disposable workspaces.
 
 ## Tests
@@ -156,7 +164,7 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 
 - `docs/README.md`: the knowledge-base index and provenance.
 - `docs/architecture/` — evergreen maps of a subsystem or domain and how it layers together, edited in place as the code changes. One file per subsystem.
-- `docs/findings/` — non-obvious issues, what we tried, what might resolve them later. One file per finding.
+- `docs/findings/` — non-obvious issues, what we tried, what might resolve them later. One file per finding. There is no issue tracker outside the repo: a bug found in passing is fixed or recorded here, and a GitHub issue is opened only when asked.
 - `docs/plans/` — execution plans for non-trivial work, one file per plan in one folder, each opening with `Status: open|done|superseded|dropped.` (`rg -m1 '^Status: open' docs/plans` lists the open ones). `pnpm fix` regenerates the section indexes; `pnpm check:docs` fails on a broken link, a cited path that no longer exists, or a stale index.
 - `docs/follow-ups/`: checks we owe later, each with the signal to look for and a date to look. A change that ships logging, a counter or a cap to learn from later adds one in the same commit. When working in an area, check its index for a follow-up past its date.
 - `docs/principles/`: the standing rules behind many decisions. Before raising a product or design question, check here; if one answers it, cite it and go.

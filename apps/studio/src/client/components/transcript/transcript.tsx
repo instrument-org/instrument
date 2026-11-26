@@ -1,5 +1,12 @@
-import { chatSeparators } from "@/client/lib/chat-separators";
-import { instructionsChanges } from "@/client/lib/instructions-changes";
+import {
+  type ChatSeparator,
+  chatSeparators,
+} from "@/client/lib/chat-separators";
+import {
+  type InstructionsChange,
+  instructionsChanges,
+} from "@/client/lib/instructions-changes";
+import { isEqual } from "radashi";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   type CardFileVersion,
@@ -94,9 +101,25 @@ export function Transcript({
 }) {
   const [cache] = useState<TurnsCache>(() => new Map());
   const turns = turnsOf(messages, { isRunning, sessionId }, cache);
-  const separators = useMemo(() => chatSeparators(messages), [messages]);
-  const changes = useMemo(() => instructionsChanges(messages), [messages]);
-  const versions = useMemo(() => cardFileVersions(messages), [messages]);
+  // What each turn is drawn with keeps its object while it is equal, so a
+  // token streaming into the last reply leaves every other turn's memo whole.
+  const [kept] = useState<KeptPerTurn>(() => ({
+    changes: new Map(),
+    separators: new Map(),
+    versions: new Map(),
+  }));
+  const separators = useMemo(
+    () => keepEqual(kept.separators, chatSeparators(messages)),
+    [kept, messages],
+  );
+  const changes = useMemo(
+    () => keepEqual(kept.changes, instructionsChanges(messages)),
+    [kept, messages],
+  );
+  const versions = useMemo(
+    () => keptTurnVersions(kept.versions, cardFileVersions(messages), turns),
+    [kept, messages, turns],
+  );
   const actions = useStableActions({
     isRunning,
     onBranch,
@@ -122,8 +145,8 @@ export function Transcript({
   const pausedAtMaxSteps =
     !isRunning && last?.replies.at(-1)?.metadata.finishReason === "max-steps";
   const drawTurn = (turn: Turn) => (
-    <CardFileVersionsContext key={turn.id} value={turnVersions(versions, turn)}>
-      <LinkedTabsContext value={linkedTabsOf(turn.replies)}>
+    <CardFileVersionsContext key={turn.id} value={versions.get(turn.id)}>
+      <LinkedTabsContext value={turnLinkedTabs(turn)}>
         <TurnView
           chatId={chatId}
           changes={turn.opener && changes.get(turn.opener.message.id)}
@@ -315,13 +338,80 @@ function useStableActions(actions: TranscriptActions): TranscriptActions {
   );
 }
 
-/** The files a turn's replies draw other than as they are now, merged. */
-function turnVersions(
+type TurnVersions = ReadonlyMap<string, CardFileVersion>;
+
+/** The last values handed to each turn, by message or turn id. */
+interface KeptPerTurn {
+  changes: Map<StoreId.Message, InstructionsChange[]>;
+  separators: Map<StoreId.Message, ChatSeparator>;
+  versions: Map<StoreId.Message, TurnVersions>;
+}
+
+/**
+ * `next`, with each value equal to the one `kept` has for its key swapped for
+ * that one; `kept` becomes what is returned.
+ */
+function keepEqual<V>(
+  kept: Map<StoreId.Message, V>,
+  next: Map<StoreId.Message, V>,
+): Map<StoreId.Message, V> {
+  for (const [key, value] of next) {
+    const was = kept.get(key);
+    if (was !== undefined && isEqual(was, value)) {
+      next.set(key, was);
+    }
+  }
+  kept.clear();
+  for (const [key, value] of next) {
+    kept.set(key, value);
+  }
+  return next;
+}
+
+/**
+ * The files each turn's replies draw other than as they are now, merged, by
+ * turn; a turn whose files read as before keeps its map.
+ */
+function keptTurnVersions(
+  kept: Map<StoreId.Message, TurnVersions>,
   versions: ReturnType<typeof cardFileVersions>,
-  turn: Turn,
-): ReadonlyMap<string, CardFileVersion> | undefined {
-  const found = turn.replies.flatMap((reply) => [
-    ...(versions.get(reply.id) ?? []),
-  ]);
-  return found.length === 0 ? undefined : new Map(found);
+  turns: readonly Turn[],
+): Map<StoreId.Message, TurnVersions> {
+  const byTurn = new Map<StoreId.Message, TurnVersions>();
+  for (const turn of turns) {
+    const found = turn.replies.flatMap((reply) => [
+      ...(versions.get(reply.id) ?? []),
+    ]);
+    if (found.length === 0) {
+      continue;
+    }
+    const next = new Map(found);
+    const was = kept.get(turn.id);
+    byTurn.set(
+      turn.id,
+      was !== undefined &&
+        was.size === next.size &&
+        [...next].every(([path, version]) => isEqual(was.get(path), version))
+        ? was
+        : next,
+    );
+  }
+  kept.clear();
+  for (const [key, value] of byTurn) {
+    kept.set(key, value);
+  }
+  return byTurn;
+}
+
+const linkedTabsByReplies = new WeakMap<
+  Turn["replies"],
+  ReturnType<typeof linkedTabsOf>
+>();
+
+/** The pages of the tabs a turn's replies linked, the same object while they are. */
+function turnLinkedTabs(turn: Turn): ReturnType<typeof linkedTabsOf> {
+  if (!linkedTabsByReplies.has(turn.replies)) {
+    linkedTabsByReplies.set(turn.replies, linkedTabsOf(turn.replies));
+  }
+  return linkedTabsByReplies.get(turn.replies);
 }

@@ -111,6 +111,11 @@ function kindOf(
 // block, or empty with the value on the lines under it.
 const YAML_VALUE = /^(?:["'[{|>]|$)/;
 
+// An email address. In brackets with nothing else, a value is a list of one
+// address; anything else alone in brackets, `to: [Landlord's name and email]`,
+// is a placeholder for the person to fill in, kept as written.
+const ADDRESS = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/;
+
 /**
  * Front matter's fields. A plain value is its line's text as written, since
  * YAML would read `subject: Invoice #4521` as "Invoice" and a comment; only a
@@ -118,12 +123,16 @@ const YAML_VALUE = /^(?:["'[{|>]|$)/;
  */
 function readFrontMatter(yaml: string): Partial<Record<Field, string>> {
   const fields: Partial<Record<Field, string>> = {};
+  const written: Partial<Record<Field, string>> = {};
   for (const line of yaml.split("\n")) {
     const match = HEADER_LINE.exec(line);
     const key = match?.[1]?.toLowerCase();
     const value = (match?.[2] ?? "").trim();
-    if (isField(key) && !YAML_VALUE.test(value)) {
-      fields[key] = value;
+    if (isField(key)) {
+      written[key] = value;
+      if (!YAML_VALUE.test(value)) {
+        fields[key] = value;
+      }
     }
   }
   let parsed: unknown;
@@ -141,9 +150,14 @@ function readFrontMatter(yaml: string): Partial<Record<Field, string>> {
         value !== null &&
         value !== undefined
       ) {
-        fields[field] = Array.isArray(value)
-          ? value.map(String).join(", ")
-          : String(value).trim();
+        const asWritten = written[field];
+        fields[field] = !Array.isArray(value)
+          ? String(value).trim()
+          : asWritten?.startsWith("[") &&
+              value.length === 1 &&
+              !ADDRESS.test(String(value[0]))
+            ? asWritten
+            : value.map(String).join(", ");
       }
     }
     return fields;

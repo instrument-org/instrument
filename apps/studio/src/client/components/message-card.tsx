@@ -220,7 +220,9 @@ export function MessageCard({
           <CopyablePart label="Copy subject" value={message.subject}>
             <p className="text-sm">
               <span className="mr-1 text-muted-foreground">Subject</span>{" "}
-              <span className="font-semibold">{message.subject}</span>
+              <span className="font-semibold">
+                <WithPlaceholders text={message.subject} />
+              </span>
             </p>
           </CopyablePart>
         </div>
@@ -228,7 +230,7 @@ export function MessageCard({
       <div className="px-1.5 py-1.5">
         <CopyablePart label="Copy body" value={message.body}>
           <p className="text-sm/[1.55] whitespace-pre-wrap">
-            {message.body || " "}
+            {message.body ? <WithPlaceholders text={message.body} /> : " "}
           </p>
         </CopyablePart>
       </div>
@@ -559,8 +561,26 @@ function Recipient({ to }: { to: string }) {
       <CopyableAddress address={part} key={index} />
     ) : (
       <span className="text-foreground" key={index}>
+        <WithPlaceholders text={part} />
+      </span>
+    ),
+  );
+}
+
+// A bracketed fill-in the agent left for the person, `[Landlord's name]`;
+// not a link's label, which a `(` follows.
+const PLACEHOLDER = /(\[[^[\]\n]+\](?!\())/;
+
+/** Text with each placeholder in it muted, so it reads as a blank to fill. */
+function WithPlaceholders({ text }: { text: string }) {
+  // A capturing split leaves every placeholder at an odd index.
+  return text.split(PLACEHOLDER).map((part, index) =>
+    index % 2 === 1 ? (
+      <span className="text-muted-foreground" key={index}>
         {part}
       </span>
+    ) : (
+      part
     ),
   );
 }

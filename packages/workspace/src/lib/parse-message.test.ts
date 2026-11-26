@@ -74,6 +74,18 @@ describe("parseMessage", () => {
     expect(parseMessage("---\nto: [Ana, Bo]\n---\nHi").to).toBe("Ana, Bo");
   });
 
+  it.each([
+    [
+      "a placeholder",
+      "[Landlord's name and email]",
+      "[Landlord's name and email]",
+    ],
+    ["a one-word placeholder", "[Name]", "[Name]"],
+    ["a list of one address", "[sam@example.com]", "sam@example.com"],
+  ])("reads %s in brackets", (_name, written, to) => {
+    expect(parseMessage(`---\nto: ${written}\n---\nHi`).to).toBe(to);
+  });
+
   it("reads front matter under a byte-order mark and closed with dots", () => {
     const message = parseMessage("﻿---\nto: Ana\n...\nHi");
     expect([message.to, message.body]).toEqual(["Ana", "Hi"]);

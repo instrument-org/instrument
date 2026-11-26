@@ -7,6 +7,7 @@ import { layoutPictureRows } from "./picture-rows-layout";
 const THREE = [1.5, 1, 0.7];
 const PANO_AND_TALL = [3, 0.46];
 const FIVE = [1.5, 1, 0.7, 1.78, 0.46];
+const FOUR_SQUARES = [1, 1, 1, 1];
 
 /** Each row as `width x height` per picture, the room a short row leaves after it. */
 function rowsOf(ratios: number[], width: number) {
@@ -24,6 +25,7 @@ test("lays a set out in rows that share a height, at a wide and a narrow chat", 
   expect({
     five: rowsOf(FIVE, 736),
     fiveNarrow: rowsOf(FIVE, 372),
+    fourSquaresNarrow: rowsOf(FOUR_SQUARES, 388),
     panoAndTall: rowsOf(PANO_AND_TALL, 736),
     three: rowsOf(THREE, 736),
   }).toMatchInlineSnapshot(`
@@ -32,8 +34,8 @@ test("lays a set out in rows that share a height, at a wide and a narrow chat", 
         "333x223",
         "222x223",
         "157x223",
-        "356x200",
-        "92x200 +276",
+        "396x223",
+        "102x223 +226",
       ],
       "fiveNarrow": [
         "216x144",
@@ -41,6 +43,12 @@ test("lays a set out in rows that share a height, at a wide and a narrow chat", 
         "101x145",
         "259x145",
         "73x160 +299",
+      ],
+      "fourSquaresNarrow": [
+        "188x188",
+        "188x188",
+        "188x188",
+        "188x188",
       ],
       "panoAndTall": [
         "736x245",

@@ -67,11 +67,14 @@ export function layoutPictureRows(
   const fit = (row: number[]) => (W - g * (row.length - 1)) / sum(row);
 
   const rows: { fills: boolean; height: number; row: number[] }[] = [];
+  // A short last row may be as tall as the full row above it, so a set of
+  // like pictures ends at the size it started.
+  let fullHeight = H;
   const closeShort = (row: number[]) => {
     if (row.length === 0) {
       return;
     }
-    const height = Math.min(H, fit(row));
+    const height = Math.min(fullHeight, fit(row));
     rows.push({ fills: height === fit(row), height, row });
   };
 
@@ -92,9 +95,11 @@ export function layoutPictureRows(
       current.length > 0 &&
       Math.abs(fit(current) - H) < Math.abs(fit(next) - H)
     ) {
+      fullHeight = Math.max(H, fit(current));
       rows.push({ fills: true, height: fit(current), row: current });
       current = [index];
     } else {
+      fullHeight = Math.max(H, fit(next));
       rows.push({ fills: true, height: fit(next), row: next });
       current = [];
     }

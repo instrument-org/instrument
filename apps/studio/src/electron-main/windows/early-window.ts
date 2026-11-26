@@ -15,7 +15,11 @@ import {
   appWindowOptions,
   rememberedStateOf,
 } from "@/electron-main/windows/app-window-options";
-import { putOnScreen } from "@/electron-main/windows/on-screen";
+import { holdThroughBoot } from "@/electron-main/windows/early-window-hold";
+import {
+  isHeldOffScreen,
+  putOnScreen,
+} from "@/electron-main/windows/on-screen";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import { WINDOW_CARD_GAP } from "@/shared/constants";
 import { app, BrowserWindow } from "electron";
@@ -30,8 +34,14 @@ export function launchWindowIds(): string[] {
   return open.length > 0 ? open : [closed[0] ?? FIRST_APP_WINDOW_ID];
 }
 
-/** The launch's first window, up before the rest of main has loaded. */
-let early: { id: string; window: BrowserWindow } | undefined;
+/**
+ * The launch's first window, made before the rest of main has loaded. Once
+ * it is on screen, `letGo` lets go of what is held back meanwhile
+ * (`holdThroughBoot`); `taken` once boot has adopted it.
+ */
+let early:
+  | { id: string; letGo?: () => void; taken: boolean; window: BrowserWindow }
+  | undefined;
 
 /**
  * Puts the window the launch brings back in front on screen as soon as
@@ -55,15 +65,19 @@ export function showEarlyWindow() {
   const window = new BrowserWindow(
     appWindowOptions(id, { bounds: remembered.bounds, isSpare: false }),
   );
+  early = { id, taken: false, window };
   try {
     setTrafficLightForZoom(window, getAppZoom(), WINDOW_CARD_GAP);
     putOnScreen(window, { maximized: remembered.isMaximized });
   } catch (error) {
-    // Boot opens it as any other, rather than beside one that never came up.
-    window.destroy();
+    // Boot opens it as any other and then drops this one. Hidden until then
+    // rather than closed: closing the only window quits outside macOS.
+    window.hide();
     throw error;
   }
-  early = { id, window };
+  early.letGo = holdThroughBoot(window, {
+    canFocus: () => !isHeldOffScreen(window),
+  });
   logBootMark(`window ${id} on screen`);
 }
 
@@ -71,6 +85,10 @@ function opensAsUsual() {
   return (
     // A development run waits for the one it replaces to let go of the
     // window's profile (`waitForPreviousDevInstance`) before it opens it.
+    // That wait is for `pnpm dev`'s rebuilds, which only a development
+    // build has, so an unpackaged built app (`is.dev`, which the wait
+    // checks) still comes up early: nothing restarts it over a profile its
+    // predecessor holds.
     !import.meta.env.DEV &&
     getWorkspaceRefusal() === undefined &&
     isSetupSettled() &&
@@ -91,22 +109,30 @@ function opensAsUsual() {
 
 /**
  * The early window, for boot to make the window it brings back under `id`,
- * once. None where it was not shown, is not that window, or was closed.
- * Boot closes one it does not take (`dropEarlyWindow`).
+ * once. None where it did not come up, is not that window, or was closed.
+ * Boot then lets go of it (`dropEarlyWindow`).
  */
 export function takeEarlyWindow(id: string): BrowserWindow | undefined {
-  if (early?.id !== id) {
+  if (!early?.letGo || early.taken || early.id !== id) {
     return undefined;
   }
-  const { window } = early;
-  early = undefined;
-  return window.isDestroyed() ? undefined : window;
+  early.taken = true;
+  return early.window.isDestroyed() ? undefined : early.window;
 }
 
-/** Closes the early window when boot brought the launch's windows back without it. */
+/**
+ * Lets go of the early window once boot has brought the launch's windows
+ * back, closing it where boot did not take it, and lets a quit asked for
+ * meanwhile go ahead.
+ */
 export function dropEarlyWindow() {
-  if (early && !early.window.isDestroyed()) {
-    early.window.destroy();
+  if (!early) {
+    return;
   }
+  const { letGo, taken, window } = early;
   early = undefined;
+  if (!taken && !window.isDestroyed()) {
+    window.destroy();
+  }
+  letGo?.();
 }

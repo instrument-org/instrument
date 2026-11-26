@@ -113,10 +113,32 @@ describe("where an agent's open from its chat lands", () => {
       { after: "b", front: true, kind: "insert", side: 1 },
     ],
     [
-      "B: an agent's page goes there in front too",
+      "B: an agent's page waits behind the person's tab up there",
       windowOf([chatTab, page("a", 1)], "chat", "a"),
       AGENT,
-      { after: "a", front: true, kind: "insert", side: 1 },
+      { after: "a", front: false, kind: "insert", side: 1 },
+    ],
+    [
+      "B: an agent's page comes up over its own page up there",
+      windowOf([chatTab, page("a", 1), page("mine", 1, CHAT)], "chat", "mine"),
+      AGENT,
+      { after: "mine", front: true, kind: "insert", side: 1 },
+    ],
+    [
+      "B: another chat's page up there is not its own",
+      windowOf(
+        [chatTab, page("theirs", 1, ChatIdSchema.parse("2026-11-14-other"))],
+        "chat",
+        "theirs",
+      ),
+      AGENT,
+      { after: "theirs", front: false, kind: "insert", side: 1 },
+    ],
+    [
+      "B: with the keyboard on its own page up there, behind",
+      windowOf([chatTab, page("mine", 1, CHAT)], "mine", "chat"),
+      AGENT,
+      { after: "mine", front: false, kind: "insert", side: 1 },
     ],
     [
       "B: with the keyboard in the right side, behind",
@@ -127,7 +149,7 @@ describe("where an agent's open from its chat lands", () => {
     [
       "B: a New Tab beside another tab on the right is in use",
       windowOf([chatTab, page("a", 1), newTab("blank", 1)], "chat", "a"),
-      AGENT,
+      SHOWN,
       { after: "blank", front: true, kind: "insert", side: 1 },
     ],
     [
@@ -155,11 +177,21 @@ describe("where an agent's open from its chat lands", () => {
       { after: "chat", front: false, kind: "insert", side: 1 },
     ],
     [
-      "the agent's next page goes after its last, on the right",
+      "the agent's next page goes after its last, on the right, behind the person's tab",
       windowOf(
-        [chatTab, page("a", 1), page("mine", 1), page("z", 1)],
+        [chatTab, page("a", 1), page("mine", 1, CHAT), page("z", 1)],
         "chat",
         "a",
+      ),
+      { ...AGENT, previous: "mine" },
+      { after: "mine", front: false, kind: "insert", side: 1 },
+    ],
+    [
+      "the agent's next page comes up over its last when that is up",
+      windowOf(
+        [chatTab, page("a", 1), page("mine", 1, CHAT), page("z", 1)],
+        "chat",
+        "mine",
       ),
       { ...AGENT, previous: "mine" },
       { after: "mine", front: true, kind: "insert", side: 1 },

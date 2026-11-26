@@ -170,16 +170,28 @@ function personPlacementOf(
  *   in place of an unwritten New Tab that is all that side has, else as that
  *   side's last tab.
  *
- * It comes to the front on the chat's side only when shown, and on the
- * other side unless the keyboard is there.
+ * It comes to the front on the chat's side only when shown. On the other
+ * side it never comes up while the keyboard is there, and otherwise comes
+ * up when shown or when what is up there is the agent's own page, so a tab
+ * the person has up stays up.
  */
 export function agentPlacementOf(
   layout: GroupLayout,
   { chatTab, isShown = false, previous }: BesideAsk,
 ): BesidePlacement {
   const chatSide = sideIndexOf(layout, chatTab) ?? 0;
+  const tabs = layout.sides.flatMap((side) => side.tabs);
+  const chatTabEntry = tabs.find((tab) => tab.id === chatTab);
+  const chat = chatTabEntry === undefined ? undefined : chatOfTab(chatTabEntry);
+  const isOwnUp = (side: 0 | 1) => {
+    const up = layout.sides[side]?.up;
+    const upTab = tabs.find((tab) => tab.id === up);
+    return chat !== undefined && upTab?.openedBy === chat;
+  };
   const isFront = (side: 0 | 1) =>
-    side === chatSide ? isShown : layout.focused !== side;
+    side === chatSide
+      ? isShown
+      : layout.focused !== side && (isShown || isOwnUp(side));
   // Never to the left of a chat on the right, wherever the last page went:
   // not on the left, and not before the chat in its own strip.
   const after =

@@ -1,3 +1,5 @@
+import { type BookmarkRoot } from "@/shared/bookmarks";
+
 import { type SidebarDrop } from "../sidebar-drop";
 import { type Rect } from "./landing";
 
@@ -141,10 +143,17 @@ export type Landing =
       tab: string;
     }
   | {
-      /** The bar's folder it goes into, at `index` among what is in it; on the bar itself without one. */
+      /**
+       * The bar's chip under the pointer whose menu a rest there opens: a
+       * folder's id, All Bookmarks' root, or the chevron's
+       * (`OVERFLOW_CHIP`).
+       */
+      chip?: string;
+      /** The folder it goes into, at `index` among what is in it; loose in `root` without one, the bar without either. */
       folder?: string;
       index: number;
       kind: "bookmarks";
+      root?: BookmarkRoot;
     }
   | { kind: "window" };
 

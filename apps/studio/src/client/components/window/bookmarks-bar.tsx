@@ -30,7 +30,6 @@ import { cn } from "@/client/lib/utils";
 import { barItems, OTHER_ROOT, rootItems } from "@/shared/bookmarks";
 import { folderHref } from "@/shared/computer-href";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
-import { CaretDoubleRightIcon } from "@phosphor-icons/react/CaretDoubleRight";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { StarIcon } from "@phosphor-icons/react/Star";
@@ -52,7 +51,7 @@ import {
   BookmarkNameDialog,
   FolderChip,
   OtherBookmarksChip,
-  OverflowFolder,
+  OverflowChip,
   useOpenFolder,
 } from "./bookmark-folders";
 import { dragAtom } from "./drag/session";
@@ -65,6 +64,8 @@ import {
   useBookmarksTarget,
   marksBesides,
   useBarDropLine,
+  OVERFLOW_CHIP,
+  SPRING_OPEN_MS,
 } from "./drag/use-bookmarks-drag";
 import { AppsMark } from "./apps-mark";
 import { ChatsMark } from "./chats-mark";
@@ -193,9 +194,14 @@ function Bar({ bleeds = false, files, onOpen, onVisit }: BarProps) {
   const overflow = items.slice(fitting);
   const drag = useAtomValue(dragAtom);
   const litFolder =
-    drag?.landing?.kind === "bookmarks" ? drag.landing.folder : undefined;
+    drag?.landing?.kind === "bookmarks" ? drag.landing.chip : undefined;
   useBookmarksTarget({
     area: () => bar.current,
+    others: () =>
+      bar.current?.querySelector<HTMLElement>("[data-other-bookmarks]") ?? null,
+    overflow: () =>
+      bar.current?.querySelector<HTMLElement>("[data-bookmarks-overflow]") ??
+      null,
     row: () => row.current,
     start: () => start.current,
   });
@@ -315,37 +321,15 @@ function Bar({ bleeds = false, files, onOpen, onVisit }: BarProps) {
               </div>
             )}
             {overflow.length > 0 && (
-              <DropdownMenu modal={false}>
-                <DropdownMenuTrigger
-                  aria-label="More bookmarks"
-                  className="grid size-6 shrink-0 cursor-default place-items-center rounded-md text-foreground/60 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8"
-                >
-                  <CaretDoubleRightIcon className="size-3.5" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="max-w-72 min-w-48">
-                  {overflow.map((item) =>
-                    item.kind === "folder" ? (
-                      <OverflowFolder
-                        folder={item.folder}
-                        items={item.items}
-                        key={item.folder.id}
-                        open={open}
-                      />
-                    ) : (
-                      <DropdownMenuItem
-                        key={item.bookmark.id}
-                        {...bookmarkClicks(item.bookmark.url, open)}
-                        title={item.bookmark.url}
-                      >
-                        <AddressMark address={item.bookmark.url} />
-                        <span className="min-w-0 truncate">
-                          {bookmarkName(item.bookmark)}
-                        </span>
-                      </DropdownMenuItem>
-                    ),
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <OverflowChip
+                {...chip(OVERFLOW_CHIP)}
+                isLit={
+                  drag?.landing?.kind === "bookmarks" &&
+                  drag.landing.chip === OVERFLOW_CHIP
+                }
+                items={overflow}
+                open={open}
+              />
             )}
             {others.length > 0 && (
               <div className="ml-auto flex shrink-0 items-center">
@@ -355,6 +339,10 @@ function Bar({ bleeds = false, files, onOpen, onVisit }: BarProps) {
                 />
                 <OtherBookmarksChip
                   {...chip(OTHER_ROOT)}
+                  isLit={
+                    drag?.landing?.kind === "bookmarks" &&
+                    drag.landing.chip === OTHER_ROOT
+                  }
                   items={others}
                   open={open}
                 />
@@ -432,12 +420,9 @@ function BarDropLine({ row }: { row: React.RefObject<HTMLDivElement | null> }) {
 /** Half the gap between two marks of the bar, in px, where the line between them is drawn. */
 const DROP_LINE_GAP = 1;
 
-/** How long something held rests on a folder before its menu opens, to be filed at a place in it. */
-const SPRING_OPEN_MS = 500;
-
 /**
  * Folder menus while something is held, as a browser's bar has them: held
- * on a folder a moment, its menu opens, so what is held can be filed at a
+ * on a folder, the chevron or All Bookmarks a moment, its menu opens, so what is held can be filed at a
  * place in it; and once it lands anywhere, the open menu closes.
  */
 function useFolderMenusInDrag(
@@ -445,7 +430,7 @@ function useFolderMenusInDrag(
 ) {
   const drag = useAtomValue(dragAtom);
   const resting =
-    drag?.landing?.kind === "bookmarks" ? drag.landing.folder : undefined;
+    drag?.landing?.kind === "bookmarks" ? drag.landing.chip : undefined;
   useEffect(() => {
     if (resting === undefined) {
       return;

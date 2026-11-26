@@ -499,8 +499,8 @@ function useLander(
 }
 
 /**
- * Keeps what is held at a place on the bar, or in one of its folders, in
- * its order (`keptAs`): one kept already, the bookmark held or the one kept
+ * Keeps what is held at a place on the bar or in All Bookmarks, or in one
+ * of their folders, in its order (`keptAs`): one kept already, the bookmark held or the one kept
  * for its address, moves there, and anything else is added there.
  */
 function useKeepBookmark() {
@@ -511,16 +511,17 @@ function useKeepBookmark() {
     landing: Extract<Landing, { kind: "bookmarks" }>,
   ) => {
     const state = store.get(bookmarksStateAtom);
-    const { folder } = landing;
+    const { folder, root } = landing;
     // A folder moves along the bar as a bookmark kept there does.
     const keptIds = new Set(
       [...state.bookmarks, ...state.folders].map((each) => each.id),
     );
     const moving = new Set(what.map((each) => each.id));
-    const all = siblingsIn(state, folder);
+    const all = siblingsIn(state, folder, root);
     const there = all.filter((each) => !moving.has(each.id));
     const orders = ordersAt(there, landing.index, what.length, all);
-    const into = folder === undefined ? {} : { folder };
+    const into =
+      folder === undefined ? (root === undefined ? {} : { root }) : { folder };
     void apply(
       what.map((each, index): BookmarkOp => {
         const order = orders[index] ?? orderAfter(all);

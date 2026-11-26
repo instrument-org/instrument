@@ -1336,7 +1336,7 @@ const MarkdownBlock = memo(function MarkdownBlock({
   );
 });
 
-// A streaming text's settled blocks with their math read, by block. Every
+// A streaming message's settled blocks with their math read, by block. Every
 // block before the arriving one comes back on every chunk unchanged, and
 // reading its math may take a parse, so each is read once.
 const blockMath = new Map<string, string>();
@@ -1386,10 +1386,10 @@ export const Markdown = memo(
     chatId,
   }: MarkdownProps) => {
     // A message's blocks may be wrapped as a directive or a tag, which are
-    // read as the fence the renderer draws; a document is drawn as written.
-    // Math may be delimited in ways the parser does not read
-    // (`normalizeMathDelimiters`). While a message streams, its math is read
-    // block by block below, so a block that has stopped growing is read once.
+    // read as the fence the renderer draws, and its math may be delimited in
+    // ways the parser does not read (`normalizeMathDelimiters`); a document is
+    // drawn as written. While a message streams, its math is read block by
+    // block below, so a block that has stopped growing is read once.
     const prepared = useMemo(
       () =>
         numberedListsAfterText(
@@ -1402,8 +1402,11 @@ export const Markdown = memo(
       [documentUrl, isStreaming, written],
     );
     const markdown = useMemo(
-      () => (isStreaming ? prepared : normalizeMathDelimiters(prepared)),
-      [isStreaming, prepared],
+      () =>
+        documentUrl || isStreaming
+          ? prepared
+          : normalizeMathDelimiters(prepared),
+      [documentUrl, isStreaming, prepared],
     );
     const setLookAt = useSetAtom(lookAtAtom);
     const [rehypePlugins, setRehypePlugins] =
@@ -1435,12 +1438,14 @@ export const Markdown = memo(
       () =>
         isStreaming
           ? splitMarkdownBlocks(markdown).map((block, index, all) =>
-              index === all.length - 1
-                ? normalizeMathDelimiters(block)
-                : settledMathOf(block),
+              documentUrl
+                ? block
+                : index === all.length - 1
+                  ? normalizeMathDelimiters(block)
+                  : settledMathOf(block),
             )
           : undefined,
-      [isStreaming, markdown],
+      [documentUrl, isStreaming, markdown],
     );
     const needsMath = useMemo(
       () =>

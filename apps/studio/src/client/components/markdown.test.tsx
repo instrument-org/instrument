@@ -962,6 +962,17 @@ describe("Markdown math", () => {
       { timeout: RAW_HTML_TIMEOUT },
     );
   });
+
+  it.each([
+    ["escaped brackets alone on a line", "\\[Insert name\\]", "[Insert name]"],
+    ["single dollars", "Solve $x + 1 = 3$ first.", "Solve $x + 1 = 3$ first."],
+  ])("leaves %s in a document as written", (_case, markdown, text) => {
+    const { container } = renderWithProviders(
+      <Markdown documentUrl={ROOT_DOCUMENT_URL} markdown={markdown} />,
+    );
+
+    expect(container.querySelector("p")?.textContent).toBe(text);
+  });
 });
 
 describe("Markdown table shape", () => {

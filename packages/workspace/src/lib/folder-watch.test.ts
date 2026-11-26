@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { stopWatchingFolders, watchFolder } from "./folder-watch";
+import { setWorkspaceInFront } from "./in-front";
 
 /**
  * What a watch of one of the person's folders reports: real changes, by
@@ -17,9 +18,12 @@ beforeEach(async () => {
     await fs.mkdtemp(path.join(os.tmpdir(), "folder-watch-")),
   );
   dir = path.join(root, "Skills");
+  // The regular read runs while a window is in front.
+  setWorkspaceInFront(true);
 });
 
 afterEach(async () => {
+  setWorkspaceInFront(false);
   stopWatchingFolders();
   await fs.rm(root, { force: true, recursive: true });
 });
@@ -86,6 +90,21 @@ describe("watchFolder", () => {
 
     const changed = watch.next();
     await write("tidy/scripts/run.sh", "echo\n");
+    await expect(changed).resolves.toBeUndefined();
+  });
+
+  it("finds a deeper change behind every window as one comes forward", async () => {
+    setWorkspaceInFront(false);
+    await write("tidy/SKILL.md", "one\n");
+    const watch = listen({ depth: 0, recheckMs: 300 });
+    await settled();
+
+    await write("tidy/scripts/run.sh", "echo\n");
+    await settled();
+    expect(watch.heard).toBe(0);
+
+    const changed = watch.next();
+    setWorkspaceInFront(true);
     await expect(changed).resolves.toBeUndefined();
   });
 

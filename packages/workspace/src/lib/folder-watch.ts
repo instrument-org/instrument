@@ -4,17 +4,20 @@ import path from "node:path";
 
 import { afterFolderAppears, isFolder } from "./folder-appears";
 import { folderFingerprint } from "./folder-fingerprint";
+import { lookWhileInFront } from "./in-front";
 import { SKILL_ARTIFACT_IGNORE } from "./skill-artifact-ignore";
 
 /** Long enough that a save and the editor's rename around it are one change. */
 const SETTLE_MS = ms("150 milliseconds");
 
 /**
- * How often the folder is read again whatever the watchers said: what they
- * missed (a change deeper than they watch, an event the system dropped, a
- * network or synced folder that reports nothing) is found this late at most.
+ * How often the folder is read again whatever the watchers said, while a
+ * window is in front, and as each comes forward: what they missed (a change
+ * deeper than they watch, an event the system dropped, a network or synced
+ * folder that reports nothing) is found then. Behind every window, the
+ * watchers alone report.
  */
-const RECHECK_MS = ms("5 seconds");
+const RECHECK_MS = ms("1 minute");
 
 /** A folder's state when it is not there, which no fingerprint equals. */
 const GONE = "gone";
@@ -36,8 +39,9 @@ const WATCHED = new Map<string, Watched>();
  * leaves a file as it was is no change (`folder-fingerprint.ts`).
  *
  * The folder and, to `depth`, the folders in it are watched, so an edit
- * there is heard within a beat; everything below is read again every
- * {@link RECHECK_MS}, which also catches what a watcher missed. A watcher
+ * there is heard within a beat; everything below is read again as a window
+ * comes forward and every {@link RECHECK_MS} while one is in front, which
+ * also catches what a watcher missed. A watcher
  * that fails is set up again rather than given up on, and a folder that is
  * removed is waited for again, so neither ends the watch. A folder not made
  * yet (a workspace that never saved a memory has no `Memory/`) is waited for
@@ -54,7 +58,7 @@ export function watchFolder(
   }: {
     depth?: number;
     onChange: () => void;
-    /** How often it is read regardless; the default suits every folder of the person's. */
+    /** How often it is read regardless while a window is in front; the default suits every folder of the person's. */
     recheckMs?: number;
   },
 ): () => void {
@@ -182,15 +186,17 @@ function startWatching(
     return reading;
   };
 
-  const recheck = setInterval(() => {
+  const stopRechecking = lookWhileInFront(() => {
     void read();
   }, recheckMs);
-  recheck.unref();
-  void read();
+  // The first read, unless a window in front has just started it.
+  if (!reading) {
+    void read();
+  }
 
   return () => {
     stopped = true;
-    clearInterval(recheck);
+    stopRechecking();
     clearTimeout(settle);
     stopWaiting?.();
     unwatch();

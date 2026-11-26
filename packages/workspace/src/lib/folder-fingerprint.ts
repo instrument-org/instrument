@@ -92,7 +92,10 @@ export async function filesUnder(
 /** One hash over the files given, whatever order they came in. */
 export function fingerprintOf(files: readonly FileStamp[]): string {
   const hash = createHash("sha1");
-  for (const file of files.toSorted((a, b) => a.path.localeCompare(b.path))) {
+  // Ordered by code unit: any fixed order will do, and collation is slow.
+  for (const file of files.toSorted((a, b) =>
+    a.path < b.path ? -1 : a.path > b.path ? 1 : 0,
+  )) {
     hash.update(`${file.path}\0${file.content}\n`);
   }
   return hash.digest("hex");

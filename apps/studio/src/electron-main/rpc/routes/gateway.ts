@@ -3,6 +3,7 @@ import { refreshExpiredTokens } from "@/electron-main/lib/chatgpt-account";
 import { claudeAccountStatusKnown } from "@/electron-main/lib/claude-account";
 import { refreshExpiredGrokTokens } from "@/electron-main/lib/grok-account";
 import { base } from "@/electron-main/rpc/base";
+import { type InitialRPCContext } from "@/electron-main/rpc/context";
 import {
   AIGatewayModel,
   AIGatewayProviderConfig,
@@ -10,7 +11,7 @@ import {
   modelChoicesFor,
   type ModelRoutes,
 } from "@instrument-org/ai-gateway";
-import { call, eventIterator } from "@orpc/server";
+import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
 import { publisher } from "../publisher";
@@ -56,44 +57,52 @@ function routing(
   };
 }
 
+/**
+ * Every connection's models, fetched or cached. Read by the list and by its
+ * live stream, whose own output validation is the only one it goes through.
+ */
+async function listModels(
+  context: InitialRPCContext,
+): Promise<z.output<typeof ListSchema>> {
+  await Promise.all([
+    refreshExpiredTokens(),
+    refreshExpiredGrokTokens(),
+    claudeAccountStatusKnown(),
+  ]);
+  const providers = context.workspaceConfig.getAIProviderConfigs();
+  const modelsForProviders = await fetchModelResultsForProviders(providers, {
+    captureException: context.workspaceConfig.captureException,
+    modelCache: context.workspaceConfig.modelCache,
+  });
+
+  const errors: ListErrors = [];
+  const models: AIGatewayModel.Type[] = [];
+
+  for (const modelResults of modelsForProviders) {
+    if (modelResults.ok) {
+      models.push(...modelResults.value);
+    } else {
+      errors.push({
+        config: modelResults.error.config,
+        message: modelResults.error.message,
+      });
+    }
+  }
+
+  return {
+    errors,
+    models: withChoices(models),
+    ...routing(providers, context.workspaceConfig.modelRoutes),
+  };
+}
+
 const list = base
   .errors({
     FETCH_ERROR: {},
     PARSE_ERROR: {},
   })
   .output(ListSchema)
-  .handler(async ({ context }) => {
-    await Promise.all([
-      refreshExpiredTokens(),
-      refreshExpiredGrokTokens(),
-      claudeAccountStatusKnown(),
-    ]);
-    const providers = context.workspaceConfig.getAIProviderConfigs();
-    const modelsForProviders = await fetchModelResultsForProviders(providers, {
-      captureException: context.workspaceConfig.captureException,
-      modelCache: context.workspaceConfig.modelCache,
-    });
-
-    const errors: ListErrors = [];
-    const models: AIGatewayModel.Type[] = [];
-
-    for (const modelResults of modelsForProviders) {
-      if (modelResults.ok) {
-        models.push(...modelResults.value);
-      } else {
-        errors.push({
-          config: modelResults.error.config,
-          message: modelResults.error.message,
-        });
-      }
-    }
-
-    return {
-      errors,
-      models: withChoices(models),
-      ...routing(providers, context.workspaceConfig.modelRoutes),
-    };
-  });
+  .handler(({ context }) => listModels(context));
 
 const live = {
   list: base.output(eventIterator(ListSchema)).handler(async function* ({
@@ -130,7 +139,7 @@ const live = {
     // Fetch fresh data. fetchModelsForProvider writes to cache on success.
     yield* liveRead({
       changes,
-      read: () => call(list, {}, { context, signal }),
+      read: () => listModels(context),
     });
   }),
 };

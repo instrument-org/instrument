@@ -18,9 +18,11 @@
 #   scripts/commit.sh --amend <sha> -F <message-file> [--] [<path>...]
 #
 # Replaces <sha>, the branch tip, with a commit of the new message and, when
-# paths are named, those paths as the working tree has them. It refuses once
-# anything has landed on top of <sha> or <sha> has been pushed, since either
-# would mean rewriting work that is no longer only yours to rewrite.
+# paths are named, those paths as the working tree has them, signed like any
+# other. It refuses once anything has landed on top of <sha> or <sha> has been
+# pushed, since either would mean rewriting work that is no longer only yours
+# to rewrite. Use it, never `git commit --amend`, in a shared checkout: that
+# takes in whatever the shared index holds.
 set -euo pipefail
 
 fail() {

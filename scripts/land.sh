@@ -9,12 +9,16 @@
 # Run from inside a linked worktree. The checks are the ones CI would fail on
 # for what the branch changed: types in the packages it touched, lint in the
 # files it changed, unused code (knip) anywhere, the tests that import what it
-# changed (vitest related), and the tests marked to run on every landing. When
-# the target moves during the checks it rebases and checks again, and it waits
-# for another session's uncommitted edits to files the branch changes rather
-# than touch them. The push takes every commit the local target holds, other
-# sessions' included, and is never forced. --keep leaves the worktree and
-# branch in place after landing.
+# changed (vitest related), and the tests marked `// land: every landing`
+# (ones that read source as text, which vitest related cannot trace). It also
+# lists the Commits-to: contracts of the commits whose lines the branch changes.
+# When the target moves during the checks it rebases and checks again, and it
+# waits for another session's uncommitted edits to files the branch changes
+# rather than touch them; those are that session's work, so never discard or
+# stash them to get a landing through. The push takes every commit the local
+# target holds, other sessions' included, and is never forced. --no-push lands
+# locally without pushing. --keep leaves the worktree and branch in place after
+# landing.
 set -euo pipefail
 
 keep=false

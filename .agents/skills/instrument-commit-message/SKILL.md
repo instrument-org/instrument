@@ -11,6 +11,8 @@ description: Generate a git commit message matching the Instrument monorepo's sc
 
 `scripts/commit-subject.sh` (the `commit-msg` hook and `scripts/commit.sh`) refuses a subject that breaks a rule marked with an id below, naming the id. Fix that rule and commit again; never `--no-verify`. `COMMIT_ALLOW=subject-verb` or `=subject-contrast` lets through a subject breaking that rule on purpose, as one really about drawing. A subject the person gave you that breaks a rule: tell them which rule before committing it, and commit theirs only if they still want it.
 
+Take the style from this skill, not from `git log`, whose older subjects break these rules.
+
 - **Scope** `[subject-scope]`**:** default to the package/app that owns the change (`studio`, `workspace`, `ai-gateway`, `shared`) or an established workflow scope (`dx`, `ci`, `release`, `docs`, `evals`, `studio-drive`). Use a feature-area scope only when recent history shows that scope is established (`task`, `topics`); do not invent one from the subject matter.
 - **No conventional types.** Drop `feat:`/`fix:`/`refactor:`/`chore:` etc. Let the description imply the nature of the change.
 - **Description:** lowercase, no period, under ~72 chars. Start with a concrete verb and name the product noun or feature affected, then the observable behavior: `restore window bounds`, `open reply folders`, `suppress duplicate folder notices`.
@@ -37,8 +39,8 @@ The final paragraph, one `Key: value` per line. Never wrap a value onto a second
 | `Follow-up: <file>`                   | A `docs/follow-ups/` file whose check this commit collects evidence for (logging, a counter, a cap to watch), as `docs/follow-ups/stuck-agent-browser-commands.md`. The same commit adds or updates that file. |
 | `Tested:`                             | Only a check beyond the unit suites: the running app, a real agent run, a test host. Never test counts.                                                                                                             |
 | `Review: <file> <letter>`             | A `docs/reviews/` finding this commit fixes, as `2026-10-21-last-day A`. The same commit sets that finding's `Status:` to fixed.                                                                                    |
-| `Report: <fingerprint>` | A problem report or feedback this commit fixes, as `feedback:hr7mi75dukkl`; `Report: <fingerprint> (partly)` for one it fixes in part, and `Related-report: <fingerprint>` for one it only touches. The reports worker reads it from `main` and resolves the report itself (`AGENTS.md`, Problem reports). |
-| `Slack: <link>` | The Slack thread this commit was made for, when a teammate asked in Slack rather than in a report: the link to the thread's first message, as `https://<workspace>.slack.com/archives/C0123ABCD/p1730000000123456`. No issue needed. The reports worker replies once in that thread when the commit reaches `main`; never post there yourself (`AGENTS.md`, Problem reports). |
+| `Report: <fingerprint>` | A problem report or feedback this commit fixes, as `feedback:hr7mi75dukkl`; `Report: <fingerprint> (partly)` for one it fixes in part, and `Related-report: <fingerprint>` for one it only touches. The reports worker reads it from `main` and resolves the report itself (`problem-reports` skill). |
+| `Slack: <link>` | The Slack thread this commit was made for, when a teammate asked in Slack rather than in a report: the link to the thread's first message, as `https://<workspace>.slack.com/archives/C0123ABCD/p1730000000123456`. No issue needed. The reports worker replies once in that thread when the commit reaches `main`; never post there yourself (`problem-reports` skill). |
 
 Every reason stands without the session. `Rejected: per-folder read-only setting | user dropped it` is chat history; `Rejected: per-folder read-only setting | the allowlist and task grants already limit writes` is a reason.
 

@@ -25,11 +25,14 @@ In this order:
 - **Trust the reader with the ordinary word**: "Scale the app" over "Make the app larger or smaller". Data is stored, and a folder the app won't open is protected.
 - **Keep the app a tool.** It has no "we" or "us" and doesn't keep, want or hear, and a thing has no possessions ("model limits" over "the model's limit"). The people behind it are "the Instrument team".
 - **Echo the button.** A line beside Send again says "try sending again", and a link to Send feedback says "send feedback".
+- **Name a concept as familiar software does**: tab, window, chat, folder, page. Never coin a noun people haven't met in software.
 - **Put warmth in a word**: "Thanks!", "Please check your edits", "enjoy".
 
 An email from a person on the team is the other voice: "Hi Sam", "we", contractions, whole sentences the way you'd talk.
 
 These rules cover prose a person reads in the app and nothing else. Buttons, labels and placeholders are a word or a few ("Send", not "Stop and send what you said"). Text written for the agent (system prompts, tool descriptions, skill and environment notes) is terse and direct, written the way an agent reads best. When a full sentence and a shorter matter-of-fact one both work, take the shorter.
+
+A person who misread or missed something is not helped by a longer line, since people skim: change what is shown, where it lives, or a control's label or state, and keep any copy to a small part of that.
 
 What to avoid:
 
@@ -43,11 +46,16 @@ What to avoid:
 
 - **Software that hears, knows or is told things**: "Before each message, a chat hears what you just did." Say what goes where: "Each message you send includes a short list of what you just did here."
 - **Vague nouns** standing in for the real one: "what kind of thing you did", "something like". Name it, or cut the clause.
+- **A switch row's description that changes with the switch**: it reads true on or off, and the switch alone shows the state.
 - **A clause another screen already says**: a caveat the send dialog or the report already covers makes this line longer and no clearer.
 
 A line that works: "Importing adds to what Instrument remembers, so you can bring in memories from every AI you use."
 
 Warm words are welcome. "Create an account to enjoy free AI usage" says "enjoy" on purpose, so a cleanup pass leaves a word like that alone.
+
+## Comments
+
+When you prove a comment wrong, fix it in the same commit.
 
 ## Local references
 
@@ -72,6 +80,8 @@ Move its pin with `pnpm scripts:update-registry`, which takes the skills repo's 
 - Avoid casts. Prefer `satisfies`; use `as` only for genuinely different types (e.g. unknown payloads), and say why.
 - Reuse existing types/interfaces rather than redefining per file. Prefer short inline non-exported types.
 - Use `radashi` for common lodash-style functions.
+- A `check:types` error listing members the file on disk does not have is a stale `apps/studio/tsconfig.tsbuildinfo` (the app config is incremental): delete it and run again.
+- Scripts run as `node x.ts` with Node's type stripping. `import { type X } from` still loads the module; take a type from a module that can't load under plain node with a top-level `import type`, and give relative imports their `.ts`.
 - `tsc` is TypeScript 7, the native compiler; run it through `check:types` (below) or lean on built-in diagnostics. `typescript` 7 has no compiler JS API, so a tool that needs one cannot use it.
 
 ## Tailwind
@@ -99,9 +109,9 @@ Run lint/types from **repo root** through Turbo for caching. Avoid package-loop 
 
 `check:lint` / `fix:lint` run `oxlint --type-aware` alone, with no ESLint. The rules are deliberately few: oxlint's correctness category, the type-aware rules that catch real bugs (floating and misused promises, the `no-unsafe-*` family that keeps `any` out), import cycles, the React hook and React Compiler checks, Tailwind's unknown and conflicting classes, and the repo's own guardrails as a local plugin (`apps/studio/oxlint-rules.ts`). Nothing checks ordering or naming style; do not add rules that only ask for a different spelling of working code.
 
-A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) runs oxfmt on every file you Edit/Write, then oxfmt + `oxlint --type-aware --fix` on Stop over the files that session edited, and runs `vitest related` over them in each one's package (the `test:ci` projects, capped at 60s). Any error oxlint could not fix, and any related test that fails, blocks the turn and comes back to you to fix in context. So: expect files to change after you write them, never hand-format or hand-fix auto-fixable lint (including Tailwind class order), and don't run `check:lint` proactively to find what the hook is about to hand you anyway.
+A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) formats every file you edit (Edit, Write, or a Bash command that names it), and at Stop runs oxlint `--fix`, knip and `vitest related` over the session's files. What it cannot fix blocks the turn and comes back to you. So expect files to change after you write them, never hand-format or hand-fix auto-fixable lint (Tailwind class order included), and don't run `check:lint` to find what the hook is about to hand you.
 
-What the hook does not cover: type errors, tests in another package that import what you edited, and any file written by something other than Edit/Write (a heredoc or `sed -i` is untracked, so it is neither formatted nor linted); `pnpm fix` sweeps the tree for the formatting, `pnpm fix --lint` for the rest. Run `check:types` yourself when a change can move types: a signature, a schema, a prop, the shape of data flowing through. Skip it when a change cannot: className and CSS edits, copy, Markdown.
+It does not cover type errors, tests in another package that import what you edited, or a file a script writes without the command naming it; `pnpm fix` sweeps formatting, `pnpm fix --lint` the rest. Run `check:types` when a change can move types (a signature, a schema, a prop, the shape of data flowing through); skip it for className, CSS, copy and Markdown.
 
 ## Key catalog versions
 
@@ -122,40 +132,32 @@ What the hook does not cover: type errors, tests in another package that import 
 
 ## Worktrees
 
-After a manual `git worktree add`, run `.claude/hooks/worktree-setup.sh <path-to-worktree>`: copies the gitignored env files (required to boot Studio), inits `registry/`, installs deps. Idempotent. Hooks do this automatically only for sessions started inside a worktree or via EnterWorktree.
-
-A worktree Claude Code makes (`claude -w`, a subagent's `isolation: worktree`) starts from the local `HEAD`, so it has main's unpushed commits. Land one with `scripts/land.sh` from inside it: it rebases the branch onto the local main, lists the `Commits-to:` contracts of the commits whose lines the branch changes, runs types and lint for what changed, knip over the whole repo, the related tests for what changed and the tests marked `// land: every landing` (ones that read source as text, which `vitest related` cannot trace), fast-forwards main in the primary checkout, pushes it (`--no-push` skips that), and removes the worktree and its branch. `--onto <branch>` lands on another branch that a checkout has out. It brings the local branch up to origin first and never forces a push. Never push a worktree's commits straight to a shared branch on origin, which leaves the local one behind. When the branch landed on moves during the checks it rebases and checks again, and it waits for another session's uncommitted edits to files the branch changes; those are that session's work, so never discard or stash them to get a landing through.
-
-To commit by path in a checkout other sessions commit in too (the primary one above all), use `scripts/commit.sh -F <message-file> <path>...` rather than a hand-built private index. It takes new and deleted files, `<path>=<copy>` for part of a file's edits, and moves the branch only if no other commit landed while it built, so it never undoes one. `scripts/commit.sh --amend <sha> -F <message-file> [<path>...]` rewords or adds to a commit of yours, signed like any other, and refuses once something has landed on top of it or it has been pushed; never `git commit --amend` there, which takes in whatever the shared index holds.
-
-Multiple worktrees can run Studio at once: dev skips the single-instance lock, and the servers an instance binds fall back past the ports another one holds. Start one with `studio-drive.mjs boot --purpose <purpose>` (`studio-chrome-devtools` skill) rather than `pnpm dev` directly, so a checkout that already has an instance reuses it and the CDP port comes from the checkout path instead of from a guess. They all share one dev userData dir, so two instances are also two writers of one set of preferences and one workspace; `boot --purpose <purpose> --workspace <fixture>` gets a disposable one instead.
+- After a manual `git worktree add`, run `.claude/hooks/worktree-setup.sh <path>` (env files Studio needs, `registry/`, deps). Hooks do it only for sessions started inside a worktree or via EnterWorktree.
+- A worktree Claude Code makes starts from the local `HEAD`, main's unpushed commits included. Land it with `scripts/land.sh` from inside it; its header covers the checks and `--onto`. Never push a worktree's commits straight to a shared branch on origin, which leaves the local one behind, and never discard or stash another session's uncommitted edits to get a landing through.
+- A branch pushed for a pull request carries those unpushed commits too, and the repo is public: check `git rev-list --count origin/main..main` before its first push, and when main is ahead, push main first or base the branch on `origin/main`.
+- After a worktree rebases (`land.sh` included), run `pnpm install` there before trusting a test or type failure: a dependency main gained shows up as `Failed to resolve import` or TS2307, not as an install error. When pnpm says "Already up to date" over a broken tree, delete `node_modules/.pnpm-workspace-state-v1.json` (and `node_modules/.package-map.json`, where there is one) and install again.
+- In a checkout other sessions commit in (the primary one above all), commit by path with `scripts/commit.sh -F <message-file> <path>...` and amend your own commit with `scripts/commit.sh --amend <sha>`, never `git commit --amend`. Usage in its header.
+- A green suite in a checkout other sessions edit tests their edits as well as your commit. To check a commit made there, check it out detached in a throwaway worktree (`git worktree add --detach <tmp> <sha>`, `worktree-setup.sh <tmp>`) and run `pnpm check-and-test:ci` there with `TURBO_FORCE=1`, so Turbo serves no cached pass.
+- Run Studio with `studio-drive.mjs boot --purpose <purpose>` (`studio-chrome-devtools` skill), never `pnpm dev` directly: several checkouts can run at once, and the skill covers ports and disposable workspaces.
 
 ## Tests
 
 The tests are here for the agents working in this repo: they are how a change gets checked without booting the app, and people rarely read them. So they should be fast, reliable, and able to express whatever an agent needs to check. Grow them when that helps. A test that flakes, is brittle, or slows the work down is yours to fix, rewrite, or delete, as long as no real regression is hidden in the process. When the suite itself is getting in the way, say so.
 
 - Run one file, a directory, or a whole package **from the repo root**, with the package-relative path: `pnpm --filter @instrument-org/workspace exec vitest run [src/path/to/file.test.ts]` (`@instrument-org/studio` for `apps/studio`).
-- Do not reach for `cd packages/<name> && …`. An agent shell keeps its working directory between commands, so the second such command in a session resolves against `packages/workspace/packages/workspace` and dies on "no such file or directory", and with `&&` the rest of the chain is skipped silently. `--filter` is idempotent across calls and is the same shape whether you run one file or the package. Where a command genuinely has to run inside a package, `cd` to its absolute path.
+- Never `cd packages/<name> && …`: the shell keeps its working directory, so the next one fails. Where a command has to run inside a package, `cd` to its absolute path.
 - Prefer `toMatchInlineSnapshot` so expected output stays visible in the test file. Generate it empty and let the run fill it in.
 - Use `it.each` for repetitive cases.
 
 ## Commit messages
 
-Load the `instrument-commit-message` skill before writing any commit message, and take the style from it rather than from `git log`, whose older subjects break its rules. The `commit-msg` hook and `scripts/commit.sh` refuse a subject that breaks one of its checkable rules, naming the rule (`scripts/commit-subject.sh`), and a Claude session's first commit waits until it has loaded the skill (`.claude/hooks/commit-skill-gate.sh`).
-
-A commit that makes a choice ends with decision trailers, so the reasoning outlives the session that held it: `Rejected: <alternative> | <reason>`, `Commits-to: <contract later code must keep>`, `Not-tested: <what was not checked>`, `Related: <sha>`, `Follow-up: docs/follow-ups/<file>.md` on a commit that installs logging or another signal to look at later, and `Tested:` only for checks beyond the unit suites. Each line must make sense to a reader who never saw the session; leave one out rather than pad it. A commit that makes no choice carries none. Vocabulary and examples: `instrument-commit-message` skill. A brief for a subagent that commits points at that skill rather than listing trailers or pasting example ones, which the subagent reads as required.
+Load the `instrument-commit-message` skill before writing any commit message (a Claude session's first commit waits for it): it has the subject rules the `commit-msg` hook enforces and the decision trailers a commit that makes a choice ends with. A brief for a subagent that commits points at that skill rather than listing trailers or pasting example ones, which the subagent reads as required.
 
 ## Problem reports
 
-Feedback, crashes, hangs and errors people send from the app are problem reports, each with a fingerprint (`feedback:<id>`), read with the reports CLI in the `internal` reference (`agent-reference get internal`). A #customers card's text names the report's id, linked to its page (`reports.tryinstrument.com/reports/<id>`), which `pnpm --filter @instrument/reports reports files <id>` reads there; `reports show <fingerprint>` lists the issue's reports, the commits made for it and its history.
+A commit that fixes a problem report carries `Report: <fingerprint>` (`feedback:<id>`), `Report: <fingerprint> (partly)` when it leaves part open, or `Related-report: <fingerprint>` for a change that fixes nothing; one made for a teammate's Slack ask carries `Slack: <link to the thread's first message>`. Once it is on `main` the reports worker ties, resolves and replies, so nothing is resolved by hand and you never post to the thread.
 
-A fix is tied to its report by the commit alone:
-
-- The commit carries `Report: <fingerprint>`, one line per report it fixes; `Report: <fingerprint> (partly)` when it leaves part of the report open, and `Related-report: <fingerprint>` for a change that fixes nothing. A squash-merged pull request carries the lines in its description, which becomes the commit's message.
-- Once the commit is on `main`, the reports worker ties it to the issue within seconds of the push (within ten minutes when GitHub's webhook delivery fails), resolves it, and tells its Slack card; when a published release contains it, the issue records the version, and only a report from that version or later reopens it. Nothing is resolved by hand for a fix.
-- What you learned that no commit records goes into the issue's history with `reports note <fingerprint> "<text>" --finding`: a cause, a report artifact that is not a bug, a complaint the fix leaves open. A commit that went out without its line is tied with `reports link <fingerprint> instrument <sha>`.
-- Writing back to the person who sent a report is done from the `internal` reference; its `AGENTS.md`, under Problem reports, says how. Write to people outside the team only that way, never from a personal account.
-- A commit made for an ask in Slack (a teammate's thread, not a report) carries `Slack: <link to the thread's first message>` instead, and needs no issue: once it is on `main`, the reports worker replies once in that thread linking the commit. A commit can carry both kinds of line. One that went out without it is tied with `reports link-thread <link> instrument <sha>`. Never post to the thread yourself, and never file a Slack ask as a report to get the reply.
+Reading a report, writing back to the person who sent it, or tying a commit after the fact: `problem-reports` skill.
 
 ## Repository knowledge base
 
@@ -163,7 +165,7 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 
 - `docs/README.md`: the knowledge-base index and provenance.
 - `docs/architecture/` — evergreen maps of a subsystem or domain and how it layers together, edited in place as the code changes. One file per subsystem.
-- `docs/findings/` — non-obvious issues, what we tried, what might resolve them later. One file per finding.
+- `docs/findings/` — non-obvious issues, what we tried, what might resolve them later. One file per finding. There is no issue tracker outside the repo: a bug found in passing is fixed or recorded here, and a GitHub issue is opened only when asked.
 - `docs/plans/` — execution plans for non-trivial work, one file per plan in one folder, each opening with `Status: open|done|superseded|dropped.` (`rg -m1 '^Status: open' docs/plans` lists the open ones). `pnpm fix` regenerates the section indexes; `pnpm check:docs` fails on a broken link, a cited path that no longer exists, or a stale index.
 - `docs/follow-ups/`: checks we owe later, each with the signal to look for and a date to look. A change that ships logging, a counter or a cap to learn from later adds one in the same commit. When working in an area, check its index for a follow-up past its date.
 - `docs/principles/`: the standing rules behind many decisions. Before raising a product or design question, check here; if one answers it, cite it and go.
@@ -173,25 +175,7 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 
 ## Additional guidance
 
-- `REVIEW.md` — Repo-specific code review calibration.
-- `.agents/skills/validate-changes/SKILL.md` — **How to check your work.** The ways to run this product (sandbox shell, real agent across models, the app), what each one can and cannot tell you, and which to reach for. Read this before concluding a change works.
-- `.agents/skills/instrument-commit-message/SKILL.md` — This repo's commit scopes and real examples from the history.
-- `.agents/setup.md` — Prerequisites before the first `pnpm studio`.
-- `.agents/env.md` — Environment variables for Studio and workspace.
-- `docs/architecture/system-overview.md` — Top-level map: packages/layering, main-vs-renderer runtime topology, on-disk layout, and how an agent turn flows. Start here.
-- `docs/architecture/ai-gateway.md` — Model access: the mounted provider-proxy Hono app plus the model-discovery/identity library consumed by workspace and studio.
-- `docs/architecture/agent-sandbox.md` — How agent tools are contained (the Permissions rules, path-scoped file I/O, the just-bash filesystem, agent-browser allowlist, real-binary escape hatches under Seatbelt on macOS and bubblewrap on Linux).
-- `docs/architecture/native-and-builtin-commands.md`: Which shell commands run as real programs (uutils, rg, git, the interpreters, the PATH) and which as just-bash builtins, per platform; the uutils table is generated from `shell-commands/native-text.ts`.
-- `docs/architecture/bash-sandbox-mounts-and-native-binaries.md` — How the folders a chat reaches are mounted at their real paths, the nested-mount collapse, and known just-bash quirks.
-- `docs/architecture/just-bash-upstream.md` — Which `just-bash` build we consume, every patch and agent-facing workaround we carry because of an upstream gap, what has to be true before each can go, and our open upstream PRs. Read before adding a prompt line that steers the agent around sandbox behavior.
-- `docs/architecture/transcript.md`: How a session's records become what a person reads: the light messages and the feed, `turnsOf` and the fold, the one card, what a shell call recorded, the summary line, and the debug page to check a change on.
-- `docs/architecture/in-app-browser.md` — The in-app browser the user, a chat, and its tasks share: the renderer-owned `<webview>` pool, paint-host vs visible, the CDP path from `agent-browser` to the guest, files opening at their `file://` address, and what the panel may do that the agent may not.
-- `docs/architecture/background-processes.md` — What happens to a `bash` command that outlives its `yieldMs`: the promotion rule, the `jobs`/`fg`/`kill` command surface, who owns a running process and what ends one, and the caps.
-- `docs/architecture/windows.md`: The app's several windows on one workspace: what belongs to a window and what they share, how a request reaches one of them, how a tab moves and tears off, and what comes back after a launch.
-- `docs/architecture/responsive-layout.md` — Why viewport breakpoints are the wrong proxy for layout width in Studio (UI zoom + resizable sidebar), the `@container/app-content` shell container, and the unit rules for sizing portalled content under zoom.
-- `docs/architecture/auto-updater.md` — How Studio finds, stages, and installs a build: the pure-reducer / port-seam / wiring split, channel selection, and why the build offered and the build installed can diverge.
-- `docs/architecture/releasing.md`: Where a build comes from and where it goes: cutting a tag, what it starts, where the artifacts land, the draft release, and the notes.
-- `docs/architecture/mac-native-bridge.md`: The Mac bridge: the in-process module and the helper process behind `lib/mac-native.ts`, which one a capability belongs in, and how to add one.
-- `.agents/cloud-dev.md` — Headless/CI dev: `NO_SANDBOX`, the CDP port default, Xvfb, and build approvals.
-- `apps/studio/AGENTS.md` — Electron deps vs devDeps, React 19 + TanStack Router + oRPC patterns, where client/main/RPC code lives.
-- `packages/workspace/AGENTS.md` — RPC routes, tools/agents layout, workspace server, XState machines, Result + Zod tool conventions.
+- `.agents/skills/validate-changes/SKILL.md`: **how to check your work.** Read before concluding a change works.
+- `REVIEW.md`: repo-specific code review calibration.
+- `docs/architecture/README.md`: index of the subsystem maps; start at `system-overview.md`.
+- `.agents/setup.md` (before the first `pnpm studio`), `.agents/env.md` (environment variables), `.agents/cloud-dev.md` (headless and CI dev).

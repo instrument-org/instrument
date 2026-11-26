@@ -609,13 +609,16 @@ export function createDraftStore({
      */
     watch(
       changed: () => void,
-      { hasPhone }: { hasPhone?: Promise<boolean> } = {},
+      {
+        hasPhone,
+      }: { hasPhone?: (signal: AbortSignal) => Promise<boolean> } = {},
     ): () => void {
       const dir = draftsFolderDir(rootDir);
-      let stopped = false;
+      // Stopping the watch stops the wait for a phone too.
+      const asking = new AbortController();
       let stop = watchFolder(dir, { depth: 1, onChange: changed });
-      void hasPhone?.then((found) => {
-        if (!found || stopped) {
+      void hasPhone?.(asking.signal).then((found) => {
+        if (!found || asking.signal.aborted) {
           return;
         }
         const before = stop;
@@ -629,7 +632,7 @@ export function createDraftStore({
         changed();
       });
       return () => {
-        stopped = true;
+        asking.abort();
         stop();
       };
     },

@@ -593,7 +593,7 @@ describe("the drafts folder behind every window", () => {
         () => {
           heard += 1;
         },
-        { hasPhone: Promise.resolve(hasPhone) },
+        { hasPhone: () => Promise.resolve(hasPhone) },
       );
       try {
         // The watchers' first reads, and the one after a phone is found.
@@ -612,6 +612,20 @@ describe("the drafts folder behind every window", () => {
       }
     },
   );
+
+  it("stops waiting for a phone when the watch stops", async () => {
+    const { store } = await open();
+    let asked: AbortSignal | undefined;
+    const stop = store.watch(() => {}, {
+      hasPhone: (signal) => {
+        asked = signal;
+        return new Promise<boolean>(() => {});
+      },
+    });
+    expect(asked?.aborted).toBe(false);
+    stop();
+    expect(asked?.aborted).toBe(true);
+  });
 });
 
 describe("what the folder has that the store has not read yet", () => {

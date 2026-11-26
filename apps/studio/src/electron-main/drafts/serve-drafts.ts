@@ -85,9 +85,11 @@ export function openDrafts() {
       store.reconcile().catch(couldNotRead);
     },
     {
-      hasPhone: whenWorkspaceHasPhone({
-        devicesDir: workspaceLayout(getWorkspaceFolder()).devicesDir,
-      }),
+      hasPhone: (signal) =>
+        whenWorkspaceHasPhone({
+          devicesDir: workspaceLayout(getWorkspaceFolder()).devicesDir,
+          signal,
+        }),
     },
   );
 }

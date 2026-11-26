@@ -1,7 +1,8 @@
 /// <reference types="electron-vite/node" />
 
 // The main process's entry. It turns on Node's compile cache and then loads the
-// app, so the cache covers the app's own bundle. Whatever this file imports
+// app, so the cache covers the app's own bundle: what has to come before
+// `ready`, the first window, then the rest. Whatever this file imports
 // statically loads before the cache is on, so it imports nothing of the app's
 // but the launch's clock.
 import { app } from "electron";
@@ -20,8 +21,33 @@ if (process.platform === "win32") {
   answerVelopackLaunch();
 }
 
-// Awaited at the top level, so the app registers its schemes before `ready`.
-await import("./index");
+// Awaited at the top level, since Electron holds `ready` until it is done:
+// what has to happen before `ready` happens there.
+const { gotTheLock, handleBootFailure, showEarlyWindow } =
+  await import("./before-ready");
+
+if (gotTheLock) {
+  // The first window comes up as soon as Electron is ready, and the rest of
+  // the app loads after it. Loading it before `ready` would hold `ready`
+  // back by as long as it takes.
+  void app
+    .whenReady()
+    .then(async () => {
+      try {
+        showEarlyWindow();
+      } catch (error) {
+        // It comes up with the others instead.
+        console.error("Could not show the first window early", error);
+      }
+      await import("./index");
+    })
+    .catch(handleBootFailure);
+} else {
+  // A lock loser has no application state to tear down. Exit synchronously
+  // so quit handlers cannot keep it alive long enough to enter primary
+  // startup.
+  app.exit(0);
+}
 
 /**
  * Keeps V8's compiled code for the main process's modules between launches,

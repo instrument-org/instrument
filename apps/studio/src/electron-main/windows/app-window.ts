@@ -6,7 +6,6 @@ import {
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { logBootMark } from "@/electron-main/lib/boot-timing";
-import { getAppSession } from "@/electron-main/lib/app-session";
 import { createContextMenu } from "@/electron-main/lib/context-menu";
 import { guardNavigation } from "@/electron-main/lib/guard-navigation";
 import { loadWindowURL } from "@/electron-main/lib/load-window-url";
@@ -18,7 +17,6 @@ import {
 } from "@/electron-main/lib/quit";
 import { keepDraftsNamedIn } from "@/electron-main/drafts/serve-drafts";
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
-import { systemRegionArguments } from "@/electron-main/lib/system-country";
 import { isSetupUp } from "@/electron-main/lib/setup-state";
 import { studioURL } from "@/electron-main/lib/urls";
 import { bindAppWindowChords } from "@/electron-main/menus/app-window";
@@ -57,7 +55,6 @@ import {
 import { homedir } from "node:os";
 import {
   getAppZoom,
-  getWindowState,
   keepBoundsOnScreen,
   forgetWindow,
   rememberedWindowIds,
@@ -92,9 +89,15 @@ import {
 } from "@/electron-main/windows/phone-chat-groups";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import {
-  captionOverlay,
-  syncCaptionOverlay,
-} from "@/electron-main/windows/caption-buttons";
+  appWindowOptions,
+  rememberedStateOf,
+} from "@/electron-main/windows/app-window-options";
+import {
+  dropEarlyWindow,
+  launchWindowIds,
+  takeEarlyWindow,
+} from "@/electron-main/windows/early-window";
+import { syncCaptionOverlay } from "@/electron-main/windows/caption-buttons";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import {
   otherStripShowing,
@@ -115,11 +118,6 @@ import {
 } from "@instrument-org/workspace/electron";
 import { app, BrowserWindow, powerMonitor } from "electron";
 import { statSync } from "node:fs";
-import path from "node:path";
-
-/** The shape a window takes the first time, before it has been sized. */
-const WINDOW_WIDTH = 1240;
-const WINDOW_HEIGHT = 840;
 
 /** How far a new window stands off the one in front of it, so both show. */
 const CASCADE_PX = 26;
@@ -637,13 +635,15 @@ export function openAppWindow(): BrowserWindow {
  * closed. While setup is up only that one opens, since setup draws over it,
  * and the rest come back as it goes down.
  */
-export function restoreAppWindows() {
-  const { closed, open } = rememberedWindowIds(FIRST_APP_WINDOW_ID);
-  const ids = open.length > 0 ? open : [closed[0] ?? FIRST_APP_WINDOW_ID];
+export function restoreAppWindows({
+  personAsked = false,
+}: { personAsked?: boolean } = {}) {
+  const ids = launchWindowIds();
   if (isSetupUp()) {
     const front = ids.at(-1) ?? FIRST_APP_WINDOW_ID;
     waitingForSetup = ids.filter((id) => id !== front);
     createAppWindow(front);
+    dropEarlyWindow();
     return;
   }
   // A restart to install an update brings them back as they were, behind
@@ -653,7 +653,14 @@ export function restoreAppWindows() {
   // Ready to show is the window's first paint: past here a slow launch is
   // the renderer's.
   const windows = ids.map((id) => {
+    const early = takeEarlyWindow(id);
+    // Up since before boot: a person who asked for the app meanwhile gets it
+    // in front, as the others come up.
+    if (early && personAsked && !isHeldOffScreen(early)) {
+      early.focus();
+    }
     const window = createAppWindow(id, {
+      early,
       // When it comes up, or would: a driven instance holds it off screen.
       onScreen: () => {
         logBootMark(`window ${id} on screen`);
@@ -670,6 +677,7 @@ export function restoreAppWindows() {
     });
     return window;
   });
+  dropEarlyWindow();
   // Each comes up as its page is ready, in no particular order, so the one
   // that was in front goes back there once they all have.
   const front = windows.at(-1);
@@ -1113,11 +1121,14 @@ function createAppWindow(
   {
     behindOtherApps = false,
     bounds,
+    early,
     isSpare = false,
     onScreen,
   }: {
     behindOtherApps?: boolean;
     bounds?: ReturnType<typeof cascadedBounds>;
+    /** The launch's front window, up already with its page yet to load (`early-window.ts`). */
+    early?: BrowserWindow;
     isSpare?: boolean;
     /** Called once it is put on screen. */
     onScreen?: () => void;
@@ -1141,50 +1152,11 @@ function createAppWindow(
   watchSetup();
   const remembered = rememberedStateOf(id);
 
-  const window = new BrowserWindow({
-    ...(bounds ?? remembered.bounds),
-    // On macOS the first click on a window behind another only brings it
-    // forward unless told otherwise, and over the bar that press drags the
-    // window: a tab pulled out of a window in the back would move the window.
-    acceptFirstMouse: true,
-    // Left to itself, Electron paints the active window's edge from Windows'
-    // accent setting and can get the color wrong (default blue where the
-    // system's own windows use the person's accent). Off, Windows draws its
-    // usual quiet edge.
-    accentColor: false,
-    backgroundColor: getBackgroundColor(),
-    // On macOS the native NSWindow frame is kept, since `hiddenInset` already
-    // gives the chromeless look and a frameless window cannot host modal
-    // sheets. Everywhere else the frame is what draws a title bar above this
-    // window's own bar, so it goes and the system draws only its buttons, over
-    // the ground above the card (`captionOverlay`).
-    frame: process.platform === "darwin",
-    minHeight: 520,
-    minWidth: 900,
-    show: false,
-    // Not on the taskbar until it is adopted.
-    skipTaskbar: isSpare,
-    // A system set to prefer tabs would otherwise gather these into native
-    // tabs, over the strip each window draws for itself.
-    tabbingIdentifier: id,
-    title: "Instrument",
-    ...(process.platform === "darwin"
-      ? {}
-      : { titleBarOverlay: captionOverlay(getAppZoom()) }),
-    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
-    webPreferences: {
-      additionalArguments: ["--windowType=app", ...systemRegionArguments()],
-      // An agent's instance keeps drawing, and taking input, off screen or
-      // behind other windows.
-      backgroundThrottling: !isDrivenInstance(),
-      contextIsolation: true,
-      preload: path.join(import.meta.dirname, "../preload/index.mjs"),
-      sandbox: false,
-      session: getAppSession(),
-      // The Browser tab is a renderer-hosted `<webview>`, like a task's browser.
-      webviewTag: true,
-    },
-  });
+  const window =
+    early ??
+    new BrowserWindow(
+      appWindowOptions(id, { bounds: bounds ?? remembered.bounds, isSpare }),
+    );
   const webContentsId = window.webContents.id;
   // Named before it loads: its preload asks for what it kept as it does.
   nameAppWindow(webContentsId, id);
@@ -1199,6 +1171,10 @@ function createAppWindow(
   const tracked = trackWindowBounds(window, id, {
     isHeld: () => spareOf(webContentsId) !== undefined,
   });
+  // Moved or resized, maybe, while boot ran.
+  if (early) {
+    tracked.saveSoon();
+  }
   // Every way this window changes shape. `will-resize` and `move` are here
   // because macOS does not report a resize the user did not drive (a tiling
   // manager) and Linux does not reliably report maximize on its own.
@@ -1236,7 +1212,8 @@ function createAppWindow(
   // one keeps its macOS frame.
   setTrafficLightForZoom(window, getAppZoom(), WINDOW_CARD_GAP);
 
-  if (!isSpare) {
+  // The early window came up as it was made.
+  if (!early && !isSpare) {
     showWhenReady(window, () => {
       if (!window.isDestroyed()) {
         putOnScreen(window, {
@@ -1430,14 +1407,6 @@ function createAppWindow(
   });
 
   return window;
-}
-
-/** Where a window opens: where it was left, or its first-time shape. */
-function rememberedStateOf(id: string) {
-  return getWindowState(id, {
-    height: WINDOW_HEIGHT,
-    width: WINDOW_WIDTH,
-  });
 }
 
 /** What waits for a window without taking it yet. */

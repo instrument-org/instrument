@@ -186,6 +186,11 @@ export function readAutomaticRestart(to: string): {
   };
 }
 
+/** The marker the restart before this launch left, left where it is. */
+export function peekRelaunchMarker() {
+  return getMachineState().get("automaticRestart")?.relaunch;
+}
+
 /**
  * Read once at launch: the marker the restart before this launch left, which
  * is then forgotten, and the attempts, which are forgotten too once the

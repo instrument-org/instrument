@@ -73,13 +73,8 @@ import {
   DEV_INSTANCE_COLORS,
   isDevInstanceColor,
 } from "@/shared/dev-instance-colors";
-import { is, optimizer } from "@electron-toolkit/utils";
-import {
-  APP_BUNDLE_ID,
-  APP_NAME,
-  APP_FLAVOR,
-  APP_PROTOCOL,
-} from "@instrument-org/shared";
+import { optimizer } from "@electron-toolkit/utils";
+import { APP_NAME, APP_FLAVOR, APP_PROTOCOL } from "@instrument-org/shared";
 import { closeAgentBrowserSessionsOfEndedApps } from "@instrument-org/workspace/electron";
 import {
   BrowserWindow,
@@ -88,7 +83,6 @@ import {
   nativeImage,
   nativeTheme,
   powerMonitor,
-  protocol,
   session,
 } from "electron";
 import module from "node:module";
@@ -110,19 +104,16 @@ import { mainEnteredAt, readyAt } from "./lib/launch-clock";
 import { registerFileDragHandler } from "./lib/file-drag";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
 import { filesInArgv } from "./lib/files-in-argv";
+import { takeHandOvers } from "./lib/launch-hand-overs";
 import { asksForNewWindow } from "./lib/new-window-task";
 import { logGpuStatus } from "./lib/gpu-status";
+import { asksToMoveToApplications } from "./lib/move-to-applications";
 import { handleBootFailure } from "./lib/handle-boot-failure";
 import { startAppCatalog } from "./lib/app-catalog";
 import { startModelSettings } from "./lib/model-settings";
 import { startNotices } from "./lib/notices";
 import { sendPendingAutomatically } from "./lib/problem-reports";
-import { registerCrashDiagnostics } from "./lib/register-crash-diagnostics";
-import {
-  quitsWithLastWindow,
-  requestQuitApproval,
-  withdrawQuitApproval,
-} from "./lib/quit";
+import { requestQuitApproval, withdrawQuitApproval } from "./lib/quit";
 import { keepTrapFatal } from "./lib/take-signal";
 import { registerUnattendedQuit } from "./lib/unattended-quit";
 import { getWorkspaceRefusal } from "./lib/workspace-refusal";
@@ -148,11 +139,6 @@ import { watchProcessCpu } from "./lib/process-cpu";
  * finished evaluating.
  */
 let filesTogether: ((hostPath: string) => void) | undefined;
-
-// Dev skips the single-instance lock so multiple worktrees can boot side by
-// side. Packaged builds keep it so second launches (deep links) forward to
-// the running instance.
-const gotTheLock = is.dev || app.requestSingleInstanceLock();
 
 // Everything handed over from outside goes through the launch, which keeps
 // any window from opening before boot has restored the workspace's
@@ -181,103 +167,63 @@ const launch = startLaunch(
       if (personAsked) {
         comeBackAsLeft(undefined);
       }
-      restoreAppWindows();
+      restoreAppWindows({ personAsked });
     },
   },
   { refused: getWorkspaceRefusal() !== undefined },
 );
 
-if (gotTheLock) {
-  protocol.registerSchemesAsPrivileged([
-    {
-      privileges: {
-        // The built renderer is served from this scheme (`app-protocol.ts`),
-        // and Chromium keeps V8's compiled code for a custom scheme's scripts
-        // only when it opts in. Development loads from the dev server.
-        codeCache: true,
-        // The renderer's origin is one host of this scheme, so the document
-        // viewers fetching their WASM from another is a cross-origin request.
-        // Chromium rejects those for custom schemes unless the scheme itself
-        // opts in, regardless of the response's CORS headers.
-        corsEnabled: true,
-        secure: true,
-        standard: true,
-        supportFetchAPI: true,
-      },
-      scheme: APP_PROTOCOL,
-    },
-    {
-      // The browser extensions' action icons, which the window draws over
-      // this scheme (`browser-view/extensions.ts`). The one call to this
-      // method names every scheme, so the library's own registration of it
-      // is repeated here.
-      privileges: { bypassCSP: true, secure: true },
-      scheme: "crx",
-    },
-  ]);
+app.setAsDefaultProtocolClient(APP_PROTOCOL);
 
-  app.setAsDefaultProtocolClient(APP_PROTOCOL);
-
-  // Windows attributes toasts and taskbar buttons by the process's
-  // AppUserModelID, and shows a toast only for one a Start menu shortcut
-  // carries. The installer stamps the build's appId on its shortcuts, each
-  // preview's its own, so the running app takes the same.
-  if (process.platform === "win32" && app.isPackaged) {
-    app.setAppUserModelId(APP_BUNDLE_ID);
-  }
-
-  registerCrashDiagnostics(app);
-
-  // The app launched again (macOS routes links and files through the events
-  // below instead): to come forward, the taskbar's New Window task, a link or
-  // files.
-  app.on("second-instance", (_event, commandLine) => {
-    launch.receive({
-      files: filesInArgv(commandLine, { defaultApp: process.defaultApp }),
-      kind: "secondLaunch",
-      newWindow: asksForNewWindow(commandLine),
-      url: linkInArgv(commandLine),
-    });
-  });
-
-  // A file handed over from the Finder: a double click where Instrument is
-  // the default, Open With, or a drop on the Dock icon. Listened for before
-  // ready, because a file that launches the app arrives before it is. The
-  // system hands several files over one event each, so those arriving
-  // together open together.
-  app.on("open-file", (event, filePath) => {
-    event.preventDefault();
-    launch.receive({ kind: "files", paths: [filePath] });
-  });
-
-  // A link handed over from outside, listened for before ready for the same
-  // reason: the link that launches the app arrives before it is.
-  app.on("open-url", (event, url) => {
-    event.preventDefault();
-    launch.receive({ kind: "link", url });
-  });
-
-  // The Dock icon, which brings a window back once every window is closed.
-  app.on("activate", () => {
-    launch.receive({ kind: "activate" });
-  });
-
-  // The same hand-overs on Windows and Linux, for a launch that starts the app.
-  launch.receive({
-    kind: "files",
-    paths: filesInArgv(process.argv, { defaultApp: process.defaultApp }),
-  });
-  const launchUrl = linkInArgv(process.argv);
-  if (launchUrl !== undefined) {
-    launch.receive({ kind: "link", url: launchUrl });
-  }
-
-  void app.whenReady().then(bootstrapPrimaryInstance).catch(handleBootFailure);
-} else {
-  // A lock loser has no application state to tear down. Exit synchronously so
-  // quit handlers cannot keep it alive long enough to enter primary startup.
-  app.exit(0);
+// What a launch that starts the app is handed on Windows and Linux.
+launch.receive({
+  kind: "files",
+  paths: filesInArgv(process.argv, { defaultApp: process.defaultApp }),
+});
+const launchUrl = linkInArgv(process.argv);
+if (launchUrl !== undefined) {
+  launch.receive({ kind: "link", url: launchUrl });
 }
+
+// What the launch was handed before this module loaded, then everything after
+// as it comes (`lib/launch-hand-overs.ts`).
+takeHandOvers((handOver) => {
+  switch (handOver.kind) {
+    // The app launched again (macOS routes links and files through the cases
+    // below instead): to come forward, the taskbar's New Window task, a link
+    // or files.
+    case "secondLaunch": {
+      const { commandLine } = handOver;
+      launch.receive({
+        files: filesInArgv(commandLine, { defaultApp: process.defaultApp }),
+        kind: "secondLaunch",
+        newWindow: asksForNewWindow(commandLine),
+        url: linkInArgv(commandLine),
+      });
+      return;
+    }
+    // A file handed over from the Finder: a double click where Instrument is
+    // the default, Open With, or a drop on the Dock icon. The system hands
+    // several files over one event each, so those arriving together open
+    // together.
+    case "file": {
+      launch.receive({ kind: "files", paths: [handOver.path] });
+      return;
+    }
+    // A link handed over from outside.
+    case "link": {
+      launch.receive({ kind: "link", url: handOver.url });
+      return;
+    }
+    // The Dock icon, which brings a window back once every window is closed.
+    case "activate": {
+      launch.receive({ kind: "activate" });
+      return;
+    }
+  }
+});
+
+void app.whenReady().then(bootstrapPrimaryInstance).catch(handleBootFailure);
 
 async function bootstrapPrimaryInstance() {
   logBootMark("main entry", mainEnteredAt);
@@ -331,14 +277,7 @@ async function bootstrapPrimaryInstance() {
     );
   }
 
-  // A preview is meant to be tried where it was unzipped and thrown away.
-  if (
-    process.platform === "darwin" &&
-    !is.dev &&
-    APP_FLAVOR.kind !== "preview" &&
-    !app.isInApplicationsFolder() &&
-    process.env.SKIP_MOVE_TO_APPLICATIONS !== "true"
-  ) {
+  if (asksToMoveToApplications()) {
     const choice = dialog.showMessageBoxSync({
       buttons: ["Move to Applications Folder", "Not Now"],
       cancelId: 1,
@@ -381,8 +320,13 @@ async function bootstrapPrimaryInstance() {
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
   // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
-  app.on("browser-window-created", (_, window) => {
+  // The launch's first window is up already (`windows/early-window.ts`).
+  const watchShortcuts = (window: BrowserWindow) => {
     optimizer.watchWindowShortcuts(window, { zoom: true });
+  };
+  BrowserWindow.getAllWindows().forEach(watchShortcuts);
+  app.on("browser-window-created", (_, window) => {
+    watchShortcuts(window);
   });
 
   createApplicationMenu();
@@ -651,15 +595,6 @@ function openFileTogether(hostPath: string) {
 function linkInArgv(argv: readonly string[]) {
   return argv.find((arg) => arg.startsWith(`${APP_PROTOCOL}://`));
 }
-
-// Closing the last window quits outside macOS, where the window's own close
-// handler has already asked about running work. On macOS the app stays in the
-// Dock with its work going, and Cmd+Q asks.
-app.on("window-all-closed", () => {
-  if (quitsWithLastWindow) {
-    app.quit();
-  }
-});
 
 function applyThemeToWindows() {
   updateAppWindowBackgroundColor();

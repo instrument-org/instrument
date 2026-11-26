@@ -514,10 +514,13 @@ export default defineConfig(({ command }) => {
         ...(isProduction
           ? [
               recordBundledPackages("main"),
-              // `boot.ts` awaits `index.ts` before `ready`, so both are startup.
+              // `boot.ts` awaits `before-ready.ts` before `ready` and loads
+              // `index.ts` once the first window is up, so all three are
+              // startup.
               recordStartupBundle("main", {
                 roots: [
                   /electron-main\/boot\.ts$/,
+                  /electron-main\/before-ready\.ts$/,
                   /electron-main\/index\.ts$/,
                 ],
               }),

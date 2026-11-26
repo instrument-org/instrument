@@ -31,7 +31,8 @@ export function watchThemePreferenceAndApply(callback?: () => void): void {
   });
 }
 
-function applyNativeThemeFromPreferences(): void {
+/** Gives the system the preferred theme, which draws a window's frame in it. */
+export function applyNativeThemeFromPreferences(): void {
   const preferencesStore = getWorkspacePreferences();
   const theme = preferencesStore.get("theme");
   nativeTheme.themeSource = theme;

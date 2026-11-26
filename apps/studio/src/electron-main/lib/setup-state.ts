@@ -157,9 +157,17 @@ export function setupStillAsks(): boolean {
   return !isSkipped() && readRecord().finishedAt === undefined;
 }
 
+/**
+ * Whether setup stays down this launch whatever its slow facts say, which
+ * can be read before they are provided.
+ */
+export function isSetupSettled(): boolean {
+  return isSkipped() || isAnsweredAndPlaced();
+}
+
 /** Whether setup is up, without reading the facts once every step is answered. */
 export function isSetupUp(): boolean {
-  if (isSkipped() || isAnsweredAndPlaced()) {
+  if (isSetupSettled()) {
     return false;
   }
   return readSetupState().step !== null;

@@ -625,6 +625,7 @@ export default defineConfig(({ command }) => {
               salt: transformSalt(import.meta.dirname, {
                 files: [
                   path.join(import.meta.dirname, "electron.vite.config.ts"),
+                  path.join(import.meta.dirname, "../../pnpm-lock.yaml"),
                 ],
                 packages: [
                   "@babel/core",

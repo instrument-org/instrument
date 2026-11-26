@@ -15,13 +15,22 @@ import { createHash } from "node:crypto";
 import { mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
 import fs from "node:fs/promises";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
+import { homedir } from "node:os";
 import path from "node:path";
 
-/** Entries nobody wrote in this long are deleted when a dev server starts. */
+/** Entries nobody used in this long are deleted when a dev server starts. */
 const KEEP_MS = 14 * 24 * 60 * 60 * 1000;
 
-const CACHE_DIR = path.join(tmpdir(), "instrument-dev-transforms");
+/** In the user's own cache folder, which no other account can write. */
+const CACHE_DIR = path.join(
+  homedir(),
+  process.platform === "darwin"
+    ? "Library/Caches"
+    : process.platform === "win32"
+      ? "AppData/Local"
+      : ".cache",
+  "instrument-dev-transforms",
+);
 
 const ROOT_MARK = "<checkout>";
 
@@ -37,7 +46,8 @@ type Handler = (
 /**
  * What decides a transform's output besides the module: the installed
  * versions of `packages`, resolved from the directory `from`, and the text
- * of `files` (the config that sets the plugin's options).
+ * of `files` (the config that sets the plugin's options, and the lockfile,
+ * which pins the packages they use in turn).
  */
 export function transformSalt(
   from: string,
@@ -64,9 +74,11 @@ export function transformSalt(
     }
     throw new Error(`No package.json found for ${name}`);
   });
-  return [...parts, ...files.map((file) => readFileSync(file, "utf8"))].join(
-    "\0",
-  );
+  const hash = createHash("sha256");
+  for (const part of [...parts, ...files.map((file) => readFileSync(file))]) {
+    hash.update(part).update("\0");
+  }
+  return hash.digest("hex");
 }
 
 /**
@@ -87,7 +99,9 @@ export async function cacheTransforms(
   // handler is replaced.
   const transform = hook.handler as Handler; // The hook's type, narrowed to the arguments read here.
   pruneOldEntries();
-  const prefix = `${root}${path.sep}`;
+  // Module ids use forward slashes on every system.
+  const rootId = root.replaceAll("\\", "/");
+  const prefix = `${rootId}/`;
   hook.handler = async function cachedTransform(
     this: { environment?: { name: string } },
     code: string,
@@ -99,6 +113,9 @@ export async function cacheTransforms(
     }
     const key = createHash("sha256")
       .update(salt)
+      .update("\0")
+      // The React Compiler adds its Fast Refresh code only in development.
+      .update(process.env.NODE_ENV ?? "")
       .update("\0")
       .update(this.environment?.name ?? "")
       .update("\0")
@@ -112,13 +129,17 @@ export async function cacheTransforms(
       .digest("hex");
     const file = path.join(CACHE_DIR, key.slice(0, 2), `${key}.json`);
     try {
-      return fromCache(await fs.readFile(file, "utf8"), root);
+      const cached = fromCache(await fs.readFile(file, "utf8"), rootId);
+      // Marks it used, for pruning.
+      const now = new Date();
+      fs.utimes(file, now, now).catch(() => undefined);
+      return cached;
     } catch {
       // Not compiled before, or written by an interrupted run.
     }
     const result = await transform.call(this, code, id, options);
     if (result) {
-      void write(file, toCache(result, root));
+      void write(file, toCache(result, rootId));
     }
     return result;
   } as typeof hook.handler;
@@ -150,7 +171,7 @@ async function write(file: string, text: string) {
   }
 }
 
-/** Deletes entries no run has written for {@link KEEP_MS}, once per start. */
+/** Deletes entries no run has used for {@link KEEP_MS}, once per start. */
 function pruneOldEntries() {
   const now = Date.now();
   setTimeout(() => {

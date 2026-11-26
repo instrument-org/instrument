@@ -210,19 +210,24 @@ export function NewChatView({
   }, [areProjectsLoaded, draftId, tabId]);
   // What the box held besides its words (a picture's own preview among it)
   // is kept with the draft as the box lets go of it, so this screen shows it
-  // again as it was.
+  // again as it was. A draft sent from here keeps nothing of the box, which
+  // the send emptied: it comes back, if its message is taken back, as its
+  // record has it.
   useLayoutEffect(() => {
     if (boundId === null) {
       return;
     }
     const input = inputRef.current;
     return () => {
+      const bound = store.get(draftsAtom).find((entry) => entry.id === boundId);
       const kept = input?.snapshot();
-      if (kept) {
+      if (bound !== undefined && isOnItsWay(bound)) {
+        setSnapshots(({ [boundId]: _sent, ...current }) => current);
+      } else if (kept) {
         setSnapshots((current) => ({ ...current, [boundId]: kept }));
       }
     };
-  }, [boundId, setSnapshots]);
+  }, [boundId, setSnapshots, store]);
   // The draft sent from here is the chat on its way, so the box lets go of
   // it as the tab moves to the chat, and a new chat here starts empty.
   useEffect(

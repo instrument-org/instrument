@@ -35,7 +35,7 @@ import {
   takeUpArrivedReplyAtom,
   takeUpBoxAtom,
 } from "@/client/drafts/chat-box";
-import { hasWaitingWords } from "@/client/drafts/settle-words";
+import { flushWords, hasWaitingWords } from "@/client/drafts/settle-words";
 import { repliesOf } from "@/shared/drafts";
 import {
   draftsAtom,
@@ -720,12 +720,14 @@ export function ChatConversation({
       return;
     }
     const replyChatId = draftKey.chatId;
+    // Words typed since the send are a reply of their own by now, which the
+    // box writes into; the empty write the send's clearing left is nothing.
+    flushWords(chatBoxWordsKey(replyChatId));
     const shown = promptInputRef.current?.snapshot();
     const isEmptyNow =
       !composerDictating &&
       shown?.prompt.trim() === "" &&
-      shown.items.length === 0 &&
-      !hasWaitingWords(chatBoxWordsKey(replyChatId));
+      shown.items.length === 0;
     const router =
       tabId === undefined ? undefined : getGroupTabRouter(tabId);
     if (

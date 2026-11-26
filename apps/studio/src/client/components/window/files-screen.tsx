@@ -100,7 +100,7 @@ import { useFileInfo } from "./file-info";
 import { useQuickLook } from "./quick-look";
 import { useTabSurface } from "./tab-surface";
 import { useInstantUntilFitted } from "./use-instant-until-fitted";
-import { hostGroupOf, useWindowTabs } from "./window-tabs";
+import { hostGroupOf, useWindowTabsChange } from "./window-tabs";
 
 /** A viewer that is the whole of its tab: no card of its own inside the pane's. */
 const FULL_BLEED = "h-full rounded-none shadow-none";
@@ -189,7 +189,9 @@ export function FilesScreen({
     rowViewTools,
     takeFolderPress,
   } = useWindow();
-  const { moveToGroup, pageTakesOver } = useWindowTabs();
+  // Changes to the tabs only: nothing here is drawn from them, so a change
+  // to them leaves the screen as it is.
+  const changeTabs = useWindowTabsChange();
   // The window's tab this screen is in, when it is the tab's own route, and
   // whether that tab is the one up.
   const appTabId = useTabId();
@@ -635,11 +637,15 @@ export function FilesScreen({
       // close it with the rest of the pages drawn here.
       releaseHosted(hostedTabId);
       if (groupTab) {
-        pageTakesOver(hostedTabId, groupTab.id, step.url);
+        changeTabs("pageTakesOver", {
+          page: hostedTabId,
+          tab: groupTab.id,
+          url: step.url,
+        });
         return;
       }
       const group = newSiteGroup();
-      moveToGroup(hostedTabId, group);
+      changeTabs("moveToGroup", hostedTabId, group);
       router.history.push(pageHrefOf(group));
     },
   );

@@ -35,6 +35,7 @@ import {
   type OpenOptions,
   useWindow,
   WindowContext,
+  type WindowContextValue,
 } from "./context";
 import { ScreenToolsRow, useRowSlots } from "./row-slots";
 import { PlanSignInBar } from "./plan-sign-in";
@@ -47,7 +48,8 @@ import {
   FileVersionRows,
   versionHref,
 } from "./file-versions";
-import { GroupTabContext } from "./group-tab";
+import { type GroupTab, GroupTabContext } from "./group-tab";
+import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
 import { KeptScrolls } from "./kept-scrolls";
 import { isKeptScreen, keptScreensAtom, withScreenUp } from "./kept-screens";
@@ -402,6 +404,39 @@ export function GroupItem({
     );
   };
 
+  // The ways the screen up reads of its tab and of the window, each one
+  // function for as long as the tab is drawn: they close over the tabs as
+  // they are, which change with every switch, and every row and tile on the
+  // screen reads them.
+  const tabWays = useSteadyCallbacks<
+    Pick<GroupTab, "close" | "showPage" | "step"> &
+      Pick<
+        WindowContextValue,
+        "openPage" | "openScreen" | "takeFolderPress"
+      >
+  >({
+    close: () => {
+      closeTab(up.id);
+    },
+    openPage: (url, options) => appWindow.openPage(url, openedHere(options)),
+    // A chat's tasks and each task's page walk this tab in place,
+    // unless it is the chat's own, which stays on the chat.
+    openScreen: (href, options) => {
+      if (tasksOfHref(href) && !asksOwnPlace(options) && router && !isChat) {
+        router.history.push(href);
+        return;
+      }
+      appWindow.openScreen(href, openedHere(options));
+    },
+    showPage: (url) => {
+      browser?.open(url, { group, replacing: up });
+    },
+    step: steps.go,
+    takeFolderPress: (press) => {
+      folderPress.current = press;
+    },
+  });
+
   if (up.kind === "page") {
     const filePath = pageFilePath;
     const pageLocation: TabLocation =
@@ -539,42 +574,22 @@ export function GroupItem({
       <GroupTabContext
         key={up.id}
         value={{
-          close: () => {
-            closeTab(up.id);
-          },
+          close: tabWays.close,
           group,
           hasKeyboard,
           id: up.id,
           isShown,
-          showPage: (url) => {
-            browser?.open(url, { group, replacing: up });
-          },
-          step: steps.go,
+          showPage: tabWays.showPage,
+          step: tabWays.step,
           versionsOf: chatId,
         }}
       >
         <WindowContext
           value={{
             ...appWindow,
-            openPage: (url, options) =>
-              appWindow.openPage(url, openedHere(options)),
-            // A chat's tasks and each task's page walk this tab in place,
-            // unless it is the chat's own, which stays on the chat.
-            openScreen: (href, options) => {
-              if (
-                tasksOfHref(href) &&
-                !asksOwnPlace(options) &&
-                router &&
-                !isChat
-              ) {
-                router.history.push(href);
-                return;
-              }
-              appWindow.openScreen(href, openedHere(options));
-            },
-            takeFolderPress: (press) => {
-              folderPress.current = press;
-            },
+            openPage: tabWays.openPage,
+            openScreen: tabWays.openScreen,
+            takeFolderPress: tabWays.takeFolderPress,
             rowField: slots.field,
             rowLead: slots.lead,
             rowReload: slots.reload,

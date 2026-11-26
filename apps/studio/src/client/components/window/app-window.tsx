@@ -75,6 +75,7 @@ import { spokenMessage, toast } from "@/client/lib/toast";
 import { captureComponentError } from "@/client/lib/capture-exception";
 import { cn } from "@/client/lib/utils";
 import { keepListening } from "@/client/lib/keep-listening";
+import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
 import { type Tab } from "@/shared/tabs";
@@ -478,6 +479,55 @@ function useChatChrome() {
   };
 }
 
+/**
+ * The drafts worth coming back to, for the inbox. Only a draft holding
+ * something is a draft to come back to; one being written with nothing in it
+ * yet is its window's alone, one being sent is already its chat, and one just
+ * discarded is gone unless its Undo brings it back. A reply waiting in a
+ * chat's box belongs to that chat and is read there rather than listed here,
+ * until the chat is deleted: then it is listed, so its words can be sent as a
+ * chat of their own. One a tab in any window is writing is that tab's, so it
+ * is not listed either: the one each tab's address names, and the one this
+ * window's box for it writes into, every window's group tabs being one record.
+ *
+ * A hook, so the React Compiler keeps the list until one of these changes:
+ * worked out among the window's later hooks, it would be new on every render,
+ * and with it the shell every screen reads.
+ */
+function useListedDrafts({
+  chatTitles,
+  discardingIds,
+  drafts,
+  isRead,
+  startingIds,
+  tabs,
+}: {
+  chatTitles: Map<ChatId, string>;
+  discardingIds: ReadonlySet<string>;
+  drafts: Draft[];
+  isRead: boolean;
+  startingIds: ReadonlySet<string>;
+  tabs: readonly WindowTab[];
+}) {
+  const newChatBoxes = useAtomValue(newChatBoxesAtom);
+  const inTabs = new Set(
+    tabs.flatMap((tab) => [
+      draftOfTab(tab),
+      newChatBoxes[tab.id]?.draftId ?? undefined,
+    ]),
+  );
+  return drafts.filter(
+    (draft) =>
+      !isOnItsWay(draft) &&
+      (draft.chatId === undefined ||
+        (isRead && !chatTitles.has(draft.chatId))) &&
+      holdsSomething(draft) &&
+      !inTabs.has(draft.id) &&
+      !startingIds.has(draft.id) &&
+      !discardingIds.has(draft.id),
+  );
+}
+
 function WindowShell({
   routers,
   tabs,
@@ -650,16 +700,6 @@ function WindowShell({
   const windowTabs = useWindowTabs();
   // Every screen a group's tab stands on is walked by a router of its own.
   useGroupTabRouters(windowTabs.allTabs, windowTabs.screenMoved);
-  // The drafts tabs are writing, every window's group tabs being one record:
-  // the one each tab's address names, and the one this window's box for it
-  // writes into.
-  const newChatBoxes = useAtomValue(newChatBoxesAtom);
-  const draftsInTabs = new Set(
-    windowTabs.allTabs.flatMap((tab) => [
-      draftOfTab(tab),
-      newChatBoxes[tab.id]?.draftId ?? undefined,
-    ]),
-  );
 
   // A draft with no words is not kept, so one left over from a launch goes.
   // Once, over what was restored, once main has read the drafts: before
@@ -1758,39 +1798,159 @@ function WindowShell({
             appTabs.navigate(newChatHref(id));
           }
         };
-  const screens: null | Screens = opened
-    ? {
-        // No session: a line a button hands over at the top level opens a
-        // draft with the line in it rather than a chat, so the person reads
-        // what is about to be asked, adds to it, and sends it themselves.
-        ask: (prompt, { from } = {}) => {
-          draftWith(prompt, showDraftFrom(from));
-        },
-        browser,
-        // With no chat beside the file, a new draft takes what was marked.
-        moveAsksToDraft: (askIds, { from } = {}) => {
-          moveAsks(askIds, {
-            draftId: draftWith("", showDraftFrom(from)),
-            kind: "draft",
-          });
-        },
-        openAll,
-        openPage,
-        openPath: openNamedPath,
-        openScreen,
-        showTab: (id) => {
-          const tab = windowTabs.allTabs.find((entry) => entry.id === id);
-          if (tab === undefined) {
-            return false;
-          }
-          if (tab.group !== undefined) {
-            groups.show(tab.group);
-          }
-          windowTabs.select(tab.id);
-          return true;
-        },
+  // Every screen in every group reads the window's ways in, through its
+  // context and the shell's. Each closes over the tabs as they are, which
+  // change with every switch, so each is one function for as long as the
+  // window is open, calling the latest, and the groups not up keep what they
+  // drew.
+  const ways = useSteadyCallbacks<
+    Pick<
+      Screens,
+      | "ask"
+      | "moveAsksToDraft"
+      | "openAll"
+      | "openPage"
+      | "openPath"
+      | "openScreen"
+      | "showTab"
+    >
+  >({
+    // No session: a line a button hands over at the top level opens a
+    // draft with the line in it rather than a chat, so the person reads
+    // what is about to be asked, adds to it, and sends it themselves.
+    ask: (prompt, { from } = {}) => {
+      draftWith(prompt, showDraftFrom(from));
+    },
+    // With no chat beside the file, a new draft takes what was marked.
+    moveAsksToDraft: (askIds, { from } = {}) => {
+      moveAsks(askIds, {
+        draftId: draftWith("", showDraftFrom(from)),
+        kind: "draft",
+      });
+    },
+    openAll,
+    openPage,
+    openPath: openNamedPath,
+    openScreen,
+    showTab: (id) => {
+      const tab = windowTabs.allTabs.find((entry) => entry.id === id);
+      if (tab === undefined) {
+        return false;
       }
-    : null;
+      if (tab.group !== undefined) {
+        groups.show(tab.group);
+      }
+      windowTabs.select(tab.id);
+      return true;
+    },
+  });
+  const listedDrafts = useListedDrafts({
+    chatTitles,
+    discardingIds,
+    drafts,
+    isRead: chatChrome.isRead,
+    startingIds,
+    tabs: windowTabs.allTabs,
+  });
+  const shellWays = useSteadyCallbacks<
+    Pick<
+      Shell,
+      | "closeGroup"
+      | "closeSide"
+      | "discardDraft"
+      | "goToPlace"
+      | "leaveProject"
+      | "newGroup"
+      | "newTab"
+      | "onNewDraftProject"
+      | "onNewProject"
+      | "openProject"
+      | "openProjectInFiles"
+      | "reopenClosed"
+      | "reopenTab"
+      | "requestClose"
+      | "sentStored"
+      | "setChatProject"
+      | "setDefaultModelChoice"
+      | "setDefaultModelURI"
+      | "showDraft"
+      | "showGroup"
+      | "startChat"
+    >
+  >({
+    closeGroup: (group) => {
+      askToCloseGroups([group]);
+    },
+    closeSide: askToCloseSide,
+    discardDraft,
+    goToPlace: choosePlace,
+    leaveProject,
+    newGroup: () => {
+      groups.openNew();
+    },
+    newTab: () => {
+      groups.newTab();
+    },
+    onNewDraftProject: (draftId, name) => {
+      setNewProject({ draftId, ...(name ? { name } : {}) });
+    },
+    onNewProject: (chatId, name) => {
+      setNewProject({ chatId, ...(name ? { name } : {}) });
+    },
+    openProject: enterProject,
+    openProjectInFiles: (project) => {
+      void showProjectInFiles(project);
+    },
+    reopenClosed,
+    reopenTab,
+    requestClose: askToCloseTab,
+    sentStored,
+    setChatProject,
+    setDefaultModelChoice,
+    setDefaultModelURI,
+    showDraft: (id, here) => {
+      revealDraft(id, here);
+    },
+    showGroup,
+    startChat,
+  });
+  const screens: null | Screens = opened ? { ...ways, browser } : null;
+  const sidebarWays = useSteadyCallbacks<
+    Pick<
+      ComponentProps<typeof GroupSidebar>,
+      | "onClose"
+      | "onCloseAll"
+      | "onDuplicate"
+      | "onNew"
+      | "onNewProject"
+      | "onPin"
+      | "onShow"
+    >
+  >({
+    onClose: (group) => {
+      askToCloseGroups([group]);
+    },
+    onCloseAll: askToCloseGroups,
+    onDuplicate: (entry) => {
+      groups.duplicate(entry);
+    },
+    onNew: () => {
+      groups.openNew();
+    },
+    onNewProject: () => {
+      setNewProject({});
+    },
+    onPin: (group, pinned) => {
+      groups.pin(group, pinned);
+    },
+    onShow: (group, { newWindow }) => {
+      if (newWindow) {
+        groups.moveToNewWindow(group, groupList.open);
+      } else {
+        groups.show(group);
+      }
+    },
+  });
 
   if (ensure.error) {
     return (
@@ -1813,78 +1973,24 @@ function WindowShell({
   }
 
   const shell: Shell = {
+    ...shellWays,
     arrivedId,
     childTitles: names.taskTitles,
     defaultModelChoice,
     defaultModelURI,
-    discardDraft,
-    // Only a draft holding something is a draft to come back to; one being
-    // written with nothing in it yet is its window's alone, one being sent is
-    // already its chat, and one just discarded is gone unless its Undo brings
-    // it back. A reply waiting in a chat's box belongs to that chat and is
-    // read there rather than listed here, until the chat is deleted: then it
-    // is listed, so its words can be sent as a chat of their own. One a tab
-    // in any window is writing is that tab's, so it is not listed either.
     chatTitles,
-    drafts: drafts.filter(
-      (draft) =>
-        !isOnItsWay(draft) &&
-        (draft.chatId === undefined ||
-          (chatChrome.isRead && !chatTitles.has(draft.chatId))) &&
-        holdsSomething(draft) &&
-        !draftsInTabs.has(draft.id) &&
-        !startingIds.has(draft.id) &&
-        !discardingIds.has(draft.id),
-    ),
-    closeGroup: (group) => {
-      askToCloseGroups([group]);
-    },
-    closeSide: askToCloseSide,
-    goToPlace: choosePlace,
-    newGroup: () => {
-      groups.openNew();
-    },
-    newTab: () => {
-      groups.newTab();
-    },
-    onNewDraftProject: (draftId, name) => {
-      setNewProject({ draftId, ...(name ? { name } : {}) });
-    },
-    onNewProject: (chatId, name) => {
-      setNewProject({ chatId, ...(name ? { name } : {}) });
-    },
-    leaveProject,
-    openProject: enterProject,
-    openProjectInFiles: (project) => {
-      void showProjectInFiles(project);
-    },
-    reopenClosed,
-    reopenTab,
-    showGroup,
-    requestClose: askToCloseTab,
+    drafts: listedDrafts,
     rowWidth,
     layoutContext: (tabId) => layoutContextRef.current(tabId),
     sendContext: (options) => sendContextRef.current(options),
-    sentStored,
     sentWords: (chatId) => sent.get(chatId)?.words,
-    setChatProject,
-    setDefaultModelChoice,
-    setDefaultModelURI,
-    showDraft: (id, here) => {
-      revealDraft(id, here);
-    },
-    startChat,
     projects,
   };
 
   return (
     <PlanSignInsWindow value={screens}>
-      <FileOpenContext
-        value={(filePath, options) => {
-          openNamedPath(filePath, options);
-        }}
-      >
-        <PageOpenContext value={openPage}>
+      <FileOpenContext value={ways.openPath}>
+        <PageOpenContext value={ways.openPage}>
           <WindowFrame
             corner={<WindowCorner />}
             hasBar={false}
@@ -1907,30 +2013,14 @@ function WindowShell({
                   <GroupSidebar
                     chatTitles={chatTitles}
                     groupUp={groupUp}
-                    onClose={(group) => {
-                      askToCloseGroups([group]);
-                    }}
-                    onCloseAll={askToCloseGroups}
-                    onDuplicate={(entry) => {
-                      groups.duplicate(entry);
-                    }}
-                    onNew={() => {
-                      groups.openNew();
-                    }}
-                    onNewProject={() => {
-                      setNewProject({});
-                    }}
-                    onPin={(group, pinned) => {
-                      groups.pin(group, pinned);
-                    }}
-                    onReopenLast={reopenTab}
-                    onShow={(group, { newWindow }) => {
-                      if (newWindow) {
-                        groups.moveToNewWindow(group, groupList.open);
-                      } else {
-                        groups.show(group);
-                      }
-                    }}
+                    onClose={sidebarWays.onClose}
+                    onCloseAll={sidebarWays.onCloseAll}
+                    onDuplicate={sidebarWays.onDuplicate}
+                    onNew={sidebarWays.onNew}
+                    onNewProject={sidebarWays.onNewProject}
+                    onPin={sidebarWays.onPin}
+                    onReopenLast={shellWays.reopenTab}
+                    onShow={sidebarWays.onShow}
                     open={groupList.open}
                     projects={projects}
                   />

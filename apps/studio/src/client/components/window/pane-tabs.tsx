@@ -33,12 +33,7 @@ import { type Chat } from "./chats";
 import { useTasksOf } from "./child-tasks-query";
 import { useComputerVolumes } from "./computer-volumes";
 import { DeleteChatDialog } from "./delete-chat-dialog";
-import {
-  hoverPicturesAtom,
-  pictureUrl,
-  tabPictureKey,
-  tabShows,
-} from "./hover-pictures";
+import { useTabPictures } from "./hover-pictures";
 import { useFileTabTitles } from "./file-tab-titles";
 import { CaptureTabIcon, usePageCaptures } from "./page-capture-mark";
 import { computerTabOf } from "./file-tabs";
@@ -51,7 +46,7 @@ import { useTabActionsFor } from "./tab-actions";
 import { chatOfTab, draftOfTab } from "./tab-model";
 import { TabMenuAtPoint, TabMenuItems } from "./tab-menu-items";
 import { type StripTab, TabStrip } from "./tab-strip";
-import { useWindowTabs } from "./window-tabs";
+import { useChatsUpIn } from "./window-tabs";
 import { isOnEmptySpace, WindowSpaceMenu } from "./window-space-menu";
 
 /** A tab as the strip orders it. */
@@ -124,21 +119,18 @@ export function PaneTabs({
   const projects = useProjectsById();
   // The chat whose versions of a file a tab may have up: the one its group
   // has up, as the tab's row reads it.
-  const { chatUpIn } = useWindowTabs();
+  const groups = [
+    ...new Set(
+      tabs.flatMap((tab) => (tab.group === undefined ? [] : [tab.group])),
+    ),
+  ].join("\n");
+  const chatsUp = useChatsUpIn(groups);
   const volumes = useComputerVolumes();
   const fileTitles = useFileTabTitles(
     tabs.map((tab) => (tab.kind === "page" ? undefined : tab.href)),
   );
-  const names = {
-    appsBySlug,
-    chatTitles,
-    ...(fileTitles ? { fileTitles } : {}),
-    projects,
-    taskTitles,
-    ...(volumes ? { volumes } : {}),
-  };
   const captures = usePageCaptures();
-  const pictures = useAtomValue(hoverPicturesAtom);
+  const pictures = useTabPictures(tabs);
   const { data: chats } = useQuery(chatListOptions());
   const driven = useTargetsAgentActivity(
     // A bookmark held over the strip stands in as a page with no browser
@@ -167,6 +159,17 @@ export function PaneTabs({
   const [renaming, setRenaming] = useState<string>();
   const [deleting, setDeleting] = useState<{ chat: Chat; tabId: string }>();
   const tabOf = (key: string) => tabs.find((tab) => stripKeyOf(tab) === key);
+  // Worked out after the hooks, so the React Compiler keeps the tabs as drawn
+  // until one of these changes.
+  const chatUpIn = (group: string) => chatsUp[groups.split("\n").indexOf(group)];
+  const names = {
+    appsBySlug,
+    chatTitles,
+    ...(fileTitles ? { fileTitles } : {}),
+    projects,
+    taskTitles,
+    ...(volumes ? { volumes } : {}),
+  };
 
   const whole = tabs.map((tab) => {
     const key = stripKeyOf(tab);
@@ -191,7 +194,7 @@ export function PaneTabs({
     const picture =
       tab.id === chosenId
         ? undefined
-        : pictureUrl(pictures, tabPictureKey(tab.id), tabShows(tab));
+        : pictures.get(tab.id);
     const chat = chatOfTab(tab);
     const listed =
       chat === undefined ? undefined : chats?.find((each) => each.id === chat);

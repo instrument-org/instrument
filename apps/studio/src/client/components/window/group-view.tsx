@@ -26,6 +26,7 @@ import { noop } from "radashi";
 import { useAtom, useAtomValue } from "jotai";
 import { motion, useReducedMotion } from "motion/react";
 import {
+  type ComponentProps,
   type CSSProperties,
   type ReactNode,
   useEffect,
@@ -52,6 +53,7 @@ import {
   useStripTarget,
 } from "./drag/use-group-drag";
 import { RecentlyClosedMenu } from "./recently-closed-menu";
+import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { useShell } from "./shell-context";
 import { useSideCaret } from "./use-side-caret";
 import { useSideMotion } from "./side-motion";
@@ -73,7 +75,12 @@ import {
 } from "./side-widths";
 import { useTabSurface } from "./tab-surface";
 import { WINDOW_CARD, WINDOW_CARD_GAP } from "./window-frame";
-import { groupOnScreenAtom, newScreenId, useWindowTabs } from "./window-tabs";
+import {
+  groupOnScreenAtom,
+  newScreenId,
+  useGroupLayout,
+  useWindowTabs,
+} from "./window-tabs";
 import {
   heldHintAtom,
   tabChordLabel,
@@ -182,7 +189,7 @@ function GroupSides({
   isUp: boolean;
 }) {
   const windowTabs = useWindowTabs();
-  const layout = windowTabs.layoutOf(group);
+  const layout = useGroupLayout(group);
   const [dragged, setDragged] = useState<number>();
   // The share a drag last reached, read as it ends: the handle keeps the
   // callbacks of the render the press began in, so `dragged` there is stale.
@@ -770,10 +777,12 @@ function SideCard({
     groupTabCount === 1 &&
     (listedGroups ?? []).every((listed) => listed === group);
   const [firstHere] = tabs;
-  const split: SplitMenuActions = {
-    group,
-    hasKeyboard,
-    hasOtherSide: layout.sides.length === 2,
+  // What the side's strip and its menus do, each one function for as long as
+  // the side is drawn: they close over the tabs as they are, which change
+  // with every switch, and the strip draws every tab again for a new one.
+  const splitWays = useSteadyCallbacks<
+    Omit<SplitMenuActions, "group" | "hasKeyboard" | "hasOtherSide">
+  >({
     onCloseSplit:
       layout.sides.length === 2 && firstHere
         ? () => {
@@ -825,6 +834,39 @@ function SideCard({
     onOpenInSplit: (tab) => {
       copyOf(tab, { side: otherSide });
     },
+  });
+  const stripWays = useSteadyCallbacks<
+    Pick<
+      ComponentProps<typeof PaneTabs>,
+      "onDuplicate" | "onNew" | "onSelect" | "onTabPress"
+    >
+  >({
+    onDuplicate: (tab) => {
+      copyOf(tab, { after: tab.id, side: "same" });
+    },
+    onNew: () => {
+      windowTabs.openScreen(NEW_TAB_HREF, {
+        from: { reason: "newTab" },
+        group,
+        select: true,
+        side: sideIndex,
+      });
+    },
+    onSelect: (id) => {
+      windowTabs.select(id);
+    },
+    onTabPress: (key, event) => {
+      const tab = tabs.find((each) => stripKeyOf(each) === key);
+      if (tab) {
+        pressSideTab(event, { group, side: sideIndex, tab });
+      }
+    },
+  });
+  const split: SplitMenuActions = {
+    ...splitWays,
+    group,
+    hasKeyboard,
+    hasOtherSide: layout.sides.length === 2,
   };
 
   // A pane of one tab draws no strip: its tab's own row is its top, with
@@ -934,31 +976,13 @@ function SideCard({
           className={SIDE_TABS}
           heldAt={drawn.heldAt}
           lead={isFirst ? <SidebarToggle /> : undefined}
-          onClose={(id) => {
-            shell.requestClose(id);
-          }}
-          onDuplicate={(tab) => {
-            copyOf(tab, { after: tab.id, side: "same" });
-          }}
-          onNew={() => {
-            windowTabs.openScreen(NEW_TAB_HREF, {
-              from: { reason: "newTab" },
-              group,
-              select: true,
-              side: sideIndex,
-            });
-          }}
-          onSelect={(id) => {
-            windowTabs.select(id);
-          }}
+          onClose={shell.requestClose}
+          onDuplicate={stripWays.onDuplicate}
+          onNew={stripWays.onNew}
+          onSelect={stripWays.onSelect}
           newMenu={<RecentlyClosedMenu />}
           reopen={shell.reopenTab}
-          onTabPress={(key, event) => {
-            const tab = tabs.find((each) => stripKeyOf(each) === key);
-            if (tab) {
-              pressSideTab(event, { group, side: sideIndex, tab });
-            }
-          }}
+          onTabPress={stripWays.onTabPress}
           side={sideIndex}
           split={split}
           tabs={drawn.tabs}

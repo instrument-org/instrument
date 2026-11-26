@@ -167,6 +167,7 @@ import ms from "ms";
 import { unique } from "radashi";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
+  memo,
   type ReactNode,
   useEffect,
   useEffectEvent,
@@ -3752,8 +3753,11 @@ function placeMenuOf(
  * The places beside the folder: the app's own, the favorites, and the
  * computer's disks. A component of its own, handed only what it shows and
  * steady actions, so moving the selection in the folder leaves it alone.
+ * Kept by hand (`memo`): the React Compiler keeps none of the page's render
+ * around it, which would draw the places again, and every menu on them, each
+ * time the page draws.
  */
-function FinderPlaces({
+const FinderPlaces = memo(function FinderPlaces({
   actions,
   defaults,
   folderHostPath,
@@ -3873,7 +3877,7 @@ function FinderPlaces({
       />
     </>
   );
-}
+});
 
 /** A file's type, as a sound where probing found it has no picture. */
 function contentTypeOf(

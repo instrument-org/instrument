@@ -4,8 +4,9 @@ import {
   type WindowTab,
 } from "@/client/atoms/window";
 import { atom, type SetStateAction, useAtomValue, useSetAtom } from "jotai";
+import { selectAtom } from "jotai/utils";
 import { isEqual } from "radashi";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
 import {
   askTabs,
@@ -29,6 +30,7 @@ import {
   besideOf,
   chatUpIn,
   groupLayoutOf,
+  type GroupLayout,
   draftOfTab,
   everyTabId,
   isNewChatTab,
@@ -315,6 +317,62 @@ export function useWindowTabsChange(): TabsChange {
       apply({ args, op }) as never,
     [apply],
   );
+}
+
+/**
+ * A group's sides as they are laid out now (`groupLayoutOf`), the same object
+ * until one of its tabs, which tab is up on a side, or which side has the
+ * keyboard changes: a switch to another group leaves it as it was, and with
+ * it everything the group draws from it.
+ */
+export function useGroupLayout(group: string): GroupLayout {
+  const layout = useMemo(
+    () =>
+      selectAtom(
+        windowTabsAtom,
+        (state) => groupLayoutOf(state, group),
+        sameLayout,
+      ),
+    [group],
+  );
+  return useAtomValue(layout);
+}
+
+function sameLayout(a: GroupLayout, b: GroupLayout) {
+  return (
+    a.focused === b.focused &&
+    a.sides.length === b.sides.length &&
+    a.sides.every((side, index) => {
+      const other = b.sides[index];
+      return (
+        other !== undefined &&
+        side.up === other.up &&
+        side.tabs.length === other.tabs.length &&
+        side.tabs.every((tab, at) => tab === other.tabs[at])
+      );
+    })
+  );
+}
+
+/**
+ * The chat each group has up (`chatUpIn`), in the order of `groups`, one
+ * group per line: the same array until one of them changes.
+ */
+export function useChatsUpIn(groups: string): readonly (ChatId | undefined)[] {
+  const chats = useMemo(
+    () =>
+      selectAtom(
+        windowTabsAtom,
+        (state) =>
+          groups === ""
+            ? []
+            : groups.split("\n").map((group) => chatUpIn(state, group)),
+        (a, b) =>
+          a.length === b.length && a.every((chat, at) => chat === b[at]),
+      ),
+    [groups],
+  );
+  return useAtomValue(chats);
 }
 
 /** No group's own record, one object for every render. */

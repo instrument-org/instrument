@@ -1,5 +1,7 @@
 import { type WindowTab } from "@/client/atoms/window";
-import { atom } from "jotai";
+import { atom, useAtomValue } from "jotai";
+import { selectAtom } from "jotai/utils";
+import { useMemo } from "react";
 
 import { type GroupLayout } from "./tab-model";
 
@@ -51,4 +53,34 @@ export function pictureUrl(
 ): string | undefined {
   const picture = pictures.get(key);
   return picture?.shows === shows ? picture.url : undefined;
+}
+
+/**
+ * The pictures of these tabs, by tab id (`pictureUrl`): the same map until
+ * one of theirs changes, so a strip draws its tabs again for a picture of one
+ * of its own only.
+ */
+export function useTabPictures(
+  tabs: readonly WindowTab[],
+): ReadonlyMap<string, string> {
+  const wanted = tabs.map((tab) => `${tab.id}\t${tabShows(tab)}`).join("\n");
+  const pictures = useMemo(
+    () =>
+      selectAtom(
+        hoverPicturesAtom,
+        (held) =>
+          new Map(
+            wanted.split("\n").flatMap((line) => {
+              const [id = "", shows = ""] = line.split("\t");
+              const url = pictureUrl(held, tabPictureKey(id), shows);
+              return url === undefined ? [] : [[id, url] as const];
+            }),
+          ),
+        (a, b) =>
+          a.size === b.size &&
+          [...a].every(([id, url]) => b.get(id) === url),
+      ),
+    [wanted],
+  );
+  return useAtomValue(pictures);
 }

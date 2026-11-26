@@ -364,7 +364,6 @@ export function BrowserTabs({
   // The page the group on screen has up, when what it has up is a page.
   const up = windowTabs.active;
   const active = up?.kind === "page" ? up : undefined;
-  const activeTarget = active ? targetOf(active) : null;
 
   // The strip as it is at any moment, for the handle below and the listeners,
   // both of which are made once and read it when called.
@@ -660,7 +659,8 @@ export function BrowserTabs({
     ref,
     () => ({
       navigate: (url) => {
-        const guest = activeTarget && getGuest(activeTarget);
+        const page = latest.current.active;
+        const guest = page && getGuest(browserTargetOf(page.id));
         if (guest) {
           change("pageNavigatedUp");
           // A rejection is a failed or interrupted load, which did-fail-load shows.
@@ -897,9 +897,9 @@ export function BrowserTabs({
         return true;
       },
     }),
-    // The handle reads the strip through `latest` at call time; the guest on
-    // screen is read here, so the handle is remade whenever it changes.
-    [activeTarget, change],
+    // The handle reads the strip, the page up included, through `latest` at
+    // call time, so it is made once.
+    [change],
   );
 
   // A file shown as a page has its text a step away, which the page's menu

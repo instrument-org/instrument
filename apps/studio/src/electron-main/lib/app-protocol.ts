@@ -2,6 +2,8 @@ import { capturePath, captureThumbnail } from "@/electron-main/lib/captures";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { CAPTURE_NAME_PATTERN, CAPTURES_HOST } from "@/shared/captures";
 import { DIRECTORY_ICON_HOST } from "@/shared/directory-icon";
+import { HOVER_PICTURE_HOST } from "@/shared/hover-pictures";
+import { hoverPictureBytes } from "@/electron-main/windows/hover-pictures";
 import { LIVE_PAGE_HOST } from "@/shared/live-page";
 import { APP_PROTOCOL } from "@instrument-org/shared";
 import {
@@ -84,6 +86,9 @@ export function registerAppProtocol(ses: Session) {
       case FILE_OPEN_ICON_HOST: {
         return handleFileOpenIconRequest({ request, url });
       }
+      case HOVER_PICTURE_HOST: {
+        return handleHoverPictureRequest({ request, url });
+      }
       case LIVE_PAGE_HOST: {
         return handleLivePageRequest({ request, url });
       }
@@ -141,6 +146,31 @@ async function handleCaptureRequest({
   } catch {
     return new Response(null, { status: 404 });
   }
+}
+
+/**
+ * A tab's or a group's hover picture. Its name says when it was taken, and a
+ * new picture is a new name, so one served never changes.
+ */
+async function handleHoverPictureRequest({
+  request,
+  url,
+}: {
+  request: Request;
+  url: URL;
+}) {
+  const jpeg =
+    request.method === "GET"
+      ? await hoverPictureBytes(url.pathname.slice(1))
+      : undefined;
+  return jpeg
+    ? new Response(new Uint8Array(jpeg), {
+        headers: {
+          "Cache-Control": `public, max-age=${IMMUTABLE_CACHE_SECONDS}, immutable`,
+          "Content-Type": "image/jpeg",
+        },
+      })
+    : new Response(null, { status: 404 });
 }
 
 /** Where site icons are kept, and the network they are fetched over. */

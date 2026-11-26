@@ -77,20 +77,29 @@ function watchForPictures(store: ReturnType<typeof useStore>) {
   // How often what is up has changed, and when it last did.
   let changes = 0;
   let changedAt = Date.now();
-  const keep = (
+  const keep = async (
     taken: { at: number; key: string; shows: string; url: string }[],
   ) => {
-    if (taken.length > 0) {
-      store.set(hoverPicturesAtom, (held) => {
-        const next = new Map(held);
-        for (const { at, key, shows, url } of taken) {
-          if ((next.get(key)?.at ?? 0) < at) {
-            next.set(key, { at, shows, url });
-          }
-        }
-        return next;
-      });
+    if (taken.length === 0) {
+      return;
     }
+    // Each loaded before a card can show it, so the card draws it with itself.
+    await Promise.all(
+      taken.map(({ url }) => {
+        const image = new Image();
+        image.src = url;
+        return image.decode().catch(() => undefined);
+      }),
+    );
+    store.set(hoverPicturesAtom, (held) => {
+      const next = new Map(held);
+      for (const { at, key, shows, url } of taken) {
+        if ((next.get(key)?.at ?? 0) < at) {
+          next.set(key, { at, shows, url });
+        }
+      }
+      return next;
+    });
   };
   let isTaking = false;
   /** Takes what is up, unless something is over it; answers whether it could. */
@@ -120,7 +129,7 @@ function watchForPictures(store: ReturnType<typeof useStore>) {
         }
         const { data } = await safe(rpcClient.hoverPictures.keep.call({ id }));
         const shows = new Map(parts.map((each) => [each.key, each.shows]));
-        keep(
+        await keep(
           (data ?? []).flatMap(({ at, key, url }) => {
             const of = shows.get(key);
             return url === undefined || of === undefined
@@ -155,7 +164,7 @@ function watchForPictures(store: ReturnType<typeof useStore>) {
       }
       return next;
     });
-    keep(
+    await keep(
       data.flatMap(({ at, key, url }) => {
         const of = shows.get(key);
         return url === undefined || of === undefined

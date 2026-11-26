@@ -1,6 +1,10 @@
 import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
 import { createScopedLogger } from "@/electron-main/lib/electron-logger";
 import { captureFrame } from "@/electron-main/browser-view/capture-frame";
+import {
+  HOVER_PICTURE_NAME_PATTERN,
+  hoverPictureUrl,
+} from "@/shared/hover-pictures";
 import { type Rectangle, type WebContents } from "electron";
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
@@ -26,7 +30,7 @@ export interface PictureAsked {
   shows: string;
 }
 
-/** A picture kept, by when it was taken. Its bytes come only where the asker lacks them. */
+/** A picture kept, by when it was taken. Its address comes only where the asker lacks it. */
 export interface PictureKept {
   at: number;
   key: string;
@@ -162,41 +166,32 @@ export async function keepHoverPictures(id: number): Promise<PictureKept[]> {
       await fs.rename(partial, path.join(dir, file));
       held.set(name, { at, file, shows: hash(shows) });
       if (was) {
-        await fs.rm(path.join(dir, was.file), { force: true });
+        retire(path.join(dir, was.file));
       }
-      kept.push({ at, key, url: asDataUrl(jpeg) });
+      kept.push({ at, key, url: hoverPictureUrl(file) });
     }
     return kept;
   });
 }
 
 /**
- * The pictures kept of what is asked for as it stands, with the bytes of
+ * The pictures kept of what is asked for as it stands, with the address of
  * those taken since the asker's (`have`). One with no picture is left out.
  */
 export async function readHoverPictures(
   wanted: { have?: number | undefined; key: string; shows: string }[],
 ): Promise<PictureKept[]> {
   return inTurn(async () => {
-    const { dir, held } = await opened();
-    const found = await Promise.all(
-      wanted.map(async ({ have, key, shows }): Promise<PictureKept[]> => {
-        const picture = held.get(hash(key));
-        if (!picture || picture.shows !== hash(shows)) {
-          return [];
-        }
-        if (picture.at === have) {
-          return [{ at: picture.at, key }];
-        }
-        try {
-          const jpeg = await fs.readFile(path.join(dir, picture.file));
-          return [{ at: picture.at, key, url: asDataUrl(jpeg) }];
-        } catch {
-          return [];
-        }
-      }),
-    );
-    return found.flat();
+    const { held } = await opened();
+    return wanted.flatMap(({ have, key, shows }): PictureKept[] => {
+      const picture = held.get(hash(key));
+      if (!picture || picture.shows !== hash(shows)) {
+        return [];
+      }
+      return picture.at === have
+        ? [{ at: picture.at, key }]
+        : [{ at: picture.at, key, url: hoverPictureUrl(picture.file) }];
+    });
   });
 }
 
@@ -249,6 +244,21 @@ export async function clearHoverPictures(): Promise<void> {
   await keepOnlyHoverPictures([]);
 }
 
+/**
+ * The bytes of a kept picture by its file name, for the app protocol's host;
+ * nothing for a name that is not one, or a picture since thrown away.
+ */
+export async function hoverPictureBytes(
+  file: string,
+): Promise<Buffer | undefined> {
+  if (!HOVER_PICTURE_NAME_PATTERN.test(file)) {
+    return undefined;
+  }
+  return fs
+    .readFile(path.join(workspaceBrowserDir(), "hover-pictures", file))
+    .catch(() => undefined);
+}
+
 /** The folder, and what it holds. Asked for in turn only. */
 async function opened() {
   const dir = path.join(workspaceBrowserDir(), "hover-pictures");
@@ -262,17 +272,33 @@ async function heldIn(dir: string): Promise<Map<string, Held>> {
   const held = new Map<string, Held>();
   const names = await fs.readdir(dir).catch((): string[] => []);
   for (const file of names) {
-    const [, id, shows, taken] =
-      /^([0-9a-f]+)\.([0-9a-f]+)\.(\d+)\.jpg$/.exec(file) ?? [];
+    const [, id, shows, taken] = HOVER_PICTURE_NAME_PATTERN.exec(file) ?? [];
     if (id === undefined || shows === undefined || taken === undefined) {
       continue;
     }
     const at = Number(taken);
-    if (at > (held.get(id)?.at ?? 0)) {
-      held.set(id, { at, file, shows });
+    const was = held.get(id);
+    // A picture replaced just before the app last quit.
+    if (was && was.at >= at) {
+      retire(path.join(dir, file));
+      continue;
     }
+    if (was) {
+      retire(path.join(dir, was.file));
+    }
+    held.set(id, { at, file, shows });
   }
   return held;
+}
+
+/** How long a replaced picture is still served: another window may show its address until it next reads. */
+const REPLACED_KEPT_MS = 60_000;
+
+/** A replaced picture's file, removed once no window should still be showing it. */
+function retire(file: string) {
+  setTimeout(() => {
+    void fs.rm(file, { force: true });
+  }, REPLACED_KEPT_MS).unref();
 }
 
 async function inTurn<T>(step: () => Promise<T>): Promise<T> {
@@ -291,10 +317,6 @@ function around(rects: Rectangle[]): Rectangle {
     x,
     y,
   };
-}
-
-function asDataUrl(jpeg: Buffer) {
-  return `data:image/jpeg;base64,${jpeg.toString("base64")}`;
 }
 
 function hash(text: string) {

@@ -4,6 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { hoverPictureUrl } from "@/shared/hover-pictures";
+
 let folder = "";
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "hover-pictures-"));
 
@@ -63,9 +65,14 @@ const taken = async (
   frames.at(-1)?.("frame");
   return pictures.keepHoverPictures((await taking) ?? -1);
 };
+/** What each picture kept shows, read from the file its address names. */
 const shown = (kept: { url?: string }[]) =>
   kept.map(({ url }) =>
-    Buffer.from(url?.split(",")[1] ?? "", "base64").toString(),
+    fs
+      .readFileSync(
+        path.join(folder, "hover-pictures", url?.split("/").at(-1) ?? ""),
+      )
+      .toString(),
   );
 const onDisk = () => fs.readdirSync(path.join(folder, "hover-pictures"));
 
@@ -121,11 +128,20 @@ describe("hover pictures", () => {
     ).toEqual([]);
   });
 
-  it("keeps one file per key", async () => {
+  it("keeps one file per key, a replaced one served a minute longer", async () => {
     const pictures = await load();
-    await taken(pictures, [{ ...a, shows: "one" }]);
-    await taken(pictures, [{ ...a, shows: "two" }]);
-    expect(onDisk()).toHaveLength(1);
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    try {
+      await taken(pictures, [{ ...a, shows: "one" }]);
+      await taken(pictures, [{ ...a, shows: "two" }]);
+      expect(onDisk()).toHaveLength(2);
+      vi.advanceTimersByTime(60_000);
+    } finally {
+      vi.useRealTimers();
+    }
+    await vi.waitFor(() => {
+      expect(onDisk()).toHaveLength(1);
+    });
   });
 
   it.each(["forget", "clear"] as const)(
@@ -155,5 +171,17 @@ describe("hover pictures", () => {
         ])
       ).map(({ key }) => key),
     ).toEqual(["group:b"]);
+  });
+
+  it("serves the bytes of a kept picture by its address's name, and of nothing else", async () => {
+    const pictures = await load();
+    const [kept] = await taken(pictures, [a]);
+    const name = kept?.url?.split("/").at(-1) ?? "";
+    expect(kept?.url).toBe(hoverPictureUrl(name));
+    expect((await pictures.hoverPictureBytes(name))?.toString()).toBe(
+      "frame 0,0 1200x800 at 640",
+    );
+    fs.writeFileSync(path.join(folder, "secret.jpg"), "secret");
+    expect(await pictures.hoverPictureBytes("../secret.jpg")).toBeUndefined();
   });
 });

@@ -113,6 +113,21 @@ describe("a draft's file", () => {
     expect(roundTrip(written)?.chat).toBeUndefined();
   });
 
+  it("writes the message a draft was sent as beside the chat it went into", () => {
+    const written = draft({
+      sending: "2026-10-19-latest-tweet",
+      sent: "01JC7Y4ZV2S6N3W0QF8X5B9D1M",
+    });
+    expect(renderDraftFile(written)).toContain(
+      'sending: instrument://chat/2026-10-19-latest-tweet\nsent: "01JC7Y4ZV2S6N3W0QF8X5B9D1M"',
+    );
+    expect(roundTrip(written)).toMatchObject({
+      sending: "2026-10-19-latest-tweet",
+      sent: "01JC7Y4ZV2S6N3W0QF8X5B9D1M",
+    });
+    expect(roundTrip(written)?.others).toBeUndefined();
+  });
+
   it("names the device asked to send a reply, as its own key", () => {
     const written = draft({
       chat: "2026-10-19-latest-tweet",

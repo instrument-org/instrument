@@ -72,16 +72,21 @@ function partOf(
   } as Part;
 }
 
-/** A message the person typed, with what went with it. */
+/** A message the person typed, with what went with it, from the draft `fromDraft` unless that is null. */
 function typed(
   sessionId: StoreId.Session,
   text: string,
   more: Record<string, unknown>[] = [],
+  fromDraft: null | string = "draft-1",
 ): SessionMessage.UserWithParts {
   const id = StoreId.newMessageId();
   return {
     id,
-    metadata: { createdAt: new Date(), sessionId },
+    metadata: {
+      createdAt: new Date(),
+      ...(fromDraft === null ? {} : { fromDraft }),
+      sessionId,
+    },
     parts: [
       partOf(sessionId, id, { state: "done", text, type: "text" }),
       ...more.map((part) => partOf(sessionId, id, part)),
@@ -242,12 +247,7 @@ describe("session.stop with takeBack", () => {
       { context: context() },
     );
 
-    expect(stopped.takenBack).toEqual({
-      chips: [],
-      files: [],
-      folders: [],
-      words: "two, with a typo",
-    });
+    expect(stopped.takenBack).toEqual({ draftId: "draft-1" });
     expect(await wordsIn(chatId, sessionId)).toEqual(["one", "Here it is."]);
     // Another device reads the chat from its files.
     const folded = await foldChatInFolder(chatDir(chatId));
@@ -260,53 +260,10 @@ describe("session.stop with takeBack", () => {
     expect((await chatById(chatId))?.status).not.toBe("stopped");
   });
 
-  it("gives back what the message was sent with", async () => {
-    const chatId = await chatFor(StoreId.newSessionId());
-    const sessionId = sessionOfChat(chatId) ?? StoreId.newSessionId();
-    const attachments = path.join(chatDir(chatId), "attachments");
-    fs.mkdirSync(attachments, { recursive: true });
-    fs.writeFileSync(path.join(attachments, "receipt.png"), "png");
-    const folder = path.join(getWorkspaceConfig().rootDir, "Files", "Trip");
-    const message = typed(sessionId, "file this", [
-      {
-        data: {
-          files: [
-            {
-              filePath: "attachments/receipt.png",
-              filename: "receipt.png",
-              mimeType: "image/png",
-              size: 3,
-            },
-          ],
-          folders: [{ path: folder }],
-        },
-        type: "data-attachments",
-      },
-      {
-        data: {
-          attached: [
-            { kind: "page", title: "Rates", url: "https://example.com/" },
-            { items: [{ kind: "folder", path: folder }], kind: "paths" },
-          ],
-          screen: "conversation",
-        },
-        type: "data-viewContext",
-      },
-      {
-        data: {
-          asks: [
-            {
-              file: { name: "plan.md", path: "/tmp/plan.md" },
-              instruction: "Shorter",
-              target: "lines 1-2",
-            },
-          ],
-        },
-        type: "data-asks",
-      },
-    ]);
-    (await ChatWrites.saveMessageWithParts(message, chatId))._unsafeUnwrap();
-    working.add(sessionId);
+  it("takes nothing back of a message no draft sent, which has nothing to give back", async () => {
+    const { chatId, sessionId } = await chatAtWork((id) =>
+      typed(id, "two", [], null),
+    );
 
     const stopped = await call(
       session.stop,
@@ -314,20 +271,9 @@ describe("session.stop with takeBack", () => {
       { context: context() },
     );
 
-    expect(stopped.takenBack).toMatchObject({
-      asks: { asks: [{ instruction: "Shorter", target: "lines 1-2" }] },
-      chips: [{ kind: "page", url: "https://example.com/" }],
-      files: [
-        {
-          mediaType: "image/png",
-          name: "receipt.png",
-          path: expect.stringMatching(/attachments[\\/]receipt\.png$/),
-          size: 3,
-        },
-      ],
-      folders: [{ path: folder }],
-      words: "file this",
-    });
+    expect(stopped.takenBack).toBeUndefined();
+    expect(await wordsIn(chatId, sessionId)).toContain("two");
+    expect((await chatById(chatId))?.status).toBe("stopped");
   });
 
   it.each([

@@ -11,6 +11,7 @@ import {
 } from "@/electron-main/lib/hosted-features";
 import { personHistory } from "@/electron-main/browser-view/person-history";
 import { lookUpSentLinkTitles } from "@/electron-main/browser-view/sent-link-titles";
+import { applyDraftOpsInMain } from "@/electron-main/drafts/serve-drafts";
 import { startAppSignInChecks } from "@/electron-main/lib/app-sign-in-check";
 import { hostedLimiter } from "@/electron-main/lib/hosted-limiter";
 import { recordPlatformRefusal } from "@/electron-main/lib/platform-refusals";
@@ -197,6 +198,11 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       getAIProviderConfigs,
       getUser: getSignedInUser,
       lookUpSentLinkTitles,
+      draftSent: ({ carried, draftId, messageId }) => {
+        applyDraftOpsInMain([
+          { carried, id: draftId, messageId, type: "sent" },
+        ]);
+      },
       // This computer's folder, and in it the workspace's: where the
       // folder rules, the browser profile and the apps' servers are, which
       // the agent never reaches.

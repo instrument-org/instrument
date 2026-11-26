@@ -177,6 +177,7 @@ export { convertChatSettingsFiles } from "./lib/records/convert/convert-chat-set
 export { chatModelURI } from "./lib/chat-settings";
 export { moveChatFoldersToFiles } from "./lib/chats-folder/move-chat-folders-to-files";
 export { type DraftsSettled, settleDrafts } from "./lib/drafts/boot";
+export { type DraftMessage, draftMessagesIn } from "./lib/drafts/send";
 export { writeDataDirReadme } from "./lib/data-dir-readme";
 export { type MemoriesMoved, moveMemoriesToFolder } from "./lib/memory/move";
 export {
@@ -241,6 +242,7 @@ export {
   appListChanges,
   chatReads,
   chatSettles,
+  turnEnds,
 } from "./lib/host-events";
 export { settleIsNews } from "./lib/chat/chats";
 export { FILES_FENCE } from "./lib/parse-files-block";

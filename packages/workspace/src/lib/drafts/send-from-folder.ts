@@ -20,8 +20,8 @@ interface Sending {
 /**
  * What of a draft's folder a message carried, entry by entry, as the send
  * read it: each file, those inside a folder it sent included, and each
- * folder, innermost first. Only these are taken out once the message is
- * written; anything else is not the send's to delete.
+ * folder, innermost first. Only these are taken out once the draft is
+ * finished; anything else is not the send's to delete.
  */
 export interface SentFromDraft {
   files: string[];
@@ -39,7 +39,7 @@ export interface SentFromDraft {
  * neither is a paste the window sends as bytes whose write has landed in the
  * folder: the same bytes, not merely the same name, since a file dropped in
  * can share a name with a paste. `sent` is what of the folder went, for
- * {@link removeSentFromDraft} to take out once the message is written,
+ * {@link removeSentFromDraft} to take out once the draft is finished,
  * leaving what another draft in a folder they share still names.
  */
 export async function withDraftFolder({
@@ -134,9 +134,8 @@ export async function withDraftFolder({
 }
 
 /**
- * Takes what a message carried out of its draft's folder, once the message
- * is written: the chat has its own copy of each by then, so sending moved
- * them. Only what the send read goes, file by file, and a folder only once
+ * Takes what a message carried out of its draft's folder, once the draft is
+ * finished: the chat has its own copy of each, so sending moved them. Only what the send read goes, file by file, and a folder only once
  * that leaves it empty, so whatever arrived after the send read the folder,
  * inside a folder it sent too, stays for the draft's removal to move to the
  * Trash. Answers what could not be taken out, which stays as well.

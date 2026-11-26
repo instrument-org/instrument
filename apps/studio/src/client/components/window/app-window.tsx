@@ -18,7 +18,7 @@ import {
   pickNewChatProjectAtom,
   settleMadeDraft,
 } from "@/client/drafts/new-chat-box";
-import { type Draft, holdsSomething } from "@/shared/drafts";
+import { type Draft, holdsSomething, isOnItsWay } from "@/shared/drafts";
 import {
   type AppPlace,
   chatFiltersByTabAtom,
@@ -1798,7 +1798,7 @@ function WindowShell({
     chatTitles,
     drafts: drafts.filter(
       (draft) =>
-        draft.sendingTo === undefined &&
+        !isOnItsWay(draft) &&
         (draft.chatId === undefined ||
           (chatChrome.isRead && !chatTitles.has(draft.chatId))) &&
         holdsSomething(draft) &&

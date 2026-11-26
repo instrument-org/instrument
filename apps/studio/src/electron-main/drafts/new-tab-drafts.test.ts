@@ -81,8 +81,21 @@ it("keeps a draft any tab names, and starts the day over once none does", () => 
 
 it.each<[string, Partial<Draft>]>([
   ["a reply", { chatId: "2026-10-19-hi-abcd" as ChatId }],
-  ["one asked to be sent", { sendOn: "dev_TEST" }],
-  ["one being sent", { sendingTo: "2026-10-19-hi-abcd" as ChatId }],
+  ["one asked to be sent", { send: { device: "dev_TEST", stage: "asked" } }],
+  [
+    "one being sent",
+    { send: { chatId: "2026-10-19-hi-abcd" as ChatId, stage: "sending" } },
+  ],
+  [
+    "one whose message waits for an answer",
+    {
+      send: {
+        chatId: "2026-10-19-hi-abcd" as ChatId,
+        messageId: "m1",
+        stage: "sent",
+      },
+    },
+  ],
   ["one with a project", { projectId: "home" }],
   ["one naming a page", { context: [{ kind: "link", url: "https://a.b" }] }],
   ["one with a folder", { inFolder: [{ kind: "folder", path: "/a" }] }],

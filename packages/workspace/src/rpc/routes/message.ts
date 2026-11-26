@@ -38,10 +38,7 @@ import {
   type WrittenOnByMessage,
   TranscriptProjection,
 } from "../../lib/transcript/feed";
-import {
-  removeSentFromDraft,
-  withDraftFolder,
-} from "../../lib/drafts/send-from-folder";
+import { withDraftFolder } from "../../lib/drafts/send-from-folder";
 import { newMessage } from "../../lib/new-message";
 import { attendChatArrivals } from "../../lib/records/take-arrivals";
 import { setChatProject } from "../../lib/chat/chats";
@@ -285,6 +282,21 @@ const create = base
             window: context.webContentsId,
           });
         }
+        // The draft is the message's from here, kept until the turn this
+        // starts ends with the message still there, so a Stop before any
+        // answer can give it back as it was. Marked before the turn starts,
+        // so its end always finds the draft sent.
+        if (fromDraft !== undefined) {
+          try {
+            context.workspaceConfig.draftSent?.({
+              carried: sending.sent,
+              draftId: fromDraft,
+              messageId: message.id,
+            });
+          } catch (error) {
+            context.workspaceConfig.captureException(error);
+          }
+        }
         context.workspaceRef.send({
           type: "addMessage",
           value: {
@@ -295,22 +307,6 @@ const create = base
             sessionId: message.metadata.sessionId,
           },
         });
-        // The chat has its own copies now, so sending moved them. Last, and
-        // never failing the send, which is done: what cannot be taken out
-        // stays, for the draft's removal to move to the Trash.
-        try {
-          const stuck = removeSentFromDraft(sending.sent);
-          if (stuck.length > 0) {
-            context.workspaceConfig.captureException(
-              new Error(
-                `Left ${stuck.length.toString()} sent file(s) in the draft's folder`,
-              ),
-            );
-          }
-        } catch (error) {
-          context.workspaceConfig.captureException(error);
-        }
-
         return { sessionId: message.metadata.sessionId };
       }),
   );

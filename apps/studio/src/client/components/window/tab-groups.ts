@@ -6,7 +6,7 @@ import { leaveField } from "@/client/lib/keyboard-home";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { rpcClient } from "@/client/rpc/client";
-import { type Draft, holdsSomething } from "@/shared/drafts";
+import { type Draft, holdsSomething, isOnItsWay } from "@/shared/drafts";
 import { keptTabGroupsOf, TAB_GROUPS_KEY } from "@/shared/kept-state";
 import { asksMoreThan } from "@/shared/tab-identity";
 import { neighborAt, type SidebarPlace } from "@/shared/tabs";
@@ -156,7 +156,7 @@ function draftWordsTitle(draft: Draft): string {
 export function isWorthKeeping(draft: Draft): boolean {
   return (
     draft.chatId === undefined &&
-    draft.sendingTo === undefined &&
+    !isOnItsWay(draft) &&
     holdsSomething(draft)
   );
 }

@@ -1,6 +1,10 @@
 import path from "node:path";
 
-import { ChatIdSchema } from "../../schemas/chat-id";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
+import { type StoreId } from "../../schemas/store-id";
+import { unansweredMessage } from "../chat/take-back";
+import { chatDir } from "../record-folders";
+import { type FoldedChat } from "../records/fold";
 import { foldChatInFolder } from "../records/fold-folder";
 import {
   type DraftOnDisk,
@@ -15,19 +19,15 @@ import {
  *
  * The records are what "sent" means. A message names the draft it came from
  * (`fromDraft`), and that message is the only thing that says the draft was
- * sent: a draft is pointed at its chat first, the message is appended next,
- * and the draft's folder is taken away last.
+ * sent: a draft is pointed at its chat first (`sending`), the message is
+ * appended next (`sent`), and the draft, folder and all, is taken away only
+ * once the turn the message started has ended with the message still there.
+ * A Stop that takes the message back before any answer retracts it, and the
+ * draft is the person's again, exactly as it was.
  *
- * So the person loses nothing wherever the app stops:
- *
- * - Before the message: the draft is still there, with its words and
- *   everything pasted into it, and sending it again sends it once.
- * - After the message: the next launch finds the message that names the
- *   draft and finishes what was left, which is taking the folder away.
- *
- * The same reasoning is what lets another device send a draft later: it finds
- * out a draft was sent by finding the message that names it, not by anything
- * the draft itself says.
+ * So one rule settles a draft on its way wherever the app stops: its chat
+ * holds its message, and the draft is finished; it does not (never written,
+ * or taken back), and the draft is the person's again.
  */
 
 /** What finishing the drafts a message already names came to. */
@@ -41,18 +41,18 @@ export interface DraftsFinished {
 }
 
 /**
- * Takes away every draft whose chat already holds a message naming it: a
- * send the app was interrupted partway through, finished by the launch that
- * follows. One whose chat holds no such message is left exactly as it is, to
- * be sent again by whoever meant to send it.
+ * Settles every draft a launch finds on its way, by the rule above: one whose
+ * chat holds a message naming it is taken away, since no turn is running
+ * yet to answer it; one on its way whose chat holds no such message is the
+ * person's again, as the kind of draft it was. A reply naming its chat but
+ * not on its way is taken away only where its chat holds its message.
  *
  * Runs over the chats' record folders rather than through the records
  * service, so it can run before the workspace is up, and comes to the same
  * answer however often it runs: a draft whose folder is already gone is not
- * there to find. What its folder still has goes to the Trash: a send stopped
- * before it moved what it sent out of the folder leaves the chat's copy and
- * this one, and something that arrived after the send read the folder was
- * never sent at all.
+ * there to find. What its folder still has goes to the Trash: the chat has
+ * its own copy of what was sent, and which of the folder's entries those
+ * were is not written down.
  */
 export async function finishSentDrafts({
   chatsDir,
@@ -94,10 +94,10 @@ export async function finishSentDrafts({
       continue;
     }
     if (!sent.has(entry.draft.id)) {
-      // A send that never landed: the draft is the person's again, as the
-      // kind of draft it was.
-      if (entry.draft.sending !== undefined) {
-        const { sending: _stopped, ...draft } = entry.draft;
+      // A send that never landed, or a message taken back: the draft is the
+      // person's again, as the kind of draft it was.
+      if (entry.draft.sending !== undefined || entry.draft.sent !== undefined) {
+        const { sending: _stopped, sent: _taken, ...draft } = entry.draft;
         writeDraftFile(entry.file, draft);
       }
       left.push({
@@ -126,26 +126,66 @@ export async function finishSentDrafts({
  * records looks like: it is left to be sent again.
  */
 async function draftsSentInto(dir: string): Promise<Set<string> | string> {
-  let chat;
+  try {
+    return new Set((await draftMessagesInFolder(dir)).keys());
+  } catch (error) {
+    return `its chat's records could not be read (${String(error)})`;
+  }
+}
+
+/** Where a draft's message stands in its chat: the session it is in, and whether a Stop now would take it back. */
+export interface DraftMessage {
+  /** It is the message {@link unansweredMessage} names: nothing has answered it. */
+  isUnanswered: boolean;
+  sessionId: StoreId.Session;
+}
+
+/**
+ * Each message in the chat that names the draft it came from, by that
+ * draft's id. A draft missing here was never sent into the chat, or its
+ * message was taken back; a chat that is gone holds none.
+ */
+export async function draftMessagesIn(
+  chatId: ChatId,
+): Promise<Map<string, DraftMessage>> {
+  let dir: string;
+  try {
+    dir = chatDir(chatId);
+  } catch {
+    return new Map();
+  }
+  return draftMessagesInFolder(dir);
+}
+
+/** {@link draftMessagesIn}, read from the chat's record folder. */
+export async function draftMessagesInFolder(
+  dir: string,
+): Promise<Map<string, DraftMessage>> {
+  let chat: FoldedChat;
   try {
     chat = await foldChatInFolder(dir);
   } catch (error) {
-    return isMissing(error)
-      ? new Set<string>()
-      : `its chat's records could not be read (${String(error)})`;
+    if (isMissing(error)) {
+      return new Map();
+    }
+    throw error;
   }
-  const sent = new Set<string>();
+  const found = new Map<string, DraftMessage>();
   for (const session of chat.sessions) {
+    const waiting = unansweredMessage(session.messages, session.id)?.message;
     for (const message of session.messages) {
       if (
         message.role === "user" &&
         typeof message.metadata.fromDraft === "string"
       ) {
-        sent.add(message.metadata.fromDraft);
+        found.set(message.metadata.fromDraft, {
+          isUnanswered: message === waiting,
+          sessionId: session.id,
+        });
       }
     }
   }
-  return sent;
+  return found;
 }
 
 function isMissing(error: unknown): boolean {

@@ -45,13 +45,13 @@ describe("a window's drafts", () => {
     expect(shownDrafts(sync)).toEqual([]);
   });
 
-  // The window took a sent draft away while main, a beat behind, was still
+  // The window took a draft away while main, a beat behind, was still
   // telling it about the draft as the folder had it. The change from main
   // arrives first and must not bring the draft back.
   it("keep a change still on its way over a snapshot sent before main had it", () => {
     const sent: Sync = {
       confirmed: { acks: { me: 0 }, drafts: [draft("a")] },
-      pending: [batch(1, [{ id: "a", type: "sent" }])],
+      pending: [batch(1, [{ id: "a", type: "remove" }])],
     };
 
     const crossed = rebase(

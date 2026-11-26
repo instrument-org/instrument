@@ -42,6 +42,14 @@ export function chatSettles({
   });
 }
 
+/**
+ * Each session whose turn ended (`session.done`), with whose stop ended it,
+ * until `signal` aborts.
+ */
+export function turnEnds(signal?: AbortSignal) {
+  return publisher.subscribe("session.done", { signal });
+}
+
 /** Each chat marked read on this computer, until `signal` aborts. */
 export function chatReads(signal?: AbortSignal) {
   return publisher.subscribe("chat.read", { signal });

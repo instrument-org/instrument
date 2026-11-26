@@ -2,12 +2,15 @@ import { openBookmarks } from "../bookmarks/serve-bookmarks";
 import { call } from "@orpc/server";
 import {
   chatModelURI,
+  draftMessagesIn,
   StoreId,
+  turnEnds,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 
 import { startBrowserExtensions } from "../browser-view/guest-session";
 import { askedDraftCarries } from "../drafts/asked-draft-carries";
+import { startFinishingAnsweredDrafts } from "../drafts/finish-answered-drafts";
 import { startSendingAskedDrafts } from "../drafts/send-asked-drafts";
 import {
   applyDraftOpsInMain,
@@ -117,6 +120,16 @@ export function startWorkspace(): Promise<void> {
           );
           return id;
         },
+        watch: watchDrafts,
+      }),
+    );
+    // A draft is kept until the turn its message started ends, whichever
+    // window or device sent it.
+    timeBootStepSync("startFinishingAnsweredDrafts", () =>
+      startFinishingAnsweredDrafts({
+        apply: applyDraftOpsInMain,
+        messagesIn: draftMessagesIn,
+        turnEnds,
         watch: watchDrafts,
       }),
     );

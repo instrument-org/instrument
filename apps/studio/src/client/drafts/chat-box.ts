@@ -1,26 +1,10 @@
-import {
-  type Draft,
-  type DraftAttachment,
-  type DraftContextItem,
-  holdsSomething,
-  repliesOf,
-} from "@/shared/drafts";
-import {
-  type ChatId,
-  ChatIdSchema,
-  type TakenBack,
-} from "@instrument-org/workspace/client";
+import { type Draft, holdsSomething, repliesOf } from "@/shared/drafts";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { atom } from "jotai";
 import { ulid } from "ulid";
 
 import { cancelWords, flushWords } from "./settle-words";
-import {
-  applyDraftOpsAtom,
-  claimDraftAtom,
-  draftsAtom,
-  draftSentAtom,
-  releaseDraftAtom,
-} from "./store";
+import { applyDraftOpsAtom, draftsAtom, releaseDraftAtom } from "./store";
 
 /**
  * A chat's own box, and the reply waiting in it.
@@ -212,11 +196,11 @@ export const keepChatBoxAtom = atom(
 );
 
 /**
- * The press of send in a chat's box: the reply in it is claimed for the chat
- * with the words it is sent with, and the box writes into nothing from here,
- * so what is typed while the send is in flight is a reply of its own.
- * Answers with the reply being sent, if the box was writing into one, and
- * when its claim is on disk.
+ * The press of send in a chat's box: the reply in it, or one made for words
+ * typed faster than they settle into one, is claimed for the chat with the
+ * words it is sent with, and the box writes into nothing from here, so what
+ * is typed while the send is in flight is a reply of its own. Answers with
+ * the reply being sent, and when its claim is on disk.
  */
 export const beginReplySendAtom = atom(
   null,
@@ -224,36 +208,40 @@ export const beginReplySendAtom = atom(
     get,
     set,
     { chatId, words }: { chatId: ChatId; words: string },
-  ): undefined | { claimed: Promise<void>; draftId: string } => {
+  ): { claimed: Promise<void>; draftId: string } => {
     cancelWords(chatBoxWordsKey(chatId));
-    const draft = replyInBox(get(draftsAtom), get(chatBoxesAtom), chatId);
+    const inBox = replyInBox(get(draftsAtom), get(chatBoxesAtom), chatId);
     set(bindBoxAtom, { chatId, draftId: null });
-    if (draft === undefined) {
-      return undefined;
-    }
+    const now = Date.now();
+    const draft: Draft = inBox ?? {
+      chatId,
+      createdAt: now,
+      id: ulid(),
+      updatedAt: now,
+      words,
+    };
     return {
-      claimed: set(claimDraftAtom, { chatId, id: draft.id, words }),
+      claimed: set(applyDraftOpsAtom, [
+        ...(inBox === undefined ? [{ draft, type: "create" as const }] : []),
+        { at: now, chatId, id: draft.id, type: "claim", words },
+      ]),
       draftId: draft.id,
     };
   },
 );
 
 /**
- * A reply's send settled. One that landed is gone. One that failed is the
- * person's again, and back in the box where nothing was typed since, so the
- * words put back there write into it rather than into a copy.
+ * A reply's send that failed: the reply is the person's again, and back in
+ * the box where nothing was typed since, so the words put back there write
+ * into it rather than into a copy. One that landed is main's from here.
  */
-export const settleReplySendAtom = atom(
+export const failReplySendAtom = atom(
   null,
   (
     get,
     set,
-    { chatId, draftId, ok }: { chatId: ChatId; draftId: string; ok: boolean },
+    { chatId, draftId }: { chatId: ChatId; draftId: string },
   ) => {
-    if (ok) {
-      set(draftSentAtom, draftId);
-      return;
-    }
     set(releaseDraftAtom, draftId);
     // Words typed since the press, written now, are a reply of their own and
     // take the box; only a box still writing into nothing takes this one back.
@@ -323,11 +311,12 @@ export const swapInReplyAtom = atom(
 );
 
 /**
- * A message the person's Stop took back, a reply of its chat again: in the
- * box, where the box is empty (`isBoxEmpty`) and writes into no reply, so
- * the box shows it as it was sent; else waiting beside the box, so what was
- * typed there since stays as it is. Answers with the reply, and whether the
- * box writes into it.
+ * A reply whose message the person's Stop took back, theirs again as it was
+ * sent: in the box, where the box is empty (`isBoxEmpty`) and writes into
+ * no reply, so the box shows it; else waiting beside the box, so what was
+ * typed there since stays as it is. A chat's opening draft taken back into
+ * the chat, rather than a new chat of its own, becomes one of its replies.
+ * Answers with the reply, and whether the box writes into it.
  */
 export const takeBackReplyAtom = atom(
   null,
@@ -336,58 +325,24 @@ export const takeBackReplyAtom = atom(
     set,
     {
       chatId,
+      draftId,
       isBoxEmpty,
-      reply,
-    }: {
-      chatId: ChatId;
-      isBoxEmpty: boolean;
-      reply: Pick<Draft, "attached" | "context" | "words">;
-    },
-  ): { draft: Draft; inBox: boolean } => {
-    const now = Date.now();
-    const draft: Draft = {
-      chatId,
-      createdAt: now,
-      id: ulid(),
-      updatedAt: now,
-      ...reply,
-    };
+    }: { chatId: ChatId; draftId: string; isBoxEmpty: boolean },
+  ): undefined | { draft: Draft; inBox: boolean } => {
     const inBox =
       isBoxEmpty &&
       replyInBox(get(draftsAtom), get(chatBoxesAtom), chatId) === undefined;
-    void set(applyDraftOpsAtom, [{ draft, type: "create" }]);
+    void set(applyDraftOpsAtom, [
+      { id: draftId, type: "release" },
+      { id: draftId, set: { chatId }, type: "update" },
+    ]);
+    const draft = get(draftsAtom).find((each) => each.id === draftId);
+    if (draft === undefined) {
+      return undefined;
+    }
     if (inBox) {
-      set(bindBoxAtom, { chatId, draftId: draft.id });
+      set(bindBoxAtom, { chatId, draftId });
     }
     return { draft, inBox };
   },
 );
-
-/**
- * What a reply keeps of a message taken back: its words, the files and
- * folders sent with it, and the pages, screens and chats named on it.
- */
-export function replyOfTakenBack(
-  taken: TakenBack,
-): Pick<Draft, "attached" | "context" | "words"> {
-  const attached = [
-    ...taken.files.map(
-      (file): DraftAttachment => ({ kind: "file", ...file }),
-    ),
-    ...taken.folders.map(
-      ({ path }): DraftAttachment => ({ kind: "folder", path }),
-    ),
-  ];
-  const context = taken.chips.flatMap((chip): DraftContextItem[] => {
-    if (chip.kind === "chat") {
-      const chat = ChatIdSchema.safeParse(chip.id);
-      return chat.success ? [{ chat: chat.data, kind: "chat" }] : [];
-    }
-    return chip.kind === "paths" ? [] : [{ kind: "link", url: chip.url }];
-  });
-  return {
-    ...(attached.length > 0 ? { attached } : {}),
-    ...(context.length > 0 ? { context } : {}),
-    words: taken.words,
-  };
-}

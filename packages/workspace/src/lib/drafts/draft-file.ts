@@ -34,6 +34,7 @@ const OWN_KEYS = new Set([
   "id",
   "send",
   "sending",
+  "sent",
   "project",
   // What builds that called a project a topic wrote for `project`.
   "topic",
@@ -93,6 +94,14 @@ export interface DraftFile {
    * it was.
    */
   sending?: string;
+  /**
+   * The message the draft was sent as, by its id, once it is written and
+   * until the turn it started ends with it still in the chat: beside
+   * `sending`, which still names the chat, so a device or build that reads
+   * only `sending` leaves the draft alone too. A Stop that takes the message
+   * back before any answer clears both, and the draft is the person's again.
+   */
+  sent?: string;
   /** The project the chat it opens is filed under, by the project's id; written only when the person picked one. */
   project?: string;
   /** When it last changed, which is what puts the newest reply draft in the box. */
@@ -151,6 +160,7 @@ export function parseDraftFile(
   const chat = chatOf(front.chat);
   const sending = chatOf(front.sending);
   const send = typeof front.send === "string" ? front.send.trim() : "";
+  const sent = typeof front.sent === "string" ? front.sent.trim() : "";
   const context = linesOf(front.context);
   const asks = asksOf(front.asks);
   const body = split.body.replaceAll("\r\n", "\n");
@@ -163,6 +173,7 @@ export function parseDraftFile(
     ...(Object.keys(others).length > 0 ? { others } : {}),
     ...(send === "" ? {} : { send }),
     ...(sending === undefined ? {} : { sending }),
+    ...(sent === "" ? {} : { sent }),
     ...(projectOf(front) === undefined ? {} : { project: projectOf(front) }),
     updated: updated ?? at,
     words: split.ok ? bodyWords(body) : body.replace(/\n$/, ""),
@@ -190,6 +201,9 @@ export function renderDraftFile(draft: DraftFile): string {
   }
   if (draft.sending !== undefined) {
     lines.push(`sending: ${chatAddressOf(draft.sending)}`);
+  }
+  if (draft.sent !== undefined) {
+    lines.push(`sent: ${JSON.stringify(draft.sent)}`);
   }
   if (draft.project !== undefined) {
     lines.push(`project: ${JSON.stringify(draft.project)}`);

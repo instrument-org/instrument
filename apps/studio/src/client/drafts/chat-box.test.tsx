@@ -3,7 +3,7 @@ import {
   storedWordsAtom,
   typedWordsAtom,
 } from "@/client/atoms/prompt-value";
-import { type Draft } from "@/shared/drafts";
+import { type Draft, repliesOf } from "@/shared/drafts";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { createStore } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,16 +12,20 @@ import {
   beginReplySendAtom,
   chatBoxesAtom,
   otherRepliesOf,
+  failReplySendAtom,
   replyInBox,
-  replyOfTakenBack,
-  settleReplySendAtom,
   swapInReplyAtom,
   takeBackReplyAtom,
   takeUpArrivedReplyAtom,
   takeUpBoxAtom,
 } from "./chat-box";
 import { WORDS_SETTLE_MS } from "./settle-words";
-import { claimDraftAtom, draftsAtom, resetDrafts } from "./store";
+import {
+  applyDraftOpsAtom,
+  claimDraftAtom,
+  draftsAtom,
+  resetDrafts,
+} from "./store";
 
 const CHAT = "2026-10-19-dishwashers" as ChatId;
 
@@ -120,7 +124,7 @@ describe("a reply's send", () => {
 
     expect(sending?.draftId).toBe(replies()[0]?.id);
     expect(replies()[0]).toMatchObject({
-      sendingTo: CHAT,
+      send: { chatId: CHAT, stage: "sending" },
       words: "Thanks, that worked",
     });
     expect(inBox()).toBeUndefined();
@@ -142,10 +146,10 @@ describe("a reply's send", () => {
     settle();
 
     expect(replies()).toHaveLength(1);
-    expect(replies()[0]?.sendingTo).toBe(CHAT);
+    expect(replies()[0]?.send).toEqual({ chatId: CHAT, stage: "sending" });
   });
 
-  it("is gone once it lands, and what was typed while it was in flight is a reply of its own", () => {
+  it("is no reply once it lands, and what was typed while it was in flight is a reply of its own", async () => {
     const { replies, settle, store, type } = window();
     type("Thanks");
     settle();
@@ -157,13 +161,16 @@ describe("a reply's send", () => {
     type("One more thing");
     settle();
 
-    store.set(settleReplySendAtom, {
-      chatId: CHAT,
-      draftId: sending?.draftId ?? "",
-      ok: true,
-    });
+    // The message route marks it sent as the message is written.
+    await store.set(applyDraftOpsAtom, [
+      { id: sending.draftId, messageId: "m1", type: "sent" },
+    ]);
 
-    expect(replies().map((draft) => draft.words)).toEqual(["One more thing"]);
+    expect(
+      repliesOf(store.get(draftsAtom), CHAT).map((draft) => draft.words),
+    ).toEqual(["One more thing"]);
+    expect(replies().find((draft) => draft.id === sending.draftId)?.send)
+      .toEqual({ chatId: CHAT, messageId: "m1", stage: "sent" });
   });
 
   it("is the person's again where it fails, back in the box it left", () => {
@@ -177,17 +184,13 @@ describe("a reply's send", () => {
     type("");
     settle();
 
-    store.set(settleReplySendAtom, {
-      chatId: CHAT,
-      draftId: sending?.draftId ?? "",
-      ok: false,
-    });
+    store.set(failReplySendAtom, { chatId: CHAT, draftId: sending.draftId });
     // The composer puts the words back.
     type("Thanks");
     settle();
 
     expect(replies()).toHaveLength(1);
-    expect(replies()[0]?.sendingTo).toBeUndefined();
+    expect(replies()[0]?.send).toBeUndefined();
     expect(inBox()?.id).toBe(sending?.draftId);
   });
 
@@ -202,11 +205,7 @@ describe("a reply's send", () => {
     type("");
     type("One more");
 
-    store.set(settleReplySendAtom, {
-      chatId: CHAT,
-      draftId: sending?.draftId ?? "",
-      ok: false,
-    });
+    store.set(failReplySendAtom, { chatId: CHAT, draftId: sending.draftId });
     settle();
 
     expect(
@@ -216,14 +215,21 @@ describe("a reply's send", () => {
     ).toEqual(["One more", "Thanks"]);
   });
 
-  it("sends no draft from a box whose words had not settled into one", () => {
+  it("sends a reply made for words typed faster than they settle into one", () => {
     const { replies, store, type } = window();
     type("Quick");
-    expect(
-      store.set(beginReplySendAtom, { chatId: CHAT, words: "Quick" }),
-    ).toBe(undefined);
+    const sending = store.set(beginReplySendAtom, {
+      chatId: CHAT,
+      words: "Quick",
+    });
     vi.runAllTimers();
-    expect(replies()).toEqual([]);
+    expect(replies()).toMatchObject([
+      {
+        id: sending.draftId,
+        send: { chatId: CHAT, stage: "sending" },
+        words: "Quick",
+      },
+    ]);
   });
 
   // The inbox once marked a chat just started from a draft as having a
@@ -418,76 +424,82 @@ describe("a chat with several replies waiting", () => {
   });
 });
 
-describe("a message a Stop took back", () => {
-  const taken = {
-    chips: [
-      { id: CHAT, kind: "chat" as const, title: "Dishwashers" },
-      { kind: "page" as const, title: "Rates", url: "https://example.com/" },
-    ],
-    files: [
-      {
-        mediaType: "image/png",
-        name: "receipt.png",
-        path: "/chats/attachments/receipt.png",
-        size: 3,
-      },
-    ],
-    folders: [{ path: "/Files/Trip" }],
-    words: "Which is quietest?",
-  };
-
-  it("is a reply with its words, what was attached and what it named", () => {
-    expect(replyOfTakenBack(taken)).toEqual({
-      attached: [
-        {
-          kind: "file",
-          mediaType: "image/png",
-          name: "receipt.png",
-          path: "/chats/attachments/receipt.png",
-          size: 3,
-        },
-        { kind: "folder", path: "/Files/Trip" },
-      ],
-      context: [
-        { chat: CHAT, kind: "chat" },
-        { kind: "link", url: "https://example.com/" },
-      ],
+describe("a reply whose message a Stop took back", () => {
+  /** A reply sent from the box, its message written, as main has it then. */
+  async function sent(store: ReturnType<typeof window>["store"]) {
+    const { draftId } = store.set(beginReplySendAtom, {
+      chatId: CHAT,
       words: "Which is quietest?",
     });
-  });
+    await store.set(applyDraftOpsAtom, [
+      {
+        id: draftId,
+        set: {
+          attached: [{ kind: "folder", path: "/Files/Trip" }],
+          context: [{ kind: "link", url: "https://example.com/" }],
+        },
+        type: "update",
+      },
+      { id: draftId, messageId: "m1", type: "sent" },
+    ]);
+    return draftId;
+  }
 
-  it("goes back in the box it was sent from", () => {
-    const { inBox, store } = window();
-    store.set(beginReplySendAtom, { chatId: CHAT, words: "Which is quietest?" });
+  it("goes back in the box it was sent from, exactly as it was", async () => {
+    const { inBox, store, type } = window();
+    type("Which is quietest?");
+    const draftId = await sent(store);
 
-    const { draft, inBox: tookIt } = store.set(takeBackReplyAtom, {
+    const taken = store.set(takeBackReplyAtom, {
       chatId: CHAT,
+      draftId,
       isBoxEmpty: true,
-      reply: replyOfTakenBack(taken),
     });
 
-    expect(tookIt).toBe(true);
-    expect(inBox()?.id).toBe(draft.id);
-    expect(inBox()?.words).toBe("Which is quietest?");
+    expect(taken?.inBox).toBe(true);
+    expect(inBox()).toMatchObject({
+      attached: [{ kind: "folder", path: "/Files/Trip" }],
+      context: [{ kind: "link", url: "https://example.com/" }],
+      id: draftId,
+      words: "Which is quietest?",
+    });
+    expect(inBox()?.send).toBeUndefined();
   });
 
-  it("waits beside a box something was typed into since", () => {
-    const { inBox, replies, settle, store, type } = window();
-    store.set(beginReplySendAtom, { chatId: CHAT, words: "Which is quietest?" });
+  it("waits beside a box something was typed into since", async () => {
+    const { inBox, settle, store, type } = window();
+    type("Which is quietest?");
+    const draftId = await sent(store);
     type("Actually, the cheapest");
     settle();
 
-    const { inBox: tookIt } = store.set(takeBackReplyAtom, {
+    const taken = store.set(takeBackReplyAtom, {
       chatId: CHAT,
+      draftId,
       isBoxEmpty: false,
-      reply: replyOfTakenBack(taken),
     });
 
-    expect(tookIt).toBe(false);
+    expect(taken?.inBox).toBe(false);
     expect(inBox()?.words).toBe("Actually, the cheapest");
-    expect(replies().map((draft) => draft.words).toSorted()).toEqual([
-      "Actually, the cheapest",
-      "Which is quietest?",
+    expect(
+      repliesOf(store.get(draftsAtom), CHAT)
+        .map((draft) => draft.words)
+        .toSorted(),
+    ).toEqual(["Actually, the cheapest", "Which is quietest?"]);
+  });
+
+  it("makes a chat's opening draft one of its replies", async () => {
+    const { inBox, store } = window([
+      { createdAt: 1, id: "opening", updatedAt: 1, words: "hi" },
     ]);
+    await store.set(claimDraftAtom, { chatId: CHAT, id: "opening", words: "hi" });
+
+    store.set(takeBackReplyAtom, {
+      chatId: CHAT,
+      draftId: "opening",
+      isBoxEmpty: true,
+    });
+
+    expect(inBox()).toMatchObject({ chatId: CHAT, id: "opening" });
   });
 });

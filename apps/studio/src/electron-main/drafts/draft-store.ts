@@ -1,10 +1,12 @@
 import {
   applyDraftOps,
   type Draft,
+  type DraftCarried,
   type DraftOpBatch,
   type DraftsSnapshot,
   type DraftStageRequest,
   type DraftTrashRequest,
+  isOnItsWay,
 } from "@/shared/drafts";
 import {
   DRAFT_FILE_NAME,
@@ -19,6 +21,7 @@ import {
   parseDraftFile,
   readDrafts,
   removeDraft,
+  removeSentFromDraft,
   trashLeftInDraft,
   renderDraftFile,
   writeDraftFile,
@@ -81,7 +84,7 @@ interface OnDisk {
  *
  * What it remembers of each file is what tells a change made elsewhere from
  * its own: a file reading as it was last written is this store's, and
- * anything else came from outside. A draft it was told was sent stays gone
+ * anything else came from outside. A draft it was told to finish stays gone
  * for as long as it runs, so a copy a sync engine brings back is taken away
  * rather than offered to be sent again.
  */
@@ -105,13 +108,16 @@ export function createDraftStore({
 }) {
   let drafts: Draft[] = [];
   const onDisk = new Map<string, OnDisk>();
-  const sent = new Set<string>();
+  /** The drafts finished while the store runs, by id: each stays gone. */
+  const finished = new Set<string>();
   /**
-   * The drafts a window here has on its way, by id: a file read while one is
-   * in flight does not take it off its way, since the file is only as far
+   * The drafts this app has on its way, by id: a file read while one is in
+   * flight does not take it off its way, since the file is only as far
    * along as the store's last write.
    */
   const sending = new Set<string>();
+  /** What the message of each draft sent from here carried out of its folder, taken out as the draft finishes. */
+  const carried = new Map<string, DraftCarried>();
   const acks: Record<string, number> = {};
   /** By draft and pasted item: where its bytes were written, so a second stage of one item writes over the first. */
   const staged = new Map<string, string>();
@@ -187,8 +193,8 @@ export function createDraftStore({
         ? withFolderOf(current, read, entry.dir)
         : read;
     const next =
-      sending.has(id) && current.sendingTo !== undefined
-        ? { ...taken, sendingTo: current.sendingTo }
+      sending.has(id) && current.send !== undefined && isOnItsWay(current)
+        ? { ...taken, send: current.send }
         : taken;
     drafts = drafts.map((draft) => (draft.id === id ? next : draft));
   };
@@ -276,10 +282,11 @@ export function createDraftStore({
 
   /**
    * A draft taken away: every file holding it, conflict copies too, and its
-   * folder once that leaves it empty. What a sent draft sent, the send moved
-   * out of the folder already; whatever is left there, of a sent draft or a
-   * thrown-away one, goes to the Trash, since it may be the only copy of
-   * something the person put there.
+   * folder once that leaves it empty. What a finished draft's message
+   * carried is taken out of the folder first, since the chat has its own
+   * copy; whatever is left there, of a finished draft or a thrown-away one,
+   * goes to the Trash, since it may be the only copy of something the person
+   * put there.
    *
    * The files are the one this store wrote, as it wrote it, and the others
    * the latest look found holding the draft: synchronous, since a quit runs
@@ -290,6 +297,14 @@ export function createDraftStore({
     const known = onDisk.get(id);
     onDisk.delete(id);
     sending.delete(id);
+    const sent = finished.has(id) ? carried.get(id) : undefined;
+    carried.delete(id);
+    if (sent !== undefined) {
+      const stuck = removeSentFromDraft(sent);
+      if (stuck.length > 0) {
+        logger.error(`Could not take ${stuck.join(", ")} out of draft ${id}`);
+      }
+    }
     for (const key of staged.keys()) {
       if (key.startsWith(`${id}/`)) {
         staged.delete(key);
@@ -350,12 +365,12 @@ export function createDraftStore({
     const found = await look();
     const before = drafts;
     for (const [id, entries] of found) {
-      if (sent.has(id)) {
+      if (finished.has(id)) {
         for (const entry of entries) {
           try {
             throwAway(entry);
           } catch (error) {
-            logger.error(`Could not take away sent draft ${id}`, error);
+            logger.error(`Could not take away finished draft ${id}`, error);
           }
         }
         continue;
@@ -383,6 +398,7 @@ export function createDraftStore({
       if (!found.has(id) && !fs.existsSync(known.file)) {
         onDisk.delete(id);
         sending.delete(id);
+        carried.delete(id);
         drafts = drafts.filter((draft) => draft.id !== id);
       }
     }
@@ -438,13 +454,19 @@ export function createDraftStore({
             break;
           }
           case "sent": {
-            sent.add(op.id);
-            sending.delete(op.id);
+            if (op.carried !== undefined) {
+              carried.set(op.id, op.carried);
+            }
+            break;
+          }
+          case "finish": {
+            finished.add(op.id);
             break;
           }
           case "release":
           case "remove": {
             sending.delete(op.id);
+            carried.delete(op.id);
             break;
           }
           case "create":

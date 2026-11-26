@@ -142,8 +142,7 @@ export function createNewTabDrafts({
 function isWordsAlone(draft: Draft): boolean {
   return (
     draft.chatId === undefined &&
-    draft.sendOn === undefined &&
-    draft.sendingTo === undefined &&
+    draft.send === undefined &&
     draft.projectId === undefined &&
     (draft.attached ?? []).length === 0 &&
     (draft.inFolder ?? []).length === 0 &&

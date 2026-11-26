@@ -505,7 +505,7 @@ describe("the folder changing under the app", () => {
   // What the inbox once showed as Draft on a chat that had just been
   // started: the draft was pointed at its chat behind the store's back, and
   // the change the watcher found for it read as one made elsewhere.
-  it("never brings back a draft the window sent", async () => {
+  it("never brings back a draft finished", async () => {
     const { apply, store } = await open();
     apply({
       draft: draft("a", { words: "what's my latest tweet" }),
@@ -519,7 +519,8 @@ describe("the folder changing under the app", () => {
       words: "what's my latest tweet",
     });
     const copy = read();
-    apply({ id: "a", type: "sent" });
+    apply({ id: "a", messageId: "m1", type: "sent" });
+    apply({ id: "a", type: "finish" });
 
     await store.reconcile();
     expect(store.snapshot().drafts).toEqual([]);
@@ -548,7 +549,10 @@ describe("the folder changing under the app", () => {
     await store.reconcile();
 
     const [sending] = store.snapshot().drafts;
-    expect(sending).toMatchObject({ sendingTo: CHAT, words: "hi there" });
+    expect(sending).toMatchObject({
+      send: { chatId: CHAT, stage: "sending" },
+      words: "hi there",
+    });
     expect(sending?.chatId).toBeUndefined();
   });
 
@@ -613,7 +617,7 @@ describe("what the folder has that the store has not read yet", () => {
     await store.reconcile();
 
     const [sending] = store.snapshot().drafts;
-    expect(sending).toMatchObject({ sendingTo: CHAT });
+    expect(sending).toMatchObject({ send: { chatId: CHAT, stage: "sending" } });
     expect(sending?.chatId).toBeUndefined();
   });
 });
@@ -812,16 +816,65 @@ describe("a draft's folder as what goes with it", () => {
     expect(fs.existsSync(fileOf())).toBe(true);
   });
 
-  it("moves what a sent draft's folder still has to the Trash, since the send took out what it sent", async () => {
+  it("keeps a sent draft's folder whole until the draft finishes", async () => {
     const { apply, dir } = await written();
+    const sent = path.join(dir, "receipt.pdf");
+    fs.writeFileSync(sent, "%PDF");
+    apply({ at: DAY, chatId: CHAT, id: "a", type: "claim", words: "Look" });
+    apply({
+      carried: { files: [sent], folders: [] },
+      id: "a",
+      messageId: "m1",
+      type: "sent",
+    });
+    await settle();
+
+    expect(fs.existsSync(sent)).toBe(true);
+    expect(read()).toContain(
+      `sending: instrument://chat/${CHAT}\nsent: "m1"`,
+    );
+  });
+
+  it("takes what a finished draft's message carried out of its folder, and moves what came later to the Trash", async () => {
+    const { apply, dir } = await written();
+    const sent = path.join(dir, "receipt.pdf");
+    fs.writeFileSync(sent, "%PDF");
+    apply({ at: DAY, chatId: CHAT, id: "a", type: "claim", words: "Look" });
+    apply({
+      carried: { files: [sent], folders: [] },
+      id: "a",
+      messageId: "m1",
+      type: "sent",
+    });
     // Landed after the send read the folder, so it never went.
     fs.writeFileSync(path.join(dir, "late.pdf"), "%PDF");
-    apply({ at: DAY, chatId: CHAT, id: "a", type: "claim", words: "Look" });
-    apply({ id: "a", type: "sent" });
+    apply({ id: "a", type: "finish" });
     await settle();
 
     expect(tree()).toEqual([]);
     expect(trashed()).toEqual(["late.pdf"]);
+  });
+
+  it("gives a draft taken back the person again, folder and all", async () => {
+    const { apply, dir, store } = await written();
+    const sent = path.join(dir, "receipt.pdf");
+    fs.writeFileSync(sent, "%PDF");
+    apply({ at: DAY, chatId: CHAT, id: "a", type: "claim", words: "Look" });
+    apply({
+      carried: { files: [sent], folders: [] },
+      id: "a",
+      messageId: "m1",
+      type: "sent",
+    });
+    apply({ id: "a", type: "release" });
+    await store.reconcile();
+
+    const [back] = store.snapshot().drafts;
+    expect(back?.send).toBeUndefined();
+    expect(back?.inFolder?.map((item) => item.path)).toEqual([sent]);
+    expect(read()).not.toContain("sending:");
+    expect(read()).not.toContain("sent:");
+    expect(trashed()).toEqual([]);
   });
 
   it.each(["..", "."])(

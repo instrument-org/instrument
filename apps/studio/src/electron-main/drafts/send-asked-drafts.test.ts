@@ -1,4 +1,9 @@
-import { type Draft, type DraftOp, type DraftsSnapshot } from "@/shared/drafts";
+import {
+  applyDraftOps,
+  type Draft,
+  type DraftOp,
+  type DraftsSnapshot,
+} from "@/shared/drafts";
 import { type ChatId } from "@instrument-org/workspace/electron";
 import { describe, expect, it, vi } from "vitest";
 
@@ -20,7 +25,7 @@ function reply(fields: Partial<Draft> = {}): Draft {
     chatId: CHAT,
     createdAt: NOW - 1000,
     id: "01KFDRAFT0000000000000001",
-    sendOn: THIS_DEVICE,
+    send: { device: THIS_DEVICE, stage: "asked" },
     updatedAt: NOW - 1000,
     words: "Will it rain on Saturday?",
     ...fields,
@@ -29,7 +34,8 @@ function reply(fields: Partial<Draft> = {}): Draft {
 
 /**
  * The sender over drafts held here: each op is applied to them and the
- * sender told again, as the store tells main of its own changes.
+ * sender told again, as the store tells main of its own changes. The
+ * message route, which marks a draft sent, is not part of it.
  */
 function run(
   drafts: Draft[],
@@ -46,25 +52,7 @@ function run(
   startSendingAskedDrafts({
     apply: (ops) => {
       applied.push(...ops);
-      for (const op of ops) {
-        if (op.type === "sent") {
-          held = held.filter((draft) => draft.id !== op.id);
-        } else if (op.type === "claim") {
-          held = held.map((draft) =>
-            draft.id === op.id ? { ...draft, sendingTo: op.chatId } : draft,
-          );
-        } else if (op.type === "release" || op.type === "update") {
-          held = held.map((draft) => {
-            if (draft.id !== op.id) {
-              return draft;
-            }
-            const { sendOn: _ask, sendingTo: _sending, ...rest } = draft;
-            return op.type === "release"
-              ? { ...rest, sendOn: draft.sendOn }
-              : rest;
-          });
-        }
-      }
+      held = applyDraftOps(held, ops);
       listener?.({ acks: {}, drafts: held });
     },
     carries,
@@ -111,12 +99,7 @@ describe("startSendingAskedDrafts", () => {
       );
       await vi.waitFor(() => {
         expect(applied).toEqual([
-          {
-            id: "01KFDRAFT0000000000000001",
-            set: {},
-            type: "update",
-            unset: ["sendOn"],
-          },
+          { id: "01KFDRAFT0000000000000001", type: "release" },
         ]);
       });
       expect(send).not.toHaveBeenCalled();
@@ -139,15 +122,16 @@ describe("startSendingAskedDrafts", () => {
     });
   });
 
-  it("sends a fresh reply asked of this computer once, claimed first and marked sent after", async () => {
+  it("sends a fresh reply asked of this computer once, claimed first", async () => {
     const send = vi.fn(() => Promise.resolve());
     const applied = run([reply()], send);
     await vi.waitFor(
       () => {
-        expect(applied.map((op) => op.type)).toEqual(["claim", "sent"]);
+        expect(send).toHaveBeenCalledOnce();
       },
       { interval: 1 },
     );
+    expect(applied.map((op) => op.type)).toEqual(["claim"]);
     expect(send).toHaveBeenCalledExactlyOnceWith({
       chatId: CHAT,
       draftId: "01KFDRAFT0000000000000001",
@@ -170,12 +154,7 @@ describe("startSendingAskedDrafts", () => {
     await vi.waitFor(
       () => {
         expect(applied).toEqual([
-          {
-            id: "01KFDRAFT0000000000000001",
-            set: {},
-            type: "update",
-            unset: ["sendOn"],
-          },
+          { id: "01KFDRAFT0000000000000001", type: "release" },
         ]);
       },
       { interval: 1 },
@@ -190,11 +169,7 @@ describe("startSendingAskedDrafts", () => {
     const applied = run([reply()], send);
     await vi.waitFor(
       () => {
-        expect(applied.map((op) => op.type)).toEqual([
-          "claim",
-          "release",
-          "update",
-        ]);
+        expect(applied.map((op) => op.type)).toEqual(["claim", "release"]);
       },
       { interval: 1 },
     );
@@ -206,8 +181,11 @@ describe("startSendingAskedDrafts", () => {
     const send = vi.fn(() => Promise.resolve());
     const applied = run(
       [
-        reply({ id: "01KFDRAFT0000000000000002", sendOn: "dev_OTHER000" }),
-        reply({ id: "01KFDRAFT0000000000000003", sendOn: undefined }),
+        reply({
+          id: "01KFDRAFT0000000000000002",
+          send: { device: "dev_OTHER000", stage: "asked" },
+        }),
+        reply({ id: "01KFDRAFT0000000000000003", send: undefined }),
       ],
       send,
     );
@@ -223,10 +201,11 @@ describe("startSendingAskedDrafts", () => {
     const applied = run([newChat], send, startChat);
     await vi.waitFor(
       () => {
-        expect(applied.map((op) => op.type)).toEqual(["claim", "sent"]);
+        expect(send).toHaveBeenCalledOnce();
       },
       { interval: 1 },
     );
+    expect(applied.map((op) => op.type)).toEqual(["claim"]);
     expect(startChat).toHaveBeenCalledExactlyOnceWith(
       "Will it rain on Saturday?",
     );
@@ -241,7 +220,7 @@ describe("startSendingAskedDrafts", () => {
 
   const newChat = () => reply({ chatId: undefined });
 
-  it("shows a new chat once its message is written, before the draft goes", async () => {
+  it("shows a new chat once its message is written", async () => {
     const shown: ChatId[] = [];
     const send = vi.fn(() => Promise.resolve());
     const showChat = vi.fn((chatId: ChatId) => {
@@ -256,24 +235,26 @@ describe("startSendingAskedDrafts", () => {
       showChat,
     );
     await vi.waitFor(() => {
-      expect(applied.map((op) => op.type)).toEqual(["claim", "sent"]);
+      expect(shown).toEqual([CHAT]);
     });
-    expect(shown).toEqual([CHAT]);
+    expect(applied.map((op) => op.type)).toEqual(["claim"]);
   });
 
-  it("marks a new chat's draft sent when the chat could not be shown", async () => {
+  it("leaves a new chat's draft sent when the chat could not be shown", async () => {
+    const showChat = vi.fn(() => {
+      throw new Error("No window file");
+    });
     const applied = run(
       [newChat()],
       () => Promise.resolve(),
       () => Promise.resolve(CHAT),
       undefined,
-      () => {
-        throw new Error("No window file");
-      },
+      showChat,
     );
     await vi.waitFor(() => {
-      expect(applied.map((op) => op.type)).toEqual(["claim", "sent"]);
+      expect(showChat).toHaveBeenCalledOnce();
     });
+    expect(applied.map((op) => op.type)).toEqual(["claim"]);
   });
 
   it.each([
@@ -285,18 +266,12 @@ describe("startSendingAskedDrafts", () => {
     ],
   ])("shows nothing for %s", async (_name, draft, send) => {
     const showChat = vi.fn();
-    const applied = run(
-      [draft],
-      send,
-      () => Promise.resolve(CHAT),
-      undefined,
-      showChat,
-    );
+    const sent = vi.fn(send);
+    run([draft], sent, () => Promise.resolve(CHAT), undefined, showChat);
     await vi.waitFor(() => {
-      expect(
-        applied.some((op) => op.type === "sent" || op.type === "release"),
-      ).toBe(true);
+      expect(sent).toHaveBeenCalledOnce();
     });
+    await new Promise((resolve) => setTimeout(resolve, 10));
     expect(showChat).not.toHaveBeenCalled();
   });
 });

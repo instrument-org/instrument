@@ -8,11 +8,16 @@ import { type SessionMessage } from "../../schemas/session/message";
 import { logFileName } from "../records/file-names";
 import { recordLine } from "../records/record";
 import {
+  assistantMessage,
+  at,
   DEVICE_A,
   header,
   messageId,
   messageRecord,
+  partId,
+  partRecord,
   sessionId,
+  textPart,
 } from "../records/test-records";
 import { workspaceLayout } from "../workspace-layout";
 import { type DraftFile } from "./draft-file";
@@ -23,7 +28,7 @@ import {
   readDrafts,
   writeDraftFile,
 } from "./draft-folder";
-import { finishSentDrafts } from "./send";
+import { draftMessagesInFolder, finishSentDrafts } from "./send";
 
 /**
  * A send, step by step, with the app stopped between each: the person must
@@ -121,6 +126,32 @@ function messageNaming(fromDraft: string | undefined, chatId: ChatId = CHAT) {
     recordLine(header(1, { device: DEVICE_A, id: session })) +
       recordLine(messageRecord(2, named)),
   );
+}
+
+/** The draft's message written, as the message route marks it: `sent` beside `sending`. */
+async function markSent(draftId: string) {
+  const found = await findDraft(rootDir, draftId);
+  if (found) {
+    writeDraftFile(found.file, { ...found.draft, sent: messageId(1) });
+  }
+}
+
+/** Another record appended to the chat's log, after the message. */
+function append(...records: Parameters<typeof recordLine>[0][]) {
+  fs.appendFileSync(
+    path.join(chatsDir(), CHAT, logFileName(sessionId(1), DEVICE_A)),
+    records.map((record) => recordLine(record)).join(""),
+  );
+}
+
+/** A Stop taking the message back before any answer, as every device reads it. */
+function takeBack() {
+  append({
+    at: at(10),
+    messages: [messageId(1)],
+    seq: 3,
+    t: "retract",
+  });
 }
 
 /** What is left in the drafts folder, by draft id and words. */
@@ -304,6 +335,72 @@ describe("finishing the sends a launch finds", () => {
       ]
     `);
     expect(await drafts()).toEqual([{ id: "d1", words: WORDS }]);
+  });
+});
+
+describe("a draft whose message was written", () => {
+  it("is finished at a launch, its turn being over", async () => {
+    const made = waitingDraft();
+    await pointAtChat("d1");
+    messageNaming("d1");
+    await markSent("d1");
+
+    expect((await finish()).finished).toEqual(["d1"]);
+    expect(await drafts()).toEqual([]);
+    expect(fs.existsSync(made.dir)).toBe(false);
+  });
+
+  it("is the person's again, folder and all, where its message was taken back", async () => {
+    const made = waitingDraft();
+    await pointAtChat("d1");
+    messageNaming("d1");
+    await markSent("d1");
+    takeBack();
+
+    const finished = await finish();
+
+    expect(finished.finished).toEqual([]);
+    expect(await drafts()).toEqual([{ id: "d1", words: WORDS }]);
+    expect(pastedStillThere(made.dir)).toBe(true);
+    const back = (await findDraft(rootDir, "d1"))?.draft;
+    expect(back?.sending).toBeUndefined();
+    expect(back?.sent).toBeUndefined();
+    expect(fs.readdirSync(trashDir)).toEqual([]);
+  });
+});
+
+describe("where a draft's message stands in its chat", () => {
+  const chatFolder = () => path.join(chatsDir(), CHAT);
+
+  it("is unanswered until a reply says something", async () => {
+    messageNaming("d1");
+
+    expect(await draftMessagesInFolder(chatFolder())).toEqual(
+      new Map([["d1", { isUnanswered: true, sessionId: sessionId(1) }]]),
+    );
+
+    append(
+      messageRecord(3, assistantMessage(sessionId(1), messageId(2), at(5))),
+      partRecord(
+        4,
+        textPart(sessionId(1), messageId(2), partId(1), "Looking.", at(5)),
+      ),
+    );
+
+    expect((await draftMessagesInFolder(chatFolder())).get("d1")).toEqual({
+      isUnanswered: false,
+      sessionId: sessionId(1),
+    });
+  });
+
+  it("is nowhere once taken back, or in a chat that is gone", async () => {
+    messageNaming("d1");
+    takeBack();
+
+    expect(await draftMessagesInFolder(chatFolder())).toEqual(new Map());
+    expect(
+      await draftMessagesInFolder(path.join(chatsDir(), "gone")),
+    ).toEqual(new Map());
   });
 });
 

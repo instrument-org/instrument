@@ -162,14 +162,13 @@ export const claimDraftAtom = atom(
     ]),
 );
 
-/** A send that failed: the draft is the person's again. */
+/**
+ * The draft is the person's again, as it was before the press: a send that
+ * failed, or a message a Stop took back. A draft whose message landed is
+ * main's to finish once the turn it started ends.
+ */
 export const releaseDraftAtom = atom(null, (_get, set, id: string) => {
   void set(applyDraftOpsAtom, [{ id, type: "release" }]);
-});
-
-/** A send that landed: the message naming the draft is written, so the draft goes. */
-export const draftSentAtom = atom(null, (_get, set, id: string) => {
-  void set(applyDraftOpsAtom, [{ id, type: "sent" }]);
 });
 
 /** Whether a chat has a reply waiting with something in it, which its row in the inbox says. */

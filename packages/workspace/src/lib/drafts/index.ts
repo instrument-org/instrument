@@ -25,6 +25,7 @@ export {
   renderDraftFile,
 } from "./draft-file";
 export { isSystemClutter } from "../system-clutter";
+export { removeSentFromDraft, type SentFromDraft } from "./send-from-folder";
 export {
   draftFolderItems,
   type DraftFolderItem,

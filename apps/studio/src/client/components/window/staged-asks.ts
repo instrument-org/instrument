@@ -4,7 +4,7 @@ import { promptDraftRefAtom } from "@/client/atoms/prompt-value";
 // surface uses to stage, list, move and reveal them.
 import { type ChatId } from "@instrument-org/workspace/client";
 import { draftsAtom, updateDraftAtom } from "@/client/drafts/store";
-import { type Draft, type DraftAsk } from "@/shared/drafts";
+import { type Draft, type DraftAsk, isOnItsWay } from "@/shared/drafts";
 import {
   atom,
   type SetStateAction,
@@ -46,11 +46,18 @@ const heldAsksAtom = atom<StagedAsk[]>([]);
 
 /**
  * Every staged ask, oldest first: the window's own (`heldAsksAtom`), and
- * those moved into a draft, read from the draft and written into it.
+ * those moved into a draft, read from the draft and written into it. A
+ * draft on its way has sent its asks, which come back with it if its
+ * message is taken back.
  */
 export const stagedAsksAtom = atom(
   (get) =>
-    [...get(heldAsksAtom), ...get(draftsAtom).flatMap(asksMovedInto)].toSorted(
+    [
+      ...get(heldAsksAtom),
+      ...get(draftsAtom)
+        .filter((draft) => !isOnItsWay(draft))
+        .flatMap(asksMovedInto),
+    ].toSorted(
       (one, other) => one.createdAt - other.createdAt,
     ),
   (get, set, update: SetStateAction<StagedAsk[]>) => {

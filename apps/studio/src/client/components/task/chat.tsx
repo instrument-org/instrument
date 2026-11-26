@@ -20,17 +20,16 @@ import {
   withDraftLinks,
 } from "@/client/components/window/draft-links";
 import { ShellContext } from "@/client/components/window/shell-context";
-import { useStageAsk } from "@/client/components/window/staged-asks";
+import { useStagedAskActions } from "@/client/components/window/staged-asks";
 import { projectCommand } from "@/client/lib/app-commands";
 import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import {
   beginReplySendAtom,
   chatBoxesAtom,
   chatBoxWordsKey,
+  failReplySendAtom,
   makeReplyAtom,
   replyInBox,
-  settleReplySendAtom,
-  replyOfTakenBack,
   swapInReplyAtom,
   takeBackReplyAtom,
   takeUpArrivedReplyAtom,
@@ -80,7 +79,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { isEqual, noop } from "radashi";
 import {
   type ComponentProps,
@@ -175,13 +174,17 @@ export function ChatConversation({
    * Places marked in files that go with the next message: drawn as pills in
    * the composer's attachments row, enough to send with no words, and taken
    * at the moment of sending. `take` hands over what goes and a way to let
-   * those asks go once the message is written.
+   * those asks go once the message is written: into the draft it was sent
+   * from, which keeps them until the message is answered, or else away.
    */
   asks?: {
     pills: ReactNode;
     take: () =>
       | undefined
-      | { done: () => void; part: SessionMessageDataPart.AsksDataPart };
+      | {
+          done: (draftId?: string) => void;
+          part: SessionMessageDataPart.AsksDataPart;
+        };
   };
   /** A chip at the head of the composer's box: what goes with the prompt besides its words. */
   composerLead?: ReactNode;
@@ -626,15 +629,16 @@ export function ChatConversation({
   // The reply the box is writing into, where it is writing into a chat's:
   // the message says which draft it came from, and the draft goes once that
   // message is written.
+  const store = useStore();
   const drafts = useAtomValue(draftsAtom);
   const boxes = useAtomValue(chatBoxesAtom);
   const makeReply = useSetAtom(makeReplyAtom);
   const updateDraft = useSetAtom(updateDraftAtom);
   const beginReplySend = useSetAtom(beginReplySendAtom);
-  const settleReplySend = useSetAtom(settleReplySendAtom);
+  const failReplySend = useSetAtom(failReplySendAtom);
   const swapInReplyDraft = useSetAtom(swapInReplyAtom);
   const takeBackReply = useSetAtom(takeBackReplyAtom);
-  const stageAsk = useStageAsk();
+  const { moveTo: moveAsks } = useStagedAskActions();
   const takeUpBox = useSetAtom(takeUpBoxAtom);
   const boxChat = draftKey.scope === "chat" ? draftKey.chatId : undefined;
   // The box writes into the reply it first shows, whatever arrives after.
@@ -695,39 +699,39 @@ export function ChatConversation({
     promptEditor?.moveCaretToEnd();
   };
   /**
-   * A message the Stop took back, as it was sent: in the box where the box
-   * is still empty, and otherwise a reply waiting beside it. Its marked
-   * places go back over the box either way.
+   * A message the Stop took back: the draft it was sent from is the
+   * person's again, exactly as it was. A reply goes in the box where the box
+   * is still empty, and otherwise waits beside it; its marked places go back
+   * over the box either way.
    */
-  const giveBack = (taken: TakenBack) => {
-    if (draftKey.scope !== "chat") {
+  const giveBack = ({ draftId }: TakenBack) => {
+    const draft = store.get(draftsAtom).find((each) => each.id === draftId);
+    if (draftKey.scope !== "chat" || draft === undefined) {
       return;
     }
     const replyChatId = draftKey.chatId;
     const shown = promptInputRef.current?.snapshot();
-    const { draft, inBox } = takeBackReply({
+    const isEmptyNow =
+      !composerDictating &&
+      shown?.prompt.trim() === "" &&
+      shown.items.length === 0 &&
+      !hasWaitingWords(chatBoxWordsKey(replyChatId));
+    const taken = takeBackReply({
       chatId: replyChatId,
-      isBoxEmpty:
-        !composerDictating &&
-        shown?.prompt.trim() === "" &&
-        shown.items.length === 0 &&
-        !hasWaitingWords(chatBoxWordsKey(replyChatId)),
-      reply: replyOfTakenBack(taken),
+      draftId,
+      isBoxEmpty: isEmptyNow,
     });
-    for (const ask of taken.asks?.asks ?? []) {
-      stageAsk({
-        ...(ask.context ? { context: ask.context } : {}),
-        destination: { chatId: replyChatId, kind: "chat" },
-        ...(ask.excerpt ? { excerpt: ask.excerpt } : {}),
-        instruction: ask.instruction,
-        path: ask.file.path,
-        target: ask.target,
-      });
+    if (taken === undefined) {
+      return;
     }
-    if (inBox) {
+    moveAsks(
+      (taken.draft.asks ?? []).map((ask) => ask.id),
+      { chatId: replyChatId, kind: "chat" },
+    );
+    if (taken.inBox) {
       promptInputRef.current?.swapIn({
-        items: itemsOf(draft),
-        prompt: draft.words,
+        items: itemsOf(taken.draft),
+        prompt: taken.draft.words,
       });
       promptEditor?.focus();
       promptEditor?.moveCaretToEnd();
@@ -972,12 +976,11 @@ export function ChatConversation({
           draftKey.scope === "chat"
             ? beginReplySend({ chatId: draftKey.chatId, words: prompt })
             : undefined;
-        const settle = (ok: boolean) => {
+        const failed = () => {
           if (outgoing && draftKey.scope === "chat") {
-            settleReplySend({
+            failReplySend({
               chatId: draftKey.chatId,
               draftId: outgoing.draftId,
-              ok,
             });
           }
         };
@@ -1021,21 +1024,20 @@ export function ChatConversation({
               {
                 onError: () => {
                   dropPending();
-                  settle(false);
+                  failed();
                   if (draft) {
                     promptInputRef.current?.restore(draft);
                   }
                 },
                 onSuccess: () => {
-                  taken?.done();
-                  settle(true);
+                  taken?.done(outgoing?.draftId);
                 },
               },
             );
           },
           (error: unknown) => {
             dropPending();
-            settle(false);
+            failed();
             if (draft) {
               promptInputRef.current?.restore(draft);
             }

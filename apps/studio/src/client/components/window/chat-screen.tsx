@@ -144,7 +144,7 @@ function ChatScreenOfRecord({
   // What was marked in files and moved into this chat's composer goes
   // with its next message, as pills there.
   const groupAsks = useComposerAsks({ chatId, kind: "chat" });
-  const { remove: removeAsks } = useStagedAskActions();
+  const { moveTo: moveAsks, remove: removeAsks } = useStagedAskActions();
 
   // Looking at the chat is what takes its unread mark off. The pane beside
   // the tabs does not clear it on its own.
@@ -266,8 +266,12 @@ function ChatScreenOfRecord({
                             const ids = groupAsks.map((ask) => ask.id);
                             return part
                               ? {
-                                  done: () => {
-                                    removeAsks(ids);
+                                  done: (draftId) => {
+                                    if (draftId === undefined) {
+                                      removeAsks(ids);
+                                    } else {
+                                      moveAsks(ids, { draftId, kind: "draft" });
+                                    }
                                   },
                                   part,
                                 }

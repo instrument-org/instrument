@@ -16,6 +16,12 @@ export type Stopper = z.output<typeof StopperSchema>;
  */
 export interface StopNotice {
   by: Stopper;
+  /**
+   * The person's Stop asked to take back a message nothing has answered
+   * (`takeBackUnanswered`), which it does once the turn has ended: until
+   * then, the turn's end says nothing of whether that message stays.
+   */
+  takesBack?: true;
   /** Whether the chat is told the task was stopped, in a note written into it that starts no turn. */
   wakesChat: boolean;
 }

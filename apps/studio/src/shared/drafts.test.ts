@@ -89,15 +89,63 @@ describe("applying ops", () => {
       },
     ]);
     expect(claimed[0]).toMatchObject({
-      sendingTo: CHAT,
+      send: { chatId: CHAT, stage: "sending" },
       words: "what's my latest tweet",
     });
     expect(claimed[0]?.chatId).toBeUndefined();
     expect(repliesOf(claimed, CHAT)).toEqual([]);
 
     const released = applyDraftOps(claimed, [{ id: "a", type: "release" }]);
-    expect(released[0]?.sendingTo).toBeUndefined();
+    expect(released[0]?.send).toBeUndefined();
     expect(released[0]?.chatId).toBeUndefined();
+  });
+});
+
+describe("a draft's send, one stage at a time", () => {
+  const claim = {
+    at: 2,
+    chatId: CHAT,
+    id: "a",
+    type: "claim",
+    words: "hi",
+  } as const;
+  const sent = { id: "a", messageId: "m1", type: "sent" } as const;
+  const stageAfter = (...ops: Parameters<typeof applyDraftOps>[1]) =>
+    applyDraftOps([draft("a", { chatId: CHAT })], ops)[0]?.send;
+
+  it.each<[string, Parameters<typeof applyDraftOps>[1], unknown]>([
+    ["claimed", [claim], { chatId: CHAT, stage: "sending" }],
+    [
+      "claimed, then its message written",
+      [claim, sent],
+      { chatId: CHAT, messageId: "m1", stage: "sent" },
+    ],
+    ["written with no claim, which no send makes", [sent], undefined],
+    ["taken back once its message is written", [claim, sent, { id: "a", type: "release" }], undefined],
+    ["released after a failed send", [claim, { id: "a", type: "release" }], undefined],
+  ])("is %s", (_name, ops, stage) => {
+    expect(stageAfter(...ops)).toEqual(stage);
+  });
+
+  it("goes from an ask straight to the chat it is sent into", () => {
+    const asked = draft("a", { send: { device: "dev_A", stage: "asked" } });
+    expect(applyDraftOps([asked], [claim])[0]?.send).toEqual({
+      chatId: CHAT,
+      stage: "sending",
+    });
+    expect(
+      applyDraftOps([asked], [{ id: "a", type: "release" }])[0]?.send,
+    ).toBeUndefined();
+  });
+
+  it("keeps a sent draft whole until it finishes, then lets it go", () => {
+    const kept = applyDraftOps(
+      [draft("a", { chatId: CHAT, words: "hi" })],
+      [claim, sent],
+    );
+    expect(kept[0]).toMatchObject({ chatId: CHAT, words: "hi" });
+    expect(repliesOf(kept, CHAT)).toEqual([]);
+    expect(applyDraftOps(kept, [{ id: "a", type: "finish" }])).toEqual([]);
   });
 });
 
@@ -105,12 +153,24 @@ describe("a chat's replies", () => {
   it("are its drafts that are not on their way into it", () => {
     const drafts = [
       draft("waiting", { chatId: CHAT }),
-      draft("sending", { chatId: CHAT, sendingTo: CHAT }),
+      draft("sending", {
+        chatId: CHAT,
+        send: { chatId: CHAT, stage: "sending" },
+      }),
+      draft("sent", {
+        chatId: CHAT,
+        send: { chatId: CHAT, messageId: "m1", stage: "sent" },
+      }),
+      draft("asked", {
+        chatId: CHAT,
+        send: { device: "dev_A", stage: "asked" },
+      }),
       draft("elsewhere", { chatId: OTHER }),
       draft("new chat"),
     ];
     expect(repliesOf(drafts, CHAT).map((entry) => entry.id)).toEqual([
       "waiting",
+      "asked",
     ]);
   });
 
@@ -164,7 +224,13 @@ describe("the update between two drafts", () => {
   it("never carries the draft's identity or its send", () => {
     const op = draftUpdateOf(
       draft("a"),
-      { ...draft("b", { createdAt: 7, sendingTo: CHAT }), words: "x" },
+      {
+        ...draft("b", {
+          createdAt: 7,
+          send: { chatId: CHAT, stage: "sending" },
+        }),
+        words: "x",
+      },
       1,
     );
     expect(op?.set).toEqual({ words: "x" });

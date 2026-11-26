@@ -5,7 +5,6 @@ import {
   claimDraftAtom,
   createDraftAtom,
   draftsAtom,
-  draftSentAtom,
   releaseDraftAtom,
   removeDraftAtom,
 } from "@/client/drafts/store";
@@ -103,12 +102,11 @@ export function useDrafts({
   const removeDraft = useSetAtom(removeDraftAtom);
   const claimDraft = useSetAtom(claimDraftAtom);
   const releaseDraft = useSetAtom(releaseDraftAtom);
-  const draftSent = useSetAtom(draftSentAtom);
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
   const chatFilters = useAtomValue(chatFiltersUpAtom);
   const queryClient = useQueryClient();
   const stagedAsks = useAtomValue(stagedAsksAtom);
-  const { remove: removeAsks, returnTo: returnAsks } = useStagedAskActions();
+  const { returnTo: returnAsks } = useStagedAskActions();
   const createMessage = useMutation(
     rpcClient.workspace.message.create.mutationOptions(),
   );
@@ -410,12 +408,9 @@ export function useDrafts({
       if (failed) {
         return;
       }
-      // The message naming this draft is written by now, and the chat has
-      // its own copies of what was attached, so the draft's folder can go
-      // with it. A launch that finds the folder still there finds that
-      // message too, and takes the folder away then.
-      draftSent(id);
-      removeAsks(marked.map((ask) => ask.id));
+      // The message naming this draft is written by now, which marked the
+      // draft sent: it stays, asks and folder and all, until the turn the
+      // message started ends, so a Stop before any answer gives it back.
       setArrived({ chatId, draftId: id });
       settleSent(chatId, { isAnswered: true });
     })();

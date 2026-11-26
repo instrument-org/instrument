@@ -2,12 +2,10 @@ import { sleep } from "radashi";
 
 import { type ChatId } from "../../schemas/chat-id";
 import { type SessionMessage } from "../../schemas/session/message";
-import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type StoreId } from "../../schemas/store-id";
 import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
 import { isToolPart } from "../is-tool-part";
-import { resolveWorkspaceFilePaths } from "../resolve-workspace-file-path";
 import { isTypedByUser } from "../typed-by-user";
 import { isWorking } from "./activity";
 import { joinedMidTurn } from "./mid-turn";
@@ -16,17 +14,12 @@ import { joinedMidTurn } from "./mid-turn";
 const WIND_DOWN_MS = 15_000;
 
 /**
- * A message the person's Stop took back, as the reply box is given it again:
- * its words, the files and folders sent with it by their paths on this
- * computer, the pages, chats and screens named on it, and the places marked
- * in files.
+ * A message the person's Stop took back, by the draft it was sent from: the
+ * draft is kept, folder and all, until its message is answered, so taking
+ * the message back is giving the person that draft again.
  */
 export interface TakenBack {
-  asks?: SessionMessageDataPart.AsksDataPart;
-  chips: SessionMessageDataPart.SentChip[];
-  files: { mediaType: string; name: string; path: string; size: number }[];
-  folders: { path: string }[];
-  words: string;
+  draftId: string;
 }
 
 /**
@@ -81,9 +74,10 @@ export function unansweredMessage(
 /**
  * Takes back the chat's message its Stop reached before the model answered
  * it: once the stopped turn has wound down, the message and the empty reply
- * under it go from the session, as a retraction every device reads, and what
- * it was sent with comes back for the reply box. Nothing when the model had
- * answered it, or the turn is still stopping after a while.
+ * under it go from the session, as a retraction every device reads, and the
+ * draft it was sent from is answered for the window to give back. Nothing
+ * when the model had answered it, the turn is still stopping after a while,
+ * or the message came from no draft, which has nothing to give back.
  */
 export async function takeBackUnanswered({
   chatId,
@@ -104,68 +98,10 @@ export async function takeBackUnanswered({
     return undefined;
   }
   const found = unansweredMessage(history.value, sessionId);
-  if (found === undefined) {
+  const draftId = found?.message.metadata.fromDraft;
+  if (found === undefined || draftId === undefined) {
     return undefined;
   }
-  const taken = await takenBackOf(chatId, found.message);
   const retracted = await ChatWrites.retract(chatId, sessionId, found.takesOut);
-  return retracted.isOk() ? taken : undefined;
-}
-
-async function takenBackOf(
-  chatId: ChatId,
-  message: SessionMessage.UserWithParts,
-): Promise<TakenBack> {
-  let words = "";
-  let attachments: SessionMessageDataPart.FileAttachmentsDataPart | undefined;
-  let chips: SessionMessageDataPart.SentChip[] = [];
-  let asks: SessionMessageDataPart.AsksDataPart | undefined;
-  for (const part of message.parts) {
-    switch (part.type) {
-      case "text": {
-        words = part.text;
-        break;
-      }
-      case "data-attachments": {
-        attachments = part.data;
-        break;
-      }
-      case "data-viewContext": {
-        chips = part.data.attached ?? [];
-        break;
-      }
-      case "data-asks": {
-        asks = part.data;
-        break;
-      }
-      default:
-    }
-  }
-  const sent = attachments?.files ?? [];
-  const here = await resolveWorkspaceFilePaths({
-    chatId,
-    filePaths: sent.map(({ filePath }) => filePath),
-  });
-  return {
-    ...(asks ? { asks } : {}),
-    // Files and folders come back from the attachments, which say more of
-    // them than a chip does.
-    chips: chips.filter((chip) => chip.kind !== "paths"),
-    // A file this computer cannot reach is not given back.
-    files: sent.flatMap((file) => {
-      const path = here.get(file.filePath);
-      return path
-        ? [
-            {
-              mediaType: file.mimeType,
-              name: file.filename,
-              path,
-              size: file.size,
-            },
-          ]
-        : [];
-    }),
-    folders: attachments?.folders ?? [],
-    words,
-  };
+  return retracted.isOk() ? { draftId } : undefined;
 }

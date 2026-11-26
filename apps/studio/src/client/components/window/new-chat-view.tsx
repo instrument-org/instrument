@@ -30,7 +30,7 @@ import {
   draftsLoadedAtom,
   updateDraftAtom,
 } from "@/client/drafts/store";
-import { type Draft, holdsSomething } from "@/shared/drafts";
+import { type Draft, holdsSomething, isOnItsWay } from "@/shared/drafts";
 import { cn, osConventions } from "@/client/lib/utils";
 import {
   locateTypedPath,
@@ -168,7 +168,7 @@ export function NewChatView({
       return;
     }
     const named = drafts.find(
-      (entry) => entry.id === draftId && entry.sendingTo === undefined,
+      (entry) => entry.id === draftId && !isOnItsWay(entry),
     );
     const next = named?.id ?? null;
     if (next === (store.get(newChatBoxesAtom)[tabId]?.draftId ?? null)) {
@@ -232,7 +232,7 @@ export function NewChatView({
         store.get(newChatBoxesAtom),
         tabId,
       );
-      if (sent?.sendingTo !== undefined) {
+      if (sent !== undefined && isOnItsWay(sent)) {
         bindBox({ draftId: null, tabId });
       }
     },
@@ -792,7 +792,7 @@ function ProjectRoom({ project }: { project: Project }) {
 /** Whether words are all a new chat's draft has to send. */
 function isWordsOnly(draft: Draft): boolean {
   return (
-    draft.sendingTo === undefined &&
+    !isOnItsWay(draft) &&
     !holdsSomething({ ...draft, words: "" }) &&
     (draft.context ?? []).length === 0
   );

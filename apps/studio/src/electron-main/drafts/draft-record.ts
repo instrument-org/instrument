@@ -3,6 +3,7 @@ import {
   type DraftAsk,
   type DraftAttachment,
   type DraftContextItem,
+  type DraftSend,
 } from "@/shared/drafts";
 import { ChatIdSchema } from "@instrument-org/workspace/electron";
 import {
@@ -48,7 +49,8 @@ interface Folders {
  * The draft as its file holds it. A draft on its way into a chat names that
  * chat as `sending`, apart from the chat a reply is for, so a launch after a
  * crash knows where to look for the message that says it was sent, and
- * another device does not read a new chat's draft as a reply.
+ * another device does not read a new chat's draft as a reply; once its
+ * message is written, `sent` names the message too.
  */
 export function draftFileOf(draft: Draft, folders: Folders): DraftFile {
   const { dir } = folders;
@@ -77,8 +79,7 @@ export function draftFileOf(draft: Draft, folders: Folders): DraftFile {
     ...(context.length > 0 ? { context } : {}),
     created: new Date(draft.createdAt),
     id: draft.id,
-    ...(draft.sendOn === undefined ? {} : { send: draft.sendOn }),
-    ...(draft.sendingTo === undefined ? {} : { sending: draft.sendingTo }),
+    ...sendLinesOf(draft.send),
     ...(project === undefined ? {} : { project }),
     updated: new Date(draft.updatedAt),
     words: draft.words,
@@ -95,7 +96,7 @@ export function draftFileOf(draft: Draft, folders: Folders): DraftFile {
  */
 export function draftOf({ dir, draft }: DraftOnDisk, rootDir: string): Draft {
   const chat = ChatIdSchema.safeParse(draft.chat);
-  const sending = ChatIdSchema.safeParse(draft.sending);
+  const send = sendOf(draft);
   const inFolder = folderAttachmentsOf({ dir, draft });
   const elsewhere: DraftAttachment[] = [];
   const context: DraftContextItem[] = [];
@@ -141,8 +142,7 @@ export function draftOf({ dir, draft }: DraftOnDisk, rootDir: string): Draft {
     createdAt: created,
     folder: dir,
     id: draft.id,
-    ...(draft.send === undefined ? {} : { sendOn: draft.send }),
-    ...(sending.success ? { sendingTo: sending.data } : {}),
+    ...(send === undefined ? {} : { send }),
     ...(draft.project === undefined ? {} : { projectId: draft.project }),
     updatedAt: draft.updated.getTime(),
     words: draft.words,
@@ -172,6 +172,43 @@ export function withFolderOf(current: Draft, read: Draft, dir: string): Draft {
     ...(read.folder === undefined ? {} : { folder: read.folder }),
     ...(read.inFolder === undefined ? {} : { inFolder: read.inFolder }),
   };
+}
+
+/** A draft's send as its file writes it: `send`, else `sending` and, once its message is written, `sent`. */
+function sendLinesOf(
+  send: DraftSend | undefined,
+): Pick<DraftFile, "send" | "sending" | "sent"> {
+  switch (send?.stage) {
+    case undefined: {
+      return {};
+    }
+    case "asked": {
+      return { send: send.device };
+    }
+    case "sending": {
+      return { sending: send.chatId };
+    }
+    case "sent": {
+      return { sending: send.chatId, sent: send.messageId };
+    }
+  }
+}
+
+/**
+ * A draft's send as its file has it, one stage: a chat it is going into wins
+ * over a device asked to send it, which a file written partway through an
+ * asked send has both of.
+ */
+function sendOf(draft: DraftFile): DraftSend | undefined {
+  const sending = ChatIdSchema.safeParse(draft.sending);
+  if (sending.success) {
+    return draft.sent === undefined
+      ? { chatId: sending.data, stage: "sending" }
+      : { chatId: sending.data, messageId: draft.sent, stage: "sent" };
+  }
+  return draft.send === undefined
+    ? undefined
+    : { device: draft.send, stage: "asked" };
 }
 
 /** What in the draft's folder goes with it, as a composer shows it. */

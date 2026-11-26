@@ -94,7 +94,11 @@ export async function stopChat(
     type: "stopSessions",
     value: {
       id: chatId,
-      notice: { by: "person", wakesChat: true },
+      notice: {
+        by: "person",
+        ...(takeBack ? { takesBack: true } : {}),
+        wakesChat: true,
+      },
       ...(sessionId ? { sessionId } : {}),
     },
   });

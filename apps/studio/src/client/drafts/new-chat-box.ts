@@ -3,7 +3,7 @@ import {
   newChatHref,
 } from "@/client/components/window/window-href";
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
-import { type Draft, isLeftEmpty } from "@/shared/drafts";
+import { type Draft, isLeftEmpty, isOnItsWay } from "@/shared/drafts";
 import { atom } from "jotai";
 import { ulid } from "ulid";
 
@@ -100,7 +100,7 @@ export function isNewChatEmptied(
 ): boolean {
   return (
     draft !== undefined &&
-    draft.sendingTo === undefined &&
+    !isOnItsWay(draft) &&
     isBoxEmpty &&
     isLeftEmpty(draft, { hasTabs })
   );

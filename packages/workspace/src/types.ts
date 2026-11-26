@@ -18,6 +18,7 @@ import { type AppConnectionStore } from "./lib/apps/connection";
 import { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 import { type StoredAppKey } from "./lib/apps/origin-bound";
 import { type FinderEntry } from "./lib/chat/finder-entries";
+import { type SentFromDraft } from "./lib/drafts/send-from-folder";
 import { type DeviceId } from "./lib/records/device-id";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
@@ -465,6 +466,16 @@ export interface WorkspaceConfig {
    * titles of the pages it links to by their bare addresses.
    */
   lookUpSentLinkTitles?: (text: string) => void;
+  /**
+   * Told the moment a message from a draft is written, before the turn it
+   * starts: the draft, the message, and what of the draft's folder the
+   * message carried. The host, which keeps the drafts, marks the draft sent.
+   */
+  draftSent?: (sent: {
+    carried: SentFromDraft;
+    draftId: string;
+    messageId: StoreId.Message;
+  }) => void;
   /**
    * Paces the model proxy's requests to our own platform under what it
    * admits at once and a minute, shared with the app's other hosted calls.

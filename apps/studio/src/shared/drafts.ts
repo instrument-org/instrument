@@ -110,21 +110,12 @@ export interface Draft {
    * changes it; a composer shows what turns up here and drops what goes.
    */
   inFolder?: DraftAttachment[];
-  /**
-   * The device another device asked to send this reply as soon as it has it,
-   * by its id (its file's `send`): a reply left from a phone, which this
-   * computer sends while the ask is fresh (`send-asked-drafts.ts`).
-   */
-  sendOn?: string;
-  /**
-   * The chat the draft is on its way into, from the press until the message
-   * is written or the send fails. A draft being sent is neither a reply
-   * waiting nor a draft to list: it is the message about to arrive. Its file
-   * says so as `sending`, so a launch after a crash knows where to look for
-   * the message and another device leaves the draft alone meanwhile.
-   */
-  sendingTo?: ChatId;
   projectId?: string;
+  /**
+   * Where the draft's send stands, one stage at a time; none while it is
+   * being written. See {@link DraftSend}.
+   */
+  send?: DraftSend;
   /**
    * Who settled the project: the person, by picking or clearing one, or the
    * decision model, from what the draft says. Absent while neither has. A
@@ -135,11 +126,38 @@ export interface Draft {
   words: string;
 }
 
+/**
+ * Where a draft's send stands. A draft goes through these in order, and back
+ * to none where its send fails or its message is taken back:
+ *
+ * - `asked`: another device asked this one (`device`, by its id) to send it
+ *   as soon as it has it, a reply left on a phone (`send-asked-drafts.ts`).
+ *   Its file's `send`.
+ * - `sending`: claimed for `chatId`, its message not yet written. Its file's
+ *   `sending`, so a launch after a crash knows where to look for the message.
+ * - `sent`: the message (`messageId`) is in the chat and not yet answered.
+ *   Its file's `sending` and `sent`. The draft is kept, folder and all, so a
+ *   Stop before any answer can put it back as it was (`release`); once the
+ *   turn its message started ends with the message still there, it is
+ *   finished (`finish`).
+ *
+ * A draft `sending` or `sent` is on its way ({@link isOnItsWay}): neither a
+ * reply waiting nor a draft to list, but the message about to arrive or
+ * already shown in its chat.
+ */
+export type DraftSend =
+  | { device: string; stage: "asked" }
+  | { chatId: ChatId; stage: "sending" }
+  | { chatId: ChatId; messageId: string; stage: "sent" };
+
+/** What of a draft's folder its message carried, by path: files, and folders innermost first. */
+export interface DraftCarried {
+  files: string[];
+  folders: string[];
+}
+
 /** The fields an update may set; the draft's identity, its send and its folder are not among them. */
-type DraftFields = Omit<
-  Draft,
-  "createdAt" | "folder" | "id" | "inFolder" | "sendingTo"
->;
+type DraftFields = Omit<Draft, "createdAt" | "folder" | "id" | "inFolder" | "send">;
 
 /**
  * One change to the drafts. Each names the draft it changes and carries
@@ -149,16 +167,32 @@ type DraftFields = Omit<
 export type DraftOp =
   /** A draft made, with an id the window minted. Ignored where the id is taken. */
   | { draft: Draft; type: "create" }
-  /** Pointed at the chat it is about to be sent into, with the words it is sent with. */
+  /** Pointed at the chat it is about to be sent into, with the words it is sent with: `sending`. */
   | { at: number; chatId: ChatId; id: string; type: "claim"; words: string }
+  /**
+   * Its message is written (`messageId`): `sent`. `carried` is what of its
+   * folder the message took, for main to take out once the draft finishes.
+   */
+  | {
+      carried?: DraftCarried;
+      id: string;
+      messageId: string;
+      type: "sent";
+    }
+  /**
+   * The turn its message started ended with the message still in its chat,
+   * so the draft is gone and stays gone.
+   */
+  | { id: string; type: "finish" }
   /** Opened by the person from Drafts, so it is never thrown away as one a closed tab left. */
   | { id: string; type: "keep" }
   /** Thrown away, or emptied by hand: gone, with what was pasted into it. */
   | { id: string; type: "remove" }
-  /** A send that failed: the draft is the person's again, as it was before the press. */
+  /**
+   * The draft is the person's again, as it was before the press: a send that
+   * failed, a message taken back, or another device's ask dropped.
+   */
   | { id: string; type: "release" }
-  /** The message naming the draft is written, so the draft is gone and stays gone. */
-  | { id: string; type: "sent" }
   /**
    * Fields set and fields cleared, stamped with when unless `at` is left out,
    * which leaves the draft as new as it was. Ignored for a draft that is gone.
@@ -258,23 +292,33 @@ function applyDraftOp(drafts: Draft[], op: DraftOp): Draft[] {
     case "claim": {
       return changeDraft(drafts, op.id, (draft) => ({
         ...draft,
-        sendingTo: op.chatId,
+        send: { chatId: op.chatId, stage: "sending" },
         updatedAt: op.at,
         words: op.words,
       }));
+    }
+    case "sent": {
+      return changeDraft(drafts, op.id, (draft) =>
+        draft.send?.stage === "sending"
+          ? {
+              ...draft,
+              send: {
+                chatId: draft.send.chatId,
+                messageId: op.messageId,
+                stage: "sent",
+              },
+            }
+          : draft,
+      );
     }
     case "keep": {
       return drafts;
     }
     case "release": {
-      return changeDraft(
-        drafts,
-        op.id,
-        ({ sendingTo: _sending, ...draft }) => draft,
-      );
+      return changeDraft(drafts, op.id, ({ send: _send, ...draft }) => draft);
     }
-    case "remove":
-    case "sent": {
+    case "finish":
+    case "remove": {
       return drafts.some((draft) => draft.id === op.id)
         ? drafts.filter((draft) => draft.id !== op.id)
         : drafts;
@@ -351,7 +395,7 @@ function isField(key: string): key is keyof DraftFields {
     key !== "id" &&
     key !== "folder" &&
     key !== "inFolder" &&
-    key !== "sendingTo" &&
+    key !== "send" &&
     key !== "updatedAt"
   );
 }
@@ -390,9 +434,14 @@ export function isLeftEmpty(
   );
 }
 
+/** Whether a draft is on its way: claimed for a chat, or its message already there. */
+export function isOnItsWay(draft: Draft): boolean {
+  return draft.send?.stage === "sending" || draft.send?.stage === "sent";
+}
+
 /** A chat's replies waiting, the ones on their way left out. */
 export function repliesOf(drafts: Draft[], chatId: ChatId): Draft[] {
   return drafts.filter(
-    (draft) => draft.chatId === chatId && draft.sendingTo === undefined,
+    (draft) => draft.chatId === chatId && !isOnItsWay(draft),
   );
 }

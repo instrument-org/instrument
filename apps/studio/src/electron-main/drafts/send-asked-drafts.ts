@@ -23,9 +23,9 @@ export interface AskedReply extends AskedDraftCarries {
  * the agent. A reply names the computer that last worked in its chat; a
  * draft that opens a chat of its own names the computer that last wrote the
  * chat list. It is sent as a window sends one: a new chat made first
- * (`startChat`), then the draft claimed for its chat, the message written
- * naming the draft, and the draft marked sent, so a send stopped partway is
- * finished or offered again exactly as a window's is (`lib/drafts/send.ts`).
+ * (`startChat`), then the draft claimed for its chat and the message written
+ * naming the draft, which marks it sent, so it is finished, taken back or
+ * offered again exactly as a window's is (`lib/drafts/send.ts`).
  *
  * A draft with a part this computer can't send for the person (`carries`)
  * is not sent in part: its ask is dropped, and it waits for them whole.
@@ -78,7 +78,7 @@ export function startSendingAskedDrafts({
     }
     if (carried === undefined) {
       log.warn(`Left ${draft.id}, with something only the person can send`);
-      apply([{ id: draft.id, set: {}, type: "update", unset: ["sendOn"] }]);
+      apply([{ id: draft.id, type: "release" }]);
       return;
     }
     let chatId: ChatId;
@@ -86,7 +86,7 @@ export function startSendingAskedDrafts({
       chatId = draft.chatId ?? (await startChat(draft.words));
     } catch (error) {
       log.warn(`Could not start the chat ${draft.id} asked for`, error);
-      apply([{ id: draft.id, set: {}, type: "update", unset: ["sendOn"] }]);
+      apply([{ id: draft.id, type: "release" }]);
       return;
     }
     apply([
@@ -107,10 +107,7 @@ export function startSendingAskedDrafts({
         `Could not send the reply ${draft.id} asked of this computer`,
         error,
       );
-      apply([
-        { id: draft.id, type: "release" },
-        { id: draft.id, set: {}, type: "update", unset: ["sendOn"] },
-      ]);
+      apply([{ id: draft.id, type: "release" }]);
       return;
     }
     if (draft.chatId === undefined) {
@@ -120,19 +117,18 @@ export function startSendingAskedDrafts({
         log.warn(`Could not show the chat ${draft.id} opened`, error);
       }
     }
-    apply([{ id: draft.id, type: "sent" }]);
   };
 
   const dropAsk = async (draft: Draft) => {
     await Promise.resolve();
-    apply([{ id: draft.id, set: {}, type: "update", unset: ["sendOn"] }]);
+    apply([{ id: draft.id, type: "release" }]);
   };
 
   return watch(({ drafts }) => {
     for (const draft of drafts) {
       if (
-        draft.sendOn !== deviceId ||
-        draft.sendingTo !== undefined ||
+        draft.send?.stage !== "asked" ||
+        draft.send.device !== deviceId ||
         inFlight.has(draft.id)
       ) {
         continue;

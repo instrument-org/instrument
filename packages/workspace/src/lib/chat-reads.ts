@@ -14,6 +14,7 @@ import {
 } from "./records/earlier-versions";
 import { sessionOf } from "./records/session-of";
 import {
+  chatSitesView,
   sitesView,
   contextTokensView,
   conversationView,
@@ -249,6 +250,15 @@ export namespace ChatReads {
     sessionId: StoreId.Session;
   }): ResultAsync<string[], Failure> {
     return read(chatId).map((chat) => sitesView(chat, sessionId));
+  }
+
+  /** The hosts the chat's browser has been on in any of its sessions, its tasks' included. */
+  export function chatSites({
+    chatId,
+  }: {
+    chatId: ChatId;
+  }): ResultAsync<string[], Failure> {
+    return read(chatId).map(chatSitesView);
   }
 
   /**

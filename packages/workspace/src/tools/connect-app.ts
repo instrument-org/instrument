@@ -13,6 +13,7 @@ import {
 import { lookupAppKeys } from "../lib/apps/credential-origin";
 import { type LocalMcpAppManifest } from "../lib/apps/manifest";
 import { describeLocalLaunch } from "../lib/apps/mcp/local-server";
+import { onSameSite } from "../lib/apps/same-site";
 import { appSiteFor } from "../lib/apps/site";
 import {
   guidePlaceholdersLeft,
@@ -20,6 +21,7 @@ import {
   readAppGuide,
 } from "../lib/apps/store";
 import { APP_COMMAND } from "../model-text/commands/app-command";
+import { ChatReads } from "../lib/chat-reads";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import {
   type ConnectAppResult,
@@ -61,20 +63,32 @@ const connectAppCapability = defineCapability({
       .meta({
         description: `The apps to connect: the \`id\` each was set up under with \`${APP_COMMAND.name} new\`. Every app the work needs goes in one call, one card for them all.`,
       }),
+    signedIn: z
+      .array(z.string())
+      .max(MAX_APPS_PER_CARD)
+      .optional()
+      .meta({
+        description:
+          "Web apps among `slugs` whose site you opened in a tab of this chat and saw signed in: each is recorded as signed in on this computer, with no row on the card.",
+      }),
   }),
   name: "apps.connect",
   summary: "Asks the person to connect apps on one card; the turn ends on it.",
   surfaces: {
     tool: {
       description: dedent`
-    Ask the user to connect apps you have set up with \`${APP_COMMAND.name} new\`. One card appears in the conversation with a row for each app: sign-in buttons for an OAuth app, a secure field for a key, for an app whose server runs on this machine, what would run and a button to allow it, and for a web app, a ${SITE_SIGN_IN_WORDS.signIn} button that opens its sign-in in the window's browser, where the user presses ${SITE_SIGN_IN_WORDS.done} once signed in (at once, when already signed in). Name every app the work needs in one call: several calls make several cards. Your turn ends on this call, so do what does not depend on the connection first. You are woken once, with a note, when the user has answered every row: signed in, saved a key, or declined. Never ask for a key in prose instead.
+    Ask the user to connect apps you have set up with \`${APP_COMMAND.name} new\`. One card appears in the conversation with a row for each app: sign-in buttons for an OAuth app, a secure field for a key, for an app whose server runs on this machine, what would run and a button to allow it, and for a web app, a ${SITE_SIGN_IN_WORDS.signIn} button that opens its sign-in in the window's browser, where the user presses ${SITE_SIGN_IN_WORDS.done} once signed in. A web app is asked for only once its site has been opened in a tab of this chat: one that loaded signed in goes in \`signedIn\`, and gets no row. Name every app the work needs in one call: several calls make several cards. Your turn ends on a call that puts up a card, so do what does not depend on the connection first. You are woken once, with a note, when the user has answered every row: signed in, saved a key, or declined. Never ask for a key in prose instead.
   `,
       execute: async ({ input, messageId, partId, sessionId, chatId }) => {
-        const slugs = [...new Set(input.slugs)];
+        const signedIn = new Set(input.signedIn);
+        const slugs = [...new Set([...input.slugs, ...signedIn])];
+        const visited = (await ChatReads.chatSites({ chatId })).unwrapOr([]);
         const apps: ConnectAppResult[] = [];
         // One at a time: each ask writes the app's connection record.
         for (const slug of slugs) {
-          apps.push(await askFor(slug));
+          apps.push(
+            await askFor(slug, { seenSignedIn: signedIn.has(slug), visited }),
+          );
         }
         const failed = apps.flatMap((result) =>
           result.state === "failure"
@@ -111,7 +125,18 @@ const connectAppCapability = defineCapability({
 export const ConnectApp = modelTool(connectAppCapability);
 
 /** What asking for one app comes to: a row on the card, already connected, or why it could not be asked. */
-async function askFor(requested: string): Promise<ConnectAppResult> {
+async function askFor(
+  requested: string,
+  {
+    seenSignedIn,
+    visited,
+  }: {
+    /** Whether the agent saw the app's site load signed in. */
+    seenSignedIn: boolean;
+    /** The hosts the chat's browser has been on, its tasks' included. */
+    visited: string[];
+  },
+): Promise<ConnectAppResult> {
   const config = getWorkspaceConfig();
   const loaded = await loadApp(requested);
   if (loaded.isErr()) {
@@ -145,6 +170,28 @@ async function askFor(requested: string): Promise<ConnectAppResult> {
       slug,
       state: "failure",
     };
+  }
+  if (manifest.type === "web") {
+    // Nothing sees a session in the browser, so the site is looked at
+    // before the user is asked: a card for a site already signed in is a
+    // sign-in they have already done.
+    const sites = [manifest.url, ...(manifest.signIn ? [manifest.signIn] : [])];
+    if (!visited.some((host) => sites.some((url) => onSameSite(host, url)))) {
+      return {
+        message: `Open ${manifest.url} in a tab first and look. If it loads signed in, call ${TOOL_NAMES.connectApp} with "${slug}" in \`signedIn\`, which records that and shows no card; if it loads signed out, ask again.`,
+        slug,
+        state: "failure",
+      };
+    }
+    if (seenSignedIn) {
+      await recordConnection(slug, {
+        connectedAt: Date.now(),
+        manifestHash,
+        seenSignedIn: true,
+        status: "connected",
+      });
+      return { name, seen: true, slug, state: "connected" };
+    }
   }
   const kind =
     manifest.type === "web"
@@ -213,7 +260,9 @@ function oneAppModelOutput(output: ConnectAppResult): ToolResultPart["output"] {
   if (output.state === "connected") {
     return {
       type: "text",
-      value: `${output.name} is already connected; no card was shown. Use it.`,
+      value: output.seen
+        ? `${output.name} is recorded as signed in on this computer; no card was shown. Carry on in its tab.`
+        : `${output.name} is already connected; no card was shown. Use it.`,
     };
   }
   switch (output.kind) {
@@ -268,7 +317,9 @@ function cardModelOutput(
   for (const result of results) {
     if (result.state === "connected") {
       lines.push(
-        `- ${result.name} is already connected, so it has no row. Use it.`,
+        result.seen
+          ? `- ${result.name} is recorded as signed in on this computer, so it has no row. Carry on in its tab.`
+          : `- ${result.name} is already connected, so it has no row. Use it.`,
       );
     } else if (result.state === "asked" && result.kind === "none") {
       lines.push(

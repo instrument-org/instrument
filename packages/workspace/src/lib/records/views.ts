@@ -299,6 +299,11 @@ export function sitesView(
   return read.chat.sessions.find(({ id }) => id === sessionId)?.sites ?? [];
 }
 
+/** The hosts any session of the chat has been on, its tasks' included, each once. */
+export function chatSitesView(read: ChatRead): string[] {
+  return [...new Set(read.chat.sessions.flatMap(({ sites }) => sites ?? []))];
+}
+
 /**
  * What the session's context meter shows: the input tokens the last reply
  * that reported any was built from. Zero where no reply has reported one.

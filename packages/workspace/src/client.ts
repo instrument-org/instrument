@@ -60,6 +60,7 @@ export {
   WAIT_CARD_WORDS,
 } from "./lib/screen-words";
 export { askTargetName } from "./lib/permissions/ask-target";
+export { onSameSite } from "./lib/apps/same-site";
 export { jobEventModelNote } from "./model-text/notes/job-event-model-text";
 export { maxStepsModelNote } from "./model-text/notes/max-steps-model-text";
 export { setupNewsModelNote } from "./model-text/notes/setup-news-model-text";

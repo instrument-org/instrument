@@ -1,7 +1,6 @@
 import { APP_NAME } from "@instrument-org/shared";
 import { TOOL_NAMES } from "../../tools/name";
 import { INSTRUMENT_COMMAND } from "./instrument-command";
-import { SITE_SIGN_IN_WORDS } from "../../lib/screen-words";
 
 /**
  * The name and one-line description of the `instrument app` command, kept apart from the
@@ -31,14 +30,15 @@ export const APPS_ARE_THE_CHATS = `Setting up and connecting apps is the chat's.
 export const APP_SETUP_IS_THE_CHATS = `only the chat sets up and changes apps, since every chat uses them. ${NAME_IT_IN_YOUR_NEEDS}`;
 
 /**
- * The same app in the list every chat starts with, which says where each
- * stands and leaves what to do about it to the work that needs the app.
+ * A web app with no sign-in recorded on this computer, in the list every
+ * chat starts with and for a task: where it stands, leaving what to do about
+ * it to the work that needs the app.
  */
-export const WEB_APP_UNMARKED = `not marked signed in, though the user may already be signed in on the site in ${APP_NAME}'s browser`;
+export const WEB_APP_UNMARKED = `not checked on this computer yet: the user may already be signed in on the site in ${APP_NAME}'s browser`;
 
 /**
- * Where a web app stands, for the chat, before the user has said they are
- * signed in: nothing sees a session in the browser, so the site is checked
- * before the user is asked to sign in again.
+ * The same, for the chat about to use it: nothing sees a session in the
+ * browser, so the page the site loads says whether the user is signed in,
+ * and a card is for a site that loads signed out.
  */
-export const WEB_APP_NOT_SIGNED_IN = `not marked signed in. Open its site in a tab first: if it loads signed in, call ${TOOL_NAMES.connectApp} (unless its card is open) and tell the user they are already signed in, so they only press ${SITE_SIGN_IN_WORDS.signIn} on the card, then ${SITE_SIGN_IN_WORDS.done} on the page it opens; otherwise ${TOOL_NAMES.connectApp}`;
+export const WEB_APP_NOT_SIGNED_IN = `not checked on this computer yet. Open its site in a tab and look: if it loads signed in, call ${TOOL_NAMES.connectApp} with it in \`signedIn\`, which records that and shows no card, and carry on there; if it loads signed out, ask with ${TOOL_NAMES.connectApp}`;

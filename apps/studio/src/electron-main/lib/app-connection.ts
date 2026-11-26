@@ -71,6 +71,8 @@ export async function settleConnection(
         connectedAt: Date.now(),
         error: undefined,
         manifestHash: outcome.manifestHash,
+        // The user's own sign-in, which stands in place of one the agent saw.
+        seenSignedIn: undefined,
         status: "connected",
       });
       break;

@@ -95,6 +95,7 @@ export {
   type StoredAppKey,
 } from "./lib/apps/origin-bound";
 export { checkAppSignIns } from "./lib/apps/sign-in-lost";
+export { publishAppSignIns } from "./lib/apps/connection";
 export { appHomeFor, appSiteFor } from "./lib/apps/site";
 export {
   DIRECTORY_ICON_FILE_PATTERN,

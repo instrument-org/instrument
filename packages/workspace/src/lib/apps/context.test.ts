@@ -4,7 +4,10 @@ import { forgetApps, seedApp } from "../../test/helpers/seed-app";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { buildAppsContextText } from "./context";
 import { createMemoryAppsConfig } from "./memory-config";
-import { loadApp } from "./store";
+import { loadApp, publishSignIn } from "./store";
+import { DeviceIdSchema } from "../records/device-id";
+
+const OTHER_COMPUTER = DeviceIdSchema.parse("dev_7Q2M4K9X");
 
 const previous = getWorkspaceConfig();
 
@@ -65,7 +68,7 @@ describe("the apps a session starts with", () => {
     expect(text).not.toContain("app_instructions");
   });
 
-  it("has a web app waiting on its sign-in said to be maybe signed in already", async () => {
+  it("has a web app not checked here said to be maybe signed in already", async () => {
     await seedApp("shopify", {
       guide: "",
       name: "Shopify",
@@ -77,8 +80,44 @@ describe("the apps a session starts with", () => {
     });
 
     expect(await buildAppsContextText()).toContain(
-      "- shopify (Shopify, web at https://admin.shopify.com): not marked signed in, though the user may already be signed in on the site in Instrument's browser",
+      "- shopify (Shopify, web at https://admin.shopify.com): not checked on this computer yet: the user may already be signed in on the site in Instrument's browser",
     );
+  });
+
+  it("says where an app not connected here is connected on another computer", async () => {
+    await seedApp("craft", {
+      guide: "",
+      name: "Craft",
+      setup: {
+        auth: { kind: "oauth" },
+        type: "mcp",
+        url: "https://mcp.craft.do/mcp",
+      },
+    });
+    const app = (await loadApp("craft"))._unsafeUnwrap();
+    await publishSignIn(OTHER_COMPUTER, "craft", {
+      account: "sam@example.com",
+      manifestHash: app.manifestHash,
+      status: "connected",
+      updatedAt: 1,
+    });
+
+    expect(await buildAppsContextText()).toContain(
+      "- craft (Craft, mcp): not connected; connected on another computer as sam@example.com",
+    );
+  });
+
+  it("says nothing of another computer for an app connected here", async () => {
+    await writeApp("Linear", "linear", "");
+    await connect("linear");
+    const app = (await loadApp("linear"))._unsafeUnwrap();
+    await publishSignIn(OTHER_COMPUTER, "linear", {
+      manifestHash: app.manifestHash,
+      status: "connected",
+      updatedAt: 1,
+    });
+
+    expect(await buildAppsContextText()).not.toContain("another computer");
   });
 
   it.each([

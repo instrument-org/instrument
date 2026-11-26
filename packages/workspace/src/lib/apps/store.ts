@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { omit } from "radashi";
 import { z } from "zod";
 
+import { type DeviceId, DeviceIdSchema } from "../records/device-id";
 import { heldStore, type WorkspacePlace } from "../synced-store/held-stores";
 import { type SyncedStore } from "../synced-store/synced-store";
 import { type SyncedOp } from "../synced-store/synced-record";
@@ -44,6 +45,7 @@ const APPS_DOMAIN = "apps";
 
 const APP_PREFIX = "app/";
 const ICON_PREFIX = "icon/";
+const SIGN_IN_PREFIX = "sign-in/";
 
 /**
  * An app's value in the store. Loose, so a field a newer build adds goes
@@ -454,6 +456,78 @@ export async function removeApp(slug: AppSlug): Promise<void> {
     { key: appKey(slug), t: "del" },
     { key: appIconKey(slug), t: "del" },
   ]);
+}
+
+/**
+ * Where an app stands on one computer, as that computer last wrote it, for
+ * the others to read: a key per computer and app, `sign-in/<device>/<slug>`,
+ * so each computer's word stands beside the others' rather than the newest
+ * replacing them. Never a secret: the status, the account, and the manifest
+ * it holds for. The credential and the record a call goes through on stay
+ * on the computer (`connection.ts`).
+ */
+const PublishedSignInSchema = z.looseObject({
+  account: z.string().optional(),
+  manifestHash: z.string().optional(),
+  status: z.string(),
+  updatedAt: z.number(),
+});
+
+export type PublishedSignIn = z.output<typeof PublishedSignInSchema>;
+
+function signInKey(device: DeviceId, slug: string): string {
+  return `${SIGN_IN_PREFIX}${device}/${slug}`;
+}
+
+/**
+ * Writes where an app stands on this computer, for the others to read; a
+ * standing the store already has is left alone, so a launch that writes
+ * every app's writes only what changed.
+ */
+export async function publishSignIn(
+  device: DeviceId,
+  slug: string,
+  standing: PublishedSignIn,
+): Promise<void> {
+  const key = signInKey(device, slug);
+  const store = await appsStore();
+  await store.exclusive(async () => {
+    const current = PublishedSignInSchema.safeParse(store.get(key));
+    if (
+      current.success &&
+      current.data.status === standing.status &&
+      current.data.account === standing.account &&
+      current.data.manifestHash === standing.manifestHash
+    ) {
+      return;
+    }
+    await store.apply([{ key, t: "set", value: standing }]);
+  });
+}
+
+/** Where each app stands on every computer but this one, by slug. */
+export async function signInsElsewhere(
+  device: DeviceId,
+): Promise<Map<string, (PublishedSignIn & { device: DeviceId })[]>> {
+  const bySlug = new Map<string, (PublishedSignIn & { device: DeviceId })[]>();
+  for (const [key, raw] of (await appsStore()).entries(SIGN_IN_PREFIX)) {
+    const [other, slug] = key.slice(SIGN_IN_PREFIX.length).split("/");
+    const parsed = PublishedSignInSchema.safeParse(raw);
+    const known = DeviceIdSchema.safeParse(other);
+    if (
+      slug === undefined ||
+      !parsed.success ||
+      !known.success ||
+      known.data === device
+    ) {
+      continue;
+    }
+    bySlug.set(slug, [
+      ...(bySlug.get(slug) ?? []),
+      { ...parsed.data, device: known.data },
+    ]);
+  }
+  return bySlug;
 }
 
 /** The app's own icon, when it has one. */

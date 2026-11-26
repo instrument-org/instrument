@@ -396,20 +396,20 @@ describe("a web app", () => {
     useApps(createMemoryAppsConfig());
   });
 
-  it("fails until the user says they are signed in, and says how to ask", async () => {
+  it("passes with the sign-in unchecked here, saying to look at the site before asking", async () => {
     await putApp(slug, "Google Drive", manifest);
 
     const report = await testApp(slug);
 
-    expect(report.passed).toBe(false);
+    expect(report.passed).toBe(true);
     expect(report.checks.find((check) => check.name === "credential")).toEqual({
       detail:
-        "The user has not said they are signed in to Google Drive. Open https://drive.google.com in a tab first: if it loads signed in, call connect_app and tell them they are already signed in, so they only press Sign in on the card, then Done on the page it opens; otherwise ask them with connect_app, whose card opens that page in Instrument's browser.",
+        'Not checked on this computer yet. Open https://drive.google.com in a tab and look: if it loads signed in, call connect_app with "drive-web" in `signedIn`, which records that and shows no card; if it loads signed out, ask with connect_app, whose card opens https://drive.google.com in Instrument\'s browser.',
       name: "credential",
-      status: "fail",
+      status: "skip",
     });
-    expect(await getWorkspaceConfig().apps.connections.get(slug)).toMatchObject(
-      { status: "needs-sign-in" },
+    expect(await getWorkspaceConfig().apps.connections.get(slug)).toBe(
+      undefined,
     );
   });
 
@@ -455,6 +455,6 @@ describe("a web app", () => {
     expect(report.passed).toBe(false);
     expect(
       report.checks.find((check) => check.name === "credential")?.detail,
-    ).toContain("The manifest changed since the user said they were signed in");
+    ).toContain("The manifest changed since the sign-in was recorded");
   });
 });

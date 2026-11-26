@@ -1,4 +1,7 @@
-import { checkAppSignIns } from "@instrument-org/workspace/electron";
+import {
+  checkAppSignIns,
+  publishAppSignIns,
+} from "@instrument-org/workspace/electron";
 import { app } from "electron";
 
 import { appsReady } from "./apps";
@@ -15,7 +18,8 @@ let inFlight: Promise<void> | undefined;
 let started = false;
 
 /**
- * Asks each connected app whether its sign-in still holds: once the
+ * Publishes where each app stands on this computer, and asks each connected
+ * app whether its sign-in still holds: once the
  * workspace is up, and when a window comes forward after the last look went
  * stale. An app whose sign-in the service refuses is written down as
  * needing one, which is what Apps and the rail read; nothing here tells the
@@ -23,6 +27,12 @@ let started = false;
  * reached says nothing about its sign-in.
  */
 export function startAppSignInChecks(): void {
+  // Where each app stands here, for the workspace's other computers to
+  // read: written on every change, and once as the workspace starts for
+  // what a build before this one recorded.
+  void publishAppSignIns().catch((error: unknown) => {
+    log.warn(new Error("Could not publish app sign-ins", { cause: error }));
+  });
   void checkNow();
   if (started) {
     return;

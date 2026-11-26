@@ -21,6 +21,8 @@ const ConnectAppResultSchema = z.discriminatedUnion("state", [
   }),
   z.object({
     name: z.string(),
+    /** For a web app, that this call recorded the sign-in the agent saw on its site. */
+    seen: z.literal(true).optional(),
     slug: z.string(),
     state: z.literal("connected"),
   }),

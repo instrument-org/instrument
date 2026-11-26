@@ -49,6 +49,12 @@ export interface AppFixture {
   /** For a web app, where it is worked. */
   url?: string;
   /**
+   * For a web app, the page its site answers every address with, served on
+   * loopback in place of `url`: a site that loads signed in, say, which no
+   * real site does for a run.
+   */
+  page?: string;
+  /**
    * For a `sign-in` app, who its server says the connection is signed in as.
    * With it, signing in reaches the MCP tracker with a `get_viewer` tool
    * answering this, and the sign-in learns no account of its own; without,
@@ -122,14 +128,19 @@ export async function seedConnectedApps(
   const closers: (() => Promise<void>)[] = [];
   for (const fixture of fixtures) {
     if (fixture.kind === "web" || fixture.kind === "web-sign-in") {
+      const { page } = fixture;
+      const site =
+        page === undefined
+          ? fixture.url
+          : await servePage(page, (server) => servers.push(server));
       await seedApp(
         fixture,
         {
           ...(fixture.account ? { account: fixture.account } : {}),
           type: "web",
-          url: fixture.url ?? "https://example.invalid",
+          url: site ?? "https://example.invalid",
         },
-        `Worked on the web${fixture.url === undefined ? "" : ` at ${fixture.url}`}.\n`,
+        `Worked on the web${site === undefined ? "" : ` at ${site}`}.\n`,
       );
       if (fixture.kind === "web") {
         await recordConnected(fixture.slug, { apps });
@@ -307,6 +318,26 @@ export async function seedConnectedApps(
       ]);
     },
   };
+}
+
+/** Serves one page at every address on loopback, answering where it is. */
+async function servePage(
+  page: string,
+  keep: (server: http.Server) => void,
+): Promise<string> {
+  const server = http.createServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+    response.end(page);
+  });
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  keep(server);
+  const address = server.address();
+  if (address === null || typeof address === "string") {
+    throw new Error("the page server has no port");
+  }
+  return `http://127.0.0.1:${address.port}`;
 }
 
 /**

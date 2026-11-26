@@ -4,6 +4,7 @@ import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type ChatId,
+  onSameSite,
   SITE_SIGN_IN_WORDS,
 } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
@@ -59,6 +60,8 @@ function useMarkSignedIn(name: string) {
  * A web app's sign-in on its own site, for whatever offers it: the card in a
  * chat, the app's page, and the bar over the site. One page per app: opening
  * it again shows the tab it is in, or opens it anew once that tab is closed.
+ * A tab already on the site, such as one the agent opened to look, is where
+ * it opens first.
  */
 export function useSiteSignIn({
   askedIn,
@@ -103,12 +106,42 @@ export function useSiteSignIn({
       if (started !== undefined && appWindow?.showTab?.(started.tab)) {
         return;
       }
-      if (signInPage !== undefined) {
-        opened(appWindow?.openPage(signInPage));
+      if (signInPage === undefined) {
+        return;
       }
+      // The agent opens the site before it asks, so the sign-in goes in that
+      // tab rather than a second one beside it.
+      const site = [signInPage, ...(app?.endpoint ? [app.endpoint] : [])];
+      const onSite = windowTabs.allTabs
+        .filter(
+          (tab) =>
+            tab.kind === "page" &&
+            site.some((url) => onSameSite(hostOf(tab.url), url)),
+        )
+        .toSorted((a, b) => openedAtOf(b) - openedAtOf(a))[0];
+      if (onSite !== undefined && appWindow?.showTab?.(onSite.id)) {
+        opened(onSite.id);
+        return;
+      }
+      opened(appWindow?.openPage(signInPage));
     },
     opened,
   };
+}
+
+function hostOf(url: string | undefined): string {
+  if (url === undefined) {
+    return "";
+  }
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "";
+  }
+}
+
+function openedAtOf(tab: WindowTab): number {
+  return tab.kind === "page" ? tab.openedAt : 0;
 }
 
 /**

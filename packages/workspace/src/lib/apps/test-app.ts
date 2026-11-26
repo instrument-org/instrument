@@ -3,7 +3,12 @@ import { APP_NAME } from "@instrument-org/shared";
 
 import { APP_COMMAND } from "../../model-text/commands/app-command";
 import { getWorkspaceConfig } from "../workspace-config";
-import { isConnected, readConnection, recordConnection } from "./connection";
+import {
+  type AppConnection,
+  isConnected,
+  readConnection,
+  recordConnection,
+} from "./connection";
 import {
   credentialMovedMessage,
   hasNoKeyStored,
@@ -32,7 +37,6 @@ import {
   readAppGuide,
   readAppSetup,
 } from "./store";
-import { SITE_SIGN_IN_WORDS } from "../screen-words";
 
 export interface AppTestReport {
   checks: AppTestCheck[];
@@ -425,9 +429,9 @@ export async function runAppTest({
   }
   return finish(report());
 
-  // A web app's record is the user's word that they are signed in, which only
-  // the card writes: a pass leaves it as it stands, and a failure says what
-  // is missing.
+  // A web app's record is a sign-in seen or said on this computer, which only
+  // connect_app and the card write: a pass leaves it as it stands, and a
+  // failure says what is missing.
   async function finishWeb(result: AppTestReport) {
     if (!result.passed) {
       const firstFailure = result.checks.find(
@@ -476,9 +480,9 @@ export async function runAppTest({
 
 /**
  * A web app's checks: there is no credential to find and no service to call,
- * so what passes is the user's own word, recorded by the card, that they are
- * signed in to the site in the window's browser, on the manifest as it
- * stands. Whether that session still holds shows only when a page loads.
+ * so what passes is a sign-in recorded on this computer, by the card or by
+ * the agent that saw the site load signed in, on the manifest as it stands.
+ * Whether that session still holds shows only when a page loads.
  */
 async function testWebApp({
   app,
@@ -487,7 +491,7 @@ async function testWebApp({
   app: AppInfo & { manifest: WebAppManifest };
   checks: AppTestCheck[];
 }): Promise<AppTestReport> {
-  const { manifest, manifestHash, name, slug } = app;
+  const { manifest, slug } = app;
   const guide = await readAppGuide(app.slug);
   checks.push({
     detail:
@@ -498,23 +502,7 @@ async function testWebApp({
     status: "pass",
   });
   const connection = await readConnection(slug);
-  const recorded = isConnected(connection, manifestHash);
-  checks.push(
-    recorded
-      ? {
-          detail: `The user said they are signed in to ${name} in ${APP_NAME}'s browser.`,
-          name: "credential",
-          status: "pass",
-        }
-      : {
-          name: "credential",
-          ...failure(
-            connection?.status === "connected"
-              ? `The manifest changed since the user said they were signed in, so the sign-in may be for another site. Ask them again with ${TOOL_NAMES.connectApp}.`
-              : `The user has not said they are signed in to ${name}. Open ${manifest.signIn ?? manifest.url} in a tab first: if it loads signed in, call ${TOOL_NAMES.connectApp} and tell them they are already signed in, so they only press ${SITE_SIGN_IN_WORDS.signIn} on the card, then ${SITE_SIGN_IN_WORDS.done} on the page it opens; otherwise ask them with ${TOOL_NAMES.connectApp}, whose card opens that page in ${APP_NAME}'s browser.`,
-          ),
-        },
-  );
+  checks.push(webCredentialCheck({ app, connection }));
   const findings = scanAppRecord({
     keys: [],
     guide: guide ?? "",
@@ -545,6 +533,43 @@ async function testWebApp({
     checks,
     passed: checks.every((check) => check.status !== "fail"),
     slug,
+  };
+}
+
+/**
+ * Where a web app's sign-in stands on this computer. Nothing sees a session
+ * in the browser, so one never recorded here is a step for the agent, which
+ * looks at the site, rather than a failure: only a sign-in recorded on an
+ * earlier setup fails, since it may be for another site.
+ */
+function webCredentialCheck({
+  app: { manifest, manifestHash, name, slug },
+  connection,
+}: {
+  app: AppInfo & { manifest: WebAppManifest };
+  connection: AppConnection | undefined;
+}): AppTestCheck {
+  if (isConnected(connection, manifestHash)) {
+    return {
+      detail: connection?.seenSignedIn
+        ? `${name} loaded signed in on this computer.`
+        : `The user said they are signed in to ${name} in ${APP_NAME}'s browser.`,
+      name: "credential",
+      status: "pass",
+    };
+  }
+  if (connection?.status === "connected") {
+    return {
+      name: "credential",
+      ...failure(
+        `The manifest changed since the sign-in was recorded, so it may be for another site. Open ${manifest.url} in a tab: if it loads signed in, call ${TOOL_NAMES.connectApp} with "${slug}" in \`signedIn\`; otherwise ask with ${TOOL_NAMES.connectApp}.`,
+      ),
+    };
+  }
+  return {
+    detail: `Not checked on this computer yet. Open ${manifest.url} in a tab and look: if it loads signed in, call ${TOOL_NAMES.connectApp} with "${slug}" in \`signedIn\`, which records that and shows no card; if it loads signed out, ask with ${TOOL_NAMES.connectApp}, whose card opens ${manifest.signIn ?? manifest.url} in ${APP_NAME}'s browser.`,
+    name: "credential",
+    status: "skip",
   };
 }
 

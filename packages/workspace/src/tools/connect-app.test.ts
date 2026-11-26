@@ -19,6 +19,7 @@ import { chatFor } from "../test/helpers/chat-record";
 import { AppSlugSchema } from "../lib/apps/manifest";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { runTool } from "../test/helpers/run-tool";
+import { ChatWrites } from "../lib/chat-writes";
 import { ConnectApp } from "./connect-app";
 
 // Every ask here comes from a chat's own session, where the card is seen.
@@ -67,6 +68,7 @@ async function ask(
   { chatId, sessionId }: Awaited<ReturnType<typeof chat>>,
   slugs = ["linear"],
   partId = StoreId.newPartId(),
+  signedIn?: string[],
 ) {
   const result = await runTool(ConnectApp, {
     chatId,
@@ -77,6 +79,7 @@ async function ask(
       explanation: "To read issues",
       reason: "So I can read your issues.",
       slugs,
+      ...(signedIn && { signedIn }),
     },
     model,
     signal: AbortSignal.timeout(10_000),
@@ -247,5 +250,71 @@ describe("connect_app", () => {
         "value": "A card asking the user to sign in to Linear is in the conversation. Your turn ended on it: you will be woken with a note when they have signed in or declined, and the app connects on its own when they do. Do not poll, and do not test before the note.",
       }
     `);
+  });
+});
+
+describe("connect_app for a web app", () => {
+  beforeEach(async () => {
+    await writeApp({
+      guide: "",
+      manifest: { type: "web", url: "https://www.amazon.com" },
+      name: "Amazon",
+      slug: AppSlugSchema.parse("amazon"),
+    });
+  });
+
+  it("asks for nothing until the chat has opened the site", async () => {
+    const lisbon = await chat();
+    const output = await ask(lisbon, ["amazon"]);
+
+    expect(output).toMatchInlineSnapshot(`
+      {
+        "apps": [
+          {
+            "message": "Open https://www.amazon.com in a tab first and look. If it loads signed in, call connect_app with "amazon" in \`signedIn\`, which records that and shows no card; if it loads signed out, ask again.",
+            "slug": "amazon",
+            "state": "failure",
+          },
+        ],
+      }
+    `);
+    expect(await openAsks(lisbon.chatId)).toEqual([]);
+    expect(await readConnection("amazon")).toBe(undefined);
+  });
+
+  it("records a sign-in the agent saw on the site, with no card", async () => {
+    const lisbon = await chat();
+    await ChatWrites.sites(lisbon.chatId, lisbon.sessionId, ["www.amazon.com"]);
+    const output = await ask(lisbon, ["amazon"], undefined, ["amazon"]);
+
+    expect(output).toEqual({
+      apps: [{ name: "Amazon", seen: true, slug: "amazon", state: "connected" }],
+    });
+    expect(await openAsks(lisbon.chatId)).toEqual([]);
+    expect(await readConnection("amazon")).toMatchObject({
+      manifestHash: (await loadApp("amazon"))._unsafeUnwrap().manifestHash,
+      seenSignedIn: true,
+      status: "connected",
+    });
+    expect(
+      ConnectApp.toModelOutput({ input: INPUT, output, toolCallId: "1" }),
+    ).toMatchInlineSnapshot(`
+      {
+        "type": "text",
+        "value": "Amazon is recorded as signed in on this computer; no card was shown. Carry on in its tab.",
+      }
+    `);
+  });
+
+  it("puts the card up for a site the chat opened that loaded signed out", async () => {
+    const lisbon = await chat();
+    await ChatWrites.sites(lisbon.chatId, lisbon.sessionId, ["amazon.com"]);
+
+    expect(await ask(lisbon, ["amazon"])).toMatchObject({
+      apps: [{ kind: "web", slug: "amazon", state: "asked" }],
+    });
+    expect(await readConnection("amazon")).toMatchObject({
+      status: "needs-sign-in",
+    });
   });
 });

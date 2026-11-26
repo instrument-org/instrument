@@ -5,7 +5,12 @@ import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SiteSignInBar, useSiteSignInsEnd } from "./site-sign-in";
+import { WindowContext, type WindowContextValue } from "./context";
+import {
+  SiteSignInBar,
+  useSiteSignIn,
+  useSiteSignInsEnd,
+} from "./site-sign-in";
 import { seedWindowTabsAtom, windowTabsAtom } from "./window-tabs";
 
 const { mocks } = vi.hoisted(() => ({
@@ -150,5 +155,76 @@ describe("the bar over a sign-in page", () => {
     renderBars();
 
     expect(await screen.findByRole("button", { name: "Done" })).toBeTruthy();
+  });
+});
+
+describe("opening a site's sign-in", () => {
+  const openPage = vi.fn<WindowContextValue["openPage"]>(() => "tab-new");
+  const showTab = vi.fn<NonNullable<WindowContextValue["showTab"]>>(
+    () => true,
+  );
+  // Only what the hook reads is here; the rest of the window is never asked.
+  const appWindow = new Proxy(
+    { browser: null, openPage, showTab },
+    { get: (target, key) => Reflect.get(target, key) },
+  ) as unknown as WindowContextValue;
+
+  function Open() {
+    const site = useSiteSignIn({ askedIn: CHAT, name: "Notes", slug: "notes" });
+    return (
+      <button onClick={site.open} type="button">
+        Sign in
+      </button>
+    );
+  }
+
+  function Window({ url }: { url: string }) {
+    const seed = useSetAtom(seedWindowTabsAtom);
+    useEffect(() => {
+      seed({
+        activeByGroup: { g: "tab-1" },
+        groups: {},
+        tabs: [
+          { group: "g", id: "tab-1", kind: "page", openedAt: 1 },
+          { group: "g", id: "tab-2", kind: "page", openedAt: 2, url },
+        ],
+      });
+    }, [seed, url]);
+    return (
+      <WindowContext.Provider value={appWindow}>
+        <Open />
+      </WindowContext.Provider>
+    );
+  }
+
+  beforeEach(() => {
+    openPage.mockClear();
+    showTab.mockClear();
+    mocks.apps.mockResolvedValue({
+      apps: [{ ...notes("needs-sign-in").apps[0], endpoint: "https://notes.example.com" }],
+    });
+  });
+
+  it("goes to the tab already on the site, the one the agent opened to look", async () => {
+    const { store } = renderWithProviders(
+      <Window url="https://www.notes.example.com/home" />,
+    );
+
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+      expect(showTab).toHaveBeenCalledWith("tab-2");
+    });
+    expect(openPage).not.toHaveBeenCalled();
+    expect(marked(store).map((tab) => tab.id)).toEqual(["tab-2"]);
+  });
+
+  it("opens the sign-in page when no tab is on the site", async () => {
+    renderWithProviders(<Window url="https://elsewhere.example.org" />);
+
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+      expect(openPage).toHaveBeenCalledWith("https://notes.example.com/login");
+    });
+    expect(showTab).not.toHaveBeenCalled();
   });
 });

@@ -9,7 +9,7 @@ import { z } from "zod";
 import { getWorkspaceConfig } from "../workspace-config";
 import { appChanged } from "./changed";
 import { type AppManifest, type AppSlug } from "./manifest";
-import { loadApp, setAppAccount } from "./store";
+import { loadApp, publishSignIn, setAppAccount } from "./store";
 
 /**
  * Where an app stands, as the app (never the agent) records it. `connected`
@@ -71,6 +71,11 @@ export const AppConnectionSchema = z.object({
    * enablement out of the agent's hands while the manifest stays in them.
    */
   manifestHash: z.string().optional(),
+  /**
+   * For a web app, that the agent saw its site load signed in on this
+   * computer and recorded it, where the user never pressed Done on a card.
+   */
+  seenSignedIn: z.literal(true).optional(),
   status: AppConnectionStatusSchema,
   toolCount: z.number().optional(),
   updatedAt: z.number(),
@@ -111,6 +116,12 @@ export function describeConnection(
   // What to run next, for the chat alone: a task neither tests nor connects.
   const next = (step: string) =>
     nextSteps && role === "chat" ? ` (${step})` : "";
+  // A web app's sign-in may already be there, unsaid: the site says.
+  if (web && (!connection || connection.status === "needs-sign-in")) {
+    return nextSteps && role === "chat"
+      ? WEB_APP_NOT_SIGNED_IN
+      : WEB_APP_UNMARKED;
+  }
   if (!connection) {
     return `not connected${next("run `instrument app test`")}`;
   }
@@ -138,10 +149,6 @@ export function describeConnection(
       return `needs a key from the user${next(TOOL_NAMES.connectApp)}`;
     }
     case "needs-sign-in": {
-      // A web app's sign-in may already be there, unsaid.
-      if (web && role === "chat") {
-        return nextSteps ? WEB_APP_NOT_SIGNED_IN : WEB_APP_UNMARKED;
-      }
       return `needs the user to sign in${next(TOOL_NAMES.connectApp)}`;
     }
   }
@@ -228,13 +235,40 @@ export async function recordConnection(
     // record has to earn it again.
     ...(patch.status === "connected"
       ? {}
-      : { error: patch.error, manifestHash: undefined }),
+      : { error: patch.error, manifestHash: undefined, seenSignedIn: undefined }),
     ended: patch.ended,
     keyRefused: patch.keyRefused,
     status: patch.status,
     updatedAt: Date.now(),
   };
   await apps.connections.set(slug, next);
+  await publishStanding(slug, next);
   await appChanged(slug);
   return next;
+}
+
+/**
+ * Writes where every app stands on this computer into the apps store, for
+ * the other computers to read: at launch, since a record written by a build
+ * before this one was never published.
+ */
+export async function publishAppSignIns(): Promise<void> {
+  const connections = await getWorkspaceConfig().apps.connections.list();
+  for (const [slug, connection] of Object.entries(connections)) {
+    await publishStanding(slug, connection);
+  }
+}
+
+function publishStanding(
+  slug: string,
+  connection: AppConnection,
+): Promise<void> {
+  return publishSignIn(getWorkspaceConfig().deviceId, slug, {
+    ...(connection.account === undefined ? {} : { account: connection.account }),
+    ...(connection.manifestHash === undefined
+      ? {}
+      : { manifestHash: connection.manifestHash }),
+    status: connection.status,
+    updatedAt: connection.updatedAt,
+  });
 }

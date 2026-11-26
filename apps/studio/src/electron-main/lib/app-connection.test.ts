@@ -92,6 +92,7 @@ describe("settleConnection", () => {
               "connectedAt": 1000,
               "error": undefined,
               "manifestHash": "now",
+              "seenSignedIn": undefined,
               "status": "connected",
             },
           ],

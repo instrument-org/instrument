@@ -2,7 +2,12 @@ import { instructionsInContext } from "../instructions-in-context";
 import { APP_COMMAND } from "../../model-text/commands/app-command";
 import { getWorkspaceConfig } from "../workspace-config";
 import { getAppCatalog } from "./catalog";
-import { describeConnection, isConnected } from "./connection";
+import {
+  type AppConnection,
+  describeConnection,
+  isConnected,
+} from "./connection";
+import { connectedElsewhere } from "./elsewhere";
 import { signsInDirectly } from "./site";
 import { type AppInfo, listApps, readAppGuide } from "./store";
 
@@ -10,17 +15,18 @@ import { type AppInfo, listApps, readAppGuide } from "./store";
  * What the chat is told about apps when its session starts: the apps
  * the workspace has and where each stands, what the directory knows, so
  * a request naming a well-known service needs no lookup, and the
- * instructions of every app that is connected. What changes after this
+ * instructions of every app that is connected and every web app. What changes after this
  * arrives as app events on later turns; `instrument app list` is the ground truth.
  */
 export async function buildAppsContextText(): Promise<string> {
   const { apps: config } = getWorkspaceConfig();
   const { apps, invalid } = await listApps();
   const connections = await config.connections.list();
+  const elsewhere = await connectedElsewhere(apps);
 
   const rows = apps.map(
     (app) =>
-      `- ${app.slug} (${app.name}${app.manifest.account ? `, signed in as ${app.manifest.account}` : ""}, ${app.manifest.type === "web" ? `web at ${app.manifest.url}` : app.manifest.type}): ${describeConnection(connections[app.slug], app.manifestHash, { direct: signsInDirectly(app.manifest), nextSteps: false, web: app.manifest.type === "web" })}`,
+      `- ${app.slug} (${app.name}${app.manifest.account ? `, signed in as ${app.manifest.account}` : ""}, ${app.manifest.type === "web" ? `web at ${app.manifest.url}` : app.manifest.type}): ${describeConnection(connections[app.slug], app.manifestHash, { direct: signsInDirectly(app.manifest), nextSteps: false, web: app.manifest.type === "web" })}${standingElsewhere(app, connections, elsewhere)}`,
   );
   for (const entry of invalid) {
     rows.push(`- ${entry.slug}: broken manifest, ${entry.message}`);
@@ -31,7 +37,13 @@ export async function buildAppsContextText(): Promise<string> {
 
   const standing = await Promise.all(
     apps
-      .filter((app) => isConnected(connections[app.slug], app.manifestHash))
+      // A web app is worked on its site whether or not this computer has
+      // seen it signed in, so its guide counts either way.
+      .filter(
+        (app) =>
+          app.manifest.type === "web" ||
+          isConnected(connections[app.slug], app.manifestHash),
+      )
       .map(appInstructionsText),
   );
 
@@ -60,4 +72,17 @@ async function appInstructionsText(app: AppInfo): Promise<string | undefined> {
   return instructions === undefined
     ? undefined
     : `The instructions for "${app.name}" (${app.slug}), its guide:\n<app_instructions>\n${instructions}\n</app_instructions>`;
+}
+
+/** Where an app not connected here is connected on another computer, as the end of its line. */
+export function standingElsewhere(
+  app: AppInfo,
+  connections: Record<string, AppConnection>,
+  elsewhere: Map<string, string>,
+): string {
+  const clause = elsewhere.get(app.slug);
+  return clause === undefined ||
+    isConnected(connections[app.slug], app.manifestHash)
+    ? ""
+    : `; ${clause}`;
 }

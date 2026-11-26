@@ -46,6 +46,8 @@ import {
   loadApp,
   readAppGuide,
 } from "../apps/store";
+import { standingElsewhere } from "../apps/context";
+import { connectedElsewhere } from "../apps/elsewhere";
 import { signsInDirectly, webInsteadUrl } from "../apps/site";
 import { webInsteadCommand } from "../apps/web-instead";
 import { INSTRUCTIONS_MAX } from "../instructions-in-context";
@@ -1150,16 +1152,17 @@ export const appsList = defineCapability({
       listApps(),
       config.apps.connections.list(),
     ]);
+    const elsewhere = await connectedElsewhere(apps);
     return {
       apps: apps.map((app) => ({
         ...(app.manifest.account ? { account: app.manifest.account } : {}),
         connected: isConnected(connections[app.slug], app.manifestHash),
         name: app.name,
         slug: app.slug,
-        status: describeConnection(connections[app.slug], app.manifestHash, {
+        status: `${describeConnection(connections[app.slug], app.manifestHash, {
           direct: signsInDirectly(app.manifest),
           web: app.manifest.type === "web",
-        }),
+        })}${standingElsewhere(app, connections, elsewhere)}`,
         type: app.manifest.type,
       })),
       invalid: invalid.map(({ message, slug }) => ({ message, slug })),

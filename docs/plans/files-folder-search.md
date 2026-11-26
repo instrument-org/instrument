@@ -15,6 +15,12 @@ Motivating case: a folder kept as one chronological list of a few thousand files
 - **Matching is by name, word by word**, the same rule ⌘K uses (`foldWords` and `matchRank` in `apps/studio/src/shared/name-match.ts`), not the current substring of the relative path. Kind filters stay as they are.
 - **Default, not yet confirmed:** opening search with nothing typed lists everything under the folder, flat, so "everything here, newest first" is search plus a date sort with no new button. The wireframes show it for confirmation.
 
+- **A search is not bookmarkable.** It lives in the tab's history, so Back and Forward return to it, but not in the address, so the star bookmarks the folder alone.
+
+## Later
+
+- Bookmarking a search, which would put it in the address and make a bookmark a saved search that runs again when opened.
+
 ## Where it stands today
 
 - Search only sees what is already loaded: the current folder's listing plus folders expanded in place (`client/components/window/computer-page.tsx` reads one listing per loaded folder; `loadChildren` adds one only when a folder opens). A file one level down in an unopened folder is invisible.

@@ -250,9 +250,7 @@ export async function recordConnection(
 /**
  * Writes where every app in the store stands on this computer, for the other
  * computers to read: at launch, since a record written by a build before
- * this one was never published, and whenever the host looks again, so a
- * standing that has not changed is still written once a week and its
- * readers see this computer is in use.
+ * this one was never published.
  */
 export async function publishAppSignIns(): Promise<void> {
   const connections = await getWorkspaceConfig().apps.connections.list();

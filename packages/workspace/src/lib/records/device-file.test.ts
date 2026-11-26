@@ -26,22 +26,32 @@ afterEach(() => {
 const file = () => path.join(devicesDir, device, DEVICE_FILE_NAME);
 const read = () => JSON.parse(fs.readFileSync(file(), "utf8")) as unknown;
 
+const day = 24 * 60 * 60 * 1000;
+const launch = new Date("2026-11-26T12:00:00.000Z");
+const later = (days: number) => new Date(launch.getTime() + days * day);
+
 describe("writeDeviceFile", () => {
-  it("names the computer in the device's own folder", async () => {
+  it("names the computer in the device's own folder, and when it ran", async () => {
     await writeDeviceFile({
       device,
       devicesDir,
       file: { name: "Studio", platform: "darwin" },
+      now: launch,
     });
 
-    expect(read()).toEqual({ name: "Studio", platform: "darwin" });
+    expect(read()).toEqual({
+      name: "Studio",
+      platform: "darwin",
+      seenAt: "2026-11-26T12:00:00.000Z",
+    });
   });
 
-  it("leaves the file alone when nothing it says changed", async () => {
+  it("leaves the file alone when nothing it says changed within a week", async () => {
     await writeDeviceFile({
       device,
       devicesDir,
       file: { name: "Studio", platform: "darwin" },
+      now: launch,
     });
     fs.utimesSync(file(), new Date(0), new Date(0));
 
@@ -49,9 +59,19 @@ describe("writeDeviceFile", () => {
       device,
       devicesDir,
       file: { name: "Studio", platform: "darwin" },
+      now: later(6),
     });
 
     expect(fs.statSync(file()).mtimeMs).toBe(0);
+
+    await writeDeviceFile({
+      device,
+      devicesDir,
+      file: { name: "Studio", platform: "darwin" },
+      now: later(8),
+    });
+
+    expect(read()).toMatchObject({ seenAt: later(8).toISOString() });
   });
 
   // A person a service vouches for is written by that service, and a rename
@@ -71,12 +91,14 @@ describe("writeDeviceFile", () => {
       device,
       devicesDir,
       file: { name: "Sam's Studio", platform: "darwin" },
+      now: launch,
     });
 
     expect(read()).toEqual({
       name: "Sam's Studio",
       person: { id: "u1", issuer: "example.com", name: "Sam" },
       platform: "darwin",
+      seenAt: launch.toISOString(),
     });
   });
 });

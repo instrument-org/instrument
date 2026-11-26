@@ -328,7 +328,6 @@ describe("setAppAccount", () => {
 describe("each computer's sign-ins", () => {
   const here = DeviceIdSchema.parse("dev_HERE2345");
   const other = DeviceIdSchema.parse("dev_7Q2M4K9X");
-  const day = 24 * 60 * 60 * 1000;
   const standing = { status: "connected", updatedAt: 0 };
 
   async function publishedOn(device: typeof here) {
@@ -336,25 +335,13 @@ describe("each computer's sign-ins", () => {
     return store.get(`sign-in/${device}/drafts`);
   }
 
-  it("leaves out this computer and one that has written nothing for a month", async () => {
-    await publishSignIn(here, "drafts", standing, 0);
-    await publishSignIn(other, "drafts", standing, 0);
+  it("leave out this computer's own", async () => {
+    await publishSignIn(here, "drafts", standing);
+    await publishSignIn(other, "drafts", standing);
 
-    expect(
-      [...(await signInsElsewhere(here, 29 * day)).keys()],
-    ).toEqual(["drafts"]);
-    expect((await signInsElsewhere(here, 31 * day)).size).toBe(0);
-  });
-
-  it("writes an unchanged standing again only once a week has passed", async () => {
-    await publishSignIn(other, "drafts", standing, 0);
-    await publishSignIn(other, "drafts", standing, 6 * day);
-
-    expect(await publishedOn(other)).toMatchObject({ publishedAt: 0 });
-
-    await publishSignIn(other, "drafts", standing, 8 * day);
-
-    expect(await publishedOn(other)).toMatchObject({ publishedAt: 8 * day });
+    expect((await signInsElsewhere(here)).get("drafts")).toMatchObject([
+      { device: other },
+    ]);
   });
 
   it("go when the app does", async () => {

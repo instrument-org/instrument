@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { forgetApps, seedApp } from "../../test/helpers/seed-app";
@@ -5,7 +7,9 @@ import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { buildAppsContextText } from "./context";
 import { createMemoryAppsConfig } from "./memory-config";
 import { loadApp, publishSignIn } from "./store";
+import { writeDeviceFile } from "../records/device-file";
 import { DeviceIdSchema } from "../records/device-id";
+import { workspaceLayout } from "../workspace-layout";
 
 const OTHER_COMPUTER = DeviceIdSchema.parse("dev_7Q2M4K9X");
 
@@ -105,6 +109,40 @@ describe("the apps a session starts with", () => {
     expect(await buildAppsContextText()).toContain(
       "- craft (Craft, mcp): not connected; connected on another computer as sam@example.com",
     );
+  });
+
+  it("sets aside a computer that has not run the app for a month", async () => {
+    await seedApp("craft", {
+      guide: "",
+      name: "Craft",
+      setup: {
+        auth: { kind: "oauth" },
+        type: "mcp",
+        url: "https://mcp.craft.do/mcp",
+      },
+    });
+    const app = (await loadApp("craft"))._unsafeUnwrap();
+    await publishSignIn(OTHER_COMPUTER, "craft", {
+      manifestHash: app.manifestHash,
+      status: "connected",
+      updatedAt: 1,
+    });
+    const devicesDir = workspaceLayout(getWorkspaceConfig().rootDir).devicesDir;
+    await writeDeviceFile({
+      device: OTHER_COMPUTER,
+      devicesDir,
+      file: { name: "Old MacBook", platform: "darwin" },
+      now: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000),
+    });
+
+    try {
+      expect(await buildAppsContextText()).not.toContain("connected on");
+    } finally {
+      await fs.rm(path.join(devicesDir, OTHER_COMPUTER), {
+        force: true,
+        recursive: true,
+      });
+    }
   });
 
   it("says nothing of another computer for an app connected here", async () => {

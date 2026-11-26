@@ -60,13 +60,29 @@ export async function chooseLaunchDeviceId(
   return choice.deviceId;
 }
 
+/** How often a running app looks at whether its `device.json` is due. */
+const DESCRIBE_EVERY_MS = 24 * 60 * 60 * 1000;
+
+let describeTimer: NodeJS.Timeout | undefined;
+
 /**
  * Says in the workspace which computer this device is (`device.json` in its
  * devices folder), so another device or a viewer of the workspace can name
- * where a record was written. A failure is logged: records name their
- * device either way.
+ * where a record was written, and again each day while the app runs, which
+ * writes only once its `seenAt` is a week old. A failure is logged: records
+ * name their device either way.
  */
-export async function describeLaunchDevice(deviceId: DeviceId): Promise<void> {
+export function describeLaunchDevice(deviceId: DeviceId): Promise<void> {
+  clearInterval(describeTimer);
+  describeTimer = setInterval(
+    () => void describeDevice(deviceId),
+    DESCRIBE_EVERY_MS,
+  );
+  describeTimer.unref();
+  return describeDevice(deviceId);
+}
+
+async function describeDevice(deviceId: DeviceId): Promise<void> {
   try {
     await writeDeviceFile({
       device: deviceId,

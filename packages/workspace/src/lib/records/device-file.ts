@@ -13,7 +13,9 @@ import { DEVICE_ID_PATTERN, type DeviceId } from "./device-id";
  * What a device says about itself to every other reader of the workspace,
  * in `.instrument/devices/<device>/device.json`, written by that device
  * alone: the name a person knows the computer by and its platform, so a
- * record's device id can be shown as "Alex's MacBook Pro".
+ * record's device id can be shown as "Alex's MacBook Pro", and when it last
+ * ran the app, to within a week, so a reader can set aside a computer no
+ * longer in use.
  *
  * A device stands for a person. Devices whose files name no `person` are
  * all the workspace's owner, which is every device today. A service that
@@ -31,45 +33,60 @@ const DeviceFileSchema = z.object({
   name: z.string().min(1),
   /** `process.platform` of the computer the device runs on. */
   platform: z.string(),
+  /**
+   * When the app last ran on it, written again once a week while it does;
+   * none from a build before this field, or from the phone.
+   */
+  seenAt: z.string().optional(),
 });
 
 export type DeviceFile = z.output<typeof DeviceFileSchema>;
 
+/** How old `seenAt` gets before a running app writes it again. */
+const SEEN_REFRESH_MS = 7 * 24 * 60 * 60 * 1000;
+
 /**
- * Writes this device's file when what it says has changed, so a launch
- * that changes nothing leaves the synced folder alone. Fields this build
- * does not write stay as the file had them.
+ * Writes this device's file when what it says has changed or its `seenAt`
+ * is a week old, so a launch that changes nothing leaves the synced folder
+ * alone. Fields this build does not write stay as the file had them.
  */
 export async function writeDeviceFile({
   device,
   devicesDir,
   file,
+  now = new Date(),
 }: {
   device: DeviceId;
   /** The workspace's devices folder (`workspaceLayout(…).devicesDir`). */
   devicesDir: string;
-  file: DeviceFile;
+  file: Omit<DeviceFile, "seenAt">;
+  now?: Date;
 }): Promise<void> {
   await updateJsonRecord(
     path.join(devicesDir, device, DEVICE_FILE_NAME),
-    (current) =>
-      current.name === file.name && current.platform === file.platform
+    (current) => {
+      const seenAt =
+        typeof current.seenAt === "string" ? Date.parse(current.seenAt) : NaN;
+      return current.name === file.name &&
+        current.platform === file.platform &&
+        now.getTime() - seenAt < SEEN_REFRESH_MS
         ? undefined
-        : file,
+        : { ...file, seenAt: now.toISOString() };
+    },
   );
 }
 
 /**
- * The name a device's own file gives the computer, or none when the file is
- * not there yet (still syncing) or cannot be read.
+ * What a device's own file says, or none when the file is not there yet
+ * (still syncing) or cannot be read.
  */
-export async function readDeviceName({
+export async function readDeviceFile({
   device,
   devicesDir,
 }: {
   device: DeviceId;
   devicesDir: string;
-}): Promise<string | undefined> {
+}): Promise<DeviceFile | undefined> {
   const read = await readJsonRecord(
     path.join(devicesDir, device, DEVICE_FILE_NAME),
   );
@@ -77,7 +94,18 @@ export async function readDeviceName({
     return undefined;
   }
   const file = DeviceFileSchema.safeParse(read.record);
-  return file.success ? file.data.name : undefined;
+  return file.success ? file.data : undefined;
+}
+
+/**
+ * The name a device's own file gives the computer, or none when the file is
+ * not there yet (still syncing) or cannot be read.
+ */
+export async function readDeviceName(place: {
+  device: DeviceId;
+  devicesDir: string;
+}): Promise<string | undefined> {
+  return (await readDeviceFile(place))?.name;
 }
 
 /** The platform the iPhone app writes into its `device.json`. */

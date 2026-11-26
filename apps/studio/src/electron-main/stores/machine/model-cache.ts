@@ -59,12 +59,19 @@ function getModelCacheStore(): Store<ModelCacheStore> {
 // not opened in that time, is dropped at the next write.
 const KEEP_UNWRITTEN_MS = 30 * 24 * 60 * 60 * 1000;
 
-// Last value persisted per provider in this process, used to skip redundant
-// disk writes. Every surface that mounts the model picker refetches the list
-// (via a network response that fetchJson caches in-memory for an hour), so
-// without this the unchanged list would be re-serialized and atomically
-// rewritten to disk each time.
-const lastWrittenByIdentifier = new Map<string, string>();
+// How old a provider's `written` stamp may grow before an unchanged list is
+// written again, so a connection in use all along is never pruned as unwritten.
+const RESTAMP_MS = 24 * 60 * 60 * 1000;
+
+// Last value persisted per provider in this process, and when, used to skip
+// redundant disk writes. Every surface that mounts the model picker refetches
+// the list (via a network response that fetchJson caches in-memory for an
+// hour), so without this the unchanged list would be re-serialized and
+// atomically rewritten to disk each time.
+const lastWrittenByIdentifier = new Map<
+  string,
+  { at: number; serialized: string }
+>();
 
 export const diskModelCache: ModelCache = {
   read(cacheIdentifier) {
@@ -76,11 +83,12 @@ export const diskModelCache: ModelCache = {
   write(cacheIdentifier, models) {
     try {
       const serialized = JSON.stringify(models);
-      if (lastWrittenByIdentifier.get(cacheIdentifier) === serialized) {
+      const now = Date.now();
+      const last = lastWrittenByIdentifier.get(cacheIdentifier);
+      if (last?.serialized === serialized && now - last.at < RESTAMP_MS) {
         return;
       }
       const store = getModelCacheStore();
-      const now = Date.now();
       const written = Object.fromEntries(
         Object.entries(store.get("written")).filter(
           ([, at]) => now - at < KEEP_UNWRITTEN_MS,
@@ -97,7 +105,7 @@ export const diskModelCache: ModelCache = {
         ),
         written,
       });
-      lastWrittenByIdentifier.set(cacheIdentifier, serialized);
+      lastWrittenByIdentifier.set(cacheIdentifier, { at: now, serialized });
     } catch (error) {
       logger.error("Failed to write model cache", error);
     }

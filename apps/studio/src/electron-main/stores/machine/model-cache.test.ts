@@ -57,3 +57,21 @@ it("drops lists not written in 30 days, and lists written before writes were dat
   expect(Object.keys(stored().models).toSorted()).toEqual(["new", "recent"]);
   expect(Object.keys(stored().written).toSorted()).toEqual(["new", "recent"]);
 });
+
+it("keeps a list written unchanged all along, restamping it once a day", async () => {
+  const { diskModelCache } = await import("./model-cache");
+
+  diskModelCache.write("active", models("active"));
+  const first = stored().written.active;
+  diskModelCache.write("active", models("active"));
+  expect(stored().written.active).toBe(first);
+
+  for (let day = 0; day < 31; day += 1) {
+    vi.advanceTimersByTime(DAY_MS);
+    diskModelCache.write("active", models("active"));
+  }
+  diskModelCache.write("other", models("other"));
+
+  expect(Object.keys(stored().models).toSorted()).toEqual(["active", "other"]);
+  expect(stored().written.active).toBe(Date.now());
+});

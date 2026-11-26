@@ -27,6 +27,9 @@ const shown = vi.hoisted(() => vi.fn());
 /** The group the menu brought up, and the tab it picked there. */
 const went = vi.hoisted(() => ({ select: vi.fn(), showGroup: vi.fn() }));
 
+/** Groups this window lists past the two every test has. */
+const moreGroups = vi.hoisted((): { names: string[] } => ({ names: [] }));
+
 /** The files opened lately. */
 const opened = vi.hoisted((): { files: string[] } => ({ files: [] }));
 
@@ -108,6 +111,12 @@ vi.mock("@/client/components/window/tab-groups", async (importOriginal) => ({
     open: [
       { group: "roofer", kind: "tabs", pinned: false, title: "Roofer quotes" },
       { group: "pricing", kind: "tabs", pinned: false, title: "Pricing" },
+      ...moreGroups.names.map((name) => ({
+        group: name,
+        kind: "tabs" as const,
+        pinned: false,
+        title: name,
+      })),
     ],
   }),
 }));
@@ -169,6 +178,7 @@ const FILE_TAB: WindowTab = {
 function MenuRows({ words }: { words: string }) {
   const { rows } = useCommandMenuRows({
     active: true,
+    closeGroups: () => undefined,
     done: (run) => run,
     openPage: () => undefined,
     openScreen: () => undefined,
@@ -196,6 +206,7 @@ const listed = () =>
   screen.getAllByRole("listitem").map((item) => item.textContent);
 
 afterEach(() => {
+  moreGroups.names = [];
   front.tab = undefined;
   front.all = [];
   opened.files = [];
@@ -210,21 +221,20 @@ describe("the command menu's actions for the tab in front", () => {
     front.tab = CHAT_TAB;
     renderWithProviders(<MenuRows words="" />);
 
-    await screen.findByText("# Actions for this chat");
+    await screen.findByText("# This chat");
     expect(listed()).toMatchInlineSnapshot(`
       [
         "# Recent chats",
         "Roofer quotes",
         "All chats",
-        "# Actions for this chat",
+        "# This chat",
         "Rename",
         "Star",
         "Move to Project…",
         "Archive",
         "Delete Chat…",
-        "# Commands",
-        "New tab group",
-        "New tab",
+        "New Tab Group",
+        "New Tab",
         "Settings",
       ]
     `);
@@ -277,20 +287,19 @@ describe("the command menu's actions for the tab in front", () => {
     front.tab = PAGE_TAB;
     const { rerender } = renderWithProviders(<MenuRows words="" />);
 
-    await screen.findByText("# Actions for this page");
+    await screen.findByText("# This page");
     expect(listed()).toMatchInlineSnapshot(`
       [
         "# Recent chats",
         "All chats",
-        "# Actions for this page",
+        "# This page",
         "Add to Bookmarks",
         "Copy URL",
         "Open in browser",
         "Reload",
-        "Find in page",
-        "# Commands",
-        "New tab group",
-        "New tab",
+        "Find in Page",
+        "New Tab Group",
+        "New Tab",
         "Settings",
       ]
     `);
@@ -305,19 +314,18 @@ describe("the command menu's actions for the tab in front", () => {
     front.tab = FILE_TAB;
     renderWithProviders(<MenuRows words="" />);
 
-    await screen.findByText("# Actions for this file");
+    await screen.findByText("# This file");
     expect(listed()).toMatchInlineSnapshot(`
       [
         "# Recent chats",
         "All chats",
-        "# Actions for this file",
+        "# This file",
         "Add to Bookmarks",
         "Open in default app",
         "Show in Finder",
         "Copy Path",
-        "# Commands",
-        "New tab group",
-        "New tab",
+        "New Tab Group",
+        "New Tab",
         "Settings",
       ]
     `);
@@ -331,9 +339,10 @@ describe("the command menu's actions for the tab in front", () => {
       [
         "# Recent chats",
         "All chats",
-        "# Commands",
-        "New tab group",
-        "New tab",
+        "# This tab",
+        "New Tab in Split",
+        "New Tab Group",
+        "New Tab",
         "Settings",
       ]
     `);
@@ -431,22 +440,50 @@ describe("the command menu's open tabs", () => {
 });
 
 describe("the command menu's tab groups", () => {
-  it("come first with nothing typed, and the chats they have open are not listed again", async () => {
+  it("come first with nothing typed, but the one up, and the chats they have open are not listed again", async () => {
     front.tab = CHAT_TAB;
     front.all = [CHAT_TAB, PAGE_TAB, FILE_TAB];
     renderWithProviders(<MenuRows words="" />);
 
-    await screen.findByRole("button", { name: "Roofer quotes" });
+    await screen.findByRole("button", { name: "Suite plans" });
     expect(listed().slice(0, 6)).toMatchInlineSnapshot(`
       [
-        "Roofer quotes",
         "Suite plans",
         "# Recent chats",
         "All chats",
-        "# Actions for this chat",
-        "Rename",
+        "# This tab",
+        "New Tab in Split",
+        "New Tab Group",
       ]
     `);
+  });
+
+  it("show three with nothing typed, in the sidebar's order, and the rest by search", async () => {
+    moreGroups.names = ["g1", "g2", "g3"];
+    const pages = moreGroups.names.map(
+      (name): WindowTab => ({
+        group: name,
+        id: `page-${name}`,
+        kind: "page",
+        openedAt: 0,
+        title: `Page ${name}`,
+        url: `https://example.com/${name}`,
+      }),
+    );
+    front.tab = CHAT_TAB;
+    front.all = [CHAT_TAB, PAGE_TAB, FILE_TAB, ...pages];
+    renderWithProviders(<MenuRows words="" />);
+
+    await screen.findByRole("button", { name: "Suite plans" });
+    const rows = listed();
+    expect(rows.slice(0, rows.indexOf("# Recent chats")))
+      .toMatchInlineSnapshot(`
+        [
+          "Suite plans",
+          "Page g1",
+          "Page g2",
+        ]
+      `);
   });
 
   it("are brought up as they were left", async () => {

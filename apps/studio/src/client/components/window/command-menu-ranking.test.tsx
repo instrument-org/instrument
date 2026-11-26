@@ -116,6 +116,7 @@ const openScreen = vi.fn();
 function MenuRows({ words }: { words: string }) {
   const { rows } = useCommandMenuRows({
     active: true,
+    closeGroups: () => undefined,
     done: (run) => run,
     openPage: () => undefined,
     openScreen,
@@ -267,6 +268,8 @@ describe("one of the app's own pages", () => {
       [
         "# Pages",
         "Bookmarks",
+        "# Commands",
+        "Show Bookmarks Bar",
         "Search the web for “mark”",
       ]
     `);
@@ -310,11 +313,11 @@ describe("sending feedback", () => {
     shell.chats = [];
     renderWithProviders(<MenuRows words="feedback" />);
 
-    await screen.findByRole("button", { name: "Send feedback" });
+    await screen.findByRole("button", { name: "Send Feedback" });
     expect(listed()).toMatchInlineSnapshot(`
       [
         "# Commands",
-        "Send feedback",
+        "Send Feedback",
         "Search the web for “feedback”",
       ]
     `);
@@ -378,9 +381,8 @@ describe("the command menu with nothing typed", () => {
         "New wireframes for the phone",
         "Farmers market plan",
         "All chats",
-        "# Commands",
-        "New tab group",
-        "New tab",
+        "New Tab Group",
+        "New Tab",
         "Settings",
       ]
     `);

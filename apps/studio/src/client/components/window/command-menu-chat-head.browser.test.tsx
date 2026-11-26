@@ -126,6 +126,7 @@ async function renderChatWithMenu() {
       />
       <input aria-label="Reply" />
       <CommandMenu
+        closeGroups={() => undefined}
         openPage={() => undefined}
         openScreen={() => undefined}
         showTab={() => undefined}
@@ -135,7 +136,7 @@ async function renderChatWithMenu() {
   );
   await userEvent.click(page.getByRole("textbox", { name: "Reply" }));
   store.set(commandMenuOpenAtom, true);
-  await expect.element(page.getByText("Actions for this chat")).toBeVisible();
+  await expect.element(page.getByText("This chat")).toBeVisible();
 }
 
 // The menu adds no control of its own for a chat: each of these happens in
@@ -171,7 +172,10 @@ describe("the command menu's actions for the chat in front", () => {
 
   it("asks before deleting, in the chat's own dialog", async () => {
     await renderChatWithMenu();
-    await userEvent.click(page.getByRole("option", { name: "Delete Chat…" }));
+    // A chat alone in its group lists New Tab in Split first, which leaves
+    // Delete Chat… to be found by name.
+    await userEvent.fill(page.getByRole("combobox"), "delete");
+    await userEvent.click(page.getByRole("option", { name: /Delete Chat…/ }));
 
     await expect.element(page.getByText("Delete this chat?")).toBeVisible();
   });

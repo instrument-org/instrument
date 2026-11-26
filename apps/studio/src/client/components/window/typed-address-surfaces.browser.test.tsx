@@ -109,6 +109,7 @@ const asksForIcon = (row: Element | null) =>
 function Menu({ words }: { words: string }) {
   const { rows } = useCommandMenuRows({
     active: true,
+    closeGroups: () => undefined,
     done: (run) => run,
     openPage: (url) => {
       opened.push(`page ${url}`);

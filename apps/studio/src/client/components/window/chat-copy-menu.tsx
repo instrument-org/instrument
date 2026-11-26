@@ -8,7 +8,7 @@ import { safe } from "@orpc/client";
 import { type Chat } from "./chats";
 
 /** Runs one way of copying a chat, saying in a toast that it worked or that it didn't. */
-async function copying(
+export async function copying(
   copy: () => Promise<unknown>,
   { done, failed }: { done: string; failed: string },
 ) {
@@ -21,7 +21,7 @@ async function copying(
 }
 
 /** Puts a path the main process answers with on the clipboard. */
-async function writePath(path: () => Promise<string>) {
+export async function writePath(path: () => Promise<string>) {
   await navigator.clipboard.writeText(await path());
 }
 

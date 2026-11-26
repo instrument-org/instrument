@@ -74,6 +74,7 @@ import { RailMegaphoneIcon } from "@/client/components/icons/rail-megaphone-icon
 import { openReportDialog } from "@/client/atoms/report-dialog";
 import { feedbackReport } from "@/client/lib/problem-reports";
 import { useFrontTabActions } from "@/client/components/window/tab-actions";
+import { useMenuCommands } from "@/client/components/window/command-menu-commands";
 import { ProjectMark } from "@/client/components/window/project-mark";
 import { useChatSearchFallback } from "@/client/components/window/use-chat-search-fallback";
 import { useModalBack } from "@/client/hooks/use-modal-back";
@@ -96,7 +97,7 @@ import {
   webSearchUrl,
 } from "@/client/lib/resolve-url-or-search";
 import { typedAddress } from "@/client/lib/typed-address";
-import { cn, osConventions } from "@/client/lib/utils";
+import { cn } from "@/client/lib/utils";
 import {
   bareAddress,
   folderNameOf,
@@ -158,6 +159,11 @@ import { toast } from "@/client/lib/toast";
 const PER_KIND_SHOWN = 3;
 /** How long a search has to be before the decision model is asked what it means. */
 const MEANING_MIN_LENGTH = 3;
+/**
+ * The tab groups listed before anything is typed, in the sidebar's order and
+ * leaving out the one up: the rest are found by name.
+ */
+const GROUPS_SHOWN = 3;
 /** The chats talked to last, listed before anything is typed. */
 const RECENT_CHATS_SHOWN = 4;
 /** Where the debug pages are listed, each picked from there. */
@@ -232,6 +238,8 @@ type Row =
   | { label: string; type: "header" }
   /** The decision model still reading the chats, in the place its rows will take. */
   | { type: "looking" }
+  /** A line between sections, for one with no heading. */
+  | { type: "divider" }
   | Item;
 
 /**
@@ -261,6 +269,7 @@ type Row =
  */
 export function useCommandMenuRows({
   active,
+  closeGroups,
   done,
   openPage,
   openScreen,
@@ -269,6 +278,8 @@ export function useCommandMenuRows({
 }: {
   /** Whether the menu is on screen, for what it reads off the disk or asks the model. */
   active: boolean;
+  /** Closes the tab groups named, asking first when that stops a chat in them. */
+  closeGroups: (groups: string[], keep?: string) => void;
   /** Wraps a row's action: the dialog gets out of the way first. */
   done: (run: () => void) => () => void;
   openPage: (url: string) => void;
@@ -328,9 +339,18 @@ export function useCommandMenuRows({
     tab: frontTab,
     title: frontTab === undefined ? "" : titleOfTab(frontTab),
   });
-  const frontActions: Omit<Item, "ranges" | "type">[] = (
-    front?.actions ?? []
-  ).map(({ chord, icon, id, label, run }) => ({
+  const menuCommands = useMenuCommands({
+    chats,
+    closeGroups,
+    developerMode,
+    openPage,
+    tab: frontTab,
+  });
+  // A tab alone in its group draws no strip, so splitting it leads its actions.
+  const frontActions: Omit<Item, "ranges" | "type">[] = [
+    ...(menuCommands.split ? [menuCommands.split] : []),
+    ...(front?.actions ?? []),
+  ].map(({ chord, icon, id, label, run }) => ({
     ...(chord === undefined ? {} : { chord }),
     // A menu's action wears its icon at the size every row here does.
     icon: <span className="contents [&_svg]:size-4">{icon}</span>,
@@ -343,7 +363,7 @@ export function useCommandMenuRows({
       chord: WINDOW_SHORTCUTS.newChat.accelerator,
       icon: <StackIcon />,
       id: "new-group",
-      label: "New tab group",
+      label: "New Tab Group",
       run: () => {
         shell.newGroup();
       },
@@ -352,7 +372,7 @@ export function useCommandMenuRows({
       chord: WINDOW_SHORTCUTS.newTab.accelerator,
       icon: <PlusIcon />,
       id: "new-tab",
-      label: "New tab",
+      label: "New Tab",
       run: () => {
         shell.newTab();
       },
@@ -361,7 +381,7 @@ export function useCommandMenuRows({
       chord: WINDOW_MENU_SHORTCUTS.newWindow.accelerator,
       icon: <AppWindowIcon />,
       id: "new-window",
-      label: "New window",
+      label: "New Window",
       run: () => {
         void rpcClient.window.openNew.call().catch((error: unknown) => {
           toast.error("Couldn't open a new window", { cause: error });
@@ -371,7 +391,7 @@ export function useCommandMenuRows({
     {
       icon: <ArrowsInIcon />,
       id: "merge-windows",
-      label: "Merge all windows",
+      label: "Merge All Windows",
       run: () => {
         void rpcClient.window.mergeAll.call().catch((error: unknown) => {
           toast.error("Couldn't merge the windows", { cause: error });
@@ -382,7 +402,7 @@ export function useCommandMenuRows({
       chord: SHORTCUT_GUIDE.accelerator,
       icon: <KeyboardIcon />,
       id: "shortcuts",
-      label: "Keyboard shortcuts",
+      label: "Keyboard Shortcuts",
       run: openShortcutGuide,
     },
     ...(developerMode
@@ -390,7 +410,7 @@ export function useCommandMenuRows({
           {
             icon: <WrenchIcon />,
             id: "turn-off-developer-mode",
-            label: "Turn off developer mode",
+            label: "Turn Off Developer Mode",
             run: () => {
               setDeveloperMode.mutate({ enabled: false });
               toast("Developer mode off");
@@ -399,7 +419,7 @@ export function useCommandMenuRows({
           {
             icon: <WrenchIcon />,
             id: "toggle-chat-notes",
-            label: isChatNotesOn ? "Turn off chat notes" : "Turn on chat notes",
+            label: isChatNotesOn ? "Turn Off Chat Notes" : "Turn On Chat Notes",
             run: () => {
               setIsChatNotesOn(!isChatNotesOn);
             },
@@ -408,14 +428,14 @@ export function useCommandMenuRows({
             icon: <WrenchIcon />,
             id: "toggle-developer-strip",
             label: isStripHidden
-              ? "Show developer strip"
-              : "Hide developer strip",
+              ? "Show Developer Strip"
+              : "Hide Developer Strip",
             run: toggleDeveloperStrip,
           },
           {
             icon: <WrenchIcon />,
             id: "open-developer-tools",
-            label: "Open developer tools",
+            label: "Inspect App",
             run: () => {
               toggleDevTools.mutate();
             },
@@ -425,7 +445,7 @@ export function useCommandMenuRows({
     {
       icon: <RailMegaphoneIcon />,
       id: "send-feedback",
-      label: "Send feedback",
+      label: "Send Feedback",
       run: () => {
         openReportDialog(feedbackReport({ surface: "command-menu" }));
       },
@@ -433,15 +453,15 @@ export function useCommandMenuRows({
     {
       icon: <BroomIcon />,
       id: "clear-browsing-data",
-      label: "Clear browsing data",
+      label: "Clear Browsing Data",
       run: openClearBrowsingData,
     },
     // The themes but the one in use, which there is no switching to.
     ...(
       [
-        { icon: <SunIcon />, label: "Use light theme", value: "light" },
-        { icon: <MoonIcon />, label: "Use dark theme", value: "dark" },
-        { icon: <MonitorIcon />, label: "Use system theme", value: "system" },
+        { icon: <SunIcon />, label: "Use Light Theme", value: "light" },
+        { icon: <MoonIcon />, label: "Use Dark Theme", value: "dark" },
+        { icon: <MonitorIcon />, label: "Use System Theme", value: "system" },
       ] as const
     )
       .filter(({ value }) => value !== theme)
@@ -456,7 +476,7 @@ export function useCommandMenuRows({
     {
       icon: <ArrowsClockwiseIcon />,
       id: "check-for-updates",
-      label: "Check for updates",
+      label: "Check for Updates",
       run: () => {
         if (import.meta.env.DEV) {
           simulateNoUpdate.mutate(undefined);
@@ -558,8 +578,8 @@ export function useCommandMenuRows({
         icon: <WrenchIcon />,
         id: "developer-mode",
         label: developerMode
-          ? "Turn off developer mode"
-          : "Turn on developer mode",
+          ? "Turn Off Developer Mode"
+          : "Turn On Developer Mode",
         run: () => {
           setDeveloperMode.mutate({ enabled: !developerMode });
           toast(developerMode ? "Developer mode off" : "Developer mode on");
@@ -569,7 +589,7 @@ export function useCommandMenuRows({
       {
         icon: <FlaskIcon />,
         id: "beta-channel",
-        label: isBeta ? "Leave the beta channel" : "Join the beta channel",
+        label: isBeta ? "Leave the Beta Channel" : "Join the Beta Channel",
         run: () => {
           setReleaseChannel.mutate({ channel: isBeta ? undefined : "beta" });
           toast(isBeta ? "Beta channel removed" : "Beta channel enabled");
@@ -605,7 +625,7 @@ export function useCommandMenuRows({
         {
           icon: <CodeIcon />,
           id: "debug-pages",
-          label: "Debug pages",
+          label: "Debug Pages",
           run: () => {
             openBuiltInPage(DEBUG_INDEX_HREF);
           },
@@ -806,6 +826,16 @@ export function useCommandMenuRows({
           ...action,
           detail: front && `This ${front.kind}`,
         })),
+        ...menuCommands.commands
+          .filter((command) => command.id !== menuCommands.split?.id)
+          .map(({ chord, icon, id, label, run, scope }) => ({
+            ...(chord === undefined ? {} : { chord }),
+            detail: scope && `This ${scope}`,
+            icon: <span className="contents [&_svg]:size-4">{icon}</span>,
+            id: `command:${id}`,
+            label,
+            run,
+          })),
         ...commands,
       ].map((command) => ({
         ...(command.detail === undefined
@@ -903,14 +933,21 @@ export function useCommandMenuRows({
     ),
   );
 
-  const sections: { items: Item[]; label: string; looking?: boolean }[] = isBang
+  const sections: {
+    /** Set apart from the sections over it by a line, in place of a heading. */
+    divided?: boolean;
+    items: Item[];
+    label: string;
+    looking?: boolean;
+  }[] = isBang
     ? [{ items: bangRows, label: "Switches" }]
     : words === ""
       ? [
           {
-            items: sources.groupRows.map((row) =>
-              groupItem(row, `group:${row.entry.group}`),
-            ),
+            items: sources.groupRows
+              .filter((row) => row.entry.group !== frontTab?.group)
+              .slice(0, GROUPS_SHOWN)
+              .map((row) => groupItem(row, `group:${row.entry.group}`)),
             label: "",
           },
           {
@@ -941,13 +978,19 @@ export function useCommandMenuRows({
             items: frontActions
               .slice(0, FRONT_ACTIONS_SHOWN)
               .map((action) => ({ ...action, ranges: null, type: "item" })),
-            label: front ? `Actions for this ${front.kind}` : "",
+            // A tab that is no chat, page or file offers only to split.
+            label: front
+              ? `This ${front.kind}`
+              : frontActions.length > 0
+                ? "This tab"
+                : "",
           },
           {
+            divided: true,
             items: [...commands, settingsPage]
               .filter((command) => LISTED_COMMANDS.has(command.id))
               .map((command) => ({ ...command, ranges: null, type: "item" })),
-            label: "Commands",
+            label: "",
           },
         ]
       : [
@@ -1199,9 +1242,11 @@ export function useCommandMenuRows({
     .flatMap((section): Row[] => [
       // A section with no name has no heading, and nothing else sets it
       // apart from the rows over it.
-      ...(section.label === ""
-        ? []
-        : [{ label: section.label, type: "header" as const }]),
+      ...(section.label !== ""
+        ? [{ label: section.label, type: "header" as const }]
+        : section.divided
+          ? [{ type: "divider" as const }]
+          : []),
       ...section.items.map((item) => ({
         ...item,
         run: item.leavesItself ? item.run : done(item.run),
@@ -1478,11 +1523,6 @@ function GroupRowText({
   return (
     <GroupRowLines
       chatTitles={chatTitles}
-      end={
-        <CommandShortcut className="hidden in-data-[selected=true]:inline">
-          {osConventions().returnKey}
-        </CommandShortcut>
-      }
       held={held}
       isOnScreen={isHere}
       sides={row.sides}
@@ -1520,10 +1560,13 @@ function ChatEnding({
 
 /** The window's command menu (Cmd+K), over whatever is on screen. */
 export function CommandMenu({
+  closeGroups,
   openPage,
   openScreen,
   showTab,
 }: {
+  /** Closes the tab groups named, asking first when that stops a chat in them. */
+  closeGroups: (groups: string[], keep?: string) => void;
   openPage: (url: string) => void;
   openScreen: (href: string) => void;
   /** Brings a tab of this window up with the keyboard, its group on screen. */
@@ -1550,6 +1593,7 @@ export function CommandMenu({
 
   const { isBang, rows, selection, words } = useCommandMenuRows({
     active: open,
+    closeGroups,
     // A row's action, run once the menu is out of the way.
     done: (run) => () => {
       close();
@@ -1637,9 +1681,11 @@ function ResultRows({
       const row = rows[i];
       return row?.type === "header"
         ? 28
-        : row?.type === "item" && row.groupRow
-          ? 52
-          : 36;
+        : row?.type === "divider"
+          ? 9
+          : row?.type === "item" && row.groupRow
+            ? 52
+            : 36;
     },
     getScrollElement: () => parentRef.current,
     // Rows on the first render, before the scroller is measured.
@@ -1686,6 +1732,10 @@ function ResultRows({
               {row.type === "header" ? (
                 <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
                   {row.label}
+                </div>
+              ) : row.type === "divider" ? (
+                <div className="px-2 py-1">
+                  <div className="h-px bg-border" />
                 </div>
               ) : row.type === "looking" ? (
                 <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
@@ -1761,10 +1811,6 @@ function ResultRows({
                           {formatAcceleratorText(row.chord)}
                         </CommandShortcut>
                       )}
-                      {/* Return runs the row picked, so it says so, whichever row that is. */}
-                      <CommandShortcut className="hidden in-data-[selected=true]:inline">
-                        {osConventions().returnKey}
-                      </CommandShortcut>
                     </>
                   )}
                 </div>

@@ -1927,6 +1927,7 @@ function WindowShell({
                 takes the place of what the person was on; a screen the group
                 already shows comes forward. */}
               <CommandMenu
+                closeGroups={askToCloseGroups}
                 openPage={(url) => {
                   openPage(url, { newTab: "reuseBlank" });
                 }}

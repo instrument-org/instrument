@@ -93,6 +93,7 @@ const SETTINGS_TITLES = [
 function SettingsTabRow({ words }: { words: string }) {
   const { rows } = useCommandMenuRows({
     active: true,
+    closeGroups: () => undefined,
     done: (run) => run,
     openPage: () => undefined,
     openScreen: () => undefined,
@@ -154,6 +155,7 @@ describe("Settings tabs in the command menu in developer mode", () => {
 function MenuRows({ words }: { words: string }) {
   const { rows } = useCommandMenuRows({
     active: true,
+    closeGroups: () => undefined,
     done: (run) => run,
     openPage: () => undefined,
     openScreen: () => undefined,
@@ -181,12 +183,12 @@ describe("the debug pages in the command menu in developer mode", () => {
   it("are one row among the pages, for their index", async () => {
     renderWithProviders(<MenuRows words="debug" />);
 
-    await screen.findByRole("button", { name: "Debug pages" });
+    await screen.findByRole("button", { name: "Debug Pages" });
     expect(screen.getAllByRole("listitem").map((item) => item.textContent))
       .toMatchInlineSnapshot(`
         [
           "Top result",
-          "Debug pages",
+          "Debug Pages",
           "Search the web for “debug”",
         ]
       `);
@@ -280,9 +282,8 @@ describe("the command menu with nothing typed", () => {
         [
           "Recent chats",
           "All chats",
-          "Commands",
-          "New tab group",
-          "New tab",
+          "New Tab Group",
+          "New Tab",
           "Settings",
         ]
       `);
@@ -314,6 +315,7 @@ describe("built-in pages in the command menu", () => {
     function Rows() {
       const { rows } = useCommandMenuRows({
         active: true,
+        closeGroups: () => undefined,
         done: (run) => run,
         openPage: () => undefined,
         openScreen,

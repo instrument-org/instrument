@@ -42,6 +42,26 @@ import { useEffect, useRef } from "react";
 /** How long the window waits before listening again to a stream that dropped. */
 const RECONNECT_DELAY_MS = 1000;
 
+/** A command a chord or a menu item sends this window, by its name. */
+export type ChordCommand = Extract<
+  RPCOutput["window"]["events"]["command"] extends AsyncIterable<infer C>
+    ? C
+    : never,
+  string
+>;
+
+/** The window's own handling of a chord's command, while it listens for them. */
+let commandRunner: ((command: ChordCommand) => void) | undefined;
+
+/**
+ * Runs a command as its chord would in this window, for the command menu,
+ * which has already put itself away: what a dialog holding the window keeps
+ * from a chord is not kept from a pick there.
+ */
+export function runWindowCommand(command: ChordCommand) {
+  commandRunner?.(command);
+}
+
 /**
  * The chords that still run while a dialog is open: they change what the
  * window shows around the dialog, never which tab is up, so they cannot move
@@ -243,6 +263,184 @@ export function useWindowCommands(
       window.addEventListener("mouseup", onMouseUp, { capture: true });
       window.addEventListener("auxclick", swallow, { capture: true });
     }
+    // A chord's command, from the menu bar or from the command menu (`runWindowCommand`).
+    const runCommand = (command: ChordCommand) => {
+      switch (command) {
+        case "commandMenu": {
+          openOrCloseCommandMenu();
+          break;
+        }
+        case "moveTabToNewWindow": {
+          latest.current.moveTabToNewWindow();
+          break;
+        }
+        case "toggleBookmarksBar": {
+          // The main process answers this one itself.
+          break;
+        }
+        case "back": {
+          if (!runPageChord("back") && !stepForKeyboard("back")) {
+            latest.current.back();
+          }
+          break;
+        }
+        case "bookmarkTab": {
+          // The star of the tab the keyboard is in; nothing where no
+          // address is shown.
+          requestBookmarkTab();
+          break;
+        }
+        case "bookmarkAllTabs": {
+          requestBookmarkAllTabs();
+          break;
+        }
+        case "showBookmarks": {
+          latest.current.showBookmarks();
+          break;
+        }
+        case "newTabInSplit": {
+          latest.current.newTabInSplit();
+          break;
+        }
+        case "closeSplit": {
+          latest.current.closeSplit();
+          break;
+        }
+        case "closeTab": {
+          latest.current.closeTab();
+          break;
+        }
+        case "editPage": {
+          // The page tab on screen, when it shows a page's file; nothing
+          // otherwise.
+          requestPageEditToggle();
+          break;
+        }
+        case "fileInfo": {
+          // The file or folder selected in the tab up; nothing elsewhere.
+          requestFileInfo();
+          break;
+        }
+        case "findInPage": {
+          // The search of the surface the keyboard is in; with none on
+          // screen there is nothing to search.
+          openFindForKeyboard();
+          break;
+        }
+        case "findNext":
+        case "findPrevious": {
+          findAgainForKeyboard(command === "findNext");
+          break;
+        }
+        case "forward": {
+          if (!runPageChord("forward") && !stepForKeyboard("forward")) {
+            latest.current.forward();
+          }
+          break;
+        }
+        case "focusLeftSide":
+        case "focusRightSide": {
+          latest.current.focusSide(command === "focusLeftSide" ? 0 : 1);
+          break;
+        }
+        case "newChat": {
+          latest.current.newChat();
+          break;
+        }
+        case "newTab": {
+          latest.current.newTab();
+          break;
+        }
+        case "nextChat": {
+          latest.current.selectChat(1);
+          break;
+        }
+        case "nextTab": {
+          latest.current.selectRelative(1);
+          break;
+        }
+        case "openSettings": {
+          openSettings();
+          break;
+        }
+        case "clearBrowsingData": {
+          openClearBrowsingData();
+          break;
+        }
+        case "openShortcutGuide": {
+          openShortcutGuide();
+          break;
+        }
+        case "reportProblem": {
+          openReportDialog(helpMenuReport());
+          break;
+        }
+        case "previousChat": {
+          latest.current.selectChat(-1);
+          break;
+        }
+        case "previousTab": {
+          latest.current.selectRelative(-1);
+          break;
+        }
+        case "printPage": {
+          runPageChord("printPage");
+          break;
+        }
+        case "reloadPage": {
+          // The page holding the keyboard; else a chat or a built-in
+          // page on the side with it; else the page on screen, when
+          // there is one.
+          if (pageHoldingKeyboard() !== null || !reloadScreenWithKeyboard()) {
+            runPageChord("reloadPage");
+          }
+          break;
+        }
+        case "reopenTab": {
+          latest.current.reopenTab();
+          break;
+        }
+        case "search": {
+          latest.current.search();
+          break;
+        }
+        case "searchChats": {
+          latest.current.searchChats();
+          break;
+        }
+        // A tab of the group up, as the developer band's button opens them.
+        case "openDebugPages": {
+          openBuiltInPage(SCREEN_ROUTES.debug);
+          break;
+        }
+        case "takeCapture": {
+          requestCapture();
+          break;
+        }
+        case "toggleDeveloperStrip": {
+          toggleDeveloperStrip();
+          break;
+        }
+        case "showActivity": {
+          latest.current.showActivity();
+          break;
+        }
+        case "toggleSidebar": {
+          latest.current.toggleSidebar();
+          break;
+        }
+        case "zoomIn":
+        case "zoomOut":
+        case "zoomReset": {
+          // The page or picture holding the keyboard, else the app's own zoom.
+          if (!runPageChord(command) && !runPictureChord(command)) {
+            getDefaultStore().set(zoomAtom, (z) => appZoomAfter(command, z));
+          }
+          break;
+        }
+      }
+    };
+    commandRunner = runCommand;
     const controller = new AbortController();
     const listen = async () => {
       try {
@@ -329,177 +527,7 @@ export function useWindowCommands(
             }
             continue;
           }
-          switch (command) {
-            case "toggleBookmarksBar": {
-              // The main process answers this one itself.
-              break;
-            }
-            case "back": {
-              if (!runPageChord("back") && !stepForKeyboard("back")) {
-                latest.current.back();
-              }
-              break;
-            }
-            case "bookmarkTab": {
-              // The star of the tab the keyboard is in; nothing where no
-              // address is shown.
-              requestBookmarkTab();
-              break;
-            }
-            case "bookmarkAllTabs": {
-              requestBookmarkAllTabs();
-              break;
-            }
-            case "showBookmarks": {
-              latest.current.showBookmarks();
-              break;
-            }
-            case "newTabInSplit": {
-              latest.current.newTabInSplit();
-              break;
-            }
-            case "closeSplit": {
-              latest.current.closeSplit();
-              break;
-            }
-            case "closeTab": {
-              latest.current.closeTab();
-              break;
-            }
-            case "editPage": {
-              // The page tab on screen, when it shows a page's file; nothing
-              // otherwise.
-              requestPageEditToggle();
-              break;
-            }
-            case "fileInfo": {
-              // The file or folder selected in the tab up; nothing elsewhere.
-              requestFileInfo();
-              break;
-            }
-            case "findInPage": {
-              // The search of the surface the keyboard is in; with none on
-              // screen there is nothing to search.
-              openFindForKeyboard();
-              break;
-            }
-            case "findNext":
-            case "findPrevious": {
-              findAgainForKeyboard(command === "findNext");
-              break;
-            }
-            case "forward": {
-              if (!runPageChord("forward") && !stepForKeyboard("forward")) {
-                latest.current.forward();
-              }
-              break;
-            }
-            case "focusLeftSide":
-            case "focusRightSide": {
-              latest.current.focusSide(command === "focusLeftSide" ? 0 : 1);
-              break;
-            }
-            case "newChat": {
-              latest.current.newChat();
-              break;
-            }
-            case "newTab": {
-              latest.current.newTab();
-              break;
-            }
-            case "nextChat": {
-              latest.current.selectChat(1);
-              break;
-            }
-            case "nextTab": {
-              latest.current.selectRelative(1);
-              break;
-            }
-            case "openSettings": {
-              openSettings();
-              break;
-            }
-            case "clearBrowsingData": {
-              openClearBrowsingData();
-              break;
-            }
-            case "openShortcutGuide": {
-              openShortcutGuide();
-              break;
-            }
-            case "reportProblem": {
-              openReportDialog(helpMenuReport());
-              break;
-            }
-            case "previousChat": {
-              latest.current.selectChat(-1);
-              break;
-            }
-            case "previousTab": {
-              latest.current.selectRelative(-1);
-              break;
-            }
-            case "printPage": {
-              runPageChord("printPage");
-              break;
-            }
-            case "reloadPage": {
-              // The page holding the keyboard; else a chat or a built-in
-              // page on the side with it; else the page on screen, when
-              // there is one.
-              if (
-                pageHoldingKeyboard() !== null ||
-                !reloadScreenWithKeyboard()
-              ) {
-                runPageChord("reloadPage");
-              }
-              break;
-            }
-            case "reopenTab": {
-              latest.current.reopenTab();
-              break;
-            }
-            case "search": {
-              latest.current.search();
-              break;
-            }
-            case "searchChats": {
-              latest.current.searchChats();
-              break;
-            }
-            // A tab of the group up, as the developer band's button opens them.
-            case "openDebugPages": {
-              openBuiltInPage(SCREEN_ROUTES.debug);
-              break;
-            }
-            case "takeCapture": {
-              requestCapture();
-              break;
-            }
-            case "toggleDeveloperStrip": {
-              toggleDeveloperStrip();
-              break;
-            }
-            case "showActivity": {
-              latest.current.showActivity();
-              break;
-            }
-            case "toggleSidebar": {
-              latest.current.toggleSidebar();
-              break;
-            }
-            case "zoomIn":
-            case "zoomOut":
-            case "zoomReset": {
-              // The page or picture holding the keyboard, else the app's own zoom.
-              if (!runPageChord(command) && !runPictureChord(command)) {
-                getDefaultStore().set(zoomAtom, (z) =>
-                  appZoomAfter(command, z),
-                );
-              }
-              break;
-            }
-          }
+          runCommand(command);
         }
       } catch {
         // Ended below: a window closing and a dropped transport look alike.
@@ -518,6 +546,9 @@ export function useWindowCommands(
     void listen();
     return () => {
       controller.abort();
+      if (commandRunner === runCommand) {
+        commandRunner = undefined;
+      }
       window.removeEventListener("keydown", onBackspace);
       window.removeEventListener("keydown", onKeyDown, { capture: true });
       window.removeEventListener("mousedown", swallow, { capture: true });

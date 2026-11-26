@@ -460,6 +460,7 @@ function Row() {
 function Commands({ words }: { words: string }) {
   const { rows } = useCommandMenuRows({
     active: true,
+    closeGroups: () => undefined,
     done: (run) => run,
     openPage: none,
     openScreen: none,
@@ -986,7 +987,7 @@ const SECTIONS: {
         "Commands",
         async () => {
           let all: Offer[][] = [[]];
-          for (const words of "aeiorstnw") {
+          for (const words of "abcdefghijklmnopqrstuvwxyz") {
             show(<Commands words={words} />);
             await settle();
             all = either(all, controls());

@@ -67,4 +67,4 @@ Read one section, `sed -n '/^## Tabs/,/^## /p'` on this file; the sections are S
 
 ## Command menu
 
-- Commands: Check for updates, Clear browsing data, Keyboard shortcuts, Merge all windows, New tab, New tab group, New window, Send feedback, Use dark theme, Use light theme
+- Commands: Actual Size, Check for Updates, Clear Browsing Data, Hide Sidebar, Keyboard Shortcuts, Merge All Windows, New Tab, New Tab Group, New Window, Reopen Closed Tab, Send Feedback, Show Bookmarks Bar, Use Dark Theme, Use Light Theme, Zoom In, Zoom Out

@@ -46,6 +46,7 @@ async function renderMenu() {
   store.set(commandMenuOpenAtom, true);
   await renderInBrowser(
     <CommandMenu
+      closeGroups={() => undefined}
       openPage={opened.page}
       openScreen={() => undefined}
       showTab={() => undefined}
@@ -96,7 +97,7 @@ describe("the row Return runs after a paste", () => {
   it("is the first", async () => {
     await renderMenu();
     const field = page.getByRole("combobox");
-    await expect.element(page.getByText("Commands")).toBeVisible();
+    await expect.element(page.getByText("New Tab Group")).toBeVisible();
 
     await userEvent.fill(field, "/Users/sam/Documents");
     await expect
@@ -105,7 +106,7 @@ describe("the row Return runs after a paste", () => {
 
     // A row picked by a key stays picked while the words stay.
     await userEvent.fill(field, "");
-    await expect.element(page.getByText("Commands")).toBeVisible();
+    await expect.element(page.getByText("New Tab Group")).toBeVisible();
     await userEvent.keyboard("{ArrowDown}");
     await expect
       .element(page.getByRole("option").nth(1))
@@ -124,7 +125,7 @@ describe("the row Return runs while typing", () => {
   it("is for every letter typed", async () => {
     await renderMenu();
     const field = page.getByRole("combobox");
-    await expect.element(page.getByText("Commands")).toBeVisible();
+    await expect.element(page.getByText("New Tab Group")).toBeVisible();
 
     // Return straight after the last letter, before the rows can follow.
     await userEvent.type(field, "example.com{Enter}");
@@ -133,7 +134,7 @@ describe("the row Return runs while typing", () => {
 
   it("stays on the first row when the rows change under a resting pointer", async () => {
     await renderMenu();
-    await expect.element(page.getByText("Commands")).toBeVisible();
+    await expect.element(page.getByText("New Tab Group")).toBeVisible();
     const first = page.getByRole("option").first();
     const last = page.getByRole("option").last();
     await expect.element(first).toHaveAttribute("aria-selected", "true");
@@ -180,7 +181,7 @@ describe("the row Return runs in a fresh opening", () => {
 
   it("is the first, under a pointer that moved while it was closed", async () => {
     const store = await renderMenu();
-    await expect.element(page.getByText("Commands")).toBeVisible();
+    await expect.element(page.getByText("New Tab Group")).toBeVisible();
     const last = page.getByRole("option").last();
     moveOver(last, 40);
     moveOver(last, 42);
@@ -189,7 +190,7 @@ describe("the row Return runs in a fresh opening", () => {
     store.set(commandMenuOpenAtom, false);
     await new Promise((resolve) => setTimeout(resolve, 500));
     store.set(commandMenuOpenAtom, true);
-    await expect.element(page.getByText("Commands")).toBeVisible();
+    await expect.element(page.getByText("New Tab Group")).toBeVisible();
     // The list comes up under a pointer now somewhere else, and the browser
     // says where it is.
     moveOver(page.getByRole("option").last(), 300);
@@ -201,7 +202,7 @@ describe("the row Return runs in a fresh opening", () => {
 
   it("is the first after a key picked another in the last one", async () => {
     const store = await renderMenu();
-    await expect.element(page.getByText("Commands")).toBeVisible();
+    await expect.element(page.getByText("New Tab Group")).toBeVisible();
     await userEvent.keyboard("{ArrowDown}{ArrowDown}");
     await expect
       .element(page.getByRole("option").nth(2))
@@ -210,7 +211,7 @@ describe("the row Return runs in a fresh opening", () => {
     store.set(commandMenuOpenAtom, false);
     await new Promise((resolve) => setTimeout(resolve, 500));
     store.set(commandMenuOpenAtom, true);
-    await expect.element(page.getByText("Commands")).toBeVisible();
+    await expect.element(page.getByText("New Tab Group")).toBeVisible();
     await expect
       .element(page.getByRole("option").first())
       .toHaveAttribute("aria-selected", "true");
@@ -244,7 +245,7 @@ describe("the menu's list", () => {
     await renderMenu();
     const field = page.getByRole("combobox");
     const list = page.getByRole("listbox");
-    await expect.element(page.getByText("Commands")).toBeVisible();
+    await expect.element(page.getByText("New Tab Group")).toBeVisible();
     // Once the menu has finished opening.
     await new Promise((resolve) => setTimeout(resolve, 400));
     const top = () => field.element().getBoundingClientRect().top;
@@ -254,13 +255,13 @@ describe("the menu's list", () => {
     await userEvent.fill(field, "keyboard shortcuts");
     await expect
       .element(page.getByRole("option", { selected: true }))
-      .toMatchTextContent("Keyboard shortcuts");
+      .toMatchTextContent("Keyboard Shortcuts");
     expect(top()).toBe(start.top);
     expect(height()).toBeLessThan(start.height);
     expect(list.element().querySelector("[class*='border-t']")).toBeNull();
 
     await userEvent.fill(field, "");
-    await expect.element(page.getByText("Commands")).toBeVisible();
+    await expect.element(page.getByText("New Tab Group")).toBeVisible();
     expect({ height: height(), top: top() }).toEqual(start);
   });
 });

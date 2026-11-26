@@ -227,7 +227,7 @@ export function useFrontTabActions({
         chord: WINDOW_SHORTCUTS.findInPage.accelerator,
         icon: <MagnifyingGlassIcon className="size-4" />,
         id: "find",
-        label: "Find in page",
+        label: "Find in Page",
         run: () => {
           openPageFind(targetId);
         },

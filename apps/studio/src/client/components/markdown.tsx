@@ -109,6 +109,7 @@ import { MessageFence } from "./message-card";
 import { ChartBlock } from "./reply-blocks/chart-block";
 import { normalizeMathDelimiters } from "./reply-blocks/normalize-math-delimiters";
 import { normalizeReplyBlocks } from "./reply-blocks/normalize-reply-blocks";
+import { NumbersBlock } from "./reply-blocks/numbers-block";
 import { OptionsBlock } from "./reply-blocks/options-block";
 import { rehypeTableShape } from "./reply-blocks/rehype-table-shape";
 import { rehypeUnbrokenInline } from "./reply-blocks/rehype-unbroken-inline";
@@ -422,6 +423,10 @@ const MarkdownPre: Components["pre"] = ({ children, node }) => {
 
   if (fence.language === "chart") {
     return <ChartBlock code={fence.code} isArriving={isArriving} />;
+  }
+
+  if (fence.language === "numbers") {
+    return <NumbersBlock code={fence.code} isArriving={isArriving} />;
   }
 
   if (fence.language && isMermaidLanguage(fence.language)) {

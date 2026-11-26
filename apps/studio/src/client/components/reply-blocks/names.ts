@@ -15,6 +15,7 @@ const REPLY_BLOCK_NAMES = [
   AGENT_TIMELINE_LANGUAGE,
   "options",
   "chart",
+  "numbers",
 ] as const;
 
 export type ReplyBlockName = (typeof REPLY_BLOCK_NAMES)[number];
@@ -23,6 +24,8 @@ export type ReplyBlockName = (typeof REPLY_BLOCK_NAMES)[number];
 const ALIASES: Partial<Record<string, ReplyBlockName>> = {
   compare: "options",
   comparison: "options",
+  figures: "numbers",
+  stats: "numbers",
 };
 
 /** Every word that names a block: the names and their aliases. */
@@ -41,13 +44,14 @@ export const replyBlockNameOf = (
 
 /**
  * The header lines each block reads from the top of its body. A block whose
- * body is itself `label: value` lines (a timeline) takes none, or its first
- * entry would be read as a setting. A message reads its own headers.
+ * body is itself `label: value` lines (numbers, a timeline) takes none, or
+ * its first figure would be read as a setting. A message reads its own headers.
  */
 export const HEADER_KEYS: Record<ReplyBlockName, readonly string[]> = {
   chart: ["type", "unit", "title", "highlight"],
   files: [],
   message: ["message", "kind", "sender", "to", "subject", "via"],
+  numbers: [],
   options: ["pick"],
   timeline: [],
 };

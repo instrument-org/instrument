@@ -232,4 +232,18 @@ describe("normalizeReplyBlocks", () => {
       \`\`\`"
     `);
   });
+
+  it("reads a numbers block by an alias, its first line on the tag's own", () => {
+    expect(
+      normalizeReplyBlocks(
+        "<stats>Revenue: $48,200\nClients: 7</stats>\nAfter.",
+      ),
+    ).toMatchInlineSnapshot(`
+      "\`\`\`numbers
+      Revenue: $48,200
+      Clients: 7
+      \`\`\`
+      After."
+    `);
+  });
 });

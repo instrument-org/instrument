@@ -913,6 +913,24 @@ describe("a chart block", () => {
   });
 });
 
+describe("a numbers block", () => {
+  it("sets each figure under its label with a true minus sign", () => {
+    const { container } = renderMarkdown(
+      "```figures\nRevenue: $48,200 (up 12%)\nChange: -$2,980\nA line that is no figure\n```",
+    );
+
+    expect(
+      [...container.querySelectorAll("[data-slot=numbers] > div")].map(
+        (figure) => [...figure.children].map((part) => part.textContent),
+      ),
+    ).toEqual([
+      ["Revenue", "$48,200", "up 12%"],
+      ["Change", "−$2,980"],
+    ]);
+    expect(screen.getByText("A line that is no figure").tagName).toBe("P");
+  });
+});
+
 describe("Markdown table shape", () => {
   it("marks a table with the width it fits and what it does under it", () => {
     const { container } = renderMarkdown(

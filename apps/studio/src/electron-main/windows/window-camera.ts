@@ -200,7 +200,7 @@ const GRAY = Buffer.from([0x80, 0x80, 0x80, 0xff]).readUInt32LE();
  * Paints over every part a mask names, in place. A part's edges go out to
  * the next whole pixel, so nothing of what is left out is left.
  */
-export function blank({
+function blank({
   bitmap,
   height,
   mask,

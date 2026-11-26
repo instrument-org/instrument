@@ -229,7 +229,7 @@ export interface WindowMask {
 }
 
 /** A frame of a window, kept where it was taken until it is blanked. */
-export interface WindowFrame {
+interface WindowFrame {
   /** The frame as a PNG with every part the mask names blanked. */
   masked: (mask: WindowMask) => Buffer;
 }

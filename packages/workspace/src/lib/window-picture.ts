@@ -57,7 +57,7 @@ const TRIES = 3;
 const LOOK_TIMEOUT_MS = 3000;
 
 /** A part left out of the picture, and why, in the agent's terms. */
-export interface HiddenPart {
+interface HiddenPart {
   /** The side's or page's tab, for a tab. */
   tab?: string;
   why: string;

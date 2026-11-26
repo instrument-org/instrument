@@ -16,7 +16,7 @@ const ICON_PX = 40;
  * Fields whose text is a secret whatever is typed there: passwords, one-time
  * codes, and Instrument's own fields for keys, tokens and sign-in codes.
  */
-export const SECRET_FIELDS = [
+const SECRET_FIELDS = [
   "input[type=password]",
   'input[autocomplete~="current-password"]',
   'input[autocomplete~="new-password"]',

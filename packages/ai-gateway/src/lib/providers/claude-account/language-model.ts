@@ -275,14 +275,18 @@ function streamStep({
         controller.enqueue({ type: "stream-start", warnings: [] });
         // Before any record is read: the sweep removes a record left for a
         // month, which is what a chat opened again after one resumes from.
-        await sweepOnce(
-          configDir,
-          [
-            persistent,
-            besideSlot,
-            parentKey === undefined ? undefined : `${parentKey}:${shapeHash}`,
-          ].filter((read) => read !== undefined),
-        );
+        // The SDK loads meanwhile, for the session the step starts.
+        await Promise.all([
+          sweepOnce(
+            configDir,
+            [
+              persistent,
+              besideSlot,
+              parentKey === undefined ? undefined : `${parentKey}:${shapeHash}`,
+            ].filter((read) => read !== undefined),
+          ),
+          loadAgentSdk(),
+        ]);
         // A live process for this slot, or else the transcript its last one
         // left, resumed at its last finished step, or else for a branch's
         // first step, its parent's transcript forked where it branched off.
@@ -354,7 +358,6 @@ function streamStep({
           // finished step.
           existing?.close();
         }
-        await loadAgentSdk();
         const session = startOn(plan, persistent, slot, shape);
         running = session;
         session.beginStep(prompt.keptPrints);

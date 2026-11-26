@@ -3,11 +3,14 @@
 // snapshot.js as capture.mjs drove a booted app there; snap() in kit/snap.js draws a
 // frame from one through the skill's snapshot frames.
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
-/** The library: `SNAP_LIBRARY`, or `~/wireframes/snaps`. */
-export const LIBRARY = process.env.SNAP_LIBRARY ?? path.join(os.homedir(), "wireframes/snaps");
+/**
+ * The library: `SNAP_LIBRARY`, or `.agents/wireframe-kit/snaps/` in this checkout, which
+ * git ignores. A checkout is a branch, so each branch keeps the screens it draws, and a
+ * chat that has the project folder can write there without asking for another folder.
+ */
+export const LIBRARY = process.env.SNAP_LIBRARY ?? path.join(import.meta.dirname, "..", "snaps");
 
 /** A state's files in the library: `<name>.json` the snapshot, `.png` its picture, `.outline.txt` its names. */
 export const stateFile = (/** @type {string} */ name, /** @type {string} */ ext) => path.join(LIBRARY, "states", `${name}${ext}`);

@@ -4,7 +4,7 @@ A snapshot is Studio's own page in one state, and `snap(state, edit)` draws a fr
 
 ## Pick a state
 
-The library is `~/wireframes/snaps/`, or wherever `SNAP_LIBRARY` points; a branch whose screens differ keeps its own (`ls -d ~/wireframes/snaps*`), so set it for the build, `peek` and `capture` alike. `INDEX.md` lists the states. Each has three files under `states/`: look at `<name>.png`, search `<name>.outline.txt` for the name of a control, and leave `<name>.json` alone.
+The library is `.agents/wireframe-kit/snaps/` in this checkout, or wherever `SNAP_LIBRARY` points. Git ignores it, and each worktree keeps the screens of its own branch. A worktree without one starts from the main checkout's, which is quicker than capturing every state again: `cp -cR "$(git worktree list --porcelain | head -1 | cut -c10-)/.agents/wireframe-kit/snaps" .agents/wireframe-kit/snaps` (a clone on macOS, so it takes no room; leave out `-c` elsewhere). Never keep a library in a synced folder such as iCloud Drive: a capture rewrites hundreds of files. `INDEX.md` lists the states. Each has three files under `states/`: look at `<name>.png`, search `<name>.outline.txt` for the name of a control, and leave `<name>.json` alone.
 
 ```bash
 node .agents/wireframe-kit/snap/peek.mjs bell-update "What's new"       # one element as compact HTML, to clone or restyle

@@ -1103,9 +1103,11 @@ function ComposePagePanel({
 
 /**
  * Keeps a page tab showing a file on this computer at the file as it is: the
- * file is watched for as long as the tab is open, and the guest reloads when
- * it is written, so an edit landing in the file shows the way it would in a
- * viewer of it rather than waiting for the person to reload. "Updated" floats
+ * file is watched while a slot shows the page, and the guest reloads when it
+ * is written, so an edit landing in the file shows the way it would in a
+ * viewer of it rather than waiting for the person to reload. A page out of
+ * sight is looked at once when the tab opens, for the version its guest
+ * loaded, and once when it is shown again. "Updated" floats
  * over the page for a moment after each one, since the part that changed is
  * often off screen and the page can look the same.
  *
@@ -1150,7 +1152,7 @@ const FilePageReload = memo(function FilePageReload({
 
   return (
     <>
-      {onScreen ? (
+      {onScreen || modifiedAt === undefined ? (
         <FileWatch onModified={setModifiedAt} path={path} />
       ) : null}
       {isShown ? (
@@ -1165,9 +1167,9 @@ const FilePageReload = memo(function FilePageReload({
 });
 
 /**
- * Watches a shown page's file. Mounted only while a slot shows the page, so a
- * page out of sight holds no watch, and the first look on showing it again is
- * the one check it needs.
+ * Watches a page's file. Mounted while a slot shows the page, and for a
+ * hidden page only until its first look, so a page out of sight holds no
+ * watch, and the first look on showing it again is the one check it needs.
  */
 function FileWatch({
   onModified,

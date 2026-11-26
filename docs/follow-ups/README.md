@@ -56,6 +56,7 @@ Each entry is the follow-up's title and the opening of its own `Status:` line.
 - [Why an agent-browser command sometimes never comes back](stuck-agent-browser-commands.md): open · Check after: 2026-11-21, or once a beta carrying cd075493c has run on the Linux and Windows test hosts for a week, whichever is later · Last checked:...
 - [Which processes stay busy in real use, and whether tab sleep ended the hidden-tab cost](sustained-cpu-and-tab-sleep.md): closed as answered: no sustained-CPU episode in about two weeks of daily use, and tab sleep holds (see Result) · Last checked: 2026-11-08
 - [Whether a task's page card still shows only the site's icon](task-card-page-pictures.md): open · Check after: 2026-11-22, after a week on a beta carrying the fix below · Last checked: never
+- [Whether chats use instrument window look, and whether its pictures help](window-look-use.md): open · Check after: 2027-01-06 · Last checked: never
 - [Why some Windows differential updates fail](windows-differential-update-failures.md): closed 2026-10-24: the failures are a stale base, every one recovered with a full download, and nothing needs changing · Last checked: 2026-10-24
 - [Whether tests still go red only on Windows after they land](windows-only-test-failures.md): open · Check after: 2026-11-24 · Last checked: 2026-11-10
 - [Whether the Worked row's line earns its model call](work-summary-line.md): open · Check after: 2026-11-26 · Last checked: never

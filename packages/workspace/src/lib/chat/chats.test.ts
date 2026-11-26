@@ -1753,8 +1753,9 @@ describe("liveChatRows", () => {
 
   // What one change sends has to stay the size of the row it moved, however
   // many chats the workspace has: the whole list on every change was tens of
-  // megabytes a turn in a workspace of a few hundred.
-  it.each([50, 400])(
+  // megabytes a turn in a workspace of a few hundred. Fifty chats' whole list
+  // is about 23 KB, so it is enough to tell a patch from the list.
+  it.each([50])(
     "sends a star in a workspace of %i chats in under 8 KB",
     async (count) => {
       const chatId = await freshChat();

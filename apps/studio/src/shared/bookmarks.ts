@@ -544,11 +544,6 @@ export function orderOnBar(state: Bookmarks): number {
   return orderAfter(siblingsIn(state, undefined));
 }
 
-/** Every bookmark of the bar in the order it shows them, each folder's in its place among them. */
-export function inBarOrder(state: Bookmarks): Bookmark[] {
-  return bookmarksIn(barItems(state));
-}
-
 /**
  * What sits in `folder`, or loose in `root` with no folder (the bar without
  * either), in order, as the ids and orders a place among them is found by.

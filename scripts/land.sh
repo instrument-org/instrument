@@ -88,6 +88,13 @@ if [[ -n "$(uncommitted)" ]]; then
   exit 1
 fi
 
+# One landing at a time across every worktree: each runs the full checks, and
+# a landing that moves a target under another sends that one round its checks
+# again, so running them side by side multiplies the work instead of sharing it.
+source "$main_root/scripts/check-slots.sh"
+take_check_slot land 1 "${LAND_QUEUE_SECONDS:-1800}" ||
+  fail "another landing held the queue for ${check_slot_waited}s; rerun once it finishes"
+
 # Moves the local target up to its remote. Two that each hold commits the other
 # lacks are left for a person to merge.
 sync_target() {
@@ -278,6 +285,7 @@ if [[ "$push" == true ]]; then
     fail "landed on local $target, but the push failed and the worktree was kept; fix what it printed, then run: git -C \"$target_root\" push origin $target"
   echo "land: pushed $target"
 fi
+release_check_slot
 
 # A worktree Claude Code made for a subagent stays locked while the subagent
 # runs, and the harness removes it once the subagent is done.

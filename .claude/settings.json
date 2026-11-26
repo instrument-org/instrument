@@ -75,8 +75,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "d=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0; node \"$(dirname \"$d\")/node_modules/@instrument-org/agent-hooks/format.mjs\"",
-            "timeout": 180
+            "command": "d=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0; bash \"$(dirname \"$d\")/.claude/hooks/stop-checks.sh\"",
+            "timeout": 600
           }
         ]
       }
@@ -86,8 +86,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "d=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0; node \"$(dirname \"$d\")/node_modules/@instrument-org/agent-hooks/format.mjs\"",
-            "timeout": 180
+            "command": "d=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0; bash \"$(dirname \"$d\")/.claude/hooks/stop-checks.sh\"",
+            "timeout": 600
           }
         ]
       }

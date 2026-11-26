@@ -495,20 +495,31 @@ const markdownOrderedList: Components["ol"] = ({
 // CSS cannot tell an all-bold paragraph from a bold lead-in followed by a text
 // node: `:only-child` only counts element siblings. Mark the exact parsed shape
 // here so prose rhythm never promotes `**Priority:** ordinary text` into a
-// section label.
+// section label. A bold sentence is the reply's answer set apart, not a label,
+// and keeps a paragraph's rhythm. A bold line over the rest of its paragraph,
+// `**Optional: Sintra**` and a line break, is a label over its own text.
 const markdownParagraph = ({
   className,
   node,
   ...props
 }: ComponentProps<"p"> & ExtraProps) => {
-  const onlyChild = node?.children.length === 1 ? node.children[0] : undefined;
+  const [first, second] = node?.children ?? [];
+  const isBold = first?.type === "element" && first.tagName === "strong";
   const isSectionLabel =
-    onlyChild?.type === "element" && onlyChild.tagName === "strong";
+    isBold &&
+    node?.children.length === 1 &&
+    !/[.!?]["”’)]*$/u.test(nodeText(first).trim());
+  const opensWithLabel =
+    isBold && second?.type === "element" && second.tagName === "br";
 
   return (
     <p
       {...props}
-      className={cn(className, isSectionLabel && "markdown-section-label")}
+      className={cn(
+        className,
+        isSectionLabel && "markdown-section-label",
+        opensWithLabel && "markdown-labeled-paragraph",
+      )}
     />
   );
 };

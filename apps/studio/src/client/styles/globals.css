@@ -945,27 +945,36 @@ body {
   }
 
   /* Markdown marks an exactly bold-only paragraph as a lightweight section
-     label. Limit this rhythm to top-level blocks: the same shape inside a list
-     or blockquote belongs to that container's own flow. */
-  > p.markdown-section-label:has(+ *) {
-    margin-top: 2em;
-    margin-bottom: 0.5em;
-    text-wrap: balance;
-  }
-
-  > p.markdown-section-label:first-child {
-    margin-top: 0;
-  }
-
-  /* A completed list already has strong block rhythm. Use one line of leading
-     before the next section label so the sections separate without opening a
-     conspicuous hole between them. */
-  > :is(ul, ol) + p.markdown-section-label {
+     label, and a paragraph that opens with a bold line as one labeled by it.
+     A label sits a little further from what comes before it than a
+     paragraph does, after a paragraph or a list alike, and close to what it
+     labels. It wraps as body text does, across the column. Limit this rhythm
+     to top-level blocks: the same shape inside a list or blockquote belongs
+     to that container's own flow. */
+  > p.markdown-section-label:has(+ *),
+  > p.markdown-labeled-paragraph {
     margin-top: 1.5em;
+  }
+
+  > p.markdown-section-label:has(+ *) {
+    margin-bottom: 0.5em;
+  }
+
+  > p:is(.markdown-section-label, .markdown-labeled-paragraph):first-child {
+    margin-top: 0;
   }
 
   > p.markdown-section-label + :not(:is(h1, h2, h3, h4, h5, h6)) {
     margin-top: 0;
+  }
+
+  > p.markdown-labeled-paragraph > strong:first-child {
+    display: block;
+    margin-bottom: 0.5em;
+  }
+
+  > p.markdown-labeled-paragraph > strong:first-child + br {
+    display: none;
   }
 
   h1,

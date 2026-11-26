@@ -762,6 +762,24 @@ describe("Markdown section labels", () => {
 
     expect(container.querySelector("p")?.className).toBe("");
   });
+
+  it("does not mark a bold sentence, which is an answer set apart", () => {
+    const { container } = renderMarkdown(
+      "**Lead with the kitchen table shot.**\n\n- One\n- Two",
+    );
+
+    expect(container.querySelector("p")?.className).toBe("");
+  });
+
+  it("marks a paragraph that opens with a bold line", () => {
+    const { container } = renderMarkdown(
+      "**Optional: Sintra**\nTake the train from Rossio.",
+    );
+
+    expect(container.querySelector("p")?.className).toBe(
+      "markdown-labeled-paragraph",
+    );
+  });
 });
 
 describe("Markdown asides", () => {

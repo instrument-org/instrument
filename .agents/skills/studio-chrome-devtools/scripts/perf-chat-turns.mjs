@@ -16,6 +16,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+import { chatHref } from "../../../../apps/studio/scripts/drive-routes.ts";
 import { installProbe } from "./perf-screens.mjs";
 import { REPO_ROOT, sleep } from "./studio-app.mjs";
 
@@ -40,7 +41,7 @@ export default async (app, args = {}) => {
     firstWords: args.prompts[0].slice(0, 40),
     sessionId: session,
   });
-  await app.goto(`/chats/${chat}`);
+  await app.goto(chatHref(chat));
   await sleep(1500);
 
   const turns = [];

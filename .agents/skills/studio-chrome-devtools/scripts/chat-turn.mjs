@@ -14,6 +14,8 @@
 // sent, for a turn that starts a long task. Several chats can be driven at
 // once: everything is read per chat over RPC, nothing from the visible page.
 
+import { chatHref } from "../../../../apps/studio/scripts/drive-routes.ts";
+
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 const TEXT_LIMIT = 600;
 const FIELD_LIMIT = 400;
@@ -53,7 +55,7 @@ export default async (app, args) => {
       newSessionId: session,
       prompt: args.prompt,
     });
-    await app.goto(`/chats/${chat}`);
+    await app.goto(chatHref(chat));
   } else {
     // Also without a prompt, which reads the chat's latest turn as it stands.
     session ??= (await app.rpc("workspace.chats.session", { id: chat }))

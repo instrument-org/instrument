@@ -14,13 +14,15 @@ import {
 } from "@/client/components/window/tab-model";
 import {
   groupOnScreenAtom,
+  newScreenId,
   tabChangesAskedAtom,
+  tabsChangeAtom,
   windowTabsAtom,
 } from "@/client/components/window/window-tabs";
 import { getGuest } from "@/client/lib/browser-pool";
 import { callsInFlight } from "@/client/lib/calls-in-flight";
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
-import { freshTabId, openTab } from "@/client/lib/tab-actions";
+import { freshTabId } from "@/client/lib/tab-actions";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { reopenClosed } from "@/client/lib/tabs-model";
 import { APP_FLAVOR } from "@instrument-org/shared";
@@ -53,6 +55,7 @@ interface StudioDrive {
   closeModal: () => void;
   /** The drag the window has going, if any: what is held, how, and where letting go would land it. */
   drag: () => ReturnType<typeof currentDrag>;
+  /** Sends the tab up to an address, or opens it in a new tab of the group up; throws for a path no route matches. */
   goto: (href: string, options?: { newTab?: boolean }) => void;
   load: () => StudioDriveLoad;
   /** What the window shows: its tab groups, their sides and tabs, and what is up. */
@@ -279,13 +282,32 @@ export function initStudioDrive() {
     closeModal: resetStudioModals,
     drag: currentDrag,
     goto: (href, options) => {
-      if (options?.newTab) {
-        store.set(appTabsAtom, (model) =>
-          openTab(model, { pathname: href, select: true }),
+      const router = getTabRouter(store.get(appTabsAtom).selectedId);
+      if (href.startsWith("/") && router) {
+        const [, , found] = router.getMatchedRoutes(
+          new URL(href, "http://tabs").pathname,
         );
+        if (found === undefined) {
+          throw new Error(
+            `No screen at ${href}: the route tree has no route for it. Routes: ${Object.keys(router.routesByPath).join(", ")}`,
+          );
+        }
+      }
+      if (options?.newTab) {
+        // A tab in the group up: a window tab of its own would draw every
+        // kept group a second time.
+        const id = store.set(tabsChangeAtom, {
+          args: [{ href, id: newScreenId(), select: true }],
+          op: "openScreen",
+        });
+        if (id === undefined) {
+          throw new Error(
+            `No tab group on screen to open ${href} in a tab of its own.`,
+          );
+        }
         return;
       }
-      getTabRouter(store.get(appTabsAtom).selectedId)?.history.push(href);
+      router?.history.push(href);
     },
     load: () => ({ ...load }),
     look: () => {

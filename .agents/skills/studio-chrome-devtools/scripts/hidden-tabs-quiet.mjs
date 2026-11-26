@@ -1,6 +1,6 @@
-// Checks that window tabs behind another go quiet. A window tab stays mounted
-// while another is selected, so anything it polls or re-reads keeps going
-// where nobody can see it. This opens one tab per kind of screen, puts a
+// Checks that tabs behind the one up go quiet. A tab stays mounted while
+// another is up, so anything it polls or re-reads keeps going where nobody
+// can see it. This opens one tab per kind of screen in the group up, puts a
 // fresh new tab in front of them all, and counts every RPC frame the window
 // sends and receives while nobody does anything.
 //
@@ -25,6 +25,18 @@
 
 import path from "node:path";
 
+import {
+  appHref,
+  appsHref,
+  browserHref,
+  chatHref,
+  chatListHref,
+  extensionsHref,
+  filesHref,
+  newTabHref,
+  releaseNotesHref,
+  taskHref,
+} from "../../../../apps/studio/scripts/drive-routes.ts";
 import { installProbe } from "./perf-screens.mjs";
 import { REPO_ROOT, sleep } from "./studio-app.mjs";
 import { firstChat } from "./sweep-screens.mjs";
@@ -46,10 +58,10 @@ export default async (app, args = {}) => {
   // A tab put up by `goto` with nothing behind it in front: a fresh new tab
   // is the plainest screen there is.
   const front = async () => {
-    await app.goto("/new-tab", { label: "front: a fresh new tab", newTab: true });
-    await app.waitFor(
-      'document.querySelector("[data-app-tab-active] [role=combobox]")',
-    );
+    await app.goto(newTabHref(), {
+      label: "front: a fresh new tab",
+      newTab: true,
+    });
   };
   const idle = async (ms) => {
     const before = await app.eval("window.__studioDrive.load()");
@@ -95,50 +107,59 @@ export default async (app, args = {}) => {
   const screens = [
     {
       name: "Files at a folder, a few columns deep",
-      route: `/files?${new URLSearchParams({ path: folderPath, root: folder })}`,
+      route: filesHref({ path: folderPath, root: folder }),
     },
     // Ahead of the recents, which it puts a file in.
     {
       name: "Files with a file open",
-      route: `/files?${new URLSearchParams({ file: path.resolve(REPO_ROOT, args.file ?? FILE), path: "", root: "~" })}`,
+      route: filesHref({
+        file: path.resolve(REPO_ROOT, args.file ?? FILE),
+        path: "",
+        root: "~",
+      }),
     },
-    { name: "Files › Recents", route: "/files?path=&root=recents%3A" },
-    { name: "Files › This Computer", route: "/files?path=&root=computer%3A" },
-    { name: "Browser start", route: "/browser" },
+    {
+      name: "Files › Recents",
+      route: filesHref({ path: "", root: "recents:" }),
+    },
+    {
+      name: "Files › This Computer",
+      route: filesHref({ path: "", root: "computer:" }),
+    },
+    { name: "Browser start", route: browserHref() },
     { name: "Browser with a page", page: args.pageUrl ?? "https://example.com" },
-    { name: "Apps", route: "/apps" },
-    slug && { name: `App page (${slug})`, route: `/apps/${slug}` },
-    { name: "Chats", route: "/chats" },
-    chat && { name: "Chat with a transcript", route: `/chats/${chat}` },
-    task && { name: "Task", route: `/tasks/${task}?chat=${chat}` },
-    { name: "Extensions", route: "/extensions" },
-    { name: "Release notes", route: "/release-notes" },
-    { name: "New tab", route: "/new-tab" },
+    { name: "Apps", route: appsHref() },
+    slug && {
+      name: `App page (${slug})`,
+      route: appHref(slug),
+    },
+    { name: "Chats", route: chatListHref() },
+    chat && {
+      name: "Chat with a transcript",
+      route: chatHref(chat),
+    },
+    task && {
+      name: "Task",
+      route: taskHref(task, chat),
+    },
+    { name: "Extensions", route: extensionsHref() },
+    { name: "Release notes", route: releaseNotesHref() },
+    { name: "New tab", route: newTabHref() },
   ].filter(Boolean);
 
   await app.eval("window.__perfProbe.reset()");
   const opened = [];
   for (const screen of screens) {
     if (screen.page) {
-      await app.goto("/new-tab", { label: `open ${screen.name}`, newTab: true });
-      await app.click({ selector: "[data-app-tab-active] [role=combobox]" });
-      await app.type(screen.page);
-      await app.press("Enter");
-      await app.waitFor(
-        'window.__studioDrive.state().path?.startsWith("/sites/")',
-        { label: "the page to open in the tab" },
-      );
+      await app.words.press("Meta+t");
+      await app.words.omnibar.go(screen.page);
     } else {
+      // A path no route matches fails here, rather than opening a "Page not
+      // found" screen that is quiet for the wrong reason.
       await app.goto(screen.route, { label: `open ${screen.name}`, newTab: true });
     }
     await sleep(800);
-    const { path: at } = await app.state();
-    // A route the router has no match for draws its not-found page, which
-    // is quiet for the wrong reason.
-    const notFound = await app.eval(
-      `document.querySelector("[data-app-tab-active]")?.innerText.includes("Could not find page") ?? false`,
-    );
-    opened.push({ name: screen.name, at, ...(notFound && { notFound }) });
+    opened.push({ name: screen.name, at: screen.route ?? screen.page });
   }
   // Each screen's first reads, and the page's load, land before the count.
   await sleep(settleMs);
@@ -155,7 +176,9 @@ export default async (app, args = {}) => {
   }
   await front();
   await sleep(2000);
-  const { tabs } = await app.state();
+  const tabs = (await app.eval("window.__studioDrive.look()")).groups.flatMap(
+    (group) => group.sides.flatMap((side) => side.tabs),
+  );
 
   const hidden = tally(await idle(idleMs));
   // A procedure that also went out with nothing but the window's opening tab

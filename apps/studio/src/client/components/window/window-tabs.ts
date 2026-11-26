@@ -285,6 +285,9 @@ const applyAtom = atom(null, (get, set, command: TabCommand): unknown => {
   return value;
 });
 
+/** `applyAtom`, for what changes the tabs from outside a component: a driving script's new tab. */
+export const tabsChangeAtom = applyAtom;
+
 /** The tabs set whole, as a test starts from them: nothing a window does, which changes them one named change at a time. */
 export const seedWindowTabsAtom = atom(null, (_get, set, tabs: WindowTabs) => {
   const { openers = NO_OPENERS, ...kept } = tabs;

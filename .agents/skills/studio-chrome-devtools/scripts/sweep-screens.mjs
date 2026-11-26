@@ -19,6 +19,15 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
+import {
+  appHref,
+  appsHref,
+  browserHref,
+  filesHref,
+  newTabHref,
+  releaseNotesHref,
+  taskHref,
+} from "../../../../apps/studio/scripts/drive-routes.ts";
 import { sleep } from "./studio-app.mjs";
 
 /** How long a screen is given to mount and settle before moving on. */
@@ -91,39 +100,30 @@ export default async (app, args = {}) => {
   const taskSession = tasks[0]?.id;
 
   const routes = [
-    "/chats",
-    "/files",
-    "/browser",
-    "/apps",
-    slug && `/apps/${slug}`,
-    chat && `/tasks?chat=${chat.id}`,
-    taskSession && `/tasks/${taskSession}?chat=${chat.id}`,
-    "/release-notes",
+    newTabHref(),
+    filesHref({}),
+    browserHref(),
+    appsHref(),
+    slug && appHref(slug),
+    taskSession && taskHref(taskSession, chat.id),
+    releaseNotesHref(),
     // The inbox again last: a screen can leave something behind that only the
     // next navigation off it surfaces, and the last screen in the list never
     // gets one.
-    "/chats",
+    newTabHref(),
   ].filter(Boolean);
 
   for (const route of routes) {
     screen = route;
+    // A path no route matches fails here, rather than drawing a "Page not
+    // found" screen that logs nothing and reads as clean.
     await app.goto(route);
     await sleep(args.settleMs ?? SETTLE_MS);
-    // A route the router has no match for draws its not-found page and logs
-    // nothing, which would otherwise read as a clean screen.
-    if (
-      await app.eval(
-        `document.querySelector("[data-app-tab-active]")?.innerText.includes("Could not find page") ?? false`,
-      )
-    ) {
-      note("not-found", `No route draws ${route}`);
-    }
   }
   screen = "(after the walk)";
 
   const skipped = [
     slug ? undefined : "no connected app, so /apps/$slug",
-    chat ? undefined : "no chat, so /tasks?chat=$chat",
     taskSession ? undefined : "no task in the first chat, so /tasks/$id",
   ].filter(Boolean);
 

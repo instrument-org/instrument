@@ -16,6 +16,13 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  appsHref,
+  browserHref,
+  chatHref,
+  filesHref,
+  newTabHref,
+} from "../../../../apps/studio/scripts/drive-routes.ts";
 import { sleep } from "./studio-app.mjs";
 
 const PROBE = path.join(
@@ -47,7 +54,7 @@ export default async (app, args = {}) => {
   };
 
   // Anything that happens while nobody does anything is a finding.
-  await app.goto("/chats");
+  await app.goto(newTabHref());
   await sleep(settleMs);
   await reset();
   await sleep(idleMs);
@@ -55,10 +62,10 @@ export default async (app, args = {}) => {
 
   results.screens = {};
   for (const route of args.routes ?? [
-    "/files",
-    "/browser",
-    "/apps",
-    "/chats",
+    filesHref({}),
+    browserHref(),
+    appsHref(),
+    newTabHref(),
   ]) {
     await reset();
     await app.goto(route);
@@ -67,7 +74,7 @@ export default async (app, args = {}) => {
   }
 
   if (args.idleFiles !== false) {
-    await app.goto("/files");
+    await app.goto(filesHref({}));
     await sleep(settleMs);
     await reset();
     await sleep(idleMs);
@@ -76,7 +83,7 @@ export default async (app, args = {}) => {
 
   for (const chat of args.chats ?? []) {
     await reset();
-    await app.goto(`/chats/${chat}`);
+    await app.goto(chatHref(chat));
     await sleep(settleMs * 2);
     results[`open ${chat}`] = await snap({ components: 10, rpc: 8 });
   }

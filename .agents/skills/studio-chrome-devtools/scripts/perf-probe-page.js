@@ -1,5 +1,5 @@
 // Installed ahead of the renderer's own scripts by perf-screens.mjs,
-// perf-chat-turns.mjs and hidden-tabs-quiet.mjs
+// perf-chat-turns.mjs, perf-tab-groups.mjs and hidden-tabs-quiet.mjs
 // (Page.addScriptToEvaluateOnNewDocument, then a reload), and read back
 // through window.__perfProbe.
 //

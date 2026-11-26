@@ -26,7 +26,6 @@ import {
   useCanDictate,
   useDictatedText,
 } from "@/client/components/dictation-controls";
-import { MarkdownValueEditor } from "@/client/components/markdown-editor/markdown-value-editor";
 import { isDictating } from "@/client/hooks/use-dictation";
 import {
   starterEmoji,
@@ -53,7 +52,7 @@ import { MinusCircleIcon } from "@phosphor-icons/react/MinusCircle";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
-import { useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
 import { useEmojiSet } from "./emoji-set";
@@ -62,6 +61,14 @@ import {
   type BackfillCandidate,
   useProjectBackfill,
 } from "./use-project-backfill";
+
+// The Markdown editor (Milkdown, ProseMirror, CodeMirror, KaTeX) loads the
+// first time a project's details are opened, not with every window.
+const MarkdownValueEditor = lazy(() =>
+  import("@/client/components/markdown-editor/markdown-value-editor").then(
+    (module) => ({ default: module.MarkdownValueEditor }),
+  ),
+);
 
 /**
  * How sure the decision model has to be before its pick replaces the mark: a
@@ -711,15 +718,21 @@ function ProjectForm({
               </p>
             </div>
             <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
-              <MarkdownValueEditor
-                className="mx-auto w-full max-w-2xl pt-6 pr-8 pb-24 pl-14"
-                label="Instructions"
-                onChange={(next) => {
-                  edit({ instructions: next });
-                }}
-                placeholder={`What ${APP_NAME} should know or do in every chat filed here`}
-                value={instructions}
-              />
+              <Suspense
+                fallback={
+                  <div className="mx-auto w-full max-w-2xl pt-6 pr-8 pb-24 pl-14" />
+                }
+              >
+                <MarkdownValueEditor
+                  className="mx-auto w-full max-w-2xl pt-6 pr-8 pb-24 pl-14"
+                  label="Instructions"
+                  onChange={(next) => {
+                    edit({ instructions: next });
+                  }}
+                  placeholder={`What ${APP_NAME} should know or do in every chat filed here`}
+                  value={instructions}
+                />
+              </Suspense>
               {(canDictate || isHolding) && (
                 // At the pane's foot while the instructions are short.
                 <div className="pointer-events-none sticky bottom-3 mt-auto flex items-center justify-end gap-2 px-4 [&>*]:pointer-events-auto">

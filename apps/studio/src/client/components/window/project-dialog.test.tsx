@@ -92,8 +92,9 @@ function nameField() {
   return screen.getByPlaceholderText("Name it");
 }
 
+// The editor loads lazily, so its field arrives a tick after the dialog.
 function instructionsField() {
-  return screen.getByLabelText("Instructions");
+  return screen.findByLabelText("Instructions");
 }
 
 async function addFolder() {
@@ -115,7 +116,7 @@ describe("ProjectDialog", () => {
     );
 
     fireEvent.change(nameField(), { target: { value: "Garden" } });
-    fireEvent.change(instructionsField(), {
+    fireEvent.change(await instructionsField(), {
       target: { value: "Answer in metric." },
     });
     await addFolder();
@@ -174,7 +175,10 @@ describe("ProjectDialog", () => {
     );
 
     expect(nameField()).toHaveProperty("value", "Garden");
-    expect(instructionsField()).toHaveProperty("value", "Answer in metric.");
+    expect(await instructionsField()).toHaveProperty(
+      "value",
+      "Answer in metric.",
+    );
     expect(screen.getByText("No folders yet.")).toBeTruthy();
     await addFolder();
     fireEvent.click(screen.getByRole("button", { name: "Save" }));

@@ -39,7 +39,9 @@ export async function windowDraws(): Promise<boolean> {
     const timer = setTimeout(() => {
       resolve(false);
     }, DRAW_TIMEOUT_MS);
+    // oxlint-disable-next-line studio/no-loose-timers -- a two-frame wait that settles once; the timer above settles it when no frame comes
     requestAnimationFrame(() => {
+      // oxlint-disable-next-line studio/no-loose-timers -- the second of the two frames, which settles the same promise
       requestAnimationFrame(() => {
         clearTimeout(timer);
         resolve(true);
@@ -69,6 +71,7 @@ export function readWindowLook(
     const up = tabId === null ? undefined : tabUp(tabId);
     const [box] = page ? seenBox(page) : [];
     if (up !== undefined && box !== undefined) {
+      // oxlint-disable-next-line studio/no-raw-webview -- reads only where the guest sits on screen, to place its page in the picture; nothing drives it
       const [guest] = [...card.querySelectorAll("webview")].flatMap(
         (webview) =>
           targetIdFromPartition(

@@ -3,13 +3,14 @@ import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { apply, userData } = vi.hoisted(() => ({
+const { apply, on, userData } = vi.hoisted(() => ({
   apply: vi.fn<(document: unknown) => "older" | "unreadable" | "used">(),
+  on: vi.fn<(event: string, listener: () => void) => void>(),
   userData: { dir: "" },
 }));
 
 vi.mock("electron", () => ({
-  app: { getPath: () => userData.dir, on: vi.fn() },
+  app: { getPath: () => userData.dir, on },
 }));
 vi.mock("@/electron-main/platform-api/headers", () => ({
   getPlatformApiHeaders: () => ({ "x-client-name": "studio" }),
@@ -54,6 +55,7 @@ describe("app catalog", () => {
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockReset();
     apply.mockReset();
+    on.mockReset();
   });
 
   it("keeps a copy it used and asks with its ETag after", async () => {
@@ -95,4 +97,23 @@ describe("app catalog", () => {
 
     expect(apply).toHaveBeenCalledWith(served);
   });
+
+  it.each(["older", "unreadable"] as const)(
+    "does not ask again on focus soon after refusing an %s copy",
+    async (outcome) => {
+      const { fetchAppCatalog, startAppCatalog } = await load();
+      apply.mockReturnValue(outcome);
+      answer(200, '"r1"');
+      startAppCatalog();
+      await fetchAppCatalog();
+      const focus = on.mock.calls.find(
+        ([event]) => event === "browser-window-focus",
+      )?.[1];
+      focus?.();
+      focus?.();
+
+      expect(focus).toBeDefined();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    },
+  );
 });

@@ -62,7 +62,8 @@ function writeState(state: State) {
 /**
  * Asks for the directory, sending the last ETag so an unchanged one is a 304.
  * A copy is kept only once it has been used, so one this build refuses is
- * asked for whole next time rather than matched by its ETag.
+ * asked for whole next time rather than matched by its ETag. A refused copy
+ * still counts as an ask, so a focus within `POLL_MS` does not ask again.
  */
 export function fetchAppCatalog(): Promise<void> {
   inFlight ??= (async () => {
@@ -92,6 +93,7 @@ export function fetchAppCatalog(): Promise<void> {
         log.warn(
           `Kept the app directory as it was: the served one is ${outcome}`,
         );
+        writeState({ ...state, fetchedAt: Date.now() });
         return;
       }
       writeState({

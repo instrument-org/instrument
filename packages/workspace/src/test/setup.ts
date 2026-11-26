@@ -16,6 +16,7 @@ import {
   mxcTestWorkFoldersDir,
 } from "./helpers/mxc-test-config";
 import { MOCK_WORKSPACE_ROOT } from "./helpers/mock-workspace-root";
+import { refuseRealBrowsers } from "./helpers/refuse-real-browsers";
 import { refuseOverOpenDatabasesLikeWindows } from "./helpers/windows-file-locks";
 import { setWorkspaceConfig } from "../lib/workspace-config";
 import { workspaceLayout } from "../lib/workspace-layout";
@@ -24,6 +25,7 @@ import { unavailableWebSearchClient } from "../schemas/web-search";
 import { newDeviceId } from "../lib/records/device-id";
 
 refuseOverOpenDatabasesLikeWindows();
+refuseRealBrowsers();
 
 const rootDir = fs.mkdtempSync(
   path.join(os.tmpdir(), "instrument-workspace-test-"),

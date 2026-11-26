@@ -56,6 +56,19 @@ describe("rotating log writer", () => {
     expect((await fs.stat(file)).size).toBeLessThanOrEqual(1024 * 1024);
   });
 
+  it("appends every line queued by the time a write starts in that one write", async () => {
+    const { file } = await fixture();
+    const append = vi.spyOn(fs, "appendFile");
+    const writer = createRotatingLogWriter(() => file, 8 * 1024 * 1024);
+    writer.write("first");
+    await writer.flush();
+    for (let index = 0; index < 40; index++) writer.write(`burst ${index}`);
+    await writer.flush();
+
+    expect(append).toHaveBeenCalledTimes(2);
+    expect((await fs.readFile(file, "utf8")).split("\n")).toHaveLength(42);
+  });
+
   it("repairs oversized retained files", async () => {
     const { archive, file } = await fixture();
     await fs.writeFile(file, "x".repeat(256 * 1024));

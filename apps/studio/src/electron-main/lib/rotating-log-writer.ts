@@ -18,7 +18,13 @@ export function boundedLogLine(text: string): string {
   return buffer.subarray(0, end).toString() + TRUNCATED;
 }
 
-/** Serialized writes rotate before appending; pending bytes include the active write. */
+/**
+ * Serialized writes rotate before appending; pending bytes include the active
+ * write. Every line queued by the time a write starts goes in that one
+ * write: macOS counts each append as a whole page dirtied (16 KB for a
+ * 250-byte line), so a line per append multiplies the disk writes it charges
+ * the app by up to sixty.
+ */
 export function createRotatingLogWriter(
   filePath: () => string,
   maxBytes: number,
@@ -31,6 +37,8 @@ export function createRotatingLogWriter(
 
   async function drain() {
     try {
+      // Lets the lines logged in the same task as the first join it.
+      await Promise.resolve();
       const file = filePath();
       const parsed = path.parse(file);
       const archive = path.join(parsed.dir, `${parsed.name}.old${parsed.ext}`);
@@ -59,18 +67,26 @@ export function createRotatingLogWriter(
         }
       }
       while (queue.length > 0) {
-        const line = queue[0];
-        if (line === undefined) break;
-        const bytes = Buffer.byteLength(line);
-        if (size + bytes > maxBytes) {
+        const first = queue[0];
+        if (first === undefined) break;
+        if (size + Buffer.byteLength(first) > maxBytes) {
           await fs.rm(archive, { force: true });
           await fs.rename(file, archive);
           size = 0;
         }
-        await fs.appendFile(file, line);
+        // The queued lines that fit before the next rotation, the first always.
+        let count = 0;
+        let bytes = 0;
+        for (const line of queue) {
+          const lineBytes = Buffer.byteLength(line);
+          if (count > 0 && size + bytes + lineBytes > maxBytes) break;
+          count += 1;
+          bytes += lineBytes;
+        }
+        await fs.appendFile(file, queue.slice(0, count).join(""));
         size += bytes;
         pendingBytes -= bytes;
-        queue.shift();
+        queue.splice(0, count);
       }
     } catch {
       // Logging a failed log write can recursively fill the same disk.

@@ -186,7 +186,7 @@ describe("a path spelled the way this computer spells it", () => {
           bridging.command(driveRelative(bridging.under)),
         );
 
-        expect(result.stderr).toContain("closed in Settings");
+        expect(result.stderr).toContain("Not allowed in Settings");
         expect(result.exitCode).not.toBe(0);
         expect(result.stdout).not.toContain("NEEDLE");
       });
@@ -194,7 +194,7 @@ describe("a path spelled the way this computer spells it", () => {
       it("refuses one a short flag carries attached to it", async () => {
         const result = await run(`rg '-f${driveRelative("secret.txt")}' .`);
 
-        expect(result.stderr).toContain("closed in Settings");
+        expect(result.stderr).toContain("Not allowed in Settings");
         expect(result.exitCode).not.toBe(0);
       });
 

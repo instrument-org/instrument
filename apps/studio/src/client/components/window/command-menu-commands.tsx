@@ -2,6 +2,7 @@ import { type WindowTab } from "@/client/atoms/window";
 import { sidebarOpenAtom } from "@/client/atoms/tab-groups";
 import { getGuest } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
+import { STOP_CHAT } from "@/shared/shortcut-guide";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { browserTargetOf } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
@@ -26,6 +27,7 @@ import { ShareIcon } from "@phosphor-icons/react/Share";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
 import { StackIcon } from "@phosphor-icons/react/Stack";
+import { StopIcon } from "@phosphor-icons/react/Stop";
 import { XIcon } from "@phosphor-icons/react/X";
 import { XSquareIcon } from "@phosphor-icons/react/XSquare";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -86,6 +88,10 @@ export function useMenuCommands({
   );
   const savePage = useMutation(rpcClient.browser.page.saveAs.mutationOptions());
   const sharePage = useMutation(rpcClient.browser.page.share.mutationOptions());
+  const stopChat = useMutation(
+    rpcClient.workspace.session.stop.mutationOptions(),
+  );
+  const working = chats.filter((each) => each.working);
 
   const showsBookmarksBar = preferences.data?.showBookmarksBar === true;
   const windowCommands: ScopedCommand[] = [
@@ -140,6 +146,23 @@ export function useMenuCommands({
         runWindowCommand("zoomReset");
       },
     },
+    // Every chat at work in the workspace, as the chat list shows them, once
+    // there is more than the one Stop Chat reaches. Each says under its last
+    // turn that it was stopped, so the pick asks nothing first.
+    ...(working.length > 1
+      ? [
+          {
+            icon: <StopIcon className={ICON} />,
+            id: "stop-all-chats",
+            label: "Stop All Chats",
+            run: () => {
+              for (const each of working) {
+                stopChat.mutate({ id: each.id });
+              }
+            },
+          },
+        ]
+      : []),
   ];
   if (tab === undefined) {
     return { commands: windowCommands, split: undefined };
@@ -453,6 +476,18 @@ export function useMenuCommands({
     chat === undefined
       ? []
       : scoped("chat", [
+          // What the chat's Stop button and Escape do.
+          action(
+            "stop-chat",
+            STOP_CHAT.label,
+            <StopIcon className={ICON} />,
+            chat.working
+              ? () => {
+                  stopChat.mutate({ id: chat.id });
+                }
+              : undefined,
+            STOP_CHAT.accelerator,
+          ),
           action(
             "copy-for-agent",
             "Copy for an Agent",

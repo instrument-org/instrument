@@ -972,14 +972,15 @@ function GroupRowPicture({
 /**
  * The sidebar's top row, which drags the window, centered on a Mac on the tab
  * strips beside it, and elsewhere on the ground above their card: room for
- * the window's corner, then whatever stays until it is dealt with, the
- * connection first and then the update, and empty ground otherwise.
+ * the window's corner, then, against the sidebar's right edge, whatever stays
+ * until it is dealt with, the connection first and then the update, and empty
+ * ground otherwise.
  */
 function SidebarTop() {
   return (
     <div
       className={cn(
-        "relative flex shrink-0 items-center gap-1 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]",
+        "relative flex shrink-0 items-center justify-end gap-1 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]",
         isMacOS() ? "h-12 pt-2" : "h-8",
       )}
       style={{ paddingLeft: sidebarTopInset() }}

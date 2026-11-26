@@ -206,7 +206,7 @@ function FolderMenuContent({
 }
 
 /** Where a menu's items are kept: in a folder, or loose in a root, the bar without either. */
-export type MenuPlace = { folder?: string; root?: BookmarkRoot };
+type MenuPlace = { folder?: string; root?: BookmarkRoot };
 
 /**
  * A menu of bookmarks, a folder's, All Bookmarks' or the chevron's over the
@@ -215,7 +215,7 @@ export type MenuPlace = { folder?: string; root?: BookmarkRoot };
  * (`useMenuTarget`), a line showing where, and in a folder whose row it is
  * on the middle of. A submenu takes the place of the menu it is in.
  */
-export function BookmarksMenuContent({
+function BookmarksMenuContent({
   align,
   isSub = false,
   items,

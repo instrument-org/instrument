@@ -146,6 +146,9 @@ export function GroupItem({
   const screenKind =
     up.kind === "screen" ? matchScreen(up.href).kind : undefined;
   const isNewChat = screenKind === "inbox";
+  // The web's start, which the bookmarks bar always stands over, as a new
+  // tab's does.
+  const isWebStart = screenKind === "browser";
   // Files keeps the row every tab shares, with its own controls (the
   // sidebar, the view, the sort, search) in a row of their own under it.
   const isFiles = screenKind === "computer";
@@ -541,9 +544,9 @@ export function GroupItem({
             {/* A chat is the app's own page, which the bar never sits over. */}
             {chatOfTab(up) === undefined && (
               <BookmarksBar
-                bleeds={isNewChat}
+                bleeds={isNewChat || isWebStart}
                 files={{ group }}
-                isAlwaysShown={isNewChat}
+                isAlwaysShown={isNewChat || isWebStart}
                 onOpen={openHere}
                 onVisit={takeOver}
               />

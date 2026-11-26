@@ -1,20 +1,6 @@
 import { UNDO_LABEL } from "@/client/lib/undo-toast";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
-import { targetOfAddress } from "@/client/bookmarks/address";
-import { useOpenAddress } from "@/client/bookmarks/open-address";
 import { bookmarksStateAtom } from "@/client/bookmarks/store";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
-import {
-  type BarItem,
-  barItems,
-  type Bookmark,
-  OTHER_ROOT,
-  OTHER_ROOT_TITLE,
-  rootItems,
-} from "@/shared/bookmarks";
 import { PageFavicon } from "@/client/components/favicon";
 import {
   noteTypedPage,
@@ -22,63 +8,37 @@ import {
 } from "@/client/hooks/use-browser-history";
 import { rpcClient } from "@/client/rpc/client";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
-import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
-import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
-import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useState } from "react";
+import { type ReactNode } from "react";
 import { toast } from "@/client/lib/toast";
 
-import { AppIcon } from "./app-icon";
-import { BookmarksMenuContent, type MenuPlace } from "./bookmark-folders";
-import { type OpenAddress } from "./bookmark-menu";
-import { bookmarkName, hostOf, useBookmarkEdits } from "./bookmark-edits";
+import { hostOf } from "./bookmark-edits";
 import { contentOfAddress, useContentDrag } from "./drag/content-drag";
 import { PageContextMenu, usePageClicks } from "./page-menu";
 import { PageSection } from "./page-section";
 import { VisitedPageRows } from "./visited-page-rows";
 
 /**
- * The web's starting view, laid out as a browser's new tab: the bookmarks
- * bar as large marks with their names under them, the way apps are, each
- * folder a mark whose press opens its menu as the bar's does and All
- * Bookmarks last, then the sites visited most and the pages lately seen,
- * all from the stores the bar and History read. Every mark and row drags
- * out as its link, to a tab group or anywhere a link goes. The tab's own address row, over
- * it wherever it is drawn, is where an address goes. Anywhere it goes
- * arrives as a tab. A page is bookmarked from its own menu; a right click on
- * its mark here offers to rename it or remove it, and a middle click or a
- * Cmd-click opens it in a tab of its own, waiting behind.
+ * The web's starting view, laid out as a browser's new tab under the
+ * bookmarks bar, which stands over it whether or not the bar is shown
+ * elsewhere: the sites visited most as cards, then the pages lately seen as
+ * a list, both from the history History's Websites read. A bookmarked site
+ * is on the bar, so it is left out of the cards. The tab's own address
+ * row, empty and holding the caret, is where an address goes, and anywhere
+ * it goes arrives as a tab. Every card and row drags out as its link, to a
+ * tab group or anywhere a link goes, and a middle click or a Cmd-click
+ * opens it in a tab of its own, waiting behind.
  */
 export function WebStart({
   onOpenPage,
 }: {
   onOpenPage: (url: string) => void;
 }) {
-  // The bar's own items in its order, so the two read alike.
-  const state = useAtomValue(bookmarksStateAtom);
-  const items = barItems(state);
-  const others = rootItems(state, OTHER_ROOT);
+  const bookmarks = useAtomValue(bookmarksStateAtom).bookmarks;
   const { recent, frequent } = useBrowserStartPages(
-    state.bookmarks.map((bookmark) => bookmark.url),
+    bookmarks.map((bookmark) => bookmark.url),
   );
-  const openAddress = useOpenAddress({ loadHere: onOpenPage });
-  // A folder's menu opens what it lists as the bar's does.
-  const openFromMenu: OpenAddress = (address, asked) => {
-    if (targetOfAddress(address)?.kind === "page") {
-      noteTypedPage(address);
-    }
-    openAddress(address, asked);
-  };
   const clicksFor = usePageClicks();
-  const edits = useBookmarkEdits();
-  // The bookmark whose name is being typed over, by id.
-  const [renamingId, setRenamingId] = useState<string>();
-  const rename = (bookmark: Bookmark, title: string) => {
-    setRenamingId(undefined);
-    edits.rename(bookmark, title);
-  };
-  const { remove } = edits;
   // Off the row only: the site's pages stay in history and in Recent pages.
   const setFrequentHidden = (url: string, isHidden: boolean) =>
     rpcClient.history.setFrequentHidden.call({ isHidden, url });
@@ -112,95 +72,14 @@ export function WebStart({
       {/* The Apps place's column, so moving between the two places never
           moves the edges the page is read against. */}
       <div className="mx-auto w-full max-w-5xl space-y-10 px-10 pt-20 pb-14">
-        <PageSection title="Bookmarks">
-          {items.length === 0 && others.length === 0 ? (
-            <NoBookmarks />
-          ) : (
-            // Pulled in by the gap between a mark's box and its icon, so the
-            // icons line up under the heading.
-            <div className="-ml-4 flex flex-wrap gap-x-2 gap-y-3">
-              {items.map((item) => {
-                if (item.kind === "folder") {
-                  return (
-                    <FolderTile
-                      items={item.items}
-                      key={item.folder.id}
-                      name={item.folder.title}
-                      open={openFromMenu}
-                      place={{ folder: item.folder.id }}
-                    />
-                  );
-                }
-                const { bookmark } = item;
-                const name = bookmarkName(bookmark);
-                // The site's mark drawn the way Apps draws every app's.
-                const mark = (
-                  <AppIcon
-                    name={name}
-                    site={originOf(bookmark.url)}
-                    size="xl"
-                  />
-                );
-                if (bookmark.id === renamingId) {
-                  return (
-                    <div
-                      className="flex w-24 flex-col items-center gap-2 py-2"
-                      key={bookmark.id}
-                    >
-                      {mark}
-                      <BookmarkNameField
-                        name={name}
-                        onCancel={() => {
-                          setRenamingId(undefined);
-                        }}
-                        onCommit={(title) => {
-                          rename(bookmark, title);
-                        }}
-                      />
-                    </div>
-                  );
-                }
-                return (
-                  <PageContextMenu
-                    key={bookmark.id}
-                    onOpen={openShortcut}
-                    onRemove={() => {
-                      remove(bookmark);
-                    }}
-                    onRename={() => {
-                      setRenamingId(bookmark.id);
-                    }}
-                    removeLabel="Remove from Bookmarks"
-                    url={bookmark.url}
-                  >
-                    <LinkDrag title={name} url={bookmark.url}>
-                      {(dragProps) => (
-                        <button
-                          className={TILE}
-                          {...clicksFor(bookmark.url, openShortcut)}
-                          {...dragProps}
-                          title={`${name}\n${bookmark.url}`}
-                          type="button"
-                        >
-                          {mark}
-                          <TileName>{name}</TileName>
-                        </button>
-                      )}
-                    </LinkDrag>
-                  </PageContextMenu>
-                );
-              })}
-              {others.length > 0 && (
-                <FolderTile
-                  items={others}
-                  name={OTHER_ROOT_TITLE}
-                  open={openFromMenu}
-                  place={{ root: OTHER_ROOT }}
-                />
-              )}
-            </div>
-          )}
-        </PageSection>
+        {frequent.length === 0 && recent.length === 0 && (
+          <div className="flex flex-col items-center gap-1 pt-10 text-center">
+            <p className="text-sm font-medium">No websites yet</p>
+            <p className="text-[13px] text-muted-foreground">
+              Websites you visit show up here.
+            </p>
+          </div>
+        )}
         {frequent.length > 0 && (
           <PageSection title="Frequently visited">
             <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,9rem),1fr))] gap-3">
@@ -267,53 +146,6 @@ export function WebStart({
   );
 }
 
-/** A mark on the page: as wide as the mark's box, its name under it. */
-const TILE =
-  "group flex w-24 flex-col items-center gap-2 rounded-xl py-2 text-center hover:bg-accent/50 data-[state=open]:bg-accent/50";
-
-/** A mark's name: on two lines at most, the way a browser's favorites name theirs. */
-function TileName({ children }: { children: ReactNode }) {
-  return (
-    <span className="line-clamp-2 w-full px-1.5 text-[13px] leading-4 font-medium break-words">
-      {children}
-    </span>
-  );
-}
-
-/**
- * A folder of the bar, or All Bookmarks, as a mark: a press opens the menu
- * of what is in it that the bar's chip opens, where each bookmark opens,
- * drags and has its menu as on the bar.
- */
-function FolderTile({
-  items,
-  name,
-  open,
-  place,
-}: {
-  items: readonly BarItem[];
-  name: string;
-  open: OpenAddress;
-  place: MenuPlace;
-}) {
-  return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger className={TILE} title={name}>
-        <span className="grid size-16 place-items-center rounded-2xl bg-card shadow-xs ring-1 ring-border">
-          <FolderSimpleIcon className="size-7 text-foreground/60" />
-        </span>
-        <TileName>{name}</TileName>
-      </DropdownMenuTrigger>
-      <BookmarksMenuContent
-        align="start"
-        items={items}
-        open={open}
-        place={place}
-      />
-    </DropdownMenu>
-  );
-}
-
 /** A mark or a card, given the props that drag it out as its page's link (`useContentDrag`). */
 function LinkDrag({
   children,
@@ -325,106 +157,4 @@ function LinkDrag({
   url: string;
 }) {
   return children(useContentDrag(contentOfAddress(url, title)));
-}
-
-/**
- * Where the bookmarks will be, before there are any: a quiet panel the
- * width of the column, and in it a bookmark drawn the way the shelf draws
- * one, a plate with the brand's ribbon on it and two more tucked behind,
- * over what the shelf is for and the way a page gets onto it, in the words
- * and the mark of the page menu that does it.
- */
-function NoBookmarks() {
-  return (
-    <div className="flex flex-col items-center rounded-2xl bg-black/2 px-6 pt-10 pb-11 dark:bg-white/3">
-      <div
-        aria-hidden
-        className="relative mb-5 grid size-16 scale-90 place-items-center"
-      >
-        {/* The two behind: a size down, fanned out from under the front
-            one so only their outer corners show. They arrive tucked in a
-            little closer and open out once, slowly, as the page appears.
-            Opaque fills and inset rings keep each edge on its own card;
-            soft shadows leave out elevation's translucent outer ring. */}
-        <span className="absolute size-13 -translate-x-4.5 -rotate-12 rounded-xl bg-card shadow-xs-soft inset-ring inset-ring-border/70 transition-[translate,rotate] delay-100 duration-700 ease-out motion-reduce:transition-none starting:-translate-x-2 starting:-rotate-4" />
-        <span className="absolute size-13 translate-x-4.5 rotate-12 rounded-xl bg-card shadow-xs-soft inset-ring inset-ring-border/70 transition-[translate,rotate] delay-100 duration-700 ease-out motion-reduce:transition-none starting:translate-x-2 starting:rotate-4" />
-        <span className="relative grid size-16 place-items-center overflow-hidden rounded-2xl bg-card shadow-md-soft inset-ring inset-ring-border">
-          <GlobeIcon
-            className="size-7 text-muted-foreground/45"
-            weight="light"
-          />
-          {/* A ribbon hung from the plate's top edge, drawn rather than
-              taken from the icon set, whose bookmark stands a little below
-              the top of its box. */}
-          <svg
-            className="absolute top-0 right-3 h-4.5 w-3.5 fill-brand-300"
-            viewBox="0 0 14 18"
-          >
-            <path d="M0 0h14v18l-7-4.5L0 18z" />
-          </svg>
-        </span>
-      </div>
-      <p className="text-sm font-medium text-foreground/80">No bookmarks yet</p>
-      <p className="mt-1.5 flex flex-wrap items-center justify-center gap-x-1 text-center text-[13px] leading-6 text-muted-foreground">
-        Choose
-        <span className="font-medium text-foreground/70">Add to bookmarks</span>
-        from the
-        <span className="mx-1 inline-grid size-5 place-items-center rounded-md bg-card shadow-xs ring-1 ring-border">
-          <DotsThreeVerticalIcon
-            aria-label="page"
-            className="size-3.5 text-foreground/70"
-            weight="bold"
-          />
-        </span>
-        menu on a website to add bookmarks
-      </p>
-    </div>
-  );
-}
-
-/**
- * A bookmark's name being typed over, where its name was: all of it selected
- * to begin with, Return or a press elsewhere keeping what was typed, Escape
- * putting the old name back.
- */
-function BookmarkNameField({
-  name,
-  onCancel,
-  onCommit,
-}: {
-  name: string;
-  onCancel: () => void;
-  onCommit: (name: string) => void;
-}) {
-  const [value, setValue] = useState(name);
-  return (
-    <input
-      aria-label="Bookmark name"
-      autoFocus
-      className="w-full rounded-sm border border-ring bg-background px-1 text-center text-[13px] leading-4 font-medium outline-none"
-      onBlur={() => {
-        onCommit(value);
-      }}
-      onChange={(event) => {
-        setValue(event.target.value);
-      }}
-      onFocus={(event) => {
-        event.currentTarget.select();
-      }}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          onCommit(value);
-        } else if (event.key === "Escape") {
-          event.preventDefault();
-          onCancel();
-        }
-      }}
-      value={value}
-    />
-  );
-}
-
-function originOf(url: string): string {
-  return URL.canParse(url) ? new URL(url).origin : url;
 }

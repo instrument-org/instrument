@@ -159,7 +159,11 @@ export function TabLocationRow({
 }) {
   const top = usePaneTop();
   const openIn = openInAppTargetOf(location);
-  const place = locationText(location, address);
+  // The web's start is where an address is typed: its field is empty and
+  // takes the caret, as a new tab's does, with nothing to star.
+  const isWebStart =
+    location.kind === "builtin" && location.screen === "browser";
+  const place = isWebStart ? "" : locationText(location, address);
   // Whether the field's words have the caret, where a press selects in them
   // rather than carrying the address out.
   const [isEditing, setIsEditing] = useState(false);
@@ -309,7 +313,8 @@ export function TabLocationRow({
             {...(onVisit ? { onVisit } : {})}
             resting={
               location.kind === "newTab" ||
-              location.kind === "newChat" ? undefined : (
+              location.kind === "newChat" ||
+              isWebStart ? undefined : (
                 <Field
                   location={location}
                   {...(onFolder ? { onFolder } : {})}
@@ -320,7 +325,7 @@ export function TabLocationRow({
           />
           {fieldEnd}
           {openIn && <OpenInAppButton target={openIn} />}
-          {address && (
+          {address && !isWebStart && (
             <BookmarkStar
               address={address}
               title={title || bookmarkTitleOf(location)}

@@ -116,9 +116,10 @@ export function Transcript({
     () => keepEqual(kept.changes, instructionsChanges(messages)),
     [kept, messages],
   );
+  const fileVersions = useMemo(() => cardFileVersions(messages), [messages]);
   const versions = useMemo(
-    () => keptTurnVersions(kept.versions, cardFileVersions(messages), turns),
-    [kept, messages, turns],
+    () => keptTurnVersions(kept.versions, fileVersions, turns),
+    [kept, fileVersions, turns],
   );
   const actions = useStableActions({
     isRunning,
@@ -340,7 +341,11 @@ function useStableActions(actions: TranscriptActions): TranscriptActions {
 
 type TurnVersions = ReadonlyMap<string, CardFileVersion>;
 
-/** The last values handed to each turn, by message or turn id. */
+/**
+ * The last values handed to each turn, by message or turn id. Compared with
+ * radashi's `isEqual`, which holds any two Maps or Sets equal: a separator
+ * or change holds none, and a turn's file map is compared entry by entry.
+ */
 interface KeptPerTurn {
   changes: Map<StoreId.Message, InstructionsChange[]>;
   separators: Map<StoreId.Message, ChatSeparator>;

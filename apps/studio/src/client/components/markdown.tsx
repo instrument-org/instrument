@@ -109,6 +109,7 @@ import { PictureCard, PictureRows } from "./picture-card";
 import { MarkdownChatContext } from "./markdown-chat-context";
 import { MermaidDiagram } from "./mermaid-diagram";
 import { MessageFence } from "./message-card";
+import { normalizeMathDelimiters } from "./reply-blocks/normalize-math-delimiters";
 import { rehypeTableShape } from "./reply-blocks/rehype-table-shape";
 import { rehypeUnbrokenInline } from "./reply-blocks/rehype-unbroken-inline";
 import {
@@ -1394,7 +1395,10 @@ export const Markdown = memo(
     chatId,
   }: MarkdownProps) => {
     const markdown = useMemo(
-      () => numberedListsAfterText(bracketPathLinkDestinations(written)),
+      () =>
+        numberedListsAfterText(
+          bracketPathLinkDestinations(normalizeMathDelimiters(written)),
+        ),
       [written],
     );
     const setLookAt = useSetAtom(lookAtAtom);
@@ -1487,6 +1491,8 @@ export const Markdown = memo(
             await loadMath();
 
           nextRehypePlugins.push(rehypeKatex);
+          // Single dollars are read by Pandoc's rule before parsing
+          // (`normalizeMathDelimiters`), which tells math from amounts.
           nextRemarkPlugins.push([remarkMath, { singleDollarTextMath: false }]);
         }
 

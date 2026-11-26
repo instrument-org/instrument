@@ -6,6 +6,8 @@ A person can have any number of app windows open on one workspace. They are full
 
 [`windows/app-window.ts`](../../apps/studio/src/electron-main/windows/app-window.ts) keeps every open window by the id it keeps its state under: `app` for the first a workspace ever had, a fresh one for the rest. `getAppWindow()` is the window last in front, which is what the rest of the main process means by "the window"; `getAppWindows()` is all of them, front to back. A window's page learns nothing of its own id: main names a web contents as it makes it (`app-window-ids.ts`), and answers whatever that web contents asks with that window's own things.
 
+App windows leave `scrollBounce` off: Chromium rubber-bands only a page's root scroller, so in a window of panes it stretches the whole window rather than the pane under the pointer. In-app browser pages turn it on ([`browser-view/manager.ts`](../../apps/studio/src/electron-main/browser-view/manager.ts)), since each site is its own root.
+
 ## What belongs to a window, and what they share
 
 | What | Where | Who sees it |

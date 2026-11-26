@@ -24,6 +24,8 @@ The leg uploads them under `velopack/`, and the publish job syncs that folder to
 
 The NSIS installer and `latest.yml` are still built and published, for the move: an install made before Velopack updates through electron-updater to the newest NSIS build, and that build, finding itself installed by NSIS, moves to the Velopack install (`update-bridge.ts`, [auto-updater.md](auto-updater.md#windows-velopack)). Both keep the app's data under its product name in AppData, so nothing moves with it. The NSIS half can stop once no install older than the first Velopack release is left to update.
 
+There is no Windows arm64 build. Windows on ARM runs the x64 app under emulation, so a gap only it shows is a known one rather than a bug to chase, and an ARM VM cannot stand in for x64 hardware when checking how Windows draws.
+
 ## The draft, and why the build is already live
 
 That sync is the release. Once the manifests land, every running app can see the new version and will offer it.

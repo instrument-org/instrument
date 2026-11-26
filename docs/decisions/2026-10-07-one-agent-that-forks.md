@@ -178,6 +178,10 @@ The quick answer in the responsiveness case came in 1.3 (Haiku) and 1.4 seconds 
 
 Haiku's share of chatty turns (26%) came from a handful of cases, so those cases (weather, long-work, guide, document, dictation) ran again with 2 trials each: 10/10 passed, and 4 of 38 tool-using turns (11%) showed more than two messages, in line with round 9. Luna's pdfs passed 1 of 2 more runs. Nothing regressed beyond the noise of single trials.
 
+### The note against the prompt's own line
+
+Rechecked 2026-11-15 on claude-haiku-5.5 through the Claude account, 5 chat cases x 3 trials: with `TURN_NOTE`, 13 of 15 first turns said a sentence before the first tool; without it, 1 of 15, though the system prompt asks for the same sentence. Pass rates and tokens did not move. Remove the note only on a fresh eval that shows otherwise.
+
 ## Whole-design scenarios
 
 Eight multi-turn cases (`evals/cases/scenarios.ts`, kind `scenario`, run only when named) exercise the design end to end: three forks in one burst with a change to one and a status question, two interruptions in a row, stop everything, steering a running fork, forking a 60 to 75K-token chat, a page with planted instructions in the foreground and in a fork, and a five-minute script. With the existing vague-cleanup case, 2 trials per case per model on claude-haiku-5.5 and gpt-6-luna through OpenRouter, 35 of 36 runs passed.

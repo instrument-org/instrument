@@ -41,6 +41,8 @@ Reach for JS last. A layout that merely _looks_ different is a container query; 
 
 Portalled dialogs are a legitimate media-query case: they are sized against the window, not against the page behind them.
 
+A panel kept beside what a person reads in a tab (Files' folder beside a file, a Markdown file's outline) shows as a Mac sidebar does ([`panel-fold.ts`](../../apps/studio/src/client/lib/panel-fold.ts)): kept until put away by hand, folded while its tab is too narrow, back once there is room, with a margin so a divider drag does not flap. A built-in page folds under `PAGE_FOLD_PX` (`useIsNarrower`). A new in-tab panel uses the same rule. A width changes how a layout looks, never what a press on it does.
+
 ## Sizing portalled content under zoom
 
 Radix portals to `document.body`, outside the zoom root, so floating content self-applies `zoom` via `useAppZoomStyle` (`apps/studio/src/client/hooks/use-app-zoom.ts`). On a self-zoomed element, units do not all behave the same way, and getting this backwards is silent:

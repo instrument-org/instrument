@@ -1,5 +1,7 @@
 # Stay in the Dock when the last window closes, on macOS
 
+> Partly superseded by [Closing a window stops the chats at work in it](2026-11-24-closing-a-window-stops-its-chats.md) (2026-11-24): a close stops the window's working chats, asking first.
+
 Supersedes [Quit when the last window closes, on macOS too](2026-07-25-quit-when-the-last-window-closes.md).
 
 ## Context

@@ -1,5 +1,8 @@
 import { type AgentAnswer } from "@/client/components/window/agent-answers";
-import { type AGENT_SETTINGS, type AgentSettingId } from "@/shared/agent-settings";
+import {
+  type AGENT_SETTINGS,
+  type AgentSettingId,
+} from "@/shared/agent-settings";
 
 import { type SettingId } from "./settings-index";
 

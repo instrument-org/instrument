@@ -2083,6 +2083,7 @@ function WindowShell({
               </ActiveTabProvider>,
               stage,
             )}
+            <KeptComposerReads />
             <BookmarkAllTabs
               pages={() =>
                 tabsLeftToRight().flatMap((tab) => {
@@ -2151,4 +2152,17 @@ function WindowShell({
       </FileOpenContext>
     </PlanSignInsWindow>
   );
+}
+
+/**
+ * Keeps the live reads every composer makes open for the window's life, so
+ * the composer of a new tab, which comes and goes with the tab, reads them as
+ * they stand rather than starting each again in the main process, the model
+ * list fetched afresh among them.
+ */
+function KeptComposerReads() {
+  useQuery(rpcClient.gateway.models.live.list.experimental_liveOptions());
+  useQuery(rpcClient.providerConfig.live.disabled.experimental_liveOptions());
+  useQuery(rpcClient.notices.live.signedOut.experimental_liveOptions());
+  return null;
 }

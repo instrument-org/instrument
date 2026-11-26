@@ -17,18 +17,26 @@ it.each([
   [
     "apps/studio/src/client/components/settings/pane.tsx",
     "",
-    ["product-guide.test.ts", "settings-index.test.ts"],
+    [
+      "product-guide-places.test.tsx",
+      "product-guide.test.ts",
+      "settings-index.test.ts",
+    ],
   ],
-  ["apps/studio/src/client/components/toolbar.tsx", "<div />", []],
+  [
+    "apps/studio/src/client/components/toolbar.tsx",
+    "<div />",
+    ["product-guide-places.test.tsx"],
+  ],
   [
     "apps/studio/src/client/components/toolbar.tsx",
     "<TooltipTrigger>",
-    ["icon-button-accessible-name.test.ts"],
+    ["icon-button-accessible-name.test.ts", "product-guide-places.test.tsx"],
   ],
   [
     "apps/studio/src/client/components/toolbar.tsx",
     "h-[80vh]",
-    ["use-app-zoom.test.tsx"],
+    ["product-guide-places.test.tsx", "use-app-zoom.test.tsx"],
   ],
   [
     "apps/studio/src/electron-main/rpc/routes/a.ts",

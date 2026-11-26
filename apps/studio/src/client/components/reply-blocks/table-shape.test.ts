@@ -164,6 +164,18 @@ describe("tableShape", () => {
       "| a | b |\n|---|---|\n| x | $1 |\n| y | about $2 |\n| z | $3 |",
     ],
     [
+      "years",
+      "| Event | Year |\n|---|---|\n| Moon landing | 1969 |\n| Wall falls | 1989 |\n| Wikipedia | 2001 |",
+    ],
+    [
+      "ports",
+      "| Service | Port |\n|---|---|\n| HTTP | 80 |\n| HTTPS | 443 |\n| Proxy | 8080 |",
+    ],
+    [
+      "counts with no unit",
+      "| Fruit | Count |\n|---|---|\n| Apples | 12 |\n| Pears | 7 |\n| Plums | 3 |",
+    ],
+    [
       "three columns",
       "| a | b | c |\n|---|---|---|\n| x | $1 | $1 |\n| y | $2 | $2 |\n| z | $3 | $3 |",
     ],

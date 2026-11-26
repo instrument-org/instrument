@@ -229,7 +229,9 @@ const totalsOf = (rows: ShapeCell[][]) =>
 /**
  * A bar beside each amount, for exactly a label column and an amount column
  * of three to 24 rows, every amount a number in one unit and none below zero.
- * A total row is drawn without one and left out of the scale.
+ * The unit has to be written (a currency, `%`, `km`): a column of bare
+ * numbers is as often years or ports or ids as it is amounts. A total row is
+ * drawn without one and left out of the scale.
  */
 const barsOf = (head: ShapeCell[], rows: ShapeCell[][]) => {
   if (head.length !== 2 || rows.length < 3 || rows.length > 24) {
@@ -251,6 +253,7 @@ const barsOf = (head: ShapeCell[], rows: ShapeCell[][]) => {
   if (
     scaled.length < 3 ||
     units.size !== 1 ||
+    units.has("|") ||
     scaled.some((amount) => Number.isNaN(amount) || amount < 0) ||
     !(top > 0)
   ) {

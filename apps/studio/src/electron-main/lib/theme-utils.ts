@@ -37,7 +37,7 @@ function applyNativeThemeFromPreferences(): void {
   nativeTheme.themeSource = theme;
 }
 
-function shouldUseDarkMode(): boolean {
+export function shouldUseDarkMode(): boolean {
   const preferencesStore = getWorkspacePreferences();
   const theme = preferencesStore.get("theme");
 

@@ -87,6 +87,10 @@ import {
   PHONE_CHATS_KEY,
 } from "@/electron-main/windows/phone-chat-groups";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
+import {
+  captionOverlay,
+  syncCaptionOverlay,
+} from "@/electron-main/windows/caption-buttons";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import {
   otherStripShowing,
@@ -793,6 +797,7 @@ export function takeSpareWindow(): SpareWindow | null {
   waitingSpare = null;
   taken.window.setBackgroundColor(getBackgroundColor());
   setTrafficLightForZoom(taken.window, getAppZoom(), WINDOW_CARD_GAP);
+  syncCaptionOverlay(taken.window, getAppZoom());
   return taken;
 }
 
@@ -1123,8 +1128,8 @@ function createAppWindow(
     // On macOS the native NSWindow frame is kept, since `hiddenInset` already
     // gives the chromeless look and a frameless window cannot host modal
     // sheets. Everywhere else the frame is what draws a title bar above this
-    // window's own bar, so it goes and the renderer draws the window controls
-    // (see WindowControls).
+    // window's own bar, so it goes and the system draws only its buttons, over
+    // the ground above the card (`captionOverlay`).
     frame: process.platform === "darwin",
     minHeight: 520,
     minWidth: 900,
@@ -1135,6 +1140,9 @@ function createAppWindow(
     // tabs, over the strip each window draws for itself.
     tabbingIdentifier: id,
     title: "Instrument",
+    ...(process.platform === "darwin"
+      ? {}
+      : { titleBarOverlay: captionOverlay(getAppZoom()) }),
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     webPreferences: {
       additionalArguments: ["--windowType=app", ...systemRegionArguments()],
@@ -1172,10 +1180,8 @@ function createAppWindow(
   window.on("will-resize", sized);
   window.on("resize", sized);
   window.on("move", sized);
-  // Also told to the renderer, which draws this window's own maximize and
-  // restore glyph and, on an X11 session, the hairline that has to go when an
-  // edge sits against the screen. The OS drives these as well as the buttons
-  // do: a snap, a double click on the bar, Win+Up.
+  // Also told to the renderer, which draws, on an X11 session, the hairline
+  // that has to go when an edge sits against the screen.
   const changedShape = () => {
     sized();
     publisher.publish("window.state-changed", null);
@@ -1184,6 +1190,11 @@ function createAppWindow(
   window.on("unmaximize", changedShape);
   window.on("enter-full-screen", changedShape);
   window.on("leave-full-screen", changedShape);
+  const syncCaption = () => {
+    syncCaptionOverlay(window, getAppZoom());
+  };
+  window.on("focus", syncCaption);
+  window.on("blur", syncCaption);
 
   // Center the lights in the window bar for the zoom the renderer last
   // reported, so they are in place for the first paint instead of jumping once
@@ -1489,6 +1500,7 @@ function watchSetup() {
 export function updateAppWindowBackgroundColor() {
   for (const window of getAppWindows()) {
     window.setBackgroundColor(getBackgroundColor());
+    syncCaptionOverlay(window, getAppZoom());
   }
 }
 

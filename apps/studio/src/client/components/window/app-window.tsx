@@ -35,7 +35,6 @@ import { ThemeProvider } from "@/client/components/theme-provider";
 import { Spinner } from "@/client/components/ui/spinner";
 import { TooltipProvider } from "@/client/components/ui/tooltip";
 import { SetupHost } from "@/client/components/setup/setup-host";
-import { WindowBorder } from "@/client/components/window-border";
 import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { SCREENS, screenOfHref } from "@/shared/instrument-screens";
@@ -182,7 +181,7 @@ import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
 import { useGroupLeadUpkeep } from "./group-leads";
 import { GroupSidebar, sidebarBounds } from "./group-sidebar";
-import { TrafficLightsWithSidebar } from "./inbox-toggle";
+import { WindowCorner } from "./inbox-toggle";
 import { isGroupScreenHref } from "./group-screen";
 import { useCloseStrandedHostedPages } from "./hosted-page";
 import { DragLayer } from "./drag/drag-layer";
@@ -282,7 +281,6 @@ function SetupWindow() {
               </WithDeveloperStrip>
             </WindowZoomRoot>
           </IconContext.Provider>
-          <WindowBorder />
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
@@ -321,9 +319,6 @@ function WorkspaceWindow() {
               </WindowZoomRoot>
             </IconContext.Provider>
           </CatchBoundary>
-          {/* Past the boundary, so a window showing its crash card keeps
-            its edge too. */}
-          <WindowBorder />
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
@@ -1844,7 +1839,7 @@ function WindowShell({
       >
         <PageOpenContext value={openPage}>
           <WindowFrame
-            corner={<TrafficLightsWithSidebar />}
+            corner={<WindowCorner />}
             hasBar={false}
             rail={
               <StudioSidebarRail

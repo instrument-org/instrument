@@ -3,7 +3,6 @@ import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
 import { XIcon } from "@phosphor-icons/react/X";
 import { ResizeHandle } from "@/client/components/resize-handle";
-import { CaptionRoom } from "@/client/components/window-controls";
 import {
   ActiveTabProvider,
   useIsActiveTab,
@@ -871,8 +870,6 @@ function SideCard({
         word={isUpChat ? undefined : "Chat"}
       />
     );
-  // The window's own end, at the last side's right.
-  const windowEnd = isLast ? <CaptionRoom /> : undefined;
 
   return (
     <div
@@ -970,7 +967,6 @@ function SideCard({
                 <div aria-hidden className="w-10 shrink-0" />
               )}
               {splitControl}
-              {windowEnd}
             </>
           }
         />
@@ -1004,7 +1000,6 @@ function SideCard({
                               onClick={newTabHere}
                             />
                             {splitControl}
-                            {windowEnd}
                           </div>
                         ),
                         lead: isFirst ? <SidebarToggle /> : undefined,

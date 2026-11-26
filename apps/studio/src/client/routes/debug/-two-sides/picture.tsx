@@ -1,6 +1,5 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { addressOfTab } from "@/client/bookmarks/actions";
-import { CaptionRoom } from "@/client/components/window-controls";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { BookmarksBar } from "@/client/components/window/bookmarks-bar";
 import { chatListOptions } from "@/client/components/window/chat-list-query";
@@ -592,7 +591,6 @@ function Side({
         }}
         tabs={drawn.tabs}
         taskTitles={shell.childTitles}
-        trailing={isLast ? <CaptionRoom /> : undefined}
       />
       <div className="relative min-h-0 flex-1" data-side-page={sideIndex}>
         {up && <SidePage body={body} group={group} key={up.id} up={up} />}

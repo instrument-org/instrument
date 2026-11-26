@@ -7,7 +7,6 @@ import { ErrorCardShell } from "./error-card-shell";
 import { ErrorDetails } from "./error-details";
 import { ReportErrorButton } from "./report-error-button";
 import { Button } from "./ui/button";
-import { WindowControls } from "./window-controls";
 import { ZoomRoot } from "./zoom-root";
 
 /**
@@ -18,9 +17,8 @@ import { ZoomRoot } from "./zoom-root";
  * passes is intentionally ignored.
  *
  * It takes the whole window, so it keeps the band the window's bar normally
- * draws: a drag region the macOS traffic lights stay centered in, and the
- * window controls on the platforms that draw their own. Without it a frameless
- * window can be neither moved nor closed until it reloads. The boundary sits
+ * draws: a drag region under the system's window buttons. Without it a
+ * frameless window cannot be moved until it reloads. The boundary sits
  * inside the window's query client, theme and tooltip providers but outside its
  * zoom root and icon context, so this brings its own of those two.
  */
@@ -31,12 +29,9 @@ export function AppErrorFallback({ error }: { error: unknown }) {
         <ChromeInsetProvider top={TOOLBAR_HEIGHT}>
           <div className="flex h-full flex-col">
             <div
-              className="flex shrink-0 justify-end [-webkit-app-region:drag]"
+              className="shrink-0 [-webkit-app-region:drag]"
               style={{ height: `${TOOLBAR_HEIGHT}px` }}
-            >
-              {/* Nothing on macOS, where the system draws the buttons. */}
-              <WindowControls />
-            </div>
+            />
             {/* `my-auto` rather than centering the column, so a card taller
               than the window scrolls from its top instead of losing it. */}
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6">

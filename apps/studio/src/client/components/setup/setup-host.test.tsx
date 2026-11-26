@@ -79,11 +79,7 @@ vi.mock("@/client/rpc/client", () => {
       },
       user: { live: { me: live("me") } },
       utils: {
-        closeWindow: mutation(() => {}),
         events: { windowFocusChanged: live("windowFocusChanged") },
-        live: { windowState: live("windowState", { maximized: false }) },
-        minimizeWindow: mutation(() => {}),
-        toggleMaximizeWindow: mutation(() => {}),
       },
     },
   };

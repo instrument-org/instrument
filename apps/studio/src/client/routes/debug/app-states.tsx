@@ -2,15 +2,13 @@ import { crashWindowAtom } from "@/client/atoms/developer-strip";
 import { openLogin } from "@/client/atoms/login-modal";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
-import { forceWindowControlsAtom } from "@/client/atoms/window-controls";
 import { Button } from "@/client/components/ui/button";
 import { Switch } from "@/client/components/ui/switch";
 import { showNoticeToast } from "@/client/components/window/notifications-bell";
-import { isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useAtom, useSetAtom } from "jotai";
+import { useSetAtom } from "jotai";
 import { type ReactNode } from "react";
 import { DebugPageScroller } from "./-page-scroller";
 import { DebugState } from "./-shell";
@@ -24,9 +22,6 @@ export const Route = createFileRoute("/debug/app-states")({
 });
 
 function RouteComponent() {
-  const [forceWindowControls, setForceWindowControls] = useAtom(
-    forceWindowControlsAtom,
-  );
   const crashWindow = useSetAtom(crashWindowAtom);
   const { mutate: simulateDownload } = useMutation(
     rpcClient.debug.trigger.testDownloadNotification.mutationOptions(),
@@ -207,21 +202,8 @@ function RouteComponent() {
           </StateRow>
         </StateSection>
         <StateSection title="Window">
-          {/* States a dev run on this Mac never reaches by itself: another
-            platform's window buttons, and the prompt dev builds skip when an
-            agent is running at quit. */}
-          {isMacOS() && (
-            <StateRow
-              description="Draws the minimize, maximize and close buttons Windows and Linux get, so you can check the layout around them."
-              id="windows-style-buttons"
-            >
-              <Switch
-                aria-label="Windows-style buttons"
-                checked={forceWindowControls}
-                onCheckedChange={setForceWindowControls}
-              />
-            </StateRow>
-          )}
+          {/* A state a dev run never reaches by itself: the prompt dev builds
+            skip when an agent is running at quit. */}
           <StateRow
             description="Asks before quitting while an agent is running, which dev builds usually skip. It turns off when you relaunch, and a rebuild while it's on waits for you to answer."
             id="quit-prompt"

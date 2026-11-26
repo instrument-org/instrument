@@ -1,8 +1,6 @@
 import { SetupNetworkStatusPill } from "@/client/components/network-status/network-status-pill";
 import { Toaster } from "@/client/components/ui/sonner";
-import { WindowControls } from "@/client/components/window-controls";
 import { useHoldWindow } from "@/client/hooks/use-hold-window";
-import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { SETUP_STEPS, type SetupStep } from "@/shared/setup";
@@ -100,19 +98,20 @@ function SetupScreen({
         className="pointer-events-none absolute top-[-442px] left-1/2 h-220 w-[1123px] -translate-x-1/2 bg-[radial-gradient(closest-side,var(--color-setup-glow),transparent_74%)]"
       />
       {/* The window's band, which drags it; the system draws the lights at
-        its left on macOS, and setup draws minimize and close elsewhere. It
+        its left on macOS and its buttons at the right elsewhere. It
         lies over the page rather than above it, so a page taller than the
         window (zoomed in, say) scrolls up under it as a Mac window's
         content does, and keeps its full height. */}
       <div
-        className={cn(
-          "absolute inset-x-0 top-0 z-10 flex items-center justify-end gap-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]",
-          isMacOS() && "pr-2",
-        )}
-        style={{ height: `${TOOLBAR_HEIGHT}px` }}
+        className="absolute inset-x-0 top-0 z-10 flex items-center justify-end gap-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]"
+        style={{
+          height: `${TOOLBAR_HEIGHT}px`,
+          // Clear of the system's caption buttons, off the Mac.
+          paddingRight:
+            "calc(100vw / var(--app-zoom) - (env(titlebar-area-x, 0px) + env(titlebar-area-width, 100vw)) / var(--app-zoom) + 8px)",
+        }}
       >
         <SetupNetworkStatusPill />
-        <WindowControls />
       </div>
       <SetupPageSwitch depth={SETUP_STEPS.indexOf(step)} page={step}>
         <Page

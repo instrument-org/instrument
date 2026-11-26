@@ -8,23 +8,16 @@ import { StudioModals } from "@/client/components/studio-modals/studio-modals";
 import { BELL_TOASTER, Toaster } from "@/client/components/ui/sonner";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
-import { TOOLBAR_HEIGHT, WINDOW_CARD_GAP } from "@/shared/constants";
+import { stripBand, TOOLBAR_HEIGHT, windowCardTop } from "@/shared/constants";
 import { type CSSProperties, type ReactNode, type Ref } from "react";
 
-import {
-  useDrawsWindowControls,
-  WindowControls,
-} from "@/client/components/window-controls";
-import { cn } from "@/client/lib/utils";
+import { cn, isMacOS } from "@/client/lib/utils";
 import { FeedbackBar } from "./feedback-bar";
 import { LinkSurface } from "./link-surface";
 
 // The toasts' corner, 12px in from the window's own lower left, over the
 // sidebar when it is open.
 const WINDOW_CORNER = { bottom: 12, left: 12 };
-// Just under the bell, 4px inside the card's top right corner on both
-// sides: the card stands 8px in from the window's right edge (`mr-2`).
-const BELL_CORNER = { right: 8 + 4, top: TOOLBAR_HEIGHT + 4 };
 // The bell's popover's width (`w-95`), so a toast is the row it becomes.
 const BELL_WIDTH = 380;
 
@@ -63,8 +56,10 @@ export function WindowFrame({
   // waits rather than landing over setup.
   const isSetupUp = useIsSetupUp();
   const isStripShown = useDeveloperStripShown();
-  const drawsControls = useDrawsWindowControls();
-  const drawsCaptionButtons = !hasBar && drawsControls;
+  // Just under the bell, 4px inside the card's top right corner on both
+  // sides: the card stands 8px in from the window's right edge (`mr-2`).
+  const bellCorner = { right: 8 + 4, top: stripBand(isMacOS()) + 4 };
+  const cardTop = windowCardTop(isMacOS());
   // Toasts are placed from the viewport's foot, which the developer band sits on.
   const toastCorner = {
     ...WINDOW_CORNER,
@@ -80,16 +75,8 @@ export function WindowFrame({
         at, so a viewport height would apply that zoom a second time. */}
       {/* Marked once the window is up, which is when it has its bar: the
         packaged-app smoke test waits for this rather than a loading frame. */}
-      {/* What sits at the card's top right moves left of the caption
-        buttons by `--caption-room` (`CaptionRoom`): three 48px buttons from
-        the window's edge, less the card's 8px inset, and a little room. */}
       <div
-        className={cn(
-          "relative flex h-full flex-col bg-ground",
-          drawsCaptionButtons
-            ? "[--caption-room:140px]"
-            : "[--caption-room:0px]",
-        )}
+        className="relative flex h-full flex-col bg-ground"
         data-testid={bar || !hasBar ? "app-page" : undefined}
         inert={isSetupUp}
       >
@@ -107,7 +94,7 @@ export function WindowFrame({
           <div
             aria-hidden
             className="absolute inset-x-0 top-0 [-webkit-app-region:drag]"
-            style={{ height: WINDOW_CARD_GAP }}
+            style={{ height: cardTop }}
           />
         )}
         <div className="flex min-h-0 flex-1">
@@ -126,8 +113,9 @@ export function WindowFrame({
                 WINDOW_CARD,
                 "has-[[data-own-cards]]:overflow-visible has-[[data-own-cards]]:bg-transparent has-[[data-own-cards]]:shadow-none",
                 // Clear of the rail too, which comes and goes beside it.
-                !hasBar && "mt-2 ml-2",
+                !hasBar && "ml-2",
               )}
+              style={hasBar ? undefined : { marginTop: cardTop }}
               ref={rowRef}
             >
               <div className="flex min-h-0 min-w-0 flex-1">
@@ -137,13 +125,6 @@ export function WindowFrame({
             </div>
           </div>
         </div>
-        {/* Off the Mac the window draws its own caption buttons, at its top
-          right over the card's corner, where the system would. */}
-        {drawsCaptionButtons && (
-          <div className="absolute top-0 right-0 z-30 flex h-10 items-center">
-            <WindowControls />
-          </div>
-        )}
         {corner}
         {!isSetupUp && (
           <>
@@ -162,8 +143,8 @@ export function WindowFrame({
               toaster only gives it the popover's surface and width. */}
             <Toaster
               id={BELL_TOASTER}
-              mobileOffset={BELL_CORNER}
-              offset={BELL_CORNER}
+              mobileOffset={bellCorner}
+              offset={bellCorner}
               position="top-right"
               // React's style type has no custom properties; Sonner sizes
               // its stack and every toast in it from this one.

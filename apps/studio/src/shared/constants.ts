@@ -25,4 +25,17 @@ export const CAPTURE_EXCEPTION_CHANNEL = "capture-exception";
 export const TOOLBAR_HEIGHT = 40;
 /** The ground an app window leaves above its card, in layout px: the tab strips stand under it, and the window's top row with them. */
 export const WINDOW_CARD_GAP = 8;
+
+/** The ground above the card off the Mac, in layout px, which the system's caption buttons stand on. */
+export const CAPTION_HEIGHT = 32;
+
+/** The ground above the card, in layout px. */
+export function windowCardTop(isMac: boolean) {
+  return isMac ? WINDOW_CARD_GAP : CAPTION_HEIGHT;
+}
+
+/** How tall the band from the window's top that its tab strips draw in stands, in layout px. */
+export function stripBand(isMac: boolean) {
+  return TOOLBAR_HEIGHT + windowCardTop(isMac) - WINDOW_CARD_GAP;
+}
 export const SIDEBAR_WIDTH = 250;

@@ -50,6 +50,8 @@ Booting the packaged app is CI's job, not yours. Boot locally only when the rele
 
 ## Write the notes
 
+Once a release is approved, write the notes and tag without stopping to show them; they go in the report afterward.
+
 The notes go in before the tag, not after the build: the tag's message is the release notes. The workflow posts their summary line and the lead sentence of each section's first bullets to Slack, links the rest, and publishes them as the release body. Slack cannot be edited afterwards, so what the tag carries is what the channel reads.
 
 1. Read `.agents/skills/release-notes/SKILL.md` for the range and the voice. It is user-invocable only, so read the file rather than invoking the skill.
@@ -93,7 +95,7 @@ Five platform legs, about fifteen minutes. Each leg smoke tests the app it just 
 
 ## Publish
 
-A beta or alpha tag publishes immediately as a prerelease. **A stable tag lands as a draft** and stays invisible until someone publishes it.
+A beta or alpha tag publishes immediately as a prerelease. **A stable tag lands as a draft**: the release page and the app's changelog stay hidden until someone publishes it, but the update feed on releases.tryinstrument.com serves the new version as soon as the workflow passes, so the build is shipped then.
 
 The release body is the tag's notes followed by the **Full Changelog** and **Skills Changelog** compare links. Open it and check it rendered. A correction goes in with `gh release edit v<version> --notes-file <path>`, which reaches the release page and the app's changelog, but not the Slack post already made.
 

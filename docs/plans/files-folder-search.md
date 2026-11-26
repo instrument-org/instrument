@@ -1,6 +1,6 @@
 # Plan: Files searches everything under the folder you're in
 
-Status: open. Wireframes drawn; the spike is next.
+Status: open. Wireframes drawn; the spike (step 1) is built and has not been run in the app.
 
 ## What we want
 

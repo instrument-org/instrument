@@ -70,6 +70,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { useFileDragArea } from "@/client/hooks/use-file-drag";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { useFindTarget } from "@/client/hooks/use-find-target";
+import { foldName, foldWords, matchRank, NO_MATCH } from "@/shared/name-match";
 import {
   folderGlyphUrl,
   isKeyFolderGlyphUrl,
@@ -214,7 +215,13 @@ export type FileSystemFileItem = {
 };
 export type FileSystemItem = FileSystemFileItem | FileSystemFolderItem;
 /** The table's columns beside Name, each optional. */
-export type FileSystemListColumn = "createdAt" | "kind" | "size" | "updatedAt";
+export type FileSystemListColumn =
+  | "createdAt"
+  // Shown only while a search lists its matches, which come from all over.
+  | "folder"
+  | "kind"
+  | "size"
+  | "updatedAt";
 export type FileSystemProps = {
   className?: string;
   /** Whether the screen showing the browser is worked from it, so the keyboard lands on it as the screen comes up (`keyboard-home.ts`). */
@@ -476,6 +483,24 @@ export type FileSystemProps = {
   path?: string;
   /** What the toolbar search says, when the caller holds it, changed through `onSearchChange`. */
   search?: string;
+  /**
+   * Searching beyond the folder, offered beside Clear search where a search
+   * finds nothing: the keys that do it, and what pressing it does.
+   */
+  searchEverywhere?: { keys: React.ReactNode; onPress: () => void };
+  /**
+   * Everything under the folder the browser lists from, which a search by
+   * name matches against, as items with paths the way `items` has them:
+   * `truncated` when that is not all of it, and `notSearched` the names of
+   * the folders left unread. Left out, a search matches what is listed.
+   */
+  searchResults?: {
+    items: readonly FileSystemItem[];
+    notSearched: readonly string[];
+    truncated: boolean;
+  };
+  /** Whether `searchResults` is still being read, which an empty search shows as loading. */
+  searchResultsPending?: boolean;
   /**
    * The selected item's path, when the caller holds it. Left out, the browser
    * keeps its own; given, the caller can put the selection on something it
@@ -1218,6 +1243,24 @@ function buildFileSystemIndex(items: FileSystemItem[]): FileSystemIndex {
     if (newestValue) folder.updatedAt = newestValue;
   }
   return { children, files, folders };
+}
+/** One item as an entry, the way `buildFileSystemIndex` makes one, without the folders above it. */
+function entryOfItem(item: FileSystemItem): FileSystemEntry {
+  if (item.kind === "folder") {
+    const path = normalizeFolderPath(item.path);
+    return {
+      ...item,
+      name: item.name ?? pathName(path),
+      parentPath: normalizeFolderPath(item.parentPath ?? pathParent(path)),
+      path,
+    };
+  }
+  return {
+    ...item,
+    key: item.key ?? item.path,
+    name: item.name ?? pathName(item.path),
+    parentPath: normalizeFolderPath(item.parentPath ?? pathParent(item.path)),
+  };
 }
 function folderHasChildren(index: FileSystemIndex, folder: FolderEntry) {
   return (
@@ -2021,6 +2064,9 @@ export function FileSystem({
   renderHeaderLead,
   renderUnreadable,
   search: searchProp,
+  searchEverywhere,
+  searchResults,
+  searchResultsPending = false,
   selectedPath: selectedPathProp,
   showHiddenFiles: showHiddenFilesProp,
   sort: sortProp,
@@ -2147,7 +2193,7 @@ export function FileSystem({
           ),
     [allItems, columnsFrom, showHiddenFiles, standingIn],
   );
-  const index = React.useMemo(
+  const listedIndex = React.useMemo(
     () => buildFileSystemIndex(shownItems),
     [shownItems],
   );
@@ -2177,12 +2223,6 @@ export function FileSystem({
     [ownSelection, selectedPathProp],
   );
   const selectedPath = selectionState.lead;
-  const selectedEntry = React.useMemo(() => {
-    if (selectedPath === null) return null;
-    return (
-      index.files.get(selectedPath) ?? index.folders.get(selectedPath) ?? null
-    );
-  }, [index, selectedPath]);
   const [ownSearch, setOwnSearch] = React.useState(defaultSearch);
   const searchInput = searchProp ?? ownSearch;
   // What the field last said itself, so a search emptied from outside (back
@@ -2217,6 +2257,63 @@ export function FileSystem({
   }
   const searchQuery = normalizeSearchQuery(searchInput);
   const isSearching = searchQuery.length > 0 || searchKinds.length > 0;
+  // A search by name lists every match under the folder as one flat list,
+  // matched by name word by word as the command menu matches: from
+  // everything under the folder where the caller read it, otherwise from
+  // what is listed. Each name is folded once per list, not per keystroke.
+  const isNameSearch = searchQuery !== "";
+  const searchEntries = React.useMemo(() => {
+    if (!isNameSearch) return null;
+    const entries = searchResults
+      ? searchResults.items.map(
+          (item) =>
+            listedIndex.files.get(item.path) ??
+            listedIndex.folders.get(item.path) ??
+            entryOfItem(item),
+        )
+      : [...listedIndex.files.values(), ...listedIndex.folders.values()].filter(
+          (entry) =>
+            entry.path !== currentPath && entry.path.startsWith(currentPath),
+        );
+    return entries.toSorted(compareEntryNames).map((entry) => ({
+      entry,
+      name: foldName(entry.name),
+      // A file's own title matches too, where the List has read one.
+      titleName:
+        entry.kind === "file" && entry.title ? foldName(entry.title) : null,
+    }));
+  }, [currentPath, isNameSearch, listedIndex, searchResults]);
+  const searchMatches = React.useMemo(() => {
+    if (!searchEntries) return null;
+    const words = foldWords(searchInput);
+    return searchEntries.flatMap(({ entry, name, titleName }) =>
+      (matchRank(name, words) !== NO_MATCH ||
+        (titleName !== null && matchRank(titleName, words) !== NO_MATCH)) &&
+      (searchKinds.length === 0 || searchKinds.includes(kindOf(entry)))
+        ? [entry]
+        : [],
+    );
+  }, [searchEntries, searchInput, searchKinds]);
+  // What is listed, and what a search read from beyond it, by path.
+  const index = React.useMemo(() => {
+    if (!searchResults || !searchEntries) return listedIndex;
+    const files = new Map(listedIndex.files);
+    const folders = new Map(listedIndex.folders);
+    for (const { entry } of searchEntries) {
+      if (entry.kind === "folder") {
+        folders.set(entry.path, entry);
+      } else {
+        files.set(entry.path, entry);
+      }
+    }
+    return { ...listedIndex, files, folders };
+  }, [listedIndex, searchEntries, searchResults]);
+  const selectedEntry = React.useMemo(() => {
+    if (selectedPath === null) return null;
+    return (
+      index.files.get(selectedPath) ?? index.folders.get(selectedPath) ?? null
+    );
+  }, [index, selectedPath]);
   const clearSearch = React.useCallback(() => {
     changeSearch("");
     setSearchKinds([]);
@@ -2255,10 +2352,13 @@ export function FileSystem({
     setInternalListColumnWidths(next);
     onListColumnWidthsChange?.(next);
   };
-  // Paths that stay visible while searching: every entry whose
-  // currentPath-relative path contains the query (the table tree's
-  // hide-non-matches semantics), plus the ancestor folders leading to it.
+  // Paths that stay visible while searching: the matches of a search by
+  // name, or else every entry of the kinds asked for, plus the ancestor
+  // folders leading to it.
   const visiblePaths = React.useMemo(() => {
+    if (searchMatches) {
+      return new Set(searchMatches.map((entry) => entry.path));
+    }
     if (!isSearching) return null;
     const visible = new Set<string>();
     const markVisible = (path: string) => {
@@ -2267,25 +2367,19 @@ export function FileSystem({
         path = pathParent(path);
       }
     };
-    // A file's own title matches too, where the List has read one.
-    const matchesWords = (path: string) =>
-      path.slice(currentPath.length).toLowerCase().includes(searchQuery) ||
-      index.files.get(path)?.title?.toLowerCase().includes(searchQuery) ===
-        true;
     const matchesKind = (path: string) => {
       const entry = index.files.get(path) ?? index.folders.get(path);
       return entry !== undefined && searchKinds.includes(kindOf(entry));
     };
     const matchesQuery = (path: string) =>
-      (searchQuery === "" || matchesWords(path)) &&
-      (searchKinds.length === 0 || matchesKind(path));
+      searchKinds.length === 0 || matchesKind(path);
     for (const path of [...index.files.keys(), ...index.folders.keys()]) {
       if (path === currentPath) continue;
       if (currentPath && !path.startsWith(currentPath)) continue;
       if (matchesQuery(path)) markVisible(path);
     }
     return visible;
-  }, [currentPath, index, isSearching, searchKinds, searchQuery]);
+  }, [currentPath, index, isSearching, searchKinds, searchMatches]);
   // The kinds search offers: those the folder on screen has, folders first,
   // then the most common.
   const offeredKinds = (() => {
@@ -2312,6 +2406,9 @@ export function FileSystem({
       .map(([kind, { sample }]) => ({ kind, sample }));
   })();
   const visibleIndex = React.useMemo(() => {
+    if (searchMatches) {
+      return { ...index, children: new Map([[currentPath, searchMatches]]) };
+    }
     if (!visiblePaths) return index;
     const children = new Map<string, FileSystemEntry[]>();
     for (const [parentPath, parentChildren] of index.children) {
@@ -2321,7 +2418,7 @@ export function FileSystem({
       if (visibleChildren.length > 0) children.set(parentPath, visibleChildren);
     }
     return { ...index, children };
-  }, [index, visiblePaths]);
+  }, [currentPath, index, searchMatches, visiblePaths]);
   // Children re-sorted per the active sort, within their groups where the
   // rows are grouped, the groups in their own fixed order whatever the
   // sort's direction; the default (name ascending, ungrouped) reuses the
@@ -3410,7 +3507,15 @@ export function FileSystem({
   const currentEntries = sortedIndex.children.get(currentPath) ?? [];
   const currentFolderName =
     currentPath === "" ? title : pathName(currentPath) || title;
-  const isLoadingCurrentFolder = loadingFolders.has(currentPath);
+  // Blank while the folder is read, or while a search waits on what is
+  // under it with nothing to show yet.
+  const isLoadingCurrentFolder =
+    (loadingFolders.has(currentPath) ||
+      (isNameSearch && searchResultsPending)) &&
+    currentEntries.length === 0;
+  // A search's matches come from all over, which the columns cannot lay out:
+  // they are listed in the table meanwhile, as the Finder lists them.
+  const shownView = isNameSearch && view === "columns" ? "table" : view;
   const currentUnreadable = renderUnreadable?.(currentPath, "pane") ?? null;
   // The table keeps its open folders here, per folder on screen, so
   // returning to the table — or to a previously visited folder — finds
@@ -3677,7 +3782,7 @@ export function FileSystem({
   // folder when it has nothing to show.
   const isViewShown =
     currentUnreadable === null &&
-    !(isLoadingCurrentFolder && currentEntries.length === 0) &&
+    !isLoadingCurrentFolder &&
     !(currentEntries.length === 0 && emptyState && !isSearching) &&
     !(currentEntries.length === 0 && (view !== "columns" || isSearching));
   return (
@@ -3824,7 +3929,7 @@ export function FileSystem({
       <div className="relative min-h-0 flex-1">
         {currentUnreadable !== null ? (
           currentUnreadable
-        ) : isLoadingCurrentFolder && currentEntries.length === 0 ? (
+        ) : isLoadingCurrentFolder ? (
           // Blank while the folder is read, and a ring only once that is slow.
           <div
             className="flex size-full items-center justify-center"
@@ -3844,15 +3949,29 @@ export function FileSystem({
         ) : currentEntries.length === 0 &&
           (view !== "columns" || isSearching) ? (
           <FileSystemEmptyState
-            action={
+            actions={
               isSearching
-                ? {
-                    label: "Clear search",
-                    onPress: () => {
-                      clearSearch();
-                      setIsSearchExpanded(false);
+                ? [
+                    {
+                      label: "Clear search",
+                      onPress: () => {
+                        clearSearch();
+                        setIsSearchExpanded(false);
+                      },
                     },
-                  }
+                    ...(isNameSearch && searchEverywhere
+                      ? [
+                          {
+                            label: (
+                              <>
+                                Search everywhere {searchEverywhere.keys}
+                              </>
+                            ),
+                            onPress: searchEverywhere.onPress,
+                          },
+                        ]
+                      : []),
+                  ]
                 : undefined
             }
             label={
@@ -3863,35 +3982,40 @@ export function FileSystem({
                   : "Nothing here is that kind."
             }
           />
-        ) : view === "icons" ? (
+        ) : shownView === "icons" ? (
           <FileSystemIconsView {...viewProps} />
-        ) : view === "table" ? (
+        ) : shownView === "table" ? (
           // Keyed by folder: the folders left open are the folder's own.
           <FileSystemTableView key={currentPath} {...viewProps} />
-        ) : view === "list" ? (
+        ) : shownView === "list" ? (
           // Keyed by folder: a folder walked into starts at its top.
           <FileSystemListView key={currentPath} {...viewProps} />
-        ) : view === "columns" ? (
+        ) : shownView === "columns" ? (
           <FileSystemColumnsView {...viewProps} />
         ) : (
           <FileSystemGalleryView {...viewProps} />
         )}
       </div>
       {currentUnreadable === null &&
-      !(isLoadingCurrentFolder && currentEntries.length === 0) ? (
+      !isLoadingCurrentFolder ? (
         <FileSystemStatusBar
           count={
-            view === "table" && isViewShown && listedCount !== null
+            shownView === "table" && isViewShown && listedCount !== null
               ? listedCount
               : (
                   sortedIndex.children.get(
-                    view === "columns" && selectedPath !== null
+                    shownView === "columns" && selectedPath !== null
                       ? pathParent(selectedPath)
                       : currentPath,
                   ) ?? []
                 ).length
           }
           partialFolder={partialFolder}
+          searchNote={
+            isNameSearch && searchResults
+              ? searchResultsNote(searchResults)
+              : undefined
+          }
           selected={selectedPaths.length}
         />
       ) : null}
@@ -4617,10 +4741,13 @@ function useSlowLoads(loading: ReadonlySet<string>, ms = LOADER_DELAY_MS) {
 function FileSystemStatusBar({
   count,
   partialFolder,
+  searchNote,
   selected,
 }: {
   count: number;
   partialFolder: FileSystemProps["partialFolder"];
+  /** What a search did not cover, said after the count. */
+  searchNote?: string;
   selected: number;
 }) {
   const counted = count.toLocaleString();
@@ -4636,6 +4763,7 @@ function FileSystemStatusBar({
             ? `${counted} most recent of ${partialFolder.total.toLocaleString()} items`
             : `${counted} ${count === 1 ? "item" : "items"}`}
       </span>
+      {searchNote ? <span className="truncate">{searchNote}</span> : null}
       {partialFolder ? (
         <button
           className="shrink-0 text-foreground hover:underline"
@@ -4649,22 +4777,49 @@ function FileSystemStatusBar({
   );
 }
 function FileSystemEmptyState({
-  action,
+  actions,
   label,
 }: {
-  action?: { label: string; onPress: () => void };
+  actions?: { label: React.ReactNode; onPress: () => void }[];
   label: string;
 }) {
   return (
     <div className="flex size-full flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground">
       <p className="max-w-80 break-words">{label}</p>
-      {action ? (
-        <Button onClick={action.onPress} size="sm" variant="outline">
-          {action.label}
-        </Button>
+      {actions ? (
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {actions.map((action, index) => (
+            <Button
+              key={index}
+              onClick={action.onPress}
+              size="sm"
+              variant="outline"
+            >
+              {action.label}
+            </Button>
+          ))}
+        </div>
       ) : null}
     </div>
   );
+}
+/**
+ * What a search's walk left out, for the status bar: that it stopped at the
+ * cap, and the folders it did not go into.
+ */
+function searchResultsNote({
+  items,
+  notSearched,
+  truncated,
+}: NonNullable<FileSystemProps["searchResults"]>) {
+  return [
+    truncated ? `Showing the first ${items.length.toLocaleString()} items` : "",
+    notSearched.length > 0
+      ? `${new Intl.ListFormat(displayLocale, { type: "conjunction" }).format(notSearched)} not searched`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 // Returns `value` once it has stopped changing for `delay` ms. Gallery
 // navigation scrubs past files quickly; heavy previews (document viewers,
@@ -5260,6 +5415,16 @@ const LIST_COLUMNS: Array<{
     width: 136,
   },
 ];
+// The folder each match of a search is in, from the folder searched. Not
+// offered in the header's menu, since it says nothing outside a search.
+const FOLDER_COLUMN: (typeof LIST_COLUMNS)[number] = {
+  align: "start",
+  key: "folder",
+  label: "Folder",
+  shortLabel: "Folder",
+  shortWidth: 96,
+  width: 176,
+};
 const DEFAULT_LIST_COLUMNS: FileSystemListColumn[] = [
   "updatedAt",
   "size",
@@ -5325,13 +5490,23 @@ function formatShortListDate(
 function listCellText(
   entry: FileSystemEntry,
   column: FileSystemListColumn,
-  { isDayNamed = false, short = false } = {},
+  {
+    currentPath = "",
+    isDayNamed = false,
+    short = false,
+  }: { currentPath?: string; isDayNamed?: boolean; short?: boolean } = {},
 ) {
   const formatDate = (value: string | undefined) =>
     short ? formatShortListDate(value, { isDayNamed }) : formatListDate(value);
   switch (column) {
     case "createdAt": {
       return formatDate(entry.createdAt);
+    }
+    case "folder": {
+      // The folder searched itself is no folder below it.
+      return (
+        entry.parentPath.slice(currentPath.length).replace(/\/$/, "") || "--"
+      );
     }
     case "kind": {
       return entryKindLabel(entry);
@@ -5357,6 +5532,7 @@ function listCellTitle(entry: FileSystemEntry, column: FileSystemListColumn) {
     case "updatedAt": {
       return formatListDate(entry.updatedAt);
     }
+    case "folder":
     case "kind":
     case "size": {
       return undefined;
@@ -5453,14 +5629,22 @@ function FileSystemListHeader({
                 key={column.key}
                 style={{ width: column.width }}
               >
-                <FileSystemListColumnHeader
-                  align={column.align}
-                  className="w-full px-2"
-                  label={column.compact ? column.shortLabel : column.label}
-                  onClick={onSortColumnClick}
-                  sort={sort}
-                  sortKey={column.key}
-                />
+                {column.key === "folder" ? (
+                  <span className="flex h-full w-full items-center px-2">
+                    <span className="truncate">
+                      {column.compact ? column.shortLabel : column.label}
+                    </span>
+                  </span>
+                ) : (
+                  <FileSystemListColumnHeader
+                    align={column.align}
+                    className="w-full px-2"
+                    label={column.compact ? column.shortLabel : column.label}
+                    onClick={onSortColumnClick}
+                    sort={sort}
+                    sortKey={column.key}
+                  />
+                )}
                 {/* The divider at the column's left edge. The columns are
                     laid out from the right, Name taking what is left, so
                     the divider trades width between the two columns it
@@ -5592,9 +5776,9 @@ function FileSystemTableView({
     setExpanded(next);
     treeExpansion.set(currentPath, [...next]);
   };
-  // A search shows every match wherever it is, so every folder with one in
-  // it stands open while it is on.
-  const isRevealing = searchQuery !== "";
+  // A search lists its matches flat, from wherever they are, so no folder
+  // opens in place while it is on.
+  const isFlat = searchQuery !== "";
   // The rows on screen, in order. A folder opened whose contents are still
   // being read shows nothing under it at first, as the Finder's does, so a
   // quick read (or an empty folder) moves no row; only a read slow enough to
@@ -5633,10 +5817,7 @@ function FileSystemTableView({
           lastGroup = group;
         }
         visibleRows.push({ depth, entry, ...(group ? { group } : {}) });
-        if (
-          entry.kind === "folder" &&
-          (isRevealing || expanded.has(entry.path))
-        ) {
+        if (entry.kind === "folder" && !isFlat && expanded.has(entry.path)) {
           // A folder that cannot be listed says so in a line of its own,
           // where its contents would be.
           const note = index.children.get(entry.path)?.length
@@ -5671,8 +5852,8 @@ function FileSystemTableView({
     expanded,
     grouping,
     index,
+    isFlat,
     isGrouped,
-    isRevealing,
     renderUnreadable,
     slowFolders,
   ]);
@@ -5702,6 +5883,7 @@ function FileSystemTableView({
     .filter(
       (entry) =>
         entry.kind === "folder" &&
+        !isFlat &&
         expanded.has(entry.path) &&
         !index.children.get(entry.path)?.length,
     )
@@ -5776,9 +5958,12 @@ function FileSystemTableView({
       : null;
   const layoutWidth = heldWidth ?? width;
   const columns = (() => {
-    const shown = LIST_COLUMNS.filter((column) =>
-      enabledListColumns.includes(column.key),
-    ).map((column) => ({
+    const shown = [
+      ...(isFlat ? [FOLDER_COLUMN] : []),
+      ...LIST_COLUMNS.filter((column) =>
+        enabledListColumns.includes(column.key),
+      ),
+    ].map((column) => ({
       ...column,
       width: listColumnWidths[column.key] ?? column.width,
     }));
@@ -5874,10 +6059,10 @@ function FileSystemTableView({
       }
       const { depth, entry } = selectedRow;
       if (direction === "right") {
-        if (entry.kind === "folder") toggleFolder(entry, true);
+        if (entry.kind === "folder" && !isFlat) toggleFolder(entry, true);
         return true;
       }
-      if (entry.kind === "folder" && expanded.has(entry.path) && !isRevealing) {
+      if (entry.kind === "folder" && expanded.has(entry.path) && !isFlat) {
         toggleFolder(entry, false);
         return true;
       }
@@ -6007,7 +6192,8 @@ function FileSystemTableView({
                   const isSelected = selection.has(entry.path);
                   const isExpanded =
                     entry.kind === "folder" &&
-                    (isRevealing || expanded.has(entry.path));
+                    !isFlat &&
+                    expanded.has(entry.path);
                   const isRenaming = entry.path === renamingPath;
                   return (
                     <div
@@ -6094,7 +6280,7 @@ function FileSystemTableView({
                           // nothing else: the press never reaches the row, so
                           // the selection stays where it was.
                           onClick={(event) => {
-                            if (entry.kind !== "folder") return;
+                            if (entry.kind !== "folder" || isFlat) return;
                             event.stopPropagation();
                             toggleFolder(entry, !isExpanded);
                           }}
@@ -6108,7 +6294,7 @@ function FileSystemTableView({
                             event.preventDefault();
                           }}
                         >
-                          {entry.kind === "folder" ? (
+                          {entry.kind === "folder" && !isFlat ? (
                             <ChevronRight
                               className={cn(
                                 "size-3.5 transition-transform duration-100 motion-reduce:transition-none",
@@ -6162,6 +6348,7 @@ function FileSystemTableView({
                           style={{ width: column.width }}
                         >
                           {listCellText(entry, column.key, {
+                            currentPath,
                             // Its group's heading names the day by the
                             // date this column shows.
                             isDayNamed:

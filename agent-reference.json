@@ -2,7 +2,7 @@
   "$schema": "https://agent-reference.dev/schema/agent-reference.schema.json",
   "references": {
     "electron": {
-      "source": "npm:electron@44.7.0",
+      "source": "npm:electron@45.2.3",
       "directory": ".",
       "description": "The Electron apps/studio builds against. docs/api/ covers the APIs this build ships, lib/ the browser and renderer JS behind them, spec/ the maintainers' tests. directory is \".\" and it reports unverified because the repository root manifest is @electron-ci/dev-root and default_app/ claims the package name without a version; both are deliberate."
     },
@@ -12,19 +12,19 @@
       "description": "Lodash-style helpers this repo standardizes on; read src/ and its co-located tests, which the published dist/ omits. ref is pinned because radashi keeps package.json at 12.2.0 on every branch and tag and publishes from CI, so version matching always falls back to the default branch. Move version and ref together."
     },
     "pnpm": {
-      "source": "npm:pnpm@11.10.0",
-      "ref": "v11.10.0",
+      "source": "npm:pnpm@11.28.0",
+      "ref": "v11.28.0",
       "directory": "pnpm11/pnpm",
       "description": "The package manager this repo runs on: workspaces, catalogs, patches. Monorepo, so directory points at the published CLI; ref is pinned because the root package.json lags the release tag."
     },
     "electron-builder": {
-      "source": "npm:electron-builder@26.15.7",
-      "ref": "electron-builder@26.15.7",
+      "source": "npm:electron-builder@26.18.1",
+      "ref": "electron-builder@26.18.1",
       "directory": "packages/electron-builder",
       "description": "How Studio is packaged and its updates published. Monorepo, so directory points at the package; the root manifest is private and carries no version."
     },
     "@tanstack/react-router": {
-      "source": "npm:@tanstack/react-router@1.170.16",
+      "source": "npm:@tanstack/react-router@1.170.45",
       "directory": ".",
       "description": "The router apps/studio navigates with. Monorepo, and directory is \".\" rather than the package, because the half that answers most questions is packages/router-core, published on its own version line: buildLocation, navigate, and the search-middleware chain are all there, while packages/react-router holds the hooks, Link, and Transitioner. The tag carries the router-core this repo installs. Reports unverified for the same reason electron does, the root manifest carrying no version of its own."
     },
@@ -37,7 +37,7 @@
       "description": "Browser-automation CLI for agents, a native Rust binary. Upstream of the agent's browser tool."
     },
     "electron-apps": {
-      "description": "Open-source Electron apps whose source shows how a desktop app shaped like Studio solves the same platform and product problems.",
+      "description": "Open-source Electron apps whose source shows how a desktop app shaped like Studio solves the same platform and product problems. opencode, filed under harnesses, is an Electron app too (packages/desktop) and belongs in any Electron comparison.",
       "references": {
         "vscode": {
           "source": "github:microsoft/vscode",
@@ -69,7 +69,7 @@
           "description": "Spreadsheet viewer. src/types.ts carries the props, src/controller.tsx the hook driving them, and src/xlsx-worker.ts with src/wasm.ts the worker that parses a workbook."
         },
         "@extend-ai/react-docx": {
-          "source": "npm:@extend-ai/react-docx@0.8.1",
+          "source": "npm:@extend-ai/react-docx@0.15.0",
           "description": "Word viewer and editor, the react-viewer package of a monorepo whose sibling packages hold the document model, the OOXML reader, and the layout engine. src/editor.tsx is the editing surface."
         },
         "@extend-ai/react-pptx": {
@@ -83,7 +83,7 @@
       "references": {
         "opencode": {
           "source": "github:anomalyco/opencode",
-          "description": "The open source terminal AI coding agent."
+          "description": "The open source AI coding agent: a terminal CLI and server, and also an Electron desktop app worth reading as an Electron reference. packages/desktop is the Electron shell (Solid renderer, electron-vite, Effect RPC over a per-window MessagePort in src/main/ipc-transport.ts, early window show in src/main/windows/), built on its own GUI plugin framework (packages/plugin/src/gui, built-ins in packages/gui-plugins) where each feature has a window entry, an optional main entry and typed IPC contracts. Its launch and interaction performance is A/B measured with a spawn-to-ready harness (root strobe.json, packages/*/perf/*.bench.ts)."
         },
         "codex": {
           "source": "github:openai/codex",

@@ -43,7 +43,7 @@ function openedAs(url: string): Opens | undefined {
     : { href: hrefOfTarget(target), kind: "screen" };
 }
 
-/** The tabs what is held opens as, each under the id it is drawn under while held: a link's address, and each file or folder in Files. */
+/** The tabs what is held opens as, each under the id it is drawn under while held: a link's address, each bookmark of a folder of the bar, and each file or folder in Files. */
 export function opensOf(held: Held): { id: string; opens: Opens }[] {
   switch (held.kind) {
     case "files": {
@@ -58,7 +58,12 @@ export function opensOf(held: Held): { id: string; opens: Opens }[] {
       const opens = openedAs(held.url);
       return opens ? [{ id: held.id, opens }] : [];
     }
-    case "folder":
+    case "folder": {
+      return held.links.flatMap(({ id, url }) => {
+        const opens = openedAs(url);
+        return opens ? [{ id, opens }] : [];
+      });
+    }
     case "group":
     case "rows":
     case "tab": {
@@ -88,7 +93,12 @@ export function heldTabsOf(
             kind: "page",
             openedAt: 0,
             openedUrl: opens.url,
-            title: held.kind === "link" ? held.title : "",
+            title:
+              held.kind === "link"
+                ? held.title
+                : held.kind === "folder"
+                  ? (held.links.find((link) => link.id === id)?.title ?? "")
+                  : "",
             url: opens.url,
           }
         : { href: opens.href, id, kind: "screen" },
@@ -107,7 +117,9 @@ export function heldKeysOf(held: Held): string[] {
     case "link": {
       return [held.id];
     }
-    case "folder":
+    case "folder": {
+      return held.links.map((link) => link.id);
+    }
     case "group":
     case "rows": {
       return [];

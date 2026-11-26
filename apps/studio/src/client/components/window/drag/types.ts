@@ -38,9 +38,11 @@ export type Held =
       kind: "group";
     }
   | {
-      /** A folder of the bookmarks bar, by id, which moves along the bar and lands nowhere else. */
+      /** A folder of the bookmarks bar, by id, which moves along the bar, and opens as its bookmarks' tabs where a bookmark opens as its tab. */
       folder: string;
       kind: "folder";
+      /** The bookmarks in it at the press, in order, each under the tab id it stands under while held and opens under. */
+      links: readonly { id: string; title: string; url: string }[];
       title: string;
     }
   | {
@@ -199,11 +201,16 @@ export function isBookmark(held: Held): boolean {
 }
 
 /**
- * A link that opens as a tab from a strip or a page's outer edge and nowhere
- * else on a page: a bookmark of the bar, or a shortcut from its start.
+ * What opens as tabs from a strip or a page's outer edge and nowhere else
+ * on a page: a bookmark of the bar, a shortcut from its start, or a folder
+ * of the bar, as its bookmarks.
  */
 export function opensAsBookmark(held: Held): boolean {
-  return isBookmark(held) || (held.kind === "link" && held.shortcut === true);
+  return (
+    isBookmark(held) ||
+    (held.kind === "link" && held.shortcut === true) ||
+    held.kind === "folder"
+  );
 }
 
 /** The place of Files' sidebar or Files menu a link is, if it is one. */

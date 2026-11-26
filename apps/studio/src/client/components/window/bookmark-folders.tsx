@@ -130,7 +130,7 @@ export function FolderChip({
               if (commandKeyHeld(event)) {
                 event.preventDefault();
               }
-              pressFolder(event, folder);
+              pressFolder(event, folder, items);
             }}
             onPointerEnter={onHover}
             title={folder.title}

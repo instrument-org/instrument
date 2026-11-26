@@ -45,6 +45,21 @@ const HELD: Record<string, Held> = {
     title: "Example",
     url: "https://example.com/",
   },
+  "folder (bar)": {
+    folder: "f1",
+    kind: "folder",
+    links: [
+      { id: "tab_f1a", title: "Docs", url: "https://example.com/docs" },
+      { id: "tab_f1b", title: "Roof quotes", url: "instrument://chat/c1" },
+    ],
+    title: "Reading",
+  },
+  "empty folder (bar)": {
+    folder: "f2",
+    kind: "folder",
+    links: [],
+    title: "Empty",
+  },
   "shortcut (bar's start or its menus)": {
     id: "tab_s1",
     kind: "link",
@@ -307,6 +322,50 @@ describe("outcomeOf", () => {
         over nothing, a Favorites row → nothing
         message box → nothing
         nowhere → nothing
+      folder (bar):
+        own strip → open
+        strip line → open · "Open 2 tabs here"
+        strip tab → nothing
+        left edge, one side → open · "Open on the left"
+        right edge, one side → open · "Open on the right"
+        middle, one side → nothing
+        right side of two → nothing
+        right edge, two sides → open · "Open on the right"
+        new tab's page → nothing
+        sidebar row → open · "Add to Reading"
+        sidebar room → open · "New tab group"
+        sidebar line → open · "New tab group"
+        bookmarks bar → keep · "Move here"
+        Favorites line → favorite · "Add to Favorites"
+        Favorites line, a row of it → favorite · "Move here"
+        Favorites row, own files → into · "Move into Downloads"
+        Favorites row, from Finder → into · "Copy into Downloads"
+        past the window → open · "Open in a new window"
+        over nothing, a Favorites row → nothing
+        message box → nothing
+        nowhere → nothing
+      empty folder (bar):
+        own strip → nothing
+        strip line → nothing
+        strip tab → nothing
+        left edge, one side → nothing
+        right edge, one side → nothing
+        middle, one side → nothing
+        right side of two → nothing
+        right edge, two sides → nothing
+        new tab's page → nothing
+        sidebar row → nothing
+        sidebar room → nothing
+        sidebar line → nothing
+        bookmarks bar → keep · "Move here"
+        Favorites line → nothing
+        Favorites line, a row of it → nothing
+        Favorites row, own files → nothing
+        Favorites row, from Finder → nothing
+        past the window → nothing
+        over nothing, a Favorites row → nothing
+        message box → nothing
+        nowhere → nothing
       shortcut (bar's start or its menus):
         own strip → open
         strip line → open · "Open in a new tab"
@@ -395,13 +454,32 @@ describe("what a held link or files open as", () => {
         tab.kind === "page" ? `page ${tab.url ?? ""}` : `screen ${tab.href}`,
       ),
     ).toEqual(
-      held.kind === "tab" || held.kind === "group"
+      held.kind === "tab" ||
+        held.kind === "group" ||
+        (held.kind === "folder" && held.links.length === 0)
         ? []
         : expect.arrayContaining([expect.any(String)]),
     );
     expect(opensOf(held).length).toBe(
-      held.kind === "tab" || held.kind === "group" ? 0 : 1,
+      held.kind === "tab" || held.kind === "group"
+        ? 0
+        : held.kind === "folder"
+          ? held.links.length
+          : 1,
     );
+  });
+
+  it("opens a folder of the bar as its bookmarks, each under its own tab id and name", () => {
+    expect(
+      heldTabsOf(HELD["folder (bar)"]!, []).map((tab) => ({
+        id: tab.id,
+        opens: tab.kind === "page" ? tab.url : tab.href,
+        title: tab.kind === "page" ? tab.title : undefined,
+      })),
+    ).toEqual([
+      { id: "tab_f1a", opens: "https://example.com/docs", title: "Docs" },
+      { id: "tab_f1b", opens: "/chats/c1", title: undefined },
+    ]);
   });
 
   it("opens a file by the same tab Files opens it as", () => {

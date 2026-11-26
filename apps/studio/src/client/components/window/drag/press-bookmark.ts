@@ -110,16 +110,23 @@ export function pressPlace(
 
 /**
  * A press on a folder of the bar, which past the start becomes the folder
- * held by the pointer: it moves along the bar and nowhere else. A press
+ * held by the pointer: it moves along the bar, and opens as the tabs of the
+ * bookmarks in it (`items`) wherever a bookmark opens as its tab. A press
  * that goes nowhere stays the press that opens its menu.
  */
 export function pressFolder(
   event: React.PointerEvent<HTMLElement>,
   folder: { id: string; title: string },
+  items: readonly { title: string; url: string }[],
 ) {
   pressToHold(event, () => ({
     folder: folder.id,
     kind: "folder",
+    links: items.map(({ title, url }) => ({
+      id: StoreId.newTabId(),
+      title,
+      url,
+    })),
     title: folder.title,
   }));
 }

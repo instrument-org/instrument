@@ -1,3 +1,4 @@
+import { opensOf } from "./held-tabs";
 import {
   isBookmark,
   type Held,
@@ -73,6 +74,12 @@ export function outcomeOf(
   if (!landing) {
     return nothing;
   }
+  // A folder opens as the tabs of the bookmarks in it that have an address,
+  // so one with none opens nothing.
+  const opens = held.kind === "folder" ? opensOf(held).length : 1;
+  if (opens === 0 && landing.kind !== "bookmarks") {
+    return nothing;
+  }
   switch (landing.kind) {
     case "bookmarks": {
       return {
@@ -94,13 +101,20 @@ export function outcomeOf(
           `Move ${String(tabCount)} ${tabCount === 1 ? "tab" : "tabs"} here`,
         );
       }
-      return goes(held.kind === "tab" ? "Move here" : "Open in a new tab");
+      return goes(
+        held.kind === "tab"
+          ? "Move here"
+          : opens > 1
+            ? `Open ${String(opens)} tabs here`
+            : "Open in a new tab",
+      );
     }
     case "replace":
     case "newTab": {
       // Only content opens in a tab's place; a tab never replaces another,
-      // and a new tab's page takes no bookmark or place, as no page does.
-      return isOwnTab || (landing.kind === "newTab" && isPiece)
+      // a new tab's page takes no bookmark or place, as no page does, and
+      // the tabs of a folder never take one tab's place.
+      return isOwnTab || opens > 1 || (landing.kind === "newTab" && isPiece)
         ? nothing
         : goes("Open in this tab");
     }

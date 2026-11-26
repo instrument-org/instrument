@@ -132,8 +132,9 @@ node -e '
   const target = process.argv[1];
   const git = (...args) => execFileSync("git", args, { encoding: "utf8", maxBuffer: 1 << 28 });
   const writers = new Set();
-  // A renamed file is blamed under the name the target has it by.
-  for (const entry of git("diff", "--name-status", "--diff-filter=MDR", `${target}...HEAD`).split("\n").filter(Boolean)) {
+  // A renamed file is blamed under the name the target has it by. A submodule
+  // pin has no lines to blame.
+  for (const entry of git("diff", "--name-status", "--diff-filter=MDR", "--ignore-submodules=all", `${target}...HEAD`).split("\n").filter(Boolean)) {
     const [, file, renamed = file] = entry.split("\t");
     const hunks = git("diff", "-U0", `${target}...HEAD`, "--", file, renamed).matchAll(/^@@ -(\d+)(?:,(\d+))? /gm);
     for (const [, start, count = "1"] of hunks) {

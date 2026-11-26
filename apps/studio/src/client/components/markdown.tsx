@@ -108,6 +108,7 @@ import { MermaidDiagram } from "./mermaid-diagram";
 import { MessageFence } from "./message-card";
 import { normalizeMathDelimiters } from "./reply-blocks/normalize-math-delimiters";
 import { normalizeReplyBlocks } from "./reply-blocks/normalize-reply-blocks";
+import { OptionsBlock } from "./reply-blocks/options-block";
 import { rehypeTableShape } from "./reply-blocks/rehype-table-shape";
 import { rehypeUnbrokenInline } from "./reply-blocks/rehype-unbroken-inline";
 import { remarkReplyAsides } from "./reply-blocks/remark-reply-asides";
@@ -407,15 +408,15 @@ const MarkdownPre: Components["pre"] = ({ children, node }) => {
     return <MessageFence code={fence.code} />;
   }
 
+  const isArriving =
+    arrivingSource !== undefined && isFenceOpen(arrivingSource, node);
+
   if (fence.language === AGENT_TIMELINE_LANGUAGE) {
-    return (
-      <TimelineBlock
-        content={fence.code}
-        isArriving={
-          arrivingSource !== undefined && isFenceOpen(arrivingSource, node)
-        }
-      />
-    );
+    return <TimelineBlock content={fence.code} isArriving={isArriving} />;
+  }
+
+  if (fence.language === "options") {
+    return <OptionsBlock code={fence.code} isArriving={isArriving} />;
   }
 
   if (fence.language && isMermaidLanguage(fence.language)) {
@@ -426,9 +427,7 @@ const MarkdownPre: Components["pre"] = ({ children, node }) => {
     <MarkdownCodeBlock
       code={fence.code}
       filename={fence.filename}
-      isArriving={
-        arrivingSource !== undefined && isFenceOpen(arrivingSource, node)
-      }
+      isArriving={isArriving}
       language={fence.language}
     />
   );
@@ -1265,6 +1264,18 @@ const chatFilePathFromImageSrc = (src: string | undefined) => {
   return isAddressableChatFilePath(filePath) ? filePath : undefined;
 };
 
+/** A cell's or a label's words, without the paragraph Markdown wraps them in. */
+const inlineParagraph: Components["p"] = ({ children }) => <>{children}</>;
+
+/**
+ * A cell's words read as words: a cell that starts like a list item, a heading
+ * or a quote (`1. Linden Ave 3B`) would otherwise parse as that block.
+ */
+const escapeBlockStart = (text: string) =>
+  text
+    .replace(/^(\s*)(\d+)([.)])(?=\s)/, "$1$2\\$3")
+    .replace(/^(\s*)([-*+#>])(?=\s|#)/, "$1\\$2");
+
 /**
  * One block of a message, or a whole document when it is not being split.
  *
@@ -1575,11 +1586,16 @@ export const Markdown = memo(
       [components, remarkPluginList, streamingRehypePlugins],
     );
 
-    // What a block's own parts are drawn with: the reply's parser. A block's
-    // text sits outside the reply's pre-pass, so a path with spaces in a link
-    // there is bracketed here.
-    const replyMarkdown = useMemo(
-      () => ({
+    // What a block's own parts are drawn with: the reply's parser, and for a
+    // cell or a label the same without the paragraph around its words. A
+    // block's text sits outside the reply's pre-pass, so a path with spaces in
+    // a link there is bracketed here.
+    const replyMarkdown = useMemo(() => {
+      const inline = {
+        ...parser,
+        components: { ...parser.components, p: inlineParagraph },
+      };
+      return {
         block: (text: string) => (
           <MarkdownBlock
             {...parser}
@@ -1587,9 +1603,15 @@ export const Markdown = memo(
             markdown={bracketPathLinkDestinations(text)}
           />
         ),
-      }),
-      [parser],
-    );
+        inline: (text: string) => (
+          <MarkdownBlock
+            {...inline}
+            isArriving={false}
+            markdown={bracketPathLinkDestinations(escapeBlockStart(text))}
+          />
+        ),
+      };
+    }, [parser]);
 
     return (
       <MarkdownChatContext value={{ assetVersion, isStreaming, chatId }}>

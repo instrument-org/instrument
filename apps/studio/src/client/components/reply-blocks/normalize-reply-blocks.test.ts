@@ -201,4 +201,20 @@ describe("normalizeReplyBlocks", () => {
       normalizeReplyBlocks(text),
     );
   });
+
+  it.each([
+    ':::options{pick="Pinecrest"}',
+    ":::compare pick=Pinecrest",
+    "<comparison pick=Pinecrest>",
+    '```Compare pick="Pinecrest"',
+  ])("reads the options block opened by %s", (opener) => {
+    const closer = opener.startsWith("<")
+      ? "</comparison>"
+      : opener.startsWith("`")
+        ? "```"
+        : ":::";
+    expect(
+      normalizeReplyBlocks(`${opener}\n| a | b |\n|---|---|\n${closer}`),
+    ).toBe("```options\npick: Pinecrest\n| a | b |\n|---|---|\n```");
+  });
 });

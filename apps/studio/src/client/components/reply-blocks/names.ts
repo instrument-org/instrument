@@ -13,12 +13,16 @@ const REPLY_BLOCK_NAMES = [
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
   AGENT_TIMELINE_LANGUAGE,
+  "options",
 ] as const;
 
 export type ReplyBlockName = (typeof REPLY_BLOCK_NAMES)[number];
 
 /** Other words a reply uses for a block. */
-const ALIASES: Partial<Record<string, ReplyBlockName>> = {};
+const ALIASES: Partial<Record<string, ReplyBlockName>> = {
+  compare: "options",
+  comparison: "options",
+};
 
 /** Every word that names a block: the names and their aliases. */
 export const REPLY_BLOCK_WORDS: readonly string[] = [
@@ -42,5 +46,6 @@ export const replyBlockNameOf = (
 export const HEADER_KEYS: Record<ReplyBlockName, readonly string[]> = {
   files: [],
   message: ["message", "kind", "sender", "to", "subject", "via"],
+  options: ["pick"],
   timeline: [],
 };

@@ -851,6 +851,47 @@ describe("Markdown asides", () => {
   });
 });
 
+describe("an options block", () => {
+  const QUOTES = [
+    "| Insurer | Premium |",
+    "|---|---|",
+    "| Harbor Mutual | $1,842 |",
+    "| 1. Pinecrest | $1,930 |",
+  ].join("\n");
+
+  it("marks the pick where it stands, from any wrapper", () => {
+    const { container } = renderMarkdown(
+      `:::compare pick=Pinecrest\n${QUOTES}\n:::`,
+    );
+
+    const rows = [...container.querySelectorAll("tbody tr")];
+    expect(rows.map((row) => row.hasAttribute("data-picked"))).toEqual([
+      false,
+      true,
+    ]);
+    expect(container.querySelector("table")?.getAttribute("data-stack")).toBe(
+      "options",
+    );
+  });
+
+  it("reads a cell that starts like a list item as words", () => {
+    const { container } = renderMarkdown(`\`\`\`options\n${QUOTES}\n\`\`\``);
+
+    expect(container.querySelector("tbody tr:last-child td")?.textContent).toBe(
+      "1. Pinecrest",
+    );
+    expect(container.querySelector("td ol")).toBeNull();
+  });
+
+  it("is the Markdown it holds when it has no table", () => {
+    const { container } = renderMarkdown(
+      "```options\n- Harbor\n- Pinecrest\n```",
+    );
+
+    expect(container.querySelectorAll("li")).toHaveLength(2);
+  });
+});
+
 describe("Markdown table shape", () => {
   it("marks a table with the width it fits and what it does under it", () => {
     const { container } = renderMarkdown(

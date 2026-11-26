@@ -174,6 +174,7 @@ export const MarkdownTable = ({
   expandable = true,
   isPictures = false,
   narrow,
+  stack,
 }: {
   children?: ReactNode;
   /** False inside Quick Look, which is already this table with room. */
@@ -186,6 +187,8 @@ export const MarkdownTable = ({
    * See `tableShape`.
    */
   narrow?: { fit: number; shape: "records" | "scroll" };
+  /** An options block's table, which turns into one record per option in a narrow column. */
+  stack?: "options";
 }) => {
   const frameRef = useRef<HTMLDivElement>(null);
   const rowCopyRef = useRef<HTMLSpanElement>(null);
@@ -454,6 +457,7 @@ export const MarkdownTable = ({
         <table
           data-narrow={narrow?.shape}
           data-pictures={isPictures || undefined}
+          data-stack={stack}
         >
           {children}
         </table>
@@ -561,7 +565,7 @@ export const MarkdownTable = ({
 
       {expandable && (
         <LookedAtContent id={lookId}>
-          <MarkdownTable expandable={false} narrow={narrow}>
+          <MarkdownTable expandable={false} narrow={narrow} stack={stack}>
             {children}
           </MarkdownTable>
         </LookedAtContent>

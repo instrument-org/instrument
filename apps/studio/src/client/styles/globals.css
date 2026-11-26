@@ -3033,3 +3033,161 @@ span[data-unbroken] > * {
 .dark .markdown-table-frame > table td[data-bar]::before {
   background-color: var(--gray-600);
 }
+
+/* The mark after a picked option's name. Inline rather than a box of its
+   own: a line may end before any box, and never between the name's last
+   letter and the mark's first, so the mark wraps with the name's last word
+   and never to a line alone. */
+.dark .reply-pick-tag {
+  background-color: color-mix(in oklab, var(--brand-400) 20%, transparent);
+}
+
+.reply-pick-tag {
+  display: inline;
+  margin-inline-start: 0.5em;
+  padding: 0 0.4em;
+  border-radius: 0.3em;
+  background-color: color-mix(in oklab, var(--brand-500) 12%, transparent);
+  color: var(--brand-text);
+  font-size: 0.75em;
+  font-weight: 500;
+  line-height: 1.6;
+  vertical-align: 0.1em;
+  white-space: nowrap;
+}
+
+/* An options table marks its pick with a faint tint across the row. The
+   outer cells take a little room inside their edges, on every row, so the
+   tint has some around the words and the columns stay in line. */
+.markdown-table-frame > table[data-stack="options"] {
+  --pick-tint: color-mix(in oklab, var(--brand-500) 7%, transparent);
+}
+
+.dark .markdown-table-frame > table[data-stack="options"] {
+  --pick-tint: color-mix(in oklab, var(--brand-400) 14%, transparent);
+}
+
+.markdown-table-frame > table[data-stack="options"] :is(th, td):first-child {
+  padding-inline-start: 0.625em;
+}
+
+.markdown-table-frame > table[data-stack="options"] :is(th, td):last-child {
+  padding-inline-end: 0.625em;
+}
+
+.markdown-table-frame > table[data-stack="options"] tr[data-picked] > td {
+  background-color: var(--pick-tint);
+}
+
+.markdown-table-frame
+  > table[data-stack="options"]
+  tr[data-picked]
+  > td:first-child {
+  border-start-start-radius: 0.5em;
+  border-end-start-radius: 0.5em;
+}
+
+.markdown-table-frame
+  > table[data-stack="options"]
+  tr[data-picked]
+  > td:last-child {
+  border-start-end-radius: 0.5em;
+  border-end-end-radius: 0.5em;
+}
+
+/* An options table in a narrow column as one record per option: the first
+   cell as its title, then each value beside its column's name, under 35rem.
+   One label column for the whole block, so every record's values start at
+   the same edge, and every label and value set from the start, a figure
+   column's alignment included. The pick's inset comes out of that column,
+   so the column takes the inset on top of its 45%. */
+@container (width < 35rem) {
+  .markdown-table-frame > table[data-stack="options"] {
+    display: block;
+    width: calc(100% - 2 * var(--table-bleed));
+    min-width: 0;
+    max-width: none;
+
+    & thead {
+      display: none;
+    }
+
+    & tbody {
+      display: grid;
+      grid-template-columns: fit-content(calc(45% + 0.875em)) minmax(0, 1fr);
+      column-gap: 1em;
+    }
+
+    & tr {
+      display: grid;
+      grid-column: 1 / -1;
+      grid-template-columns: subgrid;
+      row-gap: 0.25em;
+      padding-block: 0.875em;
+    }
+
+    & td {
+      display: grid;
+      grid-column: 1 / -1;
+      grid-template-columns: subgrid;
+      padding: 0 !important;
+      text-align: start;
+    }
+
+    & td::before {
+      content: attr(data-label);
+      color: var(--muted-foreground);
+    }
+
+    & td:first-child {
+      display: block;
+      margin-bottom: 0.25em;
+      font-weight: 500;
+    }
+
+    & td:first-child::before {
+      content: none;
+    }
+
+    & tr:first-child:not([data-picked]) {
+      padding-top: 0;
+    }
+
+    & tr:last-child:not([data-picked]) {
+      padding-bottom: 0;
+    }
+
+    & tr[data-picked] {
+      margin-block: 0.25em;
+      padding-inline: 0.875em;
+      border-bottom-color: transparent;
+      border-radius: 0.75em;
+      background-color: var(--pick-tint);
+    }
+
+    & tr:has(+ tr[data-picked]) {
+      border-bottom-color: transparent;
+    }
+
+    & tr[data-picked] > td {
+      background-color: transparent;
+    }
+  }
+}
+
+/* Pictures standing for options share one shape, so they line up as a row;
+   the name and what they share are under each, in place of the file line. */
+.reply-option-picture [data-slot="picture-card"] {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.reply-option-picture [data-slot="picture-card"] > :first-child {
+  aspect-ratio: 4 / 3 !important;
+}
+
+.reply-option-picture
+  [data-slot="picture-card"]
+  > :last-child:not(:first-child) {
+  display: none;
+}

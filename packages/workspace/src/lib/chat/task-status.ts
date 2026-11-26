@@ -15,6 +15,7 @@ import {
   unkept,
 } from "../workspace-index";
 import { latestStep, ownMessages, type SessionRef } from "./activity";
+import { latestStepIn } from "./step-label";
 import { needsNamedIn } from "../parse-needs-block";
 import { sessionOfChat } from "../record-folders";
 
@@ -79,7 +80,7 @@ type TaskStatusKind = z.output<typeof TaskStatusKindSchema>;
  * by the note that wakes the chat, so the two say the same thing.
  */
 export async function endedWithoutWords(ref: SessionRef): Promise<TaskEnding> {
-  return endingIn(ref, await ownMessages(ref));
+  return endingIn(await ownMessages(ref));
 }
 
 /**
@@ -142,7 +143,6 @@ export async function taskStatus({
 
 /** The same ending, read from a transcript already in hand. */
 async function endingIn(
-  ref: SessionRef,
   messages: SessionMessage.WithParts[],
 ): Promise<TaskEnding> {
   const last = messages.findLast((message) => message.role === "assistant");
@@ -179,7 +179,7 @@ async function endingIn(
       resumable: true,
     };
   }
-  const step = await latestStep(ref);
+  const step = latestStepIn(messages);
   // A request let go for going quiet past its timeout ended the turn the way
   // a model error does: nobody decided it, and sending the task on picks it
   // up again.
@@ -200,9 +200,14 @@ async function endingIn(
 
 async function statusAtRest(ref: SessionRef): Promise<Derived<TaskStatus>> {
   // One read answers all three: what it is asking, what it last said, and
-  // how it ended when it said nothing. Its own messages alone, since what it
-  // carries on from is the chat's.
-  const messages = await ChatReads.transcript({ ...ref, inherited: false });
+  // how it ended when it said nothing. Its own written messages alone, since
+  // what it carries on from is the chat's, and what is kept by the records'
+  // generation never reads a running turn's memory.
+  const messages = await ChatReads.transcript({
+    ...ref,
+    inherited: false,
+    live: false,
+  });
   const transcript = messages.isOk() ? messages.value : [];
   const session = await ChatReads.session(ref);
   const settle = messages.isOk() && session.isOk() ? kept : unkept;
@@ -214,7 +219,7 @@ async function statusAtRest(ref: SessionRef): Promise<Derived<TaskStatus>> {
   ) {
     return settle({
       kind: "failed",
-      line: appClosedLine(await latestStep(ref)),
+      line: appClosedLine(latestStepIn(transcript)),
     });
   }
   // Read whole and cut after: the line is chosen from the reply's shape, and a
@@ -232,7 +237,7 @@ async function statusAtRest(ref: SessionRef): Promise<Derived<TaskStatus>> {
       ...(summary !== undefined && { summary }),
     });
   }
-  const ending = await endingIn(ref, transcript);
+  const ending = await endingIn(transcript);
   return settle({ kind: ending.failed ? "failed" : "done", line: ending.line });
 }
 

@@ -337,29 +337,31 @@ describe("MermaidDiagram", () => {
   it.each([420, 736])(
     "turns a wide left-to-right flowchart vertical in a %ipx column",
     async (columnWidth) => {
-    // Fitted to a chat column as drawn, a long left-to-right chain shrinks its
-    // labels to a few pixels. It is laid out top to bottom instead, at a size
-    // that can be read.
-    const chain = [
-      "flowchart LR",
-      "  A[Collect the requirements] --> B[Draft the design]",
-      "  B --> C[Review it with the team] --> D[Build the feature]",
-      "  D --> E[Test it end to end] --> F[Ship the release]",
-    ].join("\n");
-    const { container } = await renderInBrowser(
-      <ThemeProvider>
-        <div style={{ width: columnWidth }}>
-          <MermaidDiagram code={chain} language="mermaid" />
-        </div>
-      </ThemeProvider>,
-    );
-    await expect.poll(() => diagramSvg(container)).toBeTruthy();
+      // Fitted to a chat column as drawn, a long left-to-right chain shrinks its
+      // labels to a few pixels. It is laid out top to bottom instead, at a size
+      // that can be read.
+      const chain = [
+        "flowchart LR",
+        "  A[Collect the requirements] --> B[Draft the design]",
+        "  B --> C[Review it with the team] --> D[Build the feature]",
+        "  D --> E[Test it end to end] --> F[Ship the release]",
+      ].join("\n");
+      const { container } = await renderInBrowser(
+        <ThemeProvider>
+          <div style={{ width: columnWidth }}>
+            <MermaidDiagram code={chain} language="mermaid" />
+          </div>
+        </ThemeProvider>,
+      );
+      await expect.poll(() => diagramSvg(container)).toBeTruthy();
 
-    const { height, width } = diagramSvg(container)?.getBoundingClientRect() ?? {
-      height: 0,
-      width: 0,
-    };
-    expect(height).toBeGreaterThan(width);
+      const { height, width } = diagramSvg(
+        container,
+      )?.getBoundingClientRect() ?? {
+        height: 0,
+        width: 0,
+      };
+      expect(height).toBeGreaterThan(width);
     },
   );
 

@@ -640,7 +640,17 @@ export default defineConfig(({ command }) => {
         dropViewerWasmCopies(),
         excalidrawFonts(),
         ...(isProduction
-          ? [recordBundledPackages("renderer"), recordStartupBundle("renderer")]
+          ? [
+              recordBundledPackages("renderer"),
+              // The page, and the window's own route, whose component the
+              // router splits into a chunk it loads before the first paint.
+              recordStartupBundle("renderer", {
+                roots: [
+                  /\/src\/index\.html$/,
+                  /\/routes\/_app\/route\.tsx\?tsr-split=component$/,
+                ],
+              }),
+            ]
           : []),
       ],
       resolve,

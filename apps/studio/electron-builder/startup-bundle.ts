@@ -31,7 +31,7 @@ export type StartupBundle = {
  * The package a bundled module belongs to: its npm name, the monorepo
  * package it comes from, or `(app)` for the build's own code.
  */
-export function packageOfModule(id: string) {
+function packageOfModule(id: string) {
   const file = id.replace(/^\0/, "").replace(/\?.*$/, "").replaceAll("\\", "/");
   const marker = "/node_modules/";
   const at = file.lastIndexOf(marker);
@@ -88,17 +88,33 @@ export function measureStartup(
       if (next) {
         visit(next);
       } else {
-        externals.add(imported);
+        // A package's subpath counts as the package, for the bans.
+        externals.add(
+          imported
+            .split("/")
+            .slice(0, imported.startsWith("@") ? 2 : 1)
+            .join("/"),
+        );
       }
     }
   };
+  const matched = new Set<RegExp>();
   for (const chunk of chunks.values()) {
-    const isRoot =
-      chunk.facadeModuleId !== null &&
-      roots.some((root) => root.test(chunk.facadeModuleId ?? ""));
-    if (isRoot || (roots.length === 0 && chunk.isEntry)) {
+    const facade = chunk.facadeModuleId?.replaceAll("\\", "/") ?? "";
+    const rootsHere = roots.filter((root) => root.test(facade));
+    for (const root of rootsHere) {
+      matched.add(root);
+    }
+    if (rootsHere.length > 0 || (roots.length === 0 && chunk.isEntry)) {
       visit(chunk);
     }
+  }
+  // A root that names nothing would measure nothing and pass every check.
+  const unmatched = roots.filter((root) => !matched.has(root));
+  if (unmatched.length > 0) {
+    throw new Error(
+      `No chunk starts at ${unmatched.join(", ")}; update the startup roots in electron.vite.config.ts`,
+    );
   }
   return {
     bytes,

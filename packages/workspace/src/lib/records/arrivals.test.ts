@@ -293,6 +293,60 @@ describe("another device's records reaching a running app", () => {
   });
 });
 
+describe("a chat's folder watched only while something shows it", () => {
+  it("looks at the chat as its watch starts, for what arrived unwatched", async () => {
+    await otherDeviceStarted();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const watched: string[] = [];
+    const watching = new RecordArrivals({
+      chatsDir,
+      device: DEVICE_A,
+      onArrival: (arrival) => {
+        arrived.push(arrival);
+      },
+      platform: "linux",
+      settleMs: 20,
+      watchFs: (dir) => {
+        watched.push(dir);
+        return { close: () => undefined, on: () => undefined };
+      },
+    });
+    await watching.start();
+    const look = vi.spyOn(watching, "look");
+    try {
+      await fs.appendFile(
+        path.join(recordsDir(), logFileName(SESSION, DEVICE_B)),
+        lines(messageRecord(2, assistantMessage(SESSION, messageId(2), at(2)))),
+      );
+
+      const unattend = watching.attend(CHAT);
+      // A chat no look has seen has no fold to catch up.
+      const unattendNew = watching.attend("2026-11-26-not-made-yet");
+      vi.advanceTimersByTime(20);
+      await Promise.all(
+        look.mock.results.flatMap((result) =>
+          result.type === "return" ? [result.value] : [],
+        ),
+      );
+      unattend();
+      unattendNew();
+
+      expect(watched).toEqual([
+        chatsDir,
+        recordsDir(),
+        recordsDir("2026-11-26-not-made-yet"),
+      ]);
+      expect(look.mock.calls).toEqual([[[CHAT]]]);
+      expect(arrived.map(({ messages }) => messages)).toEqual([
+        [{ id: messageId(2), removed: false, sessionId: SESSION }],
+      ]);
+    } finally {
+      watching.stop();
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("a held chat over a fake sync engine", { timeout: 30_000 }, () => {
   it.each(Array.from({ length: 12 }, (_, index) => index + 1))(
     "comes to what a fresh fold of its folder reads, seed %i",

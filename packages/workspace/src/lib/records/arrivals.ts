@@ -172,6 +172,8 @@ export class RecordArrivals {
   /**
    * Watches one chat's folder while something shows it, where the chats
    * folder is not watched as a tree; elsewhere the tree's watch covers it.
+   * Starting a watch looks once at a chat the looks already know, for
+   * what arrived unwatched.
    */
   attend(chat: string): () => void {
     if (!this.#watch || this.#stopped || this.#recursive()) {
@@ -187,6 +189,12 @@ export class RecordArrivals {
           this.#mark(chat),
         ),
       });
+      // What arrived while nothing watched it, for a fold kept from before.
+      // Only a chat the looks know of: one they never saw has no fold to
+      // catch up, and a look at a folder not made yet would say it gone.
+      if (this.#files.has(chat)) {
+        void this.look([chat]);
+      }
     }
     let released = false;
     return () => {

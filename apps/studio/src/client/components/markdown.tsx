@@ -110,6 +110,8 @@ import { normalizeMathDelimiters } from "./reply-blocks/normalize-math-delimiter
 import { normalizeReplyBlocks } from "./reply-blocks/normalize-reply-blocks";
 import { rehypeTableShape } from "./reply-blocks/rehype-table-shape";
 import { rehypeUnbrokenInline } from "./reply-blocks/rehype-unbroken-inline";
+import { remarkReplyAsides } from "./reply-blocks/remark-reply-asides";
+import { ReplyBlockquote } from "./reply-blocks/reply-blockquote";
 import { ReplyMarkdownContext } from "./reply-blocks/reply-markdown-context";
 import { TimelineBlock } from "./reply-blocks/timeline-block";
 import {
@@ -195,7 +197,7 @@ function containsMathSyntax(markdown: string) {
  * download or a folder the user shared -- so the allow-list is what makes
  * parsing it at all safe.
  *
- * Four departures from the default. `file:` is how a model spells a link to a
+ * Five departures from the default. `file:` is how a model spells a link to a
  * file it just wrote, which `markdownUrlTransform` reduces to a path and
  * `ChatFileLink` then judges against the chat's folder and the folders it
  * reaches. The app's own
@@ -218,6 +220,10 @@ function containsMathSyntax(markdown: string) {
  * reads -- and `srcSet` carries no protocol list either, so the default admits
  * any host on it. Dropping the two elements keeps whatever `<img>` a `<picture>`
  * wrapped, which is the source that gets judged and drawn.
+ *
+ * And the marks `remarkReplyAsides` puts on an alert and its title and on a
+ * quote's source line, which the pass would otherwise strip before the
+ * blockquote renderer and the CSS read them.
  */
 const sanitizeSchema = {
   ...defaultSchema,
@@ -234,6 +240,15 @@ const sanitizeSchema = {
   tagNames: (defaultSchema.tagNames ?? []).filter(
     (tagName) => tagName !== "picture" && tagName !== "source",
   ),
+  attributes: {
+    ...defaultSchema.attributes,
+    blockquote: [...(defaultSchema.attributes?.blockquote ?? []), "dataAlert"],
+    p: [
+      ...(defaultSchema.attributes?.p ?? []),
+      "dataAlertTitle",
+      "dataQuoteSource",
+    ],
+  },
 };
 
 // Only a document carrying HTML this renderer would actually draw is worth
@@ -1475,6 +1490,7 @@ export const Markdown = memo(
     const components = useMemo<Components>(
       () => ({
         a: (props) => <MarkdownLink {...props} documentUrl={documentUrl} />,
+        blockquote: ReplyBlockquote,
         details: markdownDetails,
         img: ({ alt, className, node: _node, ref: _ref, src, ...props }) => {
           const image = resolveImageSource(src, { documentUrl });
@@ -1532,6 +1548,7 @@ export const Markdown = memo(
         remarkGfm,
         remarkBreaks,
         remarkDropBreakAfterBr,
+        remarkReplyAsides,
         ...(documentUrl ? fileRemarkPlugins : emptyRemarkPluginList),
         ...remarkPlugins,
       ],

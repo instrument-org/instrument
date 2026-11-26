@@ -846,6 +846,14 @@ body {
     content: none;
   }
 
+  /* A quote's source, its last line (`remarkReplyAsides`): small and muted,
+     inside the quote, so the border runs down beside it. */
+  blockquote:not(:where(.not-prose *)) > p[data-quote-source] {
+    margin-top: 0.5em;
+    color: var(--muted-foreground);
+    font-size: 0.875em;
+  }
+
   /* A quote, a list and its items have no padding above or below, so the
      margins of what they open or close with collapse straight through them.
      Typography zeroes only the outer margin of the block that opens or closes

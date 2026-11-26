@@ -764,6 +764,75 @@ describe("Markdown section labels", () => {
   });
 });
 
+describe("Markdown asides", () => {
+  it("draws an alert with its type and title, and the rest under them", () => {
+    const { container } = renderMarkdown(
+      "> [!WARNING] Check the lease first\n> The deposit is due Friday.",
+    );
+
+    const aside = container.querySelector("aside");
+    expect([
+      aside?.getAttribute("data-alert"),
+      aside?.firstElementChild?.textContent,
+      aside?.lastElementChild?.textContent,
+      container.querySelector("blockquote"),
+    ]).toEqual([
+      "warning",
+      "Check the lease first",
+      "The deposit is due Friday.",
+      null,
+    ]);
+  });
+
+  it("titles an alert with no words of its own by its type", () => {
+    const { container } = renderMarkdown("> [!tip]\n> Pay by card.");
+
+    expect(
+      container.querySelector("aside")?.firstElementChild?.textContent,
+    ).toBe("Tip");
+  });
+
+  it("keeps a quote's source line inside the quote", () => {
+    const { container } = renderMarkdown(
+      "> Rent is due on the first.\n> — [Lease 2026](</work/Lease 2026.pdf>)",
+    );
+
+    const source = container.querySelector("blockquote > p[data-quote-source]");
+    expect(source?.textContent).toBe("Lease 2026");
+    expect(container.querySelector("blockquote > p")?.textContent).toBe(
+      "Rent is due on the first.",
+    );
+  });
+
+  it.each([
+    ["a quote that is only a link", "> [Lease](</work/Lease.pdf>)"],
+    [
+      "a last line with more words",
+      "> Rent.\n> See [Lease](</work/Lease.pdf>) for more",
+    ],
+  ])("finds no source in %s", (_case, markdown) => {
+    const { container } = renderMarkdown(markdown);
+
+    expect(container.querySelector("[data-quote-source]")).toBeNull();
+  });
+
+  it("keeps an alert's marks through the pass that sanitizes raw HTML", async () => {
+    const { container } = renderMarkdown(
+      "> [!NOTE] Heads up\n> Words.\n\n<details><summary>More</summary>x</details>",
+    );
+
+    await waitFor(
+      () => {
+        expect(container.querySelector("details")).not.toBeNull();
+      },
+      { timeout: RAW_HTML_TIMEOUT },
+    );
+    expect(container.querySelector("aside")?.getAttribute("data-alert")).toBe(
+      "note",
+    );
+  });
+});
+
 describe("Markdown table shape", () => {
   it("marks a table with the width it fits and what it does under it", () => {
     const { container } = renderMarkdown(

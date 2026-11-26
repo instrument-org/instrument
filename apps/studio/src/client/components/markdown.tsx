@@ -21,7 +21,6 @@ import {
   filePathOfInstrumentLink,
   instrumentLinkOf,
 } from "@instrument-org/shared";
-import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
@@ -31,9 +30,7 @@ import {
   chatFilePageFromHref,
   chatFilePathFromHref,
   isDriveHref,
-  isTimelineEntry,
   nameOfPath,
-  parseTimeline,
   type ChatId,
 } from "@instrument-org/workspace/client";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
@@ -113,6 +110,8 @@ import { normalizeMathDelimiters } from "./reply-blocks/normalize-math-delimiter
 import { normalizeReplyBlocks } from "./reply-blocks/normalize-reply-blocks";
 import { rehypeTableShape } from "./reply-blocks/rehype-table-shape";
 import { rehypeUnbrokenInline } from "./reply-blocks/rehype-unbroken-inline";
+import { ReplyMarkdownContext } from "./reply-blocks/reply-markdown-context";
+import { TimelineBlock } from "./reply-blocks/timeline-block";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -322,19 +321,6 @@ const readFence = (node: FenceNode | undefined): Fence | undefined => {
  */
 const ArrivingBlockContext = createContext<string | undefined>(undefined);
 
-/**
- * What the text around a fence is drawn with, for a fence whose own lines are
- * Markdown too.
- */
-const MarkdownParserContext = createContext<
-  | {
-      components: Components;
-      rehypePlugins: PluginList;
-      remarkPlugins: RemarkPluginList;
-    }
-  | undefined
->(undefined);
-
 // A fence's opening run, behind whatever indent or quote markers its container
 // puts in front of each of its lines.
 const FENCE_OPENER = /^[\s>]*(`{3,}|~{3,})/;
@@ -408,7 +394,7 @@ const MarkdownPre: Components["pre"] = ({ children, node }) => {
 
   if (fence.language === AGENT_TIMELINE_LANGUAGE) {
     return (
-      <Timeline
+      <TimelineBlock
         content={fence.code}
         isArriving={
           arrivingSource !== undefined && isFenceOpen(arrivingSource, node)
@@ -432,68 +418,6 @@ const MarkdownPre: Components["pre"] = ({ children, node }) => {
     />
   );
 };
-
-/**
- * Renders a ```timeline fence: the dates in a column, what happened beside
- * each, as part of the text around it. While it is arriving, the line being
- * typed waits for its date to end, since until then it would read as more of
- * the entry above.
- */
-function Timeline({
-  content,
-  isArriving,
-}: {
-  content: string;
-  isArriving: boolean;
-}) {
-  const parser = useContext(MarkdownParserContext);
-  const lineStart = content.lastIndexOf("\n") + 1;
-  const entries = parseTimeline(
-    isArriving && !isTimelineEntry(content.slice(lineStart))
-      ? content.slice(0, lineStart)
-      : content,
-  );
-
-  if (entries.length === 0 || !parser) {
-    return null;
-  }
-
-  return (
-    <div
-      className="my-[1.25em] grid grid-cols-[fit-content(min(9em,28%))_auto_minmax(0,1fr)] gap-x-[0.875em]"
-      data-slot="timeline"
-      role="list"
-    >
-      {entries.map(({ what, when }, index) => (
-        <div
-          className="group/entry col-span-full grid grid-cols-subgrid items-baseline"
-          key={index}
-          role="listitem"
-        >
-          <span className="text-right text-[0.875em] text-muted-foreground tabular-nums">
-            {stripMarkdown(when)}
-          </span>
-          <span
-            aria-hidden
-            className="relative flex w-[0.4em] justify-center self-stretch"
-          >
-            <span className="absolute top-[calc(0.5lh-0.2em)] size-[0.4em] rounded-full bg-foreground/50" />
-            <span className="absolute top-[calc(0.5lh+0.4em)] bottom-[calc(0.4em-0.5lh)] w-px bg-border group-last/entry:hidden" />
-          </span>
-          <div className="min-w-0 pb-[0.75em] group-last/entry:pb-0 [&>*]:my-0">
-            <MarkdownBlock
-              {...parser}
-              isArriving={false}
-              markdown={
-                isArriving && index === entries.length - 1 ? remend(what) : what
-              }
-            />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 // A file's front matter arrives as the `details` the remark pass marked with
 // this id, holding the YAML as its text; see `remarkFrontMatterPanel`. The
@@ -1623,9 +1547,25 @@ export const Markdown = memo(
       [components, remarkPluginList, streamingRehypePlugins],
     );
 
+    // What a block's own parts are drawn with: the reply's parser. A block's
+    // text sits outside the reply's pre-pass, so a path with spaces in a link
+    // there is bracketed here.
+    const replyMarkdown = useMemo(
+      () => ({
+        block: (text: string) => (
+          <MarkdownBlock
+            {...parser}
+            isArriving={false}
+            markdown={bracketPathLinkDestinations(text)}
+          />
+        ),
+      }),
+      [parser],
+    );
+
     return (
       <MarkdownChatContext value={{ assetVersion, isStreaming, chatId }}>
-        <MarkdownParserContext value={parser}>
+        <ReplyMarkdownContext value={replyMarkdown}>
           {blocks === undefined ? (
             <MarkdownBlock {...parser} isArriving={false} markdown={markdown} />
           ) : (
@@ -1648,7 +1588,7 @@ export const Markdown = memo(
               />
             ))
           )}
-        </MarkdownParserContext>
+        </ReplyMarkdownContext>
       </MarkdownChatContext>
     );
   },

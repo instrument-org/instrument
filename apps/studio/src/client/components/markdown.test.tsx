@@ -1592,6 +1592,28 @@ describe("a timeline fence", () => {
     expect(rows(markdown)).toEqual([["2 Aug", "First."]]);
   });
 
+  it("groups entries under a heading line", () => {
+    renderWithProviders(
+      <Markdown
+        chatId={TASK_ID}
+        markdown={
+          "```timeline\n# Day 1, Friday\n4:30 PM: Leave\n# Day 2\n9:00 AM: Breakfast\n```"
+        }
+      />,
+    );
+
+    expect(
+      screen.getAllByRole("heading").map((heading) => heading.textContent),
+    ).toEqual(["Day 1, Friday", "Day 2"]);
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("brackets a link to a path with spaces in an entry", () => {
+    rows("```timeline\n2 Aug: [The letter](/work/My letters/one.pdf)\n```");
+
+    expect(screen.getByRole("button", { name: /The letter/ })).toBeTruthy();
+  });
+
   it("draws a link to a file as its chip", () => {
     rows("```timeline\n2 Aug: [The letter](letters/one.pdf)\n```");
 

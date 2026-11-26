@@ -49,15 +49,56 @@ it("warns once a scope writes more than a megabyte within an hour", () => {
 
 it("forgets what fell out of the rolling hour", () => {
   const { meter, warn, advance } = setup();
+  const hourly = () =>
+    warn.mock.calls.filter(([line]) => line.includes("within an hour"));
   for (let i = 0; i < 24; i++) {
     meter.wrote("chats", 200 * KB);
     advance(15 * MINUTE);
   }
-  expect(warn).not.toHaveBeenCalled();
+  expect(hourly()).toEqual([]);
   meter.wrote("chats", 600 * KB);
   advance(50 * MINUTE);
   meter.wrote("chats", 500 * KB);
-  expect(warn).toHaveBeenCalledTimes(1);
+  expect(hourly()).toHaveLength(1);
+});
+
+it("warns once a scope writes more than a megabyte within a day, however slowly", () => {
+  const { meter, warn, advance } = setup();
+  // The 1Password worker's console on a MacBook: about 40 KB an hour.
+  for (let hour = 0; hour < 24; hour++) {
+    advance(hour === 0 ? 0 : HOUR);
+    meter.wrote("BrowserViewManager", 41 * KB);
+  }
+  expect(warn).not.toHaveBeenCalled();
+  meter.wrote("BrowserViewManager", 20 * KB);
+  // Once a day, not once an hour.
+  for (let hour = 0; hour < 23; hour++) {
+    advance(HOUR);
+    meter.wrote("BrowserViewManager", 42 * KB);
+  }
+  expect(warn.mock.calls).toMatchInlineSnapshot(`
+    [
+      [
+        "Log volume: BrowserViewManager wrote 1.0 MB to the log within a day",
+      ],
+    ]
+  `);
+  // Again once the day after the warning has passed, the drip still running.
+  for (let hour = 0; hour < 2; hour++) {
+    advance(HOUR);
+    meter.wrote("BrowserViewManager", 42 * KB);
+  }
+  expect(warn).toHaveBeenCalledTimes(2);
+});
+
+it("forgets what fell out of the rolling day", () => {
+  const { meter, warn, advance } = setup();
+  for (let hour = 0; hour < 48; hour++) {
+    meter.wrote("chats", (hour < 24 ? 30 : 15) * KB);
+    advance(HOUR);
+  }
+  meter.wrote("chats", 600 * KB);
+  expect(warn).not.toHaveBeenCalled();
 });
 
 it("warns once the whole log takes more than 4 MB within an hour, naming the scopes writing most", () => {

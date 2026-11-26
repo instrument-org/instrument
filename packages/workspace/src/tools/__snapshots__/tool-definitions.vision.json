@@ -350,6 +350,10 @@
           "maxLength": 200,
           "description": "One plain sentence under the heading on why this is Instrument's fault rather than the site's, the user's or yours: 'Other sites loaded fine, so this looks like a bug in Instrument.'"
         },
+        "windowPicture": {
+          "description": "true to attach the picture of the user's window your last `instrument window look` took while answering this message, when it shows the problem. The user sees it on the report and can take it off.",
+          "type": "boolean"
+        },
         "writeup": {
           "type": "string",
           "minLength": 1,

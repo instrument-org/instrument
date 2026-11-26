@@ -24,9 +24,10 @@ type OfferFeedbackPart = Extract<
  * The agent's offer to send the team a problem it found in the app: what
  * went wrong as its heading and why that points at the app under it, then
  * Review and send, which opens the feedback dialog with the write-up as a
- * part of its own, Not now, and a way to stop the offers. What the person
- * picks is written onto the call and never reaches the agent, and the card
- * settles into a quiet note of it.
+ * part of its own and the window picture the agent attached, if any, Not
+ * now, and a way to stop the offers. What the person picks is written onto
+ * the call and never reaches the agent, and the card settles into a quiet
+ * note of it.
  */
 export function ToolOfferFeedback({
   chatId,
@@ -58,7 +59,7 @@ export function ToolOfferFeedback({
     return null;
   }
   const { reason, title, writeup } = part.input;
-  const { outcome } = part.output;
+  const { outcome, picture } = part.output;
   const settleAs = (next: "dismissed" | "sent") => {
     settle.mutate({
       id: chatId,
@@ -103,6 +104,9 @@ export function ToolOfferFeedback({
                         onSent: () => {
                           settleAs("sent");
                         },
+                        ...(picture
+                          ? { pictures: [pictureFile(picture)] }
+                          : {}),
                         surface: "agent-offer",
                         tag: "bug",
                         writeup: { text: writeup, title },
@@ -143,4 +147,17 @@ export function ToolOfferFeedback({
       </div>
     </ToolCard>
   );
+}
+
+/** The window picture the agent offered, as a file the feedback form attaches. */
+function pictureFile({
+  base64Data,
+  mimeType,
+}: {
+  base64Data: string;
+  mimeType: string;
+}): File {
+  const bytes = Uint8Array.from(atob(base64Data), (char) => char.charCodeAt(0));
+  const extension = mimeType.split("/")[1] ?? "png";
+  return new File([bytes], `window.${extension}`, { type: mimeType });
 }

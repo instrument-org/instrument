@@ -28,6 +28,8 @@ export type FeedbackRequest = {
   surface: string;
   /** The tag picked ahead of time: the card's answer, or a bug for the agent's report. */
   tag?: FeedbackTag;
+  /** Pictures attached as it opens, such as the agent's picture of the window. */
+  pictures?: readonly File[];
   /** What the agent wrote up when it offered this, sent as a part of its own. */
   writeup?: { text: string; title: string };
 };
@@ -100,6 +102,8 @@ export type FeedbackDraft = {
   onSent: (() => void)[];
   /** Captures a request brought that are not attached yet. */
   pendingCaptures: Capture[];
+  /** Pictures a request brought that are not attached yet. */
+  pendingPictures: File[];
   /** The request that started it, which the dialog is open on while it shows this draft. */
   request: FeedbackRequest;
   /** Offered, never assumed: it is about more than what is being reported. */
@@ -119,6 +123,7 @@ export function newFeedbackDraft(request: FeedbackRequest): FeedbackDraft {
     offered: undefined,
     onSent: request.onSent ? [request.onSent] : [],
     pendingCaptures: [...(request.captures ?? [])],
+    pendingPictures: [...(request.pictures ?? [])],
     request,
     sendActions: false,
     sendChat: true,
@@ -128,9 +133,9 @@ export function newFeedbackDraft(request: FeedbackRequest): FeedbackDraft {
 }
 
 /**
- * The draft with what another request brings folded in: its captures and
- * write-up added, its chat and tag taken where the draft has none, and its
- * `onSent` heard too. A request about another chat than the draft's is held
+ * The draft with what another request brings folded in: its captures,
+ * pictures and write-up added, its chat and tag taken where the draft has
+ * none, and its `onSent` heard too. A request about another chat than the draft's is held
  * as `offered` instead, since what it brings is about that chat.
  */
 function withRequest(
@@ -148,6 +153,7 @@ function withRequest(
     offered: undefined,
     onSent: request.onSent ? [...draft.onSent, request.onSent] : draft.onSent,
     pendingCaptures: [...draft.pendingCaptures, ...(request.captures ?? [])],
+    pendingPictures: [...draft.pendingPictures, ...(request.pictures ?? [])],
     tag: draft.tag ?? request.tag,
     writeups:
       writeup &&
@@ -169,6 +175,7 @@ export function isFeedbackWaiting(
     (draft.note.trim() !== "" ||
       draft.images.length > 0 ||
       draft.pendingCaptures.length > 0 ||
+      draft.pendingPictures.length > 0 ||
       draft.writeups.length > 0)
   );
 }

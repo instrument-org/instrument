@@ -390,6 +390,27 @@ export function FeedbackDialogContent({
     });
   });
 
+  // Pictures a request brought go in once each, as if pasted.
+  const attaching = useRef(new Set<File>());
+  useEffect(() => {
+    const fresh = draft.pendingPictures.filter(
+      (picture) => !attaching.current.has(picture),
+    );
+    if (fresh.length === 0) {
+      return;
+    }
+    for (const picture of fresh) {
+      attaching.current.add(picture);
+    }
+    void addImages(fresh).then(() => {
+      update((current) => ({
+        pendingPictures: current.pendingPictures.filter(
+          (picture) => !fresh.includes(picture),
+        ),
+      }));
+    });
+  });
+
   // Read once per opening, and again for a chat a capture brings: what the
   // dialog shows is what Send sends.
   const described = useQuery({

@@ -1,4 +1,7 @@
+import { okAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { ChatReads } from "../lib/chat-reads";
 
 import {
   FEEDBACK_OFFER_GAP_MS,
@@ -32,10 +35,11 @@ beforeEach(async () => {
   await recordFeedbackOffer(new Date(0));
 });
 
-async function offer() {
+async function offer(attach?: { windowPicture: boolean }) {
   const result = await runTool(OfferFeedback, {
     chatId: CHAT,
     input: {
+      ...attach,
       activity: "Writing up a problem",
       explanation: "The browser tab crashed",
       title: "Zendesk's page crashed the browser tab three times in a row",
@@ -99,6 +103,44 @@ describe("offer_feedback", () => {
     expect(offeredIn([call({ offered: true, outcome: "dismissed" })])).toBe(
       true,
     );
+  });
+
+  it("attaches the newest window picture taken since the person's message, when asked", async () => {
+    const picture = (base64Data: string) => ({
+      base64Data,
+      height: 600,
+      mimeType: "image/png",
+      viewHeight: 600,
+      viewWidth: 800,
+      width: 800,
+    });
+    const look = (base64Data: string) => ({
+      output: { windowPicture: picture(base64Data) },
+      state: "output-available",
+      type: "tool-bash",
+    });
+    const messages = [
+      { parts: [look("before")], role: "assistant" },
+      { parts: [], role: "user" },
+      { parts: [look("first"), look("newest")], role: "assistant" },
+      {
+        parts: [{ output: {}, state: "output-available", type: "tool-bash" }],
+        role: "assistant",
+      },
+    ] as unknown as SessionMessage.WithParts[];
+    const read = vi
+      .spyOn(ChatReads, "modelHistory")
+      .mockReturnValue(okAsync(messages));
+    expect(await offer({ windowPicture: true })).toEqual({
+      offered: true,
+      picture: picture("newest"),
+    });
+    await recordFeedbackOffer(new Date(0));
+    expect(await offer({ windowPicture: false })).toEqual({ offered: true });
+    await recordFeedbackOffer(new Date(0));
+    read.mockReturnValue(okAsync(messages.slice(0, 2)));
+    expect(await offer({ windowPicture: true })).toEqual({ offered: true });
+    read.mockRestore();
   });
 
   it("never lets what the person did change what the model reads", () => {

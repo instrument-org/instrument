@@ -12,7 +12,13 @@ import {
 } from "../lib/feedback-offers";
 import { getCurrentDate } from "../lib/get-current-date";
 import { getWorkspaceConfig } from "../lib/workspace-config";
+import {
+  type BrowserScreenshot,
+  BrowserScreenshotSchema,
+} from "../lib/browser-screenshot";
+import { type ChatId } from "../schemas/chat-id";
 import { type SessionMessage } from "../schemas/session/message";
+import { type StoreId } from "../schemas/store-id";
 import { defineCapability } from "../lib/capabilities/define";
 import { modelTool } from "../lib/capabilities/tool";
 
@@ -22,6 +28,8 @@ const FEEDBACK_WRITEUP_MAX_LENGTH = 2000;
 const OfferFeedbackOutputSchema = z.union([
   z.object({
     offered: z.literal(true),
+    /** The picture of the window the chat took answering this message, which the card attaches to the report. */
+    picture: BrowserScreenshotSchema.optional(),
     /**
      * What the person did on the card, written onto the call when they do
      * it. The model never reads it, so the call reads the same to it before
@@ -55,6 +63,10 @@ const offerFeedbackCapability = defineCapability({
       description:
         "One plain sentence under the heading on why this is Instrument's fault rather than the site's, the user's or yours: 'Other sites loaded fine, so this looks like a bug in Instrument.'",
     }),
+    windowPicture: z.boolean().optional().meta({
+      description:
+        "true to attach the picture of the user's window your last `instrument window look` took while answering this message, when it shows the problem. The user sees it on the report and can take it off.",
+    }),
     writeup: z.string().trim().min(1).max(FEEDBACK_WRITEUP_MAX_LENGTH).meta({
       description:
         "Plain Markdown facts for the team, a few short lines: what you were doing, what happened (error text verbatim), what you tried, what you did instead. No apology, no guessed cause, nothing about the user the problem doesn't need.",
@@ -68,7 +80,7 @@ const offerFeedbackCapability = defineCapability({
       description: dedent`
         Offer to send the Instrument team a short write-up of something broken in Instrument itself: its browser, shell, file tools, or an app connection failing in a way neither the request nor the site explains. The user sees your heading and reason on a card, can read your write-up, and decides whether to send it with the chat. Not for a site that is down or refuses you, a model refusing, a missing permission, your own mistake, or anything the user did. The card is the whole offer, and often none is shown, so your reply carries on with the work. It returns at once.
       `,
-      execute: async ({ chatId, sessionId }) => {
+      execute: async ({ chatId, input, sessionId }) => {
         if (sessionRole(chatId, sessionId) !== "chat") {
           return ok({ offered: false as const, reason: "background" as const });
         }
@@ -86,7 +98,13 @@ const offerFeedbackCapability = defineCapability({
           return ok({ offered: false as const, reason: refusal });
         }
         await recordFeedbackOffer(now);
-        return ok({ offered: true as const });
+        const picture = input.windowPicture
+          ? await lookTakenNow({ chatId, sessionId })
+          : undefined;
+        return ok({
+          offered: true as const,
+          ...(picture === undefined ? {} : { picture }),
+        });
       },
       readOnly: false,
       timeoutMs: () => ms("10 seconds"),
@@ -105,6 +123,41 @@ const offerFeedbackCapability = defineCapability({
 });
 
 export const OfferFeedback = modelTool(offerFeedbackCapability);
+
+/**
+ * The newest picture of the window the session took since the person's
+ * newest message: one `instrument window look` gave, which is only ever
+ * the chat's, while it answers them.
+ */
+async function lookTakenNow({
+  chatId,
+  sessionId,
+}: {
+  chatId: ChatId;
+  sessionId: StoreId.Session;
+}): Promise<BrowserScreenshot | undefined> {
+  const history = await ChatReads.modelHistory({
+    chatId,
+    inherited: false,
+    sessionId,
+  });
+  if (history.isErr()) {
+    return undefined;
+  }
+  const messages = history.value;
+  const asked = messages.findLastIndex((message) => message.role === "user");
+  return messages
+    .slice(asked + 1)
+    .flatMap((message) => message.parts)
+    .flatMap((part) =>
+      part.type === "tool-bash" &&
+      part.state === "output-available" &&
+      part.output.windowPicture !== undefined
+        ? [part.output.windowPicture]
+        : [],
+    )
+    .at(-1);
+}
 
 /** Whether the chat already showed a card for an offer. */
 export function offeredIn(messages: readonly SessionMessage.WithParts[]) {

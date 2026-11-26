@@ -96,11 +96,13 @@ function chatListFile(
 
 /**
  * Writes the file from the live chat list for as long as the process runs,
- * once a phone has used the workspace: once the list is first read or the
- * phone first seen, whichever is later, then at most every `WRITE_AFTER_MS` while it
- * moves and a moment after any turn ends, and not at all for a move that
- * leaves every row the file carries as it was (a step a running turn is on,
- * say). Stops with `signal`.
+ * once a phone has used the workspace: once the list is first read after the
+ * phone is first seen, then at most every `WRITE_AFTER_MS` while it moves and
+ * a moment after any turn ends, and not at all for a move that leaves every
+ * row the file carries as it was (a step a running turn is on, say). The list
+ * is followed only from then: on a workspace no phone has used, reading every
+ * chat's records at launch would compete with the window's own first reads
+ * for a file that is never written. Stops with `signal`.
  */
 export function startChatListFile({
   signal,
@@ -114,9 +116,9 @@ export function startChatListFile({
   const config = getWorkspaceConfig();
   const devicesDir = workspaceLayout(config.rootDir).devicesDir;
   const file = path.join(devicesDir, config.deviceId, CHAT_LIST_FILE_NAME);
-  let hasPhone = false;
-  // Unread until the live list first answers, when a turn's end has nothing
-  // to write yet: an empty list would show a phone no chats.
+  // Unread until the live list first answers, which it is followed for only
+  // once a phone has used the workspace; until then a turn's end has nothing
+  // to write: an empty list would show a phone no chats.
   let latest: readonly Chat[] | undefined;
   let written: ChatListRow[] | undefined;
   let timer: NodeJS.Timeout | undefined;
@@ -132,7 +134,7 @@ export function startChatListFile({
 
   const write = async () => {
     timer = undefined;
-    if (!hasPhone || latest === undefined) {
+    if (latest === undefined) {
       return;
     }
     const contents = chatListFile(latest, {
@@ -150,14 +152,7 @@ export function startChatListFile({
     }
   };
 
-  void whenWorkspaceHasPhone({ devicesDir, signal }).then((found) => {
-    if (found) {
-      hasPhone = true;
-      void write();
-    }
-  });
-
-  void (async () => {
+  const follow = async () => {
     try {
       let first = true;
       for await (const chats of liveChatList(signal)) {
@@ -174,5 +169,11 @@ export function startChatListFile({
         config.captureException(error);
       }
     }
-  })();
+  };
+
+  void whenWorkspaceHasPhone({ devicesDir, signal }).then((found) => {
+    if (found) {
+      void follow();
+    }
+  });
 }

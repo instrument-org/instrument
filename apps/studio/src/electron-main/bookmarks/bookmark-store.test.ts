@@ -4,6 +4,7 @@ import {
   type BookmarksSnapshot,
   OTHER_ROOT,
   rootItems,
+  type BarItem,
 } from "@/shared/bookmarks";
 import {
   type DeviceId,
@@ -258,11 +259,13 @@ describe("folders", () => {
 
   /** The bar as one line per item, a folder's contents in brackets. */
   function drawn(snapshot: BookmarksSnapshot): string[] {
-    return barItems(snapshot).map((item) =>
-      item.kind === "folder"
-        ? `${item.folder.title} [${item.items.map((each) => each.id).join(" ")}]`
-        : item.bookmark.id,
-    );
+    const drawnItems = (items: readonly BarItem[]): string[] =>
+      items.map((item) =>
+        item.kind === "folder"
+          ? `${item.folder.title} [${drawnItems(item.items).join(" ")}]`
+          : item.bookmark.id,
+      );
+    return drawnItems(barItems(snapshot));
   }
 
   /** Two devices on one workspace, each with its own clock. */
@@ -422,7 +425,7 @@ describe("folders", () => {
       {
         key: "folder/f",
         t: "set",
-        value: { folder: "g", order: 1, title: "Inner" },
+        value: { folder: "g", icon: "star", order: 1, title: "Inner" },
       },
       { key: "folder/g", t: "set", value: { order: 2, title: "Outer" } },
     ]);
@@ -441,14 +444,13 @@ describe("folders", () => {
       title: "A",
       url: "https://a/",
     });
-    // A folder in a folder, which this build does not nest, shows on the
-    // bar and keeps where the later build put it.
     expect(store.get("folder/f")).toEqual({
       folder: "g",
+      icon: "star",
       order: 1,
       title: "Renamed",
     });
-    expect(drawn(bookmarks.snapshot())).toEqual(["Renamed [a]", "Outer []"]);
+    expect(drawn(bookmarks.snapshot())).toEqual(["Outer [Renamed [a]]"]);
   });
 
   it("reads folders that name each other, or a bookmark naming nothing it can be in, without losing any", async () => {

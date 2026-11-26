@@ -18,6 +18,8 @@ import {
   rootItems,
   rootOf,
   siblingsIn,
+  bookmarksIn,
+  isWithin,
 } from "./bookmarks";
 
 const page = (id: string, order: number, folder?: string): Bookmark => ({
@@ -28,10 +30,15 @@ const page = (id: string, order: number, folder?: string): Bookmark => ({
   ...(folder === undefined ? {} : { folder }),
 });
 
-const folder = (id: string, order: number): BookmarkFolder => ({
+const folder = (
+  id: string,
+  order: number,
+  inFolder?: string,
+): BookmarkFolder => ({
   id,
   order,
   title: `Folder ${id}`,
+  ...(inFolder === undefined ? {} : { folder: inFolder }),
 });
 
 const of = (
@@ -43,7 +50,7 @@ const of = (
 function drawn(items: readonly BarItem[]): string[] {
   return items.map((item) =>
     item.kind === "folder"
-      ? `${item.folder.id} [${item.items.map((each) => each.id).join(" ")}]`
+      ? `${item.folder.id} [${drawn(item.items).join(" ")}]`
       : item.bookmark.id,
   );
 }
@@ -142,12 +149,41 @@ describe("applyBookmarkOps", () => {
     expect(state.bookmarks).toEqual([page("a", 1), page("b", 2)]);
   });
 
-  it("never files a folder in a folder", () => {
-    const state = applyBookmarkOps(of([], [folder("f", 0), folder("g", 1)]), [
-      { folder: "g", id: "f", order: 4, type: "move" },
-    ]);
-    expect(state.folders).toEqual([folder("g", 1), folder("f", 4)]);
-    expect(drawn(barItems(state))).toEqual(["g []", "f []"]);
+  it("files a folder in a folder, never in itself or one inside it", () => {
+    const state = applyBookmarkOps(
+      of([page("a", 0, "f")], [folder("f", 0), folder("g", 1)]),
+      [
+        { folder: "g", id: "f", order: 4, type: "move" },
+        { folder: "f", id: "g", order: 0, type: "move" },
+        { folder: "g", id: "g", order: 0, type: "move" },
+      ],
+    );
+    expect(drawn(barItems(state))).toEqual(["g [f [a]]"]);
+    expect(isWithin(state, "f", "g")).toBe(true);
+    expect(isWithin(state, "g", "f")).toBe(false);
+  });
+
+  it("removes a folder with every folder and bookmark inside it", () => {
+    const state = of(
+      [page("a", 0, "f"), page("b", 0, "g"), page("c", 1)],
+      [folder("f", 0), folder("g", 1, "f")],
+    );
+    expect(applyBookmarkOps(state, [{ id: "f", type: "remove" }])).toEqual(
+      of([page("c", 1)]),
+    );
+  });
+
+  it("shows two folders each moved into the other on the bar, as no loop", () => {
+    // Two devices' moves crossing: each wins its own folder's key.
+    const state = of(
+      [page("a", 0, "f")],
+      [
+        { ...folder("f", 0, "g"), root: OTHER_ROOT },
+        { ...folder("g", 1, "f"), root: OTHER_ROOT },
+      ],
+    );
+    expect(drawn(barItems(state))).toEqual(["f [a]", "g []"]);
+    expect(drawn(rootItems(state, OTHER_ROOT))).toEqual([]);
   });
 
   it("keeps a bookmark at a new address in its place, and leaves a folder or an empty address alone", () => {
@@ -212,7 +248,7 @@ describe("barItems", () => {
     const items = barItems(of(bookmarks, [folder("f", 3), folder("g", 0)]));
     const ids = items.flatMap((item) =>
       item.kind === "folder"
-        ? item.items.map((each) => each.id)
+        ? bookmarksIn(item.items).map((each) => each.id)
         : [item.bookmark.id],
     );
     expect(ids.toSorted()).toEqual(bookmarks.map((each) => each.id).toSorted());
@@ -259,14 +295,41 @@ describe("All Bookmarks", () => {
     ).toEqual(["a ", "o other", "in other", "bf "]);
   });
 
-  it("moves a bookmark between the roots, and a folder only within its own", () => {
+  it("moves bookmarks and folders between the roots, a folder with what is in it", () => {
     const moved = applyBookmarkOps(state, [
       { id: "a", order: 5, root: OTHER_ROOT, type: "move" },
       { id: "o", order: 5, type: "move" },
       { id: "of", order: 9, type: "move" },
+      { id: "f", order: 1, root: OTHER_ROOT, type: "move" },
     ]);
-    expect(drawn(barItems(moved))).toEqual(["f [bf]", "o"]);
-    expect(drawn(rootItems(moved, OTHER_ROOT))).toEqual(["a", "of [in]"]);
+    expect(drawn(barItems(moved))).toEqual(["o", "of [in]"]);
+    expect(drawn(rootItems(moved, OTHER_ROOT))).toEqual(["f [bf]", "a"]);
+  });
+
+  it("names the root anew on the folders inside a folder moved to the other root", () => {
+    const moved = applyBookmarkOps(state, [
+      { folder: "f", id: "of", order: 0, type: "move" },
+      { id: "f", order: 9, root: OTHER_ROOT, type: "move" },
+    ]);
+    expect(moved.folders.find((each) => each.id === "of")?.root).toBe(
+      OTHER_ROOT,
+    );
+    const back = applyBookmarkOps(moved, [{ id: "f", order: 9, type: "move" }]);
+    expect(back.folders.find((each) => each.id === "of")?.root).toBeUndefined();
+  });
+
+  it("names the root a folder in a folder is in, for a build that reads no folder's folder", () => {
+    const moved = applyBookmarkOps(state, [
+      { folder: "of", id: "f", order: 0, type: "move" },
+    ]);
+    expect(moved.folders.find((each) => each.id === "f")).toEqual({
+      ...folder("f", 0, "of"),
+      root: OTHER_ROOT,
+    });
+    expect(drawn(rootItems(moved, OTHER_ROOT))).toEqual([
+      "of [f [bf] in]",
+      "o",
+    ]);
   });
 
   it("lists every place a bookmark can go, the bar's first", () => {
@@ -280,6 +343,14 @@ describe("All Bookmarks", () => {
       "other All Bookmarks",
       "  of Folder of",
     ]);
+    const nested = applyBookmarkOps(state, [
+      { folder: "f", id: "of", order: 0, type: "move" },
+    ]);
+    expect(
+      bookmarkPlaces(nested).map(
+        ({ depth, key }) => `${"  ".repeat(depth)}${key ?? ""}`,
+      ),
+    ).toEqual(["", "  f", "    of", "other"]);
     expect(placeOfKey(keyOfPlace({ root: OTHER_ROOT }))).toEqual({
       root: OTHER_ROOT,
     });

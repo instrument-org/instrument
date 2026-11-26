@@ -50,15 +50,27 @@ export interface Bookmark {
 }
 
 /**
- * A folder of a root, which opens as a menu of the bookmarks filed in it.
- * Folders are one level deep: a folder is never in another, so no chain of
- * folders can loop, and it stays in the root it was made in.
+ * A folder, loose in a root or in another folder, which opens as a menu of
+ * the bookmarks and folders in it. A move never puts a folder in itself or
+ * one inside it, but two devices each moving one of two folders into the
+ * other can, and a folder whose chain of parents comes back to it is loose
+ * in the bar (`parentOf`).
  */
 export interface BookmarkFolder {
+  /**
+   * The folder it is in, by id. Without one, or where the folder it names is
+   * not there, it is loose in its root.
+   */
+  folder?: string;
   id: string;
-  /** Where it sorts among the bookmarks and folders of its root. */
+  /** Where it sorts among the bookmarks and folders beside it. */
   order: number;
-  /** All Bookmarks, or the bar without one. */
+  /**
+   * All Bookmarks, or the bar without one. In a folder it is the root that
+   * folder was in when this one was put there, which only a build that
+   * reads no `folder` on a folder goes by: the root it shows is its top
+   * folder's.
+   */
   root?: BookmarkRoot;
   title: string;
 }
@@ -81,12 +93,12 @@ export interface Bookmarks {
 export type BookmarkOp =
   /** Kept, with an id and an order the window chose. Ignored where the id is taken. */
   | { bookmark: Bookmark; type: "add" }
-  /** A folder made on the bar. Ignored where the id is taken. */
+  /** A folder made in its root or in its folder. Ignored where the id is taken. */
   | { folder: BookmarkFolder; type: "addFolder" }
   /**
-   * A bookmark or a folder moved to sort at `order`: a bookmark into
-   * `folder`, or loose into `root` (the bar without one). A folder stays in
-   * its root.
+   * A bookmark or a folder moved to sort at `order`: into `folder`, or loose
+   * into `root` (the bar without one). A folder moved into itself or one
+   * inside it stays where it is.
    */
   | {
       folder?: string;
@@ -95,7 +107,7 @@ export type BookmarkOp =
       root?: BookmarkRoot;
       type: "move";
     }
-  /** No longer kept; a folder goes with every bookmark filed in it. */
+  /** No longer kept; a folder goes with everything in it. */
   | { id: string; type: "remove" }
   /** A bookmark or a folder under a new name. */
   | { id: string; title: string; type: "rename" }
@@ -163,6 +175,14 @@ function applyBookmarkOp(state: Bookmarks, op: BookmarkOp): Bookmarks {
     folder !== undefined && folders.some((each) => each.id === folder)
       ? { folder }
       : rootField(root);
+  // A folder in a folder also names the root it is in, for a build that
+  // reads no folder's `folder`.
+  const placedFolder = (place: BookmarkPlace) => {
+    const at = placed(place);
+    return "folder" in at
+      ? { ...at, ...rootField(folderRootOf(state, at.folder)) }
+      : at;
+  };
   switch (op.type) {
     case "add": {
       if (isTaken(op.bookmark.id)) {
@@ -177,16 +197,22 @@ function applyBookmarkOp(state: Bookmarks, op: BookmarkOp): Bookmarks {
       };
     }
     case "addFolder": {
-      const { id, order, root, title } = op.folder;
+      const { id, order, title } = op.folder;
       return isTaken(id)
         ? state
         : {
             bookmarks,
-            folders: [...folders, { id, order, title, ...rootField(root) }],
+            folders: [
+              ...folders,
+              { id, order, title, ...placedFolder(op.folder) },
+            ],
           };
     }
     case "move": {
-      return {
+      if (op.folder !== undefined && isWithin(state, op.folder, op.id)) {
+        return state;
+      }
+      const moved: Bookmarks = {
         bookmarks: bookmarks.map((bookmark) =>
           bookmark.id === op.id
             ? {
@@ -197,16 +223,42 @@ function applyBookmarkOp(state: Bookmarks, op: BookmarkOp): Bookmarks {
             : bookmark,
         ),
         folders: folders.map((folder) =>
-          folder.id === op.id ? { ...folder, order: op.order } : folder,
+          folder.id === op.id
+            ? {
+                ...omit(folder, ["folder", "root"]),
+                order: op.order,
+                ...placedFolder(op),
+              }
+            : folder,
+        ),
+      };
+      // The folders inside a folder moved name the root it is in now.
+      return {
+        bookmarks: moved.bookmarks,
+        folders: moved.folders.map((folder) =>
+          folder.id !== op.id &&
+          folder.folder !== undefined &&
+          isWithin(moved, folder.id, op.id)
+            ? {
+                ...omit(folder, ["root"]),
+                ...rootField(folderRootOf(moved, folder.id)),
+              }
+            : folder,
         ),
       };
     }
     case "remove": {
+      const gone = new Set(
+        folders
+          .filter((folder) => isWithin(state, folder.id, op.id))
+          .map((folder) => folder.id),
+      );
       return {
         bookmarks: bookmarks.filter(
-          (bookmark) => bookmark.id !== op.id && bookmark.folder !== op.id,
+          (bookmark) =>
+            bookmark.id !== op.id && !gone.has(bookmark.folder ?? ""),
         ),
-        folders: folders.filter((folder) => folder.id !== op.id),
+        folders: folders.filter((folder) => !gone.has(folder.id)),
       };
     }
     case "rename": {
@@ -290,6 +342,17 @@ export function folderOf(
     : folders.find((folder) => folder.id === bookmark.folder);
 }
 
+/** Where a folder is: in the folder it is in, or loose in its root. */
+export function placeOfFolder(
+  state: Pick<Bookmarks, "folders">,
+  folder: BookmarkFolder,
+): BookmarkPlace {
+  const parent = parentOf(state, folder);
+  return parent
+    ? { folder: parent.id }
+    : rootField(folderRootOf(state, folder.id));
+}
+
 /** Where a bookmark is: in its folder where that is there, loose in its root otherwise. */
 export function placeOf(state: Bookmarks, bookmark: Bookmark): BookmarkPlace {
   const folder = folderOf(state, bookmark);
@@ -302,13 +365,94 @@ export function rootOf(
   bookmark: Bookmark,
 ): BookmarkRoot | undefined {
   const folder = folderOf(state, bookmark);
-  return folder ? folder.root : bookmark.root;
+  return folder ? folderRootOf(state, folder.id) : bookmark.root;
 }
 
-/** What a root shows: a bookmark loose in it, or a folder with the bookmarks filed in it. */
+/**
+ * The folder a folder is in, where that is there and its chain of parents
+ * never comes back to it. One in a loop, which only two devices' moves
+ * crossing can make, is loose in the bar, as every folder of the loop is.
+ */
+export function parentOf(
+  { folders }: Pick<Bookmarks, "folders">,
+  folder: BookmarkFolder,
+): BookmarkFolder | undefined {
+  const byId = new Map(folders.map((each) => [each.id, each]));
+  const parent =
+    folder.folder === undefined ? undefined : byId.get(folder.folder);
+  const seen = new Set([folder.id]);
+  for (let at = parent; at;) {
+    if (seen.has(at.id)) {
+      return undefined;
+    }
+    seen.add(at.id);
+    at = at.folder === undefined ? undefined : byId.get(at.folder);
+  }
+  return parent;
+}
+
+/**
+ * The root a folder shows in: its top folder's, its own where the folder it
+ * names is gone, and the bar where its chain of parents loops.
+ */
+export function folderRootOf(
+  state: Pick<Bookmarks, "folders">,
+  id: string,
+): BookmarkRoot | undefined {
+  let folder = state.folders.find((each) => each.id === id);
+  if (!folder) {
+    return undefined;
+  }
+  const named = folder.folder;
+  if (
+    named !== undefined &&
+    state.folders.some((each) => each.id === named) &&
+    !parentOf(state, folder)
+  ) {
+    return undefined;
+  }
+  for (let parent = parentOf(state, folder); parent;) {
+    folder = parent;
+    parent = parentOf(state, parent);
+  }
+  return folder.root;
+}
+
+/** Whether `id` is the folder `ancestor` or a folder somewhere inside it. */
+export function isWithin(
+  state: Pick<Bookmarks, "folders">,
+  id: string,
+  ancestor: string,
+): boolean {
+  let folder = state.folders.find((each) => each.id === id);
+  for (const seen = new Set<string>(); folder && !seen.has(folder.id);) {
+    if (folder.id === ancestor) {
+      return true;
+    }
+    seen.add(folder.id);
+    folder = parentOf(state, folder);
+  }
+  return false;
+}
+
+/** What a root or a folder shows: a bookmark, or a folder with what is in it. */
 export type BarItem =
   | { bookmark: Bookmark; kind: "bookmark" }
-  | { folder: BookmarkFolder; items: Bookmark[]; kind: "folder" };
+  | { folder: BookmarkFolder; items: BarItem[]; kind: "folder" };
+
+/** The bookmarks among a folder's items, and none in a folder inside it, as Open All opens them. */
+export function bookmarksDirectlyIn(items: readonly BarItem[]): Bookmark[] {
+  return items.flatMap((item) =>
+    item.kind === "bookmark" ? [item.bookmark] : [],
+  );
+}
+
+/** Every bookmark in a folder's items, the folders' in them included, in the order a menu shows them. */
+export function bookmarksIn(items: readonly BarItem[]): Bookmark[] {
+  return items.flatMap((item) =>
+    item.kind === "folder" ? bookmarksIn(item.items) : [item.bookmark],
+  );
+}
 
 /** The bookmark or folder a root's item is. */
 function memberOf(item: BarItem): Bookmark | BookmarkFolder {
@@ -324,31 +468,70 @@ export function rootItems(
   state: Bookmarks,
   root: BookmarkRoot | undefined,
 ): BarItem[] {
-  const contents = new Map<string, Bookmark[]>(
-    state.folders.map((folder) => [folder.id, []]),
-  );
-  const loose: BarItem[] = [];
-  for (const bookmark of inOrder(state.bookmarks)) {
-    const items =
-      bookmark.folder === undefined ? undefined : contents.get(bookmark.folder);
-    if (items) {
-      items.push(bookmark);
+  // What is in each folder by its id, and loose in the root under none.
+  const contents = new Map<
+    string | undefined,
+    {
+      bookmark?: Bookmark;
+      folder?: BookmarkFolder;
+      id: string;
+      order: number;
+    }[]
+  >();
+  const into = (
+    at: string | undefined,
+    entry: { bookmark?: Bookmark; folder?: BookmarkFolder },
+  ) => {
+    const { id, order } = entry.bookmark ??
+      entry.folder ?? { id: "", order: 0 };
+    contents.set(at, [...(contents.get(at) ?? []), { ...entry, id, order }]);
+  };
+  for (const bookmark of state.bookmarks) {
+    const folder = folderOf(state, bookmark);
+    if (folder) {
+      into(folder.id, { bookmark });
     } else if (bookmark.root === root) {
-      loose.push({ bookmark, kind: "bookmark" });
+      into(undefined, { bookmark });
     }
   }
-  const folders: BarItem[] = state.folders
-    .filter((folder) => folder.root === root)
-    .map((folder) => ({
-      folder,
-      items: contents.get(folder.id) ?? [],
-      kind: "folder",
-    }));
-  const keyed = [...loose, ...folders].map((item) => ({
-    ...memberOf(item),
-    item,
-  }));
-  return inOrder(keyed).map(({ item }) => item);
+  for (const folder of state.folders) {
+    const parent = parentOf(state, folder);
+    if (parent) {
+      into(parent.id, { folder });
+    } else if (folderRootOf(state, folder.id) === root) {
+      into(undefined, { folder });
+    }
+  }
+  const itemsOf = (at: string | undefined): BarItem[] =>
+    inOrder(contents.get(at) ?? []).flatMap(
+      ({ bookmark, folder }): BarItem[] =>
+        folder
+          ? [{ folder, items: itemsOf(folder.id), kind: "folder" }]
+          : bookmark
+            ? [{ bookmark, kind: "bookmark" }]
+            : [],
+    );
+  return itemsOf(undefined);
+}
+
+/** What a folder shows, the folders in it with what is in them; none for a folder not there. */
+export function itemsOfFolder(state: Bookmarks, id: string): BarItem[] {
+  const find = (items: readonly BarItem[]): BarItem[] | undefined => {
+    for (const item of items) {
+      if (item.kind === "folder") {
+        const found = item.folder.id === id ? item.items : find(item.items);
+        if (found) {
+          return found;
+        }
+      }
+    }
+    return undefined;
+  };
+  return (
+    find(rootItems(state, undefined)) ??
+    find(rootItems(state, OTHER_ROOT)) ??
+    []
+  );
 }
 
 /** The bar's items, bookmarks and folders sorted together by order. */
@@ -363,9 +546,7 @@ export function orderOnBar(state: Bookmarks): number {
 
 /** Every bookmark of the bar in the order it shows them, each folder's in its place among them. */
 export function inBarOrder(state: Bookmarks): Bookmark[] {
-  return barItems(state).flatMap((item) =>
-    item.kind === "folder" ? item.items : [item.bookmark],
-  );
+  return bookmarksIn(barItems(state));
 }
 
 /**
@@ -380,30 +561,43 @@ export function siblingsIn(
   if (folder === undefined) {
     return rootItems(state, root).map(memberOf);
   }
-  return inOrder(
-    state.bookmarks.filter(
+  return inOrder([
+    ...state.bookmarks.filter(
       (bookmark) => folderOf(state, bookmark)?.id === folder,
     ),
-  );
+    ...state.folders.filter((each) => parentOf(state, each)?.id === folder),
+  ]);
+}
+
+/** A place a bookmark or folder can be kept, as a list of them shows it. */
+export interface ListedPlace {
+  /** How far under its root: 0 for a root, 1 for a folder loose in one. */
+  depth: number;
+  /** The place's key (`placeOfKey`). */
+  key: string | undefined;
+  title: string;
 }
 
 /**
- * The places a bookmark can be kept, in the order a list of them shows:
- * the bar, its folders, All Bookmarks, and its folders. Each by its key
- * (`placeOfKey`), with its depth under its root.
+ * The places a bookmark can be kept, in the order a tree of them shows:
+ * the bar, the folders in it, All Bookmarks, and the folders in it, each
+ * folder followed by the ones inside it.
  */
-export function bookmarkPlaces(
-  state: Bookmarks,
-): { depth: 0 | 1; key: string | undefined; title: string }[] {
-  const foldersOf = (root: BookmarkRoot | undefined) =>
-    inOrder(state.folders.filter((folder) => folder.root === root)).map(
-      (folder) => ({ depth: 1 as const, key: folder.id, title: folder.title }),
+export function bookmarkPlaces(state: Bookmarks): ListedPlace[] {
+  const foldersIn = (items: readonly BarItem[], depth: number): ListedPlace[] =>
+    items.flatMap((item) =>
+      item.kind === "folder"
+        ? [
+            { depth, key: item.folder.id, title: item.folder.title },
+            ...foldersIn(item.items, depth + 1),
+          ]
+        : [],
     );
   return [
     { depth: 0, key: undefined, title: "Bookmarks bar" },
-    ...foldersOf(undefined),
+    ...foldersIn(barItems(state), 1),
     { depth: 0, key: OTHER_ROOT, title: OTHER_ROOT_TITLE },
-    ...foldersOf(OTHER_ROOT),
+    ...foldersIn(rootItems(state, OTHER_ROOT), 1),
   ];
 }
 

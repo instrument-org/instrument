@@ -43,7 +43,7 @@ import { XCircleIcon } from "@phosphor-icons/react/XCircle";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactElement, useRef, useState } from "react";
 
-import { BookmarkEditor } from "./bookmark-editor";
+import { BookmarkEditor, PlaceIndent } from "./bookmark-editor";
 import { PlaceItems } from "./place-items";
 import { useBookmarkEdits } from "./web-start";
 
@@ -238,6 +238,7 @@ function MoveToItems({ bookmark }: { bookmark: Bookmark }) {
               folders.moveTo(bookmark, place.key);
             }}
           >
+            {place.depth > 1 && <PlaceIndent depth={place.depth} />}
             {place.depth === 0 ? (
               <BookmarksSimpleIcon className="size-4" />
             ) : (

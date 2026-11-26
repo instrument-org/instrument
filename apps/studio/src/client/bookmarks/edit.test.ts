@@ -6,6 +6,7 @@ import {
   type Bookmarks,
   OTHER_ROOT,
   rootItems,
+  bookmarksIn,
 } from "@/shared/bookmarks";
 import { describe, expect, it } from "vitest";
 
@@ -32,7 +33,9 @@ const state: Bookmarks = {
 const drawn = (bookmarks: Bookmarks) =>
   barItems(bookmarks).map((item) =>
     item.kind === "folder"
-      ? `${item.folder.title} [${item.items.map((each) => each.title).join(", ")}]`
+      ? `${item.folder.title} [${bookmarksIn(item.items)
+          .map((each) => each.title)
+          .join(", ")}]`
       : item.bookmark.title,
   );
 
@@ -84,6 +87,28 @@ describe("bookmarkEditOps", () => {
     expect(drawn(next)).toEqual(["Folder f [Page b, Page c, Page a]"]);
     expect(next.bookmarks.find((each) => each.id === "a")?.url).toBe(
       "https://example.org/",
+    );
+  });
+
+  it("makes a folder New folder made in a folder, in it, and files the bookmark there", () => {
+    const a = page("a", 0);
+    const next = applyBookmarkOps(
+      state,
+      bookmarkEditOps(state, a, {
+        folder: "inner",
+        newFolders: [{ folder: "f", id: "inner", order: 0, title: "Inner" }],
+        title: a.title,
+        url: a.url,
+      }),
+    );
+    expect(next.folders.find((each) => each.id === "inner")).toEqual({
+      folder: "f",
+      id: "inner",
+      order: 2,
+      title: "Inner",
+    });
+    expect(next.bookmarks.find((each) => each.id === "a")?.folder).toBe(
+      "inner",
     );
   });
 

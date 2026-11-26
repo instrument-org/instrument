@@ -1,11 +1,14 @@
 import {
+  type BarItem,
   type Bookmark,
+  type BookmarkFolder,
   type BookmarkRoot,
   type Bookmarks,
   folderOf,
   orderAfter,
   OTHER_ROOT,
   OTHER_ROOT_TITLE,
+  parentOf,
   rootItems,
   rootOf,
   siblingsIn,
@@ -18,6 +21,7 @@ import { sameAddress } from "./address";
 import {
   agentChangeOps,
   bookmarkChangesBetween,
+  folderPath,
   listedRoot,
 } from "./agent-changes";
 import { newBookmarkPlace } from "./edit";
@@ -160,8 +164,13 @@ export function listedBookmark(
     root: listedRoot(rootOf(state, bookmark)),
     title: bookmark.title,
     url: bookmark.url,
-    ...(folder ? { folder: folder.title } : {}),
+    ...(folder ? inFolder(state, folder) : {}),
   };
+}
+
+/** Where a folder's member is, as the agent is told: the folder's path. */
+function inFolder(state: Bookmarks, folder: BookmarkFolder) {
+  return { folder: folderPath(state, folder) };
 }
 
 /**
@@ -171,19 +180,25 @@ export function listedBookmark(
  */
 export function bookmarkListing(state: Bookmarks): ListedBookmark[] {
   const roots: (BookmarkRoot | undefined)[] = [undefined, OTHER_ROOT];
-  return roots.flatMap((root) =>
-    rootItems(state, root).flatMap((item): ListedBookmark[] =>
-      item.kind === "bookmark"
-        ? [listedBookmark(state, item.bookmark)]
-        : [
-            {
-              id: item.folder.id,
-              kind: "folder",
-              root: listedRoot(root),
-              title: item.folder.title,
-            },
-            ...item.items.map((bookmark) => listedBookmark(state, bookmark)),
-          ],
-    ),
-  );
+  const listed = (
+    root: BookmarkRoot | undefined,
+    items: readonly BarItem[],
+  ): ListedBookmark[] =>
+    items.flatMap((item): ListedBookmark[] => {
+      if (item.kind === "bookmark") {
+        return [listedBookmark(state, item.bookmark)];
+      }
+      const parent = parentOf(state, item.folder);
+      return [
+        {
+          id: item.folder.id,
+          kind: "folder",
+          root: listedRoot(root),
+          title: item.folder.title,
+          ...(parent ? inFolder(state, parent) : {}),
+        },
+        ...listed(root, item.items),
+      ];
+    });
+  return roots.flatMap((root) => listed(root, rootItems(state, root)));
 }

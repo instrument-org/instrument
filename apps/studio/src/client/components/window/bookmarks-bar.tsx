@@ -4,6 +4,7 @@ import {
   useOpenAddress,
 } from "@/client/bookmarks/open-address";
 import { useBookmarkFolders } from "@/client/bookmarks/folders";
+import { FolderEditor } from "./bookmark-editor";
 import { bookmarksStateAtom } from "@/client/bookmarks/store";
 import {
   ContextMenu,
@@ -349,16 +350,11 @@ function Bar({ bleeds = false, files, onOpen, onVisit }: BarProps) {
         </ContextMenuContent>
       </ContextMenu>
       {naming?.kind === "folder" && (
-        <BookmarkNameDialog
-          action="Create"
-          name=""
+        <FolderEditor
+          after={naming.after}
           onClose={() => {
             setNaming(undefined);
           }}
-          onCommit={(title) => {
-            folders.create(title, naming.after);
-          }}
-          title="New folder"
         />
       )}
       {naming?.kind === "rename" && (

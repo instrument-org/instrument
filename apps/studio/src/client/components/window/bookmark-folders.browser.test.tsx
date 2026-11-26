@@ -20,13 +20,13 @@ const kept = (id: string, folder: string): Bookmark => ({
 /** Two folders on a bar, opening and closing together as the bar has them. */
 function TwoFolders({ open }: { open: OpenAddress }) {
   const { chip } = useOpenFolder();
-  const chipOf = (folder: BookmarkFolder, items: Bookmark[]) => (
+  const chipOf = (folder: BookmarkFolder, bookmarks: Bookmark[]) => (
     <FolderChip
       {...chip(folder.id)}
       folder={folder}
       isLit={false}
       isOver={false}
-      items={items}
+      items={bookmarks.map((bookmark) => ({ bookmark, kind: "bookmark" }))}
       onNewFolder={() => undefined}
       onRename={() => undefined}
       open={open}

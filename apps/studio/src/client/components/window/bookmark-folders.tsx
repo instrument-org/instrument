@@ -32,6 +32,7 @@ import { cn, commandKeyHeld } from "@/client/lib/utils";
 import {
   type BarItem,
   type Bookmark,
+  bookmarksDirectlyIn,
   type BookmarkFolder,
   type BookmarkRoot,
   OTHER_ROOT,
@@ -92,7 +93,7 @@ export function FolderChip({
   isOpen: boolean;
   /** Past the row's end, laid out but out of sight. */
   isOver: boolean;
-  items: readonly Bookmark[];
+  items: readonly BarItem[];
   /** The pointer came onto it, which opens it while another folder's menu is open. */
   onHover: () => void;
   onNewFolder: () => void;
@@ -130,7 +131,7 @@ export function FolderChip({
               if (commandKeyHeld(event)) {
                 event.preventDefault();
               }
-              pressFolder(event, folder, items);
+              pressFolder(event, folder, bookmarksDirectlyIn(items));
             }}
             onPointerEnter={onHover}
             title={folder.title}
@@ -191,13 +192,13 @@ function FolderMenuContent({
   open,
 }: {
   folder: string;
-  items: readonly Bookmark[];
+  items: readonly BarItem[];
   open: OpenAddress;
 }) {
   return (
     <BookmarksMenuContent
       align="start"
-      items={items.map((bookmark) => ({ bookmark, kind: "bookmark" }))}
+      items={items}
       open={open}
       place={{ folder }}
     />
@@ -416,8 +417,8 @@ export function BookmarkNameDialog({
 
 /**
  * A folder in a menu of the bar's, past the bar's end under the chevron or
- * in All Bookmarks: a submenu of the bookmarks in it, with Open All on a
- * right click. Something held on the middle of its row is lit, and resting
+ * in All Bookmarks or in another folder: a submenu of what is in it, with
+ * Open All on a right click, which drags as a folder on the bar does. Something held on the middle of its row is lit, and resting
  * there opens it, as a folder's chip on the bar does, to be filed at a
  * place in it; it stays open until what is held is on another row of the
  * menu it is in, or lands.
@@ -435,7 +436,7 @@ function OverflowFolder({
   isElsewhere?: boolean;
   /** Something held would be filed in it if let go now. */
   isLit?: boolean;
-  items: readonly Bookmark[];
+  items: readonly BarItem[];
   /** Something held would land just above it. */
   line?: boolean;
   open: OpenAddress;
@@ -450,6 +451,9 @@ function OverflowFolder({
             className={cn("relative", isLit && "bg-accent")}
             data-bookmark-folder={folder.id}
             data-bookmark-id={folder.id}
+            onPointerDown={(event) => {
+              pressFolder(event, folder, bookmarksDirectlyIn(items));
+            }}
           >
             {line && <DropLine isAbove />}
             <FolderSimpleIcon className="size-4" />
@@ -462,7 +466,7 @@ function OverflowFolder({
       </ContextMenu>
       <BookmarksMenuContent
         isSub
-        items={items.map((bookmark) => ({ bookmark, kind: "bookmark" }))}
+        items={items}
         open={open}
         place={{ folder: folder.id }}
       />

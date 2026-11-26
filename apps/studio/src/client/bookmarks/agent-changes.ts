@@ -7,10 +7,13 @@ import {
   type BookmarkRoot,
   type Bookmarks,
   folderOf,
+  folderRootOf,
+  isWithin,
   orderAfter,
   ordersAt,
   OTHER_ROOT,
   OTHER_ROOT_TITLE,
+  parentOf,
   placeOf,
   rootOf,
   siblingsIn,
@@ -48,21 +51,37 @@ function rootTitle(root: BookmarkRoot | undefined) {
   return root === OTHER_ROOT ? OTHER_ROOT_TITLE : "Bookmarks bar";
 }
 
+/**
+ * The names of a folder and the folders it is in, outermost first:
+ * `Work/Clients` for Clients in Work.
+ */
+export function folderPath(state: Bookmarks, folder: BookmarkFolder): string {
+  const parent = parentOf(state, folder);
+  return parent ? `${folderPath(state, parent)}/${folder.title}` : folder.title;
+}
+
 /** Every bookmark and folder as a change has it, by id. */
 function sidesOf(state: Bookmarks): Map<string, BookmarkSide> {
+  const placeWords = (
+    root: BookmarkRoot | undefined,
+    folder: BookmarkFolder | undefined,
+  ) => `${rootTitle(root)}${folder ? `/${folderPath(state, folder)}` : ""}`;
   return new Map([
-    ...state.folders.map(
-      ({ id, order, root, title }): [string, BookmarkSide] => [
-        id,
+    ...state.folders.map((each): [string, BookmarkSide] => {
+      const parent = parentOf(state, each);
+      const root = folderRootOf(state, each.id);
+      return [
+        each.id,
         {
           kind: "folder",
-          order,
-          place: rootTitle(root),
+          order: each.order,
+          place: placeWords(root, parent),
           root: listedRoot(root),
-          title,
+          title: each.title,
+          ...(parent ? { folder: parent.id } : {}),
         },
-      ],
-    ),
+      ];
+    }),
     ...state.bookmarks.map((bookmark): [string, BookmarkSide] => {
       const folder = folderOf(state, bookmark);
       const root = rootOf(state, bookmark);
@@ -71,7 +90,7 @@ function sidesOf(state: Bookmarks): Map<string, BookmarkSide> {
         {
           kind: "bookmark",
           order: bookmark.order,
-          place: `${rootTitle(root)}${folder ? `/${folder.title}` : ""}`,
+          place: placeWords(root, folder),
           root: listedRoot(root),
           title: bookmark.title,
           url: bookmark.url,
@@ -156,23 +175,31 @@ export function agentChangeOps(
         return { error: "a folder needs a name." };
       }
       const root = rootListed(change.root);
+      const into =
+        change.folder === undefined ? undefined : folder(change.folder);
+      if (change.folder !== undefined && !into) {
+        return { error: `no folder has the id "${change.folder}".` };
+      }
       const same = state.folders.find(
         (each) =>
-          each.root === root &&
+          (into
+            ? parentOf(state, each)?.id === into.id
+            : !parentOf(state, each) &&
+              folderRootOf(state, each.id) === root) &&
           each.title.toLowerCase() === change.title.toLowerCase(),
       );
       return same
         ? {
-            error: `${rootTitle(root)} already has a folder "${same.title}" (${same.id}).`,
+            error: `${into ? `"${into.title}"` : rootTitle(root)} already has a folder "${same.title}" (${same.id}).`,
           }
         : {
             ops: [
               {
                 folder: {
                   id: crypto.randomUUID(),
-                  order: orderAfter(siblingsIn(state, undefined, root)),
+                  order: orderAfter(siblingsIn(state, into?.id, root)),
                   title: change.title,
-                  ...(root ? { root } : {}),
+                  ...(into ? { folder: into.id } : root ? { root } : {}),
                 },
                 type: "addFolder",
               },
@@ -195,7 +222,12 @@ function moveOps(
       return placeOf(state, bookmark);
     }
     const folder = state.folders.find((each) => each.id === id);
-    return folder && (folder.root ? { root: folder.root } : {});
+    if (!folder) {
+      return undefined;
+    }
+    const parent = parentOf(state, folder);
+    const root = folderRootOf(state, folder.id);
+    return parent ? { folder: parent.id } : root ? { root } : {};
   };
   const anchor = before ?? after;
   const beside = anchor === undefined ? undefined : placeOfId(anchor);
@@ -227,14 +259,16 @@ function moveOps(
       error: "the one named to go beside is not in that place; leave out --to.",
     };
   }
-  const stuck = state.folders.find(
-    (each) =>
-      ids.includes(each.id) &&
-      (place.folder !== undefined || each.root !== place.root),
-  );
+  const into = place.folder;
+  const stuck =
+    into === undefined
+      ? undefined
+      : state.folders.find(
+          (each) => ids.includes(each.id) && isWithin(state, into, each.id),
+        );
   if (stuck) {
     return {
-      error: `the folder "${stuck.title}" stays in ${rootTitle(stuck.root)}: a folder goes in no other folder or root. Make one there and move its bookmarks.`,
+      error: `the folder "${stuck.title}" cannot go in itself or a folder inside it.`,
     };
   }
   const moved = [...new Set(ids)];
@@ -293,7 +327,25 @@ export function undoBookmarkChanges(
         : after?.kind === "folder"
           ? 3
           : 1;
-  for (const change of standing.toSorted((a, b) => rank(a) - rank(b))) {
+  // How many folders the turn touched each one is in: a removed folder
+  // comes back before those inside it, and a folder made goes after them.
+  const parentIn = new Map(
+    changes.map(({ after, before, id }) => [id, (before ?? after)?.folder]),
+  );
+  const depth = (id: string) => {
+    const seen = new Set([id]);
+    let count = 0;
+    for (let at = parentIn.get(id); at !== undefined && !seen.has(at);) {
+      seen.add(at);
+      count += 1;
+      at = parentIn.get(at);
+    }
+    return count;
+  };
+  const inTurn = (a: BookmarkChange, b: BookmarkChange) =>
+    rank(a) - rank(b) ||
+    (rank(a) === 3 ? depth(b.id) - depth(a.id) : depth(a.id) - depth(b.id));
+  for (const change of standing.toSorted(inTurn)) {
     const so = applyBookmarkOps(state, ops);
     const made = undoOps(so, change);
     if (made) {
@@ -314,7 +366,9 @@ function undoOps(
   { after, before, id }: BookmarkChange,
 ): BookmarkOp[] | undefined {
   if (before === null) {
-    const isFull = state.bookmarks.some((each) => each.folder === id);
+    const isFull =
+      state.bookmarks.some((each) => each.folder === id) ||
+      state.folders.some((each) => each.folder === id);
     return isFull ? undefined : [{ id, type: "remove" }];
   }
   const place = {
@@ -324,12 +378,7 @@ function undoOps(
   const { order, title, url } = before;
   if (after === null) {
     if (before.kind === "folder") {
-      const folder: BookmarkFolder = {
-        id,
-        order,
-        title,
-        ...(place.root ? { root: place.root } : {}),
-      };
+      const folder: BookmarkFolder = { id, order, title, ...place };
       return [{ folder, type: "addFolder" }];
     }
     const address = url ?? "";

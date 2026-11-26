@@ -8,6 +8,7 @@ import {
 } from "@/client/bookmarks/open-address";
 import {
   type ClipItem,
+  addressesOf,
   clipOf,
   NOTHING_SELECTED,
   type OutlineRow,
@@ -43,7 +44,10 @@ import {
   type MenuComponents,
 } from "@/client/components/ui/menu-components";
 import { AddressMark } from "@/client/components/window/app-chip";
-import { BookmarkEditor } from "@/client/components/window/bookmark-editor";
+import {
+  BookmarkEditor,
+  FolderEditor,
+} from "@/client/components/window/bookmark-editor";
 import { BookmarkNameDialog } from "@/client/components/window/bookmark-folders";
 import {
   pressBookmark,
@@ -66,8 +70,10 @@ import {
   type Bookmark,
   type BookmarkFolder,
   type BookmarkOp,
+  keyOfPlace,
   OTHER_ROOT,
   OTHER_ROOT_TITLE,
+  placeOf,
   rootOf,
 } from "@/shared/bookmarks";
 import { APP_NAME } from "@instrument-org/shared";
@@ -116,7 +122,7 @@ export function BookmarksPage({
   const [editing, setEditing] = useState<
     | { bookmark: Bookmark; isNew: boolean; kind: "bookmark" }
     | { folder: BookmarkFolder; kind: "folder" }
-    | { kind: "newFolder" }
+    | { initialPlace: string | undefined; kind: "newFolder" }
   >();
   const isSearch = q.trim() !== "";
   const rows = outlineRows(state, { open, q });
@@ -201,13 +207,7 @@ export function BookmarksPage({
     const items = clipOf(now, rows, new Set(targets.map((row) => row.id)));
     setClip(items);
     // Their addresses too, for pasting anywhere else.
-    void navigator.clipboard.writeText(
-      items
-        .flatMap((item) =>
-          item.kind === "bookmark" ? [item.url] : item.items.map((i) => i.url),
-        )
-        .join("\n"),
-    );
+    void navigator.clipboard.writeText(items.flatMap(addressesOf).join("\n"));
   };
 
   const paste = (over?: OutlineRow) => {
@@ -215,11 +215,7 @@ export function BookmarksPage({
       return;
     }
     const now = store.get(bookmarksStateAtom);
-    const place = pastePlace(
-      now,
-      over ?? picked.at(-1),
-      clip.some((item) => item.kind === "folder"),
-    );
+    const place = pastePlace(now, over ?? picked.at(-1));
     void apply(pasteOps(now, clip, place));
   };
 
@@ -558,7 +554,22 @@ export function BookmarksPage({
             });
           }}
           onAddFolder={() => {
-            setEditing({ kind: "newFolder" });
+            // Into the folder picked, or beside the bookmark picked, as a
+            // browser's manager adds one.
+            const row = picked.at(-1);
+            setEditing({
+              initialPlace:
+                row?.kind === "folder"
+                  ? row.folder.id
+                  : row?.kind === "root"
+                    ? OTHER_ROOT
+                    : row
+                      ? keyOfPlace(
+                          placeOf(store.get(bookmarksStateAtom), row.bookmark),
+                        )
+                      : undefined,
+              kind: "newFolder",
+            });
           }}
           onSort={() => {
             void apply(sortByNameOps(store.get(bookmarksStateAtom)));
@@ -652,17 +663,12 @@ export function BookmarksPage({
         />
       )}
       {editing?.kind === "newFolder" && (
-        <BookmarkNameDialog
-          action="Create"
-          name=""
+        <FolderEditor
+          initialPlace={editing.initialPlace}
           onClose={() => {
             setEditing(undefined);
             list.current?.focus();
           }}
-          onCommit={(title) => {
-            folders.create(title);
-          }}
-          title="New folder"
         />
       )}
     </div>

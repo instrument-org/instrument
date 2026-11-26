@@ -10,6 +10,8 @@ import {
   type Bookmark,
   type Bookmarks,
   OTHER_ROOT,
+  bookmarksDirectlyIn,
+  itemsOfFolder,
   rootItems,
 } from "@/shared/bookmarks";
 import { isScreenName, SCREENS } from "@/shared/instrument-screens";
@@ -119,15 +121,7 @@ export function bookmarksToOpen(state: Bookmarks, of: string): Bookmark[] {
       item.kind === "bookmark" ? [item.bookmark] : [],
     );
   }
-  for (const root of [undefined, OTHER_ROOT] as const) {
-    const found = rootItems(state, root).find(
-      (item) => item.kind === "folder" && item.folder.id === of,
-    );
-    if (found?.kind === "folder") {
-      return found.items;
-    }
-  }
-  return [];
+  return bookmarksDirectlyIn(itemsOfFolder(state, of));
 }
 
 /** The tab an address is among several opened together (`openAll`): a site's page, or the screen of the app's own it names. */

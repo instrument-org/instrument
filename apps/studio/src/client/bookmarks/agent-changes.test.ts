@@ -55,17 +55,12 @@ function shape({ bookmarks, folders }: Bookmarks) {
   const add = (place: string, words: string) => {
     places[place] = [...(places[place] ?? []), words];
   };
-  const loose = [
+  const all = [
     ...folders.map((each) => ({ ...each, words: `${each.title}/` })),
-    ...bookmarks
-      .filter((each) => each.folder === undefined)
-      .map((each) => ({ ...each, words: each.title })),
+    ...bookmarks.map((each) => ({ ...each, words: each.title })),
   ].toSorted((a, b) => a.order - b.order);
-  for (const each of loose) {
-    add(each.root === OTHER_ROOT ? "All" : "Bar", each.words);
-  }
-  for (const each of bookmarks.filter((one) => one.folder !== undefined)) {
-    add(each.folder ?? "", each.title);
+  for (const each of all) {
+    add(each.folder ?? (each.root === OTHER_ROOT ? "All" : "Bar"), each.words);
   }
   return places;
 }
@@ -99,6 +94,32 @@ describe("agentChangeOps", () => {
     ).toMatchObject({ Bar: ["Work/", "A", "C"] });
   });
 
+  it("moves a folder into a folder and into the other root, with what is in it", () => {
+    const nested = make(STATE, { ids: ["work"], to: "reading", type: "move" });
+    expect(shape(nested)).toMatchObject({
+      All: ["D", "Reading/"],
+      Bar: ["A", "C"],
+      reading: ["E", "Work/"],
+      work: ["B"],
+    });
+    expect(() =>
+      make(nested, { ids: ["reading"], to: "work", type: "move" }),
+    ).toThrow("cannot go in itself or a folder inside it");
+    expect(
+      shape(make(nested, { ids: ["work"], to: "bar", type: "move" })),
+    ).toMatchObject({ Bar: ["A", "C", "Work/"], reading: ["E"] });
+  });
+
+  it("makes a folder in a folder", () => {
+    const made = make(STATE, {
+      folder: "work",
+      root: "bar",
+      title: "Clients",
+      type: "newFolder",
+    });
+    expect(shape(made)).toMatchObject({ work: ["B", "Clients/"] });
+  });
+
   it("makes no ops for what is so already", () => {
     expect(
       agentChangeOps(STATE, { ids: ["c"], to: "bar", type: "move" }),
@@ -106,8 +127,7 @@ describe("agentChangeOps", () => {
   });
 
   it.each<[string, Change]>([
-    ["goes in no other folder", { ids: ["work"], to: "all", type: "move" }],
-    ["goes in no other folder", { ids: ["work"], to: "reading", type: "move" }],
+    ["in itself", { ids: ["work"], to: "work", type: "move" }],
     ["beside itself", { before: "a", ids: ["a"], type: "move" }],
     ["not in that place", { before: "d", ids: ["a"], to: "bar", type: "move" }],
     ["no bookmark or folder", { id: "z", title: "Z", type: "rename" }],
@@ -137,6 +157,45 @@ describe("undoBookmarkChanges", () => {
     const { ops, ...counts } = undoBookmarkChanges(now, changes);
     return { ...counts, state: applyBookmarkOps(now, ops) };
   };
+
+  it("puts a removed folder back with a folder made before it back inside it", () => {
+    // The folder inside sorts first, as one made before its parent can.
+    const nested = applyBookmarkOps(STATE, [
+      {
+        folder: { id: "zz", order: 5, root: OTHER_ROOT, title: "Parent" },
+        type: "addFolder",
+      },
+      {
+        folder: { folder: "zz", id: "aa", order: 0, title: "Child" },
+        type: "addFolder",
+      },
+    ]);
+    const after = make(nested, { ids: ["zz"], type: "remove" });
+    const { skipped, state } = undo(
+      after,
+      bookmarkChangesBetween(nested, after),
+    );
+    expect(skipped).toBe(0);
+    expect(shape(state)).toEqual(shape(nested));
+  });
+
+  it("takes back a folder made in a folder made in the same turn", () => {
+    const after = make(STATE, {
+      root: "bar",
+      title: "Outer",
+      type: "newFolder",
+    });
+    const outer = after.folders.find((each) => each.title === "Outer")?.id;
+    const both = make(after, {
+      folder: outer,
+      root: "bar",
+      title: "Inner",
+      type: "newFolder",
+    });
+    const { skipped, state } = undo(both, bookmarkChangesBetween(STATE, both));
+    expect(skipped).toBe(0);
+    expect(state).toEqual(STATE);
+  });
 
   it.each<[string, Change[]]>([
     ["a move", [{ ids: ["a", "e"], to: "work", type: "move" }]],

@@ -18,6 +18,7 @@ import {
   type Bookmark,
   type BookmarkRoot,
   OTHER_ROOT,
+  isWithin,
   siblingsIn,
 } from "@/shared/bookmarks";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
@@ -259,8 +260,7 @@ export function useBookmarksTarget({
         ).length;
         return { chip: OVERFLOW_CHIP, index, kind: "bookmarks" };
       }
-      // A folder stays in its root, so it only moves along the bar.
-      if (held.kind !== "folder" && isOn(others?.())) {
+      if (isOn(others?.())) {
         const index = siblingsIn(state, undefined, OTHER_ROOT).filter(
           (each) => !moving.includes(each.id),
         ).length;
@@ -270,10 +270,6 @@ export function useBookmarksTarget({
           kind: "bookmarks",
           root: OTHER_ROOT,
         };
-      }
-      if (held.kind === "folder") {
-        const index = element ? bookmarkIndexAt(point, element, moving) : 0;
-        return { index, kind: "bookmarks" };
       }
       const folder = element ? folderAt(point, element, moving) : undefined;
       if (folder !== undefined) {
@@ -368,9 +364,12 @@ export function useMenuTarget({
             if (!element || onTop !== element) {
               return undefined;
             }
-            const isBar =
-              place.folder === undefined && place.root === undefined;
-            if (held.kind === "folder" && !isBar) {
+            // A folder goes in no folder inside it, nor in itself.
+            if (
+              held.kind === "folder" &&
+              place.folder !== undefined &&
+              isWithin(state, place.folder, held.folder)
+            ) {
               return undefined;
             }
             const kept =
@@ -388,26 +387,24 @@ export function useMenuTarget({
             const items = [
               ...element.querySelectorAll<HTMLElement>("[data-bookmark-id]"),
             ].filter((item) => !moving.has(item.dataset.bookmarkId ?? ""));
-            if (held.kind !== "folder") {
-              const into = items.find((item) => {
-                if (item.dataset.bookmarkFolder === undefined) {
-                  return false;
-                }
-                const rect = item.getBoundingClientRect();
-                const edge = rect.height * FOLDER_EDGE;
-                return (
-                  point.y >= rect.top + edge &&
-                  point.y <= rect.bottom - edge &&
-                  point.x >= rect.left &&
-                  point.x <= rect.right
-                );
-              })?.dataset.bookmarkFolder;
-              if (into !== undefined) {
-                const index = siblingsIn(state, into).filter(
-                  (each) => !moving.has(each.id),
-                ).length;
-                return { folder: into, index, kind: "bookmarks" };
+            const into = items.find((item) => {
+              if (item.dataset.bookmarkFolder === undefined) {
+                return false;
               }
+              const rect = item.getBoundingClientRect();
+              const edge = rect.height * FOLDER_EDGE;
+              return (
+                point.y >= rect.top + edge &&
+                point.y <= rect.bottom - edge &&
+                point.x >= rect.left &&
+                point.x <= rect.right
+              );
+            })?.dataset.bookmarkFolder;
+            if (into !== undefined) {
+              const index = siblingsIn(state, into).filter(
+                (each) => !moving.has(each.id),
+              ).length;
+              return { folder: into, index, kind: "bookmarks" };
             }
             const there = siblingsIn(state, place.folder, place.root).filter(
               (each) => !moving.has(each.id),

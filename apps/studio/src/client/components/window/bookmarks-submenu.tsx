@@ -16,6 +16,7 @@ import {
   type BarItem,
   barItems,
   type Bookmark,
+  bookmarksDirectlyIn,
   OTHER_ROOT,
   OTHER_ROOT_TITLE,
   rootItems,
@@ -26,6 +27,7 @@ import {
   type WindowShortcutId,
 } from "@/shared/window-shortcuts";
 import { BookmarkSimpleIcon } from "@phosphor-icons/react/BookmarkSimple";
+import { type ReactNode } from "react";
 import { BookmarksIcon } from "@phosphor-icons/react/Bookmarks";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { StarIcon } from "@phosphor-icons/react/Star";
@@ -84,8 +86,8 @@ export function BookmarksSubmenu({
       <span className="min-w-0 truncate">{bookmarkName(bookmark)}</span>
     </DropdownMenuItem>
   );
-  /** A bookmark of a root, or a folder as a submenu of the bookmarks in it. */
-  const rootItem = (item: BarItem) =>
+  /** A bookmark of a root, or a folder as a submenu of what is in it. */
+  const rootItem = (item: BarItem): ReactNode =>
     item.kind === "bookmark" ? (
       bookmarkItem(item.bookmark)
     ) : (
@@ -101,11 +103,11 @@ export function BookmarksSubmenu({
             </DropdownMenuItem>
           ) : (
             <>
-              {item.items.map(bookmarkItem)}
+              {item.items.map(rootItem)}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onSelect={() => {
-                  item.items.forEach((bookmark, index) => {
+                  bookmarksDirectlyIn(item.items).forEach((bookmark, index) => {
                     open(bookmark.url, {
                       behind: index > 0,
                       newTab: true,

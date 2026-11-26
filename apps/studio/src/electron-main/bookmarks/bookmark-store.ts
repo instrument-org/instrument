@@ -16,7 +16,7 @@ import { z } from "zod";
 
 /**
  * The bookmarks while the app runs, over the workspace's `bookmarks` synced
- * store: a key per bookmark, `bookmark/<id>`, and per folder of the bar,
+ * store: a key per bookmark, `bookmark/<id>`, and per folder,
  * `folder/<id>`, whose value is the rest of it. Two devices changing
  * different members never touch the same key, and the newest change to one
  * member wins. A window's batch of ops is applied to the bookmarks as they
@@ -47,8 +47,13 @@ const BookmarkValueSchema = z.object({
   url: z.string().min(1),
 });
 
-/** A folder's value, read and written back as a bookmark's is. */
+/**
+ * A folder's value, read and written back as a bookmark's is, `folder` the
+ * folder it is in. A build that reads no folder's `folder` shows one in a
+ * folder loose in the `root` written beside it.
+ */
 const FolderValueSchema = z.object({
+  folder: z.string().min(1).optional().catch(undefined),
   order: z.number(),
   root: RootSchema,
   title: z.string(),
@@ -94,12 +99,13 @@ export function createBookmarkStore({
         if (!parsed.success) {
           return [];
         }
-        const { order, root, title } = parsed.data;
+        const { folder, order, root, title } = parsed.data;
         return [
           {
             id: key.slice(PREFIX.folder.length),
             order,
             title,
+            ...(folder === undefined ? {} : { folder }),
             ...(root === undefined ? {} : { root }),
           },
         ];
@@ -185,7 +191,7 @@ function changesBetween<T extends { id: string }>(
 /** The fields this build reads off each kind of member, which it writes whole; it keeps the rest as found. */
 const READ_FIELDS = {
   bookmark: new Set(["folder", "order", "root", "title", "url"]),
-  folder: new Set(["order", "root", "title"]),
+  folder: new Set(["folder", "order", "root", "title"]),
 };
 
 /** What a stored value has that this build does not read: a later build's own fields. */

@@ -165,12 +165,14 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
         type: z.literal("rename"),
       }),
       z.object({ id: z.string(), type: z.literal("setUrl"), url: z.string() }),
+      /** In a root, or in the folder named by its id. */
       z.object({
+        folder: z.string().optional(),
         root: z.enum(["all", "bar"]),
         title: z.string(),
         type: z.literal("newFolder"),
       }),
-      /** A folder goes with every bookmark filed in it. */
+      /** A folder goes with everything in it. */
       z.object({ ids: z.array(z.string()), type: z.literal("remove") }),
     ]),
     kind: z.literal("changeBookmarks"),
@@ -191,10 +193,11 @@ export type WindowTabRequest = z.output<typeof WindowTabRequestSchema>;
 
 /**
  * A bookmark or a bookmark folder as the window names it to the agent: the
- * root it is in (the bar, or All Bookmarks), the folder it is filed in by
- * name, its id, its name, and a bookmark's address.
+ * root it is in (the bar, or All Bookmarks), the folder it is in, its id,
+ * its name, and a bookmark's address.
  */
 export const ListedBookmarkSchema = z.object({
+  /** The folder it is in by name, with the folders that one is in: `Work/Clients`. */
   folder: z.string().optional(),
   id: z.string(),
   kind: z.enum(["bookmark", "folder"]),

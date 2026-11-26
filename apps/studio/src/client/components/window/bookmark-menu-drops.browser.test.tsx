@@ -197,6 +197,36 @@ describe("the bookmarks bar's end while something is held", () => {
     });
   });
 
+  it("lands a bar's folder held over All Bookmarks' menu in a folder there", async () => {
+    await store.set(applyBookmarkOpsAtom, [
+      { folder: { id: "g", order: 1, title: "Work" }, type: "addFolder" },
+      {
+        bookmark: {
+          folder: "g",
+          id: "g1",
+          order: 0,
+          title: "In work",
+          url: "https://work.example/",
+        },
+        type: "add",
+      },
+    ]);
+    await renderInBrowser(<BarEnd />, { store });
+    await userEvent.click(page.getByRole("button", { name: "All Bookmarks" }));
+    const folder = page.getByRole("menuitem", { name: /Reading/ }).element();
+
+    pressToDrag({ button: 0, clientX: 2, clientY: 2, isPrimary: true }, () => ({
+      grab: { x: 0, y: 0 },
+      held: { folder: "g", kind: "folder", links: [], title: "Work" },
+    }));
+    move({ x: 60, y: 60 });
+    move(center(folder));
+    await frames(2);
+    expect(landing()).toEqual({ folder: "f", index: 0, kind: "bookmarks" });
+
+    await store.set(applyBookmarkOpsAtom, [{ id: "g", type: "remove" }]);
+  });
+
   it("leaves a bookmark held over a menu's first row to the menu, where the bar's slack below it reaches", async () => {
     // A long menu, bigger than the bar's room, which a smaller target would
     // otherwise answer for first.

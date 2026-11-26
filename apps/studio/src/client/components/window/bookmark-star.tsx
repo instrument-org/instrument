@@ -33,7 +33,7 @@ import { StarIcon } from "@phosphor-icons/react/Star";
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 
 import { AddressMark } from "./app-chip";
-import { BookmarkEditor } from "./bookmark-editor";
+import { BookmarkEditor, PlaceIndent } from "./bookmark-editor";
 
 /**
  * The stars on screen that ⌘D may mean, each with the element it is drawn
@@ -347,6 +347,7 @@ function BookmarkCard({
             <SelectContent position="popper">
               {places.map((place) => (
                 <SelectItem key={place.key ?? BAR} value={place.key ?? BAR}>
+                  {place.depth > 1 && <PlaceIndent depth={place.depth} />}
                   {place.depth === 0 ? (
                     <BookmarksSimpleIcon className="size-4" />
                   ) : (

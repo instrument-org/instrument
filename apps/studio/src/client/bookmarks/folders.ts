@@ -2,8 +2,9 @@ import { UNDO_LABEL } from "@/client/lib/undo-toast";
 import { toast } from "@/client/lib/toast";
 import {
   type Bookmark,
+  bookmarksIn,
   type BookmarkFolder,
-  type BookmarkOp,
+  itemsOfFolder,
   keyOfPlace,
   orderAfter,
   orderOnBar,
@@ -13,11 +14,12 @@ import {
 } from "@/shared/bookmarks";
 import { useSetAtom, useStore } from "jotai";
 
+import { restoreOps } from "./outline";
 import { applyBookmarkOpsAtom, bookmarksStateAtom } from "./store";
 
 /**
- * Making, renaming and removing the bookmarks bar's folders, and filing a
- * bookmark in one or taking it back out onto the bar. The bookmarks are
+ * Making, renaming and removing bookmark folders, and filing a bookmark in
+ * one or taking it back out onto the bar. The bookmarks are
  * read at the press, so nothing redraws for them.
  */
 export function useBookmarkFolders() {
@@ -62,28 +64,19 @@ export function useBookmarkFolders() {
       void apply([{ id: bookmark.id, order, type: "move", ...place }]);
     },
     /**
-     * Removes a folder with every bookmark in it, as a browser does, with
-     * Undo in a toast that puts the folder and each of them back as they
-     * were.
+     * Removes a folder with everything in it, as a browser does, with Undo
+     * in a toast that puts the folder and all of it back as it was.
      */
     remove: (folder: BookmarkFolder) => {
-      const inside = store
-        .get(bookmarksStateAtom)
-        .bookmarks.filter((bookmark) => bookmark.folder === folder.id);
+      const state = store.get(bookmarksStateAtom);
+      const inside = bookmarksIn(itemsOfFolder(state, folder.id));
+      const restore = restoreOps(state, { bookmarks: [], folders: [folder] });
       void apply([{ id: folder.id, type: "remove" }]);
       toast(`Deleted “${folder.title}”`, {
         action: {
           label: UNDO_LABEL,
           onClick: () => {
-            void apply([
-              { folder, type: "addFolder" },
-              ...inside.map(
-                (bookmark): BookmarkOp => ({
-                  bookmark,
-                  type: "add",
-                }),
-              ),
-            ]);
+            void apply(restore);
           },
         },
         ...(inside.length > 0

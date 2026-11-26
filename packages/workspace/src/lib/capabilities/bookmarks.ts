@@ -122,7 +122,7 @@ function placeNamed(listed: readonly FromWindow[], named: string): string {
   }
   if (folders.length > 1) {
     throw new Error(
-      `several folders are called "${named}": ${folders.map((each) => `${each.id} in ${ROOT_TITLES[each.root]}`).join(", ")}. Name one by its id.`,
+      `several folders are called "${named}": ${folders.map((each) => `${each.id} in ${placeWords(each)}`).join(", ")}. Name one by its id.`,
     );
   }
   const found = withId(listed, named);
@@ -185,6 +185,11 @@ const IDS = z
   })
   .min(1, `needs the ids ${NAME} list shows.`);
 
+/** A folder's own path, the folders it is in first: `Work/Clients`. */
+function pathOf({ folder, title }: Pick<Listed, "folder" | "title">) {
+  return folder === undefined ? title : `${folder}/${title}`;
+}
+
 /** Where a bookmark or folder is, as a list or a line names it: `All Bookmarks`, `Bookmarks bar/Work`. */
 function placeWords({ folder, root }: Pick<Listed, "folder" | "root">) {
   return `${ROOT_TITLES[root]}${folder === undefined ? "" : `/${folder}`}`;
@@ -216,20 +221,24 @@ export const bookmarksList = defineCapability({
         .toLowerCase();
       return words.every((word) => text.includes(word));
     };
-    const found = listed.filter(
-      (each) => each.kind === "bookmark" && matches(each),
-    );
-    // A folder stays where it matches or holds a bookmark that does.
-    return listed.filter(
-      (each) =>
-        found.includes(each) ||
-        (each.kind === "folder" &&
-          (matches(each) ||
-            found.some(
-              (bookmark) =>
-                bookmark.root === each.root && bookmark.folder === each.title,
-            ))),
-    );
+    const found = listed.filter(matches);
+    // A folder stays where it matches or has something in it, at any depth,
+    // that does.
+    return listed.filter((each) => {
+      if (found.includes(each)) {
+        return true;
+      }
+      if (each.kind !== "folder") {
+        return false;
+      }
+      const path = pathOf(each);
+      return found.some(
+        (one) =>
+          one.root === each.root &&
+          one.folder !== undefined &&
+          (one.folder === path || one.folder.startsWith(`${path}/`)),
+      );
+    });
   },
   summary:
     "The user's bookmarks, as the Bookmarks page lists them: the bookmarks bar, then All Bookmarks, each folder with what is filed in it.",
@@ -247,16 +256,24 @@ export const bookmarksList = defineCapability({
     }
     const lines: string[] = [];
     let root: Listed["root"] | undefined;
+    // How far in each folder listed so far is, by its path.
+    const depths = new Map<string, number>();
     for (const row of rows) {
       if (row.root !== root) {
         root = row.root;
+        depths.clear();
         lines.push(`${ROOT_TITLES[root]}:`);
       }
       const id = row.id.slice(0, SHOWN_ID_LENGTH);
-      const indent = row.folder === undefined ? "  " : "    ";
+      const depth =
+        row.folder === undefined ? 1 : (depths.get(row.folder) ?? 1) + 1;
+      if (row.kind === "folder") {
+        depths.set(pathOf(row), depth);
+      }
+      const indent = "  ".repeat(depth);
       lines.push(
         row.kind === "folder"
-          ? `  ${id}  ${row.title}/`
+          ? `${indent}${id}  ${row.title}/`
           : `${indent}${id}  ${row.title === "" ? "" : `${row.title}  `}${row.address ?? ""}`,
       );
     }
@@ -469,17 +486,29 @@ export const bookmarksNewFolder = defineCapability({
     title: z.string({
       error: `new-folder takes a name: ${NAME} new-folder <name>.`,
     }),
-    in: z.enum(["all", "bar"]).default("all").meta({
+    in: z.string().default("all").meta({
       description:
-        "`bar` puts it on the bookmarks bar, `all` in All Bookmarks. Folders are one level deep.",
+        "`bar` puts it on the bookmarks bar, `all` in All Bookmarks, and a folder's id or name in that folder.",
     }),
   }),
   name: "bookmarks.newFolder",
   output: Changed,
-  run: ({ in: root, title }, ctx) =>
-    change({ root, title: title.trim(), type: "newFolder" }, ctx),
+  async run({ in: named, title }, ctx) {
+    const place = placeNamed(await bookmarksNow(ctx), named);
+    return change(
+      place === "bar" || place === "all"
+        ? { root: place, title: title.trim(), type: "newFolder" }
+        : {
+            folder: place,
+            root: "all",
+            title: title.trim(),
+            type: "newFolder",
+          },
+      ctx,
+    );
+  },
   summary:
-    "Make a bookmark folder, last in All Bookmarks or on the bookmarks bar.",
+    "Make a bookmark folder, last in All Bookmarks, on the bookmarks bar, or in a folder.",
   surfaces: {
     cli: {
       help: "",

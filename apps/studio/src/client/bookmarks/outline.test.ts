@@ -6,6 +6,7 @@ import {
   type Bookmarks,
   OTHER_ROOT,
   rootItems,
+  type BarItem,
 } from "@/shared/bookmarks";
 import { describe, expect, it } from "vitest";
 
@@ -64,13 +65,16 @@ const listed = (rows: readonly OutlineRow[]) =>
       : `${"  ".repeat(row.depth)}${row.isOpen ? "▾" : "▸"} ${row.kind === "root" ? "All Bookmarks" : row.folder.title} (${row.count.toString()})`,
   );
 
-/** The bar as one line per item, a folder's contents in brackets. */
-const drawn = (bookmarks: Bookmarks) =>
-  barItems(bookmarks).map((item) =>
+/** Items as one line each, what is in a folder in brackets. */
+const drawnItems = (items: readonly BarItem[]): string[] =>
+  items.map((item) =>
     item.kind === "folder"
-      ? `${item.folder.title} [${item.items.map((each) => each.title).join(", ")}]`
+      ? `${item.folder.title} [${drawnItems(item.items).join(", ")}]`
       : item.bookmark.title,
   );
+
+/** The bar as one line per item. */
+const drawn = (bookmarks: Bookmarks) => drawnItems(barItems(bookmarks));
 
 describe("outlineRows", () => {
   it("lists the bar's items in order, with an open folder's bookmarks under it", () => {
@@ -142,7 +146,7 @@ describe("paste", () => {
 
   it("pastes bookmarks right after the row it is asked over, in its folder", () => {
     const clip = clipOf(state, rows, new Set(["zendesk", "helpscout"]));
-    const place = pastePlace(state, row("intercom"), false);
+    const place = pastePlace(state, row("intercom"));
     expect(drawn(applyBookmarkOps(state, pasteOps(state, clip, place, newId))))
       .toMatchInlineSnapshot(`
         [
@@ -154,16 +158,15 @@ describe("paste", () => {
       `);
   });
 
-  it("pastes a folder with its bookmarks on the bar, after the folder it was asked inside", () => {
+  it("pastes a folder with its bookmarks into the folder it was asked inside", () => {
     const clip = clipOf(state, rows, new Set(["competitors", "intercom"]));
     expect(clip).toHaveLength(1);
-    const place = pastePlace(state, row("freshdesk"), true);
+    const place = pastePlace(state, row("freshdesk"));
     expect(drawn(applyBookmarkOps(state, pasteOps(state, clip, place, newId))))
       .toMatchInlineSnapshot(`
         [
           "Zendesk pricing",
-          "Competitors [Intercom pricing, Freshdesk plans]",
-          "Competitors [Intercom pricing, Freshdesk plans]",
+          "Competitors [Intercom pricing, Freshdesk plans, Competitors [Intercom pricing, Freshdesk plans]]",
           "Help Scout",
           "Reading [G2 help desk grid]",
         ]
@@ -206,15 +209,27 @@ describe("drag", () => {
     ]);
   });
 
-  it("moves a folder along the bar, never into another folder", () => {
+  it("moves a folder along the bar, and into another folder", () => {
     expect(drop(["reading"], "zendesk", 0.1)).toEqual([
       "Reading [G2 help desk grid]",
       "Zendesk pricing",
       "Competitors [Intercom pricing, Freshdesk plans]",
       "Help Scout",
     ]);
-    expect(drop(["reading"], "competitors", 0.5)).toEqual(drawn(state));
-    expect(drop(["reading"], "intercom", 0.5)).toEqual(drawn(state));
+    expect(drop(["reading"], "competitors", 0.5)).toEqual([
+      "Zendesk pricing",
+      "Competitors [Intercom pricing, Freshdesk plans, Reading [G2 help desk grid]]",
+      "Help Scout",
+    ]);
+    expect(drop(["reading"], "intercom", 0.6)).toEqual([
+      "Zendesk pricing",
+      "Competitors [Intercom pricing, Reading [G2 help desk grid], Freshdesk plans]",
+      "Help Scout",
+    ]);
+  });
+
+  it("has nowhere to land inside a folder that is held", () => {
+    expect(drop(["competitors"], "intercom", 0.5)).toBeUndefined();
   });
 
   it("files a bookmark first in an open folder when let go on its bottom quarter", () => {
@@ -264,11 +279,7 @@ describe("All Bookmarks", () => {
   const at = (id: string) => rows.findIndex((row) => row.id === id);
   /** All Bookmarks as one line per item, a folder's contents in brackets. */
   const other = (bookmarks: Bookmarks) =>
-    rootItems(bookmarks, OTHER_ROOT).map((item) =>
-      item.kind === "folder"
-        ? `${item.folder.title} [${item.items.map((each) => each.title).join(", ")}]`
-        : item.bookmark.title,
-    );
+    drawnItems(rootItems(bookmarks, OTHER_ROOT));
   const drop = (ids: string[], over: string, fraction: number) => {
     const target = dropTargetAt(
       withOther,
@@ -316,9 +327,12 @@ describe("All Bookmarks", () => {
     expect(drop(["wiki"], "zendesk", 0.25)?.bar[0]).toBe("Wiki");
   });
 
-  it("keeps a folder in its own root", () => {
-    expect(drop(["reading"], OTHER_ROOT, 0.5)?.bar).toEqual(drawn(withOther));
-    expect(drop(["trips"], "zendesk", 0.25)?.bar).toEqual(drawn(withOther));
+  it("moves a folder between the roots", () => {
+    expect(drop(["reading"], OTHER_ROOT, 0.5)?.other).toEqual([
+      "Trips [Notes]",
+      "Wiki",
+      "Reading [G2 help desk grid]",
+    ]);
     expect(drop(["trips"], "wiki", 0.9)?.other).toEqual([
       "Wiki",
       "Trips [Notes]",
@@ -327,7 +341,7 @@ describe("All Bookmarks", () => {
 
   it("pastes into All Bookmarks asked over its row", () => {
     const root = rows.find((row) => row.kind === "root");
-    const place = pastePlace(withOther, root, true);
+    const place = pastePlace(withOther, root);
     const pasted = applyBookmarkOps(
       withOther,
       pasteOps(

@@ -61,6 +61,21 @@ const LISTED: NonNullable<WindowTabAnswer["bookmarks"]> = [
     url: "https://www.intercom.com/pricing",
   },
   {
+    folder: "Competitors",
+    id: "66666666-g",
+    kind: "folder",
+    root: "bar",
+    title: "Clients",
+  },
+  {
+    folder: "Competitors/Clients",
+    id: "77777777-h",
+    kind: "bookmark",
+    root: "bar",
+    title: "Acme",
+    url: "https://acme.example/",
+  },
+  {
     id: "44444444-d",
     kind: "bookmark",
     root: "all",
@@ -200,6 +215,8 @@ describe("bookmarks list", () => {
           11111111  Zendesk pricing  https://www.zendesk.com/pricing/
           22222222  Competitors/
             33333333  Intercom pricing  https://www.intercom.com/pricing
+            66666666  Clients/
+              77777777  Acme  https://acme.example/
         All Bookmarks:
           44444444  plan.md  <chat>/plan.md
           55555555  secrets.txt  a file outside your folders
@@ -226,6 +243,13 @@ describe("bookmarks list", () => {
     ).toMatchInlineSnapshot(`
       "All Bookmarks:
         44444444  plan.md  <chat>/plan.md
+      "
+    `);
+    expect((await run({}, "list", "acme")).stdout).toMatchInlineSnapshot(`
+      "Bookmarks bar:
+        22222222  Competitors/
+          66666666  Clients/
+            77777777  Acme  https://acme.example/
       "
     `);
     expect((await run({}, "list", "nothing")).stdout).toMatchInlineSnapshot(`
@@ -373,6 +397,15 @@ describe("bookmarks changes", () => {
     {
       args: ["new-folder", "To", "read", "--in", "bar"],
       change: { root: "bar", title: "To read", type: "newFolder" },
+    },
+    {
+      args: ["new-folder", "Archive", "--in", "competitors"],
+      change: {
+        folder: "22222222-b",
+        root: "all",
+        title: "Archive",
+        type: "newFolder",
+      },
     },
   ])("asks the window: $args", async ({ args, change }) => {
     const { results } = await inTurn(args);

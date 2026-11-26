@@ -1,4 +1,5 @@
 import {
+  type BarItem,
   type Bookmark,
   type BookmarkFolder,
   type BookmarkOp,
@@ -6,10 +7,14 @@ import {
   type BookmarkRoot,
   type Bookmarks,
   folderOf,
+  isWithin,
+  itemsOfFolder,
   OTHER_ROOT,
   orderAfter,
   ordersAt,
+  parentOf,
   placeOf,
+  placeOfFolder,
   rootItems,
   rootOf,
   siblingsIn,
@@ -18,7 +23,7 @@ import {
 /**
  * The Bookmarks page as one outline: the bar's items in its order, then
  * All Bookmarks as a row of its own over its items, each folder a row
- * that opens in place over the bookmarks filed in it, and what the page does
+ * that opens in place over the bookmarks and folders in it, and what the page does
  * to the rows picked in it (open, delete, cut, copy, paste, sort, drag),
  * worked out here so the page only draws it.
  */
@@ -26,13 +31,13 @@ import {
 /**
  * One row of the outline: All Bookmarks, a folder, or a bookmark loose in
  * a root or in a folder. Each is `depth` steps in: the bar's items at none,
- * All Bookmarks' items at one, and a folder's bookmarks one past it.
+ * All Bookmarks' items at one, and what is in a folder one past it.
  */
 export type OutlineRow =
   | {
       bookmark: Bookmark;
       depth: number;
-      /** The folder it is filed in, which a search names beside it. */
+      /** The folder it is in, which a search names beside it. */
       folder?: BookmarkFolder;
       id: string;
       kind: "bookmark";
@@ -57,11 +62,11 @@ export type OutlineRow =
     };
 
 /**
- * The rows the page lists: the bar's items in order, each open folder's
- * bookmarks under it, then All Bookmarks, where it has anything, and its
+ * The rows the page lists: the bar's items in order, what is in each open
+ * folder under it, then All Bookmarks, where it has anything, and its
  * items under it while it is open. With search words, every folder and
  * bookmark that has all of them in its name or its address, in that same
- * order, flat, the way a browser's manager searches.
+ * order, the way a browser's manager searches.
  */
 export function outlineRows(
   state: Bookmarks,
@@ -73,26 +78,35 @@ export function outlineRows(
     const text = fields.join("\n").toLowerCase();
     return words.every((word) => text.includes(word));
   };
-  const rowsOf = (root: BookmarkRoot | undefined, depth: number) => {
-    const kept = inRoot(root);
-    return rootItems(state, root).flatMap((item): OutlineRow[] => {
+  const rowsIn = (
+    items: readonly BarItem[],
+    depth: number,
+    kept: { root?: BookmarkRoot },
+    inside: BookmarkFolder | undefined,
+  ): OutlineRow[] =>
+    items.flatMap((item): OutlineRow[] => {
       if (item.kind === "bookmark") {
         const { bookmark } = item;
         return !isSearch || matches(bookmark.title, bookmark.url)
-          ? [{ bookmark, depth, id: bookmark.id, kind: "bookmark", ...kept }]
+          ? [
+              {
+                bookmark,
+                depth,
+                id: bookmark.id,
+                kind: "bookmark",
+                ...(inside ? { folder: inside } : {}),
+                ...kept,
+              },
+            ]
           : [];
       }
-      const { folder, items } = item;
+      const { folder, items: within } = item;
       const isOpen = !isSearch && open.has(folder.id);
-      const inside = items.filter(
-        (bookmark) =>
-          isOpen || (isSearch && matches(bookmark.title, bookmark.url)),
-      );
       return [
         ...(!isSearch || matches(folder.title)
           ? [
               {
-                count: items.length,
+                count: within.length,
                 depth,
                 folder,
                 id: folder.id,
@@ -101,17 +115,11 @@ export function outlineRows(
               },
             ]
           : []),
-        ...inside.map((bookmark) => ({
-          bookmark,
-          depth: depth + 1,
-          folder,
-          id: bookmark.id,
-          kind: "bookmark" as const,
-          ...kept,
-        })),
+        ...(isOpen || isSearch ? rowsIn(within, depth + 1, kept, folder) : []),
       ];
     });
-  };
+  const rowsOf = (root: BookmarkRoot | undefined, depth: number) =>
+    rowsIn(rootItems(state, root), depth, inRoot(root), undefined);
   const bar = rowsOf(undefined, 0);
   if (rootItems(state, OTHER_ROOT).length === 0) {
     return bar;
@@ -182,34 +190,46 @@ export function selectionAfterClick(
 
 /**
  * What a change to the rows picked acts on: a folder whole, and a bookmark
- * only where its folder is not picked too, since the folder takes it along.
+ * or folder only where no folder it is in is picked too, since that one
+ * takes it along.
  */
 export function topmostPicked(
   state: Bookmarks,
   ids: ReadonlySet<string>,
 ): { bookmarks: Bookmark[]; folders: BookmarkFolder[] } {
+  const isUnderPicked = (folder: BookmarkFolder | undefined) =>
+    folder !== undefined &&
+    [...ids].some((id) => isWithin(state, folder.id, id));
   return {
     bookmarks: state.bookmarks.filter(
       (bookmark) =>
-        ids.has(bookmark.id) && !ids.has(folderOf(state, bookmark)?.id ?? ""),
+        ids.has(bookmark.id) && !isUnderPicked(folderOf(state, bookmark)),
     ),
-    folders: state.folders.filter((folder) => ids.has(folder.id)),
+    folders: state.folders.filter(
+      (folder) => ids.has(folder.id) && !isUnderPicked(parentOf(state, folder)),
+    ),
   };
 }
 
-/** What Undo puts back after a delete: each folder with every bookmark in it, and each bookmark, as it was. */
+/**
+ * What Undo puts back after a delete: each folder with everything in it,
+ * each folder before what is in it, and each bookmark, as it was.
+ */
 export function restoreOps(
   state: Bookmarks,
   removed: { bookmarks: Bookmark[]; folders: BookmarkFolder[] },
 ): BookmarkOp[] {
-  const folderIds = new Set(removed.folders.map((folder) => folder.id));
+  const opsIn = (items: readonly BarItem[]): BookmarkOp[] =>
+    items.flatMap((item): BookmarkOp[] =>
+      item.kind === "bookmark"
+        ? [{ bookmark: item.bookmark, type: "add" }]
+        : [{ folder: item.folder, type: "addFolder" }, ...opsIn(item.items)],
+    );
   return [
-    ...removed.folders.map(
-      (folder): BookmarkOp => ({ folder, type: "addFolder" }),
-    ),
-    ...state.bookmarks
-      .filter((bookmark) => folderIds.has(bookmark.folder ?? ""))
-      .map((bookmark): BookmarkOp => ({ bookmark, type: "add" })),
+    ...removed.folders.flatMap((folder): BookmarkOp[] => [
+      { folder, type: "addFolder" },
+      ...opsIn(itemsOfFolder(state, folder.id)),
+    ]),
     ...removed.bookmarks.map(
       (bookmark): BookmarkOp => ({ bookmark, type: "add" }),
     ),
@@ -219,11 +239,29 @@ export function restoreOps(
 /** A bookmark or a folder as Cut or Copy keeps it to paste: what it is, without where it was. */
 export type ClipItem =
   | { kind: "bookmark"; title: string; url: string }
-  | {
-      items: { title: string; url: string }[];
-      kind: "folder";
-      title: string;
+  | { items: ClipItem[]; kind: "folder"; title: string };
+
+/** Every address a kept item has, the ones in its folders included. */
+export function addressesOf(item: ClipItem): string[] {
+  return item.kind === "bookmark"
+    ? [item.url]
+    : item.items.flatMap(addressesOf);
+}
+
+/** A folder's items as Cut or Copy keeps them. */
+function clipIn(items: readonly BarItem[]): ClipItem[] {
+  return items.map((item): ClipItem => {
+    if (item.kind === "bookmark") {
+      const { title, url } = item.bookmark;
+      return { kind: "bookmark", title, url };
+    }
+    return {
+      items: clipIn(item.items),
+      kind: "folder",
+      title: item.folder.title,
     };
+  });
+}
 
 /** The rows picked as Cut or Copy keeps them, in the outline's order. */
 export function clipOf(
@@ -243,9 +281,7 @@ export function clipOf(
     }
     return [
       {
-        items: state.bookmarks
-          .filter((bookmark) => bookmark.folder === row.folder.id)
-          .map(({ title, url }) => ({ title, url })),
+        items: clipIn(itemsOfFolder(state, row.folder.id)),
         kind: "folder",
         title: row.folder.title,
       },
@@ -278,14 +314,11 @@ function filedAt(place: BookmarkPlace): BookmarkPlace {
 /**
  * Where a paste goes, as a browser's manager pastes: right after the row it
  * is asked over, among the items beside it, at the end of All Bookmarks
- * asked over that, and at the bar's end with no row. A folder pasted where a
- * folder cannot go, inside another, goes after that folder in its root
- * instead.
+ * asked over that, and at the bar's end with no row.
  */
 export function pastePlace(
   state: Bookmarks,
   row: OutlineRow | undefined,
-  hasFolder: boolean,
 ): Place {
   if (!row) {
     return {};
@@ -293,15 +326,19 @@ export function pastePlace(
   if (row.kind === "root") {
     return { root: OTHER_ROOT };
   }
-  const root =
-    row.kind === "folder" ? row.folder.root : rootOf(state, row.bookmark);
-  const inFolder =
-    row.kind === "bookmark" ? folderOf(state, row.bookmark)?.id : undefined;
-  const container = hasFolder ? undefined : inFolder;
-  const anchor = hasFolder && inFolder !== undefined ? inFolder : row.id;
-  const siblings = siblingsIn(state, container, root);
-  const at = siblings.findIndex((each) => each.id === anchor);
-  return { before: siblings[at + 1]?.id, folder: container, ...inRoot(root) };
+  const place = containerOf(state, row);
+  const siblings = siblingsIn(state, place.folder, place.root);
+  const at = siblings.findIndex((each) => each.id === row.id);
+  return { before: siblings[at + 1]?.id, ...place };
+}
+
+/** Where a row's bookmark or folder is: in a folder, or loose in a root. */
+function containerOf(state: Bookmarks, row: OutlineRow): BookmarkPlace {
+  return row.kind === "bookmark"
+    ? placeOf(state, row.bookmark)
+    : row.kind === "folder"
+      ? placeOfFolder(state, row.folder)
+      : {};
 }
 
 /** The ops that paste what Copy or Cut kept at a place, each a new bookmark or folder. */
@@ -311,13 +348,12 @@ export function pasteOps(
   place: Place,
   newId: () => string = () => crypto.randomUUID(),
 ): BookmarkOp[] {
-  const folder = clip.some((item) => item.kind === "folder")
-    ? undefined
-    : place.folder;
-  const into = { ...place, folder };
-  const orders = ordersFor(state, into, clip.length, []);
-  return clip.flatMap((item, index): BookmarkOp[] => {
-    const order = orders[index] ?? 0;
+  const orders = ordersFor(state, place, clip.length, []);
+  const opsOf = (
+    item: ClipItem,
+    order: number,
+    at: BookmarkPlace,
+  ): BookmarkOp[] => {
     if (item.kind === "bookmark") {
       return [
         {
@@ -326,7 +362,7 @@ export function pasteOps(
             order,
             title: item.title,
             url: item.url,
-            ...filedAt(into),
+            ...filedAt(at),
           },
           type: "add",
         },
@@ -335,48 +371,35 @@ export function pasteOps(
     const id = newId();
     return [
       {
-        folder: { id, order, title: item.title, ...inRoot(place.root) },
+        folder: { id, order, title: item.title, ...filedAt(at) },
         type: "addFolder",
       },
-      ...item.items.map(
-        (bookmark, at): BookmarkOp => ({
-          bookmark: { folder: id, id: newId(), order: at, ...bookmark },
-          type: "add",
-        }),
+      ...item.items.flatMap((each, index) =>
+        opsOf(each, index, { folder: id }),
       ),
     ];
-  });
+  };
+  return clip.flatMap((item, index) => opsOf(item, orders[index] ?? 0, place));
 }
 
 /**
- * The ops that move rows to a place, in the order given: a folder only
- * among its own root's items, since folders stay in their root, and a
- * bookmark into a folder or loose into a root. A bookmark whose folder
- * moves with it stays in it. None where a folder would go into a folder or
- * another root, or where nothing moves.
+ * The ops that move rows to a place, in the order given, into a folder or
+ * loose into a root. A bookmark or folder whose folder moves with it stays
+ * in it. None where a folder would go into itself or a folder inside it, or
+ * where nothing moves.
  */
 export function moveOps(
   state: Bookmarks,
   ids: readonly string[],
   place: Place,
 ): BookmarkOp[] {
-  const moved = state.folders.filter((folder) => ids.includes(folder.id));
-  const folders = new Set(moved.map((folder) => folder.id));
-  if (
-    moved.length > 0 &&
-    (place.folder !== undefined ||
-      moved.some((folder) => folder.root !== place.root))
-  ) {
+  const into = place.folder;
+  if (into !== undefined && ids.some((id) => isWithin(state, into, id))) {
     return [];
   }
-  const moving = ids.filter((id) => {
-    const bookmark = state.bookmarks.find((each) => each.id === id);
-    return (
-      folders.has(id) ||
-      (bookmark !== undefined &&
-        !folders.has(folderOf(state, bookmark)?.id ?? ""))
-    );
-  });
+  const { bookmarks, folders } = topmostPicked(state, new Set(ids));
+  const kept = new Set([...bookmarks, ...folders].map((each) => each.id));
+  const moving = ids.filter((id) => kept.has(id));
   const orders = ordersFor(state, place, moving.length, moving);
   return moving.map((id, index) => ({
     id,
@@ -408,11 +431,11 @@ function ordersFor(
  * Where rows dragged over a row would land, by how far down it the pointer
  * is (0 at its top, 1 at its foot), the way a browser's manager reads it:
  * on a folder's middle half, into it at its end; on its top or bottom
- * quarter, before or after it in its root, or into it first where it is
+ * quarter, before or after it where it is, or into it first where it is
  * open; on All Bookmarks, into it at its end, its top quarter being the
  * bar's end and its foot its first place where it is open; and before or
- * after a bookmark by its halves. Nothing over a row that is held, or in a
- * search's flat list.
+ * after a bookmark by its halves. Nothing over a row that is held or inside
+ * a folder that is, or in a search's list.
  */
 export type DropTarget =
   | {
@@ -434,12 +457,16 @@ export function dropTargetAt(
   if (!row || held.has(row.id)) {
     return undefined;
   }
-  const containerOf = (each: OutlineRow): BookmarkPlace =>
-    each.kind === "bookmark"
-      ? placeOf(state, each.bookmark)
-      : each.kind === "folder"
-        ? inRoot(each.folder.root)
-        : {};
+  // Inside a folder that is held, where nothing held can go.
+  const isInHeld = (folder: BookmarkFolder | undefined) =>
+    folder !== undefined &&
+    [...held].some((id) => isWithin(state, folder.id, id));
+  if (
+    (row.kind === "folder" && isInHeld(row.folder)) ||
+    (row.kind === "bookmark" && isInHeld(folderOf(state, row.bookmark)))
+  ) {
+    return undefined;
+  }
   /** The first place in a folder or a root, where something held goes after its row. */
   const first = (place: BookmarkPlace): DropTarget => ({
     kind: "between",
@@ -452,7 +479,7 @@ export function dropTargetAt(
     },
   });
   const after = (each: OutlineRow): DropTarget => {
-    const container = containerOf(each);
+    const container = containerOf(state, each);
     const siblings = siblingsIn(state, container.folder, container.root).filter(
       (sibling) => !held.has(sibling.id),
     );
@@ -477,7 +504,7 @@ export function dropTargetAt(
       return {
         kind: "between",
         line: { before: row.id },
-        place: { before: row.id, ...containerOf(row) },
+        place: { before: row.id, ...containerOf(state, row) },
       };
     }
     if (fraction <= 0.75) {
@@ -492,7 +519,7 @@ export function dropTargetAt(
     return {
       kind: "between",
       line: { before: row.id },
-      place: { before: row.id, ...containerOf(row) },
+      place: { before: row.id, ...containerOf(state, row) },
     };
   }
   return after(row);
@@ -501,8 +528,8 @@ export function dropTargetAt(
 /**
  * Sort by name, as a browser's manager sorts a folder: folders first, then
  * bookmarks, each by name the way the person's language orders words; the
- * bar's items and each of its folders', then All Bookmarks' and each of
- * its folders'.
+ * bar's items and each folder's in it, then All Bookmarks' and each
+ * folder's in it.
  */
 export function sortByNameOps(state: Bookmarks, locale?: string): BookmarkOp[] {
   const collator = new Intl.Collator(locale, {
@@ -511,9 +538,10 @@ export function sortByNameOps(state: Bookmarks, locale?: string): BookmarkOp[] {
   });
   const byName = (a: { title: string }, b: { title: string }) =>
     collator.compare(a.title, b.title);
-  const roots: (BookmarkRoot | undefined)[] = [undefined, OTHER_ROOT];
-  const placed = roots.flatMap((root) => {
-    const items = rootItems(state, root);
+  const sortedIn = (
+    items: readonly BarItem[],
+    place: BookmarkPlace,
+  ): { id: string; order: number; place: BookmarkPlace; was: number }[] => {
     const sorted = [
       ...items
         .flatMap((item) => (item.kind === "folder" ? [item.folder] : []))
@@ -526,21 +554,20 @@ export function sortByNameOps(state: Bookmarks, locale?: string): BookmarkOp[] {
       ...sorted.map((each, order) => ({
         id: each.id,
         order,
-        place: inRoot(root),
+        place,
         was: each.order,
       })),
       ...items.flatMap((item) =>
         item.kind === "folder"
-          ? item.items.toSorted(byName).map((bookmark, order) => ({
-              id: bookmark.id,
-              order,
-              place: { folder: item.folder.id },
-              was: bookmark.order,
-            }))
+          ? sortedIn(item.items, { folder: item.folder.id })
           : [],
       ),
     ];
-  });
+  };
+  const roots: (BookmarkRoot | undefined)[] = [undefined, OTHER_ROOT];
+  const placed = roots.flatMap((root) =>
+    sortedIn(rootItems(state, root), inRoot(root)),
+  );
   return placed.flatMap(({ id, order, place, was }): BookmarkOp[] =>
     was === order ? [] : [{ id, order, type: "move", ...place }],
   );

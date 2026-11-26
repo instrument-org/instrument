@@ -32,15 +32,15 @@ export function addressOfTyped(typed: string): string | undefined {
 export interface BookmarkEdit {
   /** The place picked, by its key (`placeOfKey`): a folder, a new one's included, All Bookmarks, or the bar without one. */
   folder: string | undefined;
-  /** Folders New folder made in the editor, kept only as it saves. */
+  /** Folders New folder made in the editor, each in its place, kept only as it saves. */
   newFolders: readonly BookmarkFolder[];
   title: string;
   url: string;
 }
 
 /**
- * The ops that make an edit so, as one batch: the new folders on the bar's
- * end, then the bookmark added (where `bookmark` is a new one, not kept
+ * The ops that make an edit so, as one batch: the new folders, each last in
+ * its place, then the bookmark added (where `bookmark` is a new one, not kept
  * yet) or renamed, readdressed and moved to the end of the place picked.
  * Only what changed has an op.
  */
@@ -87,20 +87,28 @@ export function bookmarkEditOps(
   return ops;
 }
 
-/** Folders made in the editor, each after the last on the bar, an empty name made "New folder". */
-function newFolderOps(
+/**
+ * Folders made in an editor, each last in the place it was made in, a
+ * folder made before it included; an empty name made "New folder".
+ */
+export function newFolderOps(
   state: Bookmarks,
   folders: readonly BookmarkFolder[],
 ): BookmarkOp[] {
-  let order = orderAfter(siblingsIn(state, undefined));
-  return folders.map((folder) => ({
-    folder: {
-      id: folder.id,
-      order: order++,
-      title: folder.title.trim() || NEW_FOLDER_NAME,
-    },
-    type: "addFolder",
-  }));
+  return folders.reduce<BookmarkOp[]>((ops, folder) => {
+    const so = applyBookmarkOps(state, ops);
+    return [
+      ...ops,
+      {
+        folder: {
+          ...folder,
+          order: orderAfter(siblingsIn(so, folder.folder, folder.root)),
+          title: folder.title.trim() || NEW_FOLDER_NAME,
+        },
+        type: "addFolder",
+      },
+    ];
+  }, []);
 }
 
 /** What a folder is called until it is named, as a browser names one. */

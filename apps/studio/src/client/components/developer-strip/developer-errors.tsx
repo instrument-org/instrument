@@ -29,7 +29,12 @@ import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
-import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 
 import {
@@ -53,7 +58,15 @@ export function DeveloperErrors() {
   );
   const [open, setOpen] = useState(false);
   const isSetupUp = useIsSetupUp();
+  const queryClient = useQueryClient();
   const total = data?.total ?? 0;
+  const version = data?.version ?? 0;
+  // Read on the way to the button, so the list is there when it opens.
+  const readList = () => {
+    void queryClient.prefetchQuery(
+      rpcClient.utils.exceptionEvents.queryOptions({ input: { version } }),
+    );
+  };
 
   if (total === 0) {
     // Stays closed when the next error arrives, once the last one is cleared.
@@ -69,6 +82,8 @@ export function DeveloperErrors() {
       <PopoverTrigger asChild>
         <button
           className="flex shrink-0 items-center gap-1 border-l border-white/10 px-2.5 whitespace-nowrap text-ink-alert hover:bg-white/8 aria-expanded:bg-white/10"
+          onFocus={readList}
+          onPointerEnter={readList}
           type="button"
         >
           <WarningCircleIcon className="size-3.25" />
@@ -90,7 +105,7 @@ export function DeveloperErrors() {
                   openSettings({ diagnosticLog: true, tab: "Support" });
                 }
           }
-          version={data?.version ?? 0}
+          version={version}
         />
       </StripPopover>
     </Popover>

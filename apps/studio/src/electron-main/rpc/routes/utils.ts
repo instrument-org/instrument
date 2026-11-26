@@ -534,6 +534,9 @@ const events = {
   }),
 };
 
+/** Counts every read of the live count, so no two of its answers share one. */
+let exceptionsVersion = 0;
+
 const live = {
   // How many problems were captured since this process started, every
   // capture of a fingerprint counted, for the developer indicator, and a
@@ -544,7 +547,6 @@ const live = {
   exceptions: base
     .output(eventIterator(z.object({ total: z.number(), version: z.number() })))
     .handler(async function* ({ signal }) {
-      let version = 0;
       yield* liveRead({
         changes: [publisher.subscribe("exceptions.updated", { signal })],
         read: () => ({
@@ -552,7 +554,7 @@ const live = {
             (sum, event) => sum + event.count,
             0,
           ),
-          version: (version += 1),
+          version: (exceptionsVersion += 1),
         }),
       });
     }),

@@ -10,6 +10,7 @@ import { z } from "zod";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { ChatReads } from "../../lib/chat-reads";
 import { ChatWrites } from "../../lib/chat-writes";
+import { resolveChat } from "../../lib/record-folders";
 import { withCopiesHere } from "../../lib/chat/turn-file-versions";
 import { withVersionNumbers } from "../../lib/chat/version-records";
 import { asNewVersion, beginEdit } from "../../lib/chat/edit-message";
@@ -573,6 +574,10 @@ const liveDeveloperNotes = base
         await new Promise((resolve) => {
           setTimeout(resolve, NOTES_AT_MOST_EVERY_MS);
         });
+        // A chat put in the trash has no notes left to read.
+        if (resolveChat(input.id) === undefined) {
+          return;
+        }
         const next = await read();
         if (!isEqual(next, last)) {
           last = next;

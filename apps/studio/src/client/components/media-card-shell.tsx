@@ -1,7 +1,6 @@
 import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { cn } from "@/client/lib/utils";
-import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { useContext, useRef, useState } from "react";
 
 import { CardVersionContext } from "./card-version";
@@ -121,34 +120,13 @@ export function MediaCardShell({
         type="button"
       />
 
-      {!disabled && (
-        <button
-          // Same `onClick` as the card: this is the affordance that says the
-          // card opens, not a second thing to do. Exposing it would put two
-          // identically named controls and two tab stops on one action, so
-          // it stays out of the tree and out of the tab order, and the card
-          // behind it answers for both.
-          aria-hidden
-          className={cn(
-            "absolute top-3 right-3 z-10 flex size-7 items-center justify-center",
-            "text-white opacity-0 drop-shadow-sm transition-opacity duration-200 group-hover/media:opacity-100 group-has-[button[data-state=open]]/media:opacity-100",
-          )}
-          onClick={onClick}
-          tabIndex={-1}
-          type="button"
-        >
-          <ArrowsOutSimpleIcon className="size-3.5" />
-        </button>
-      )}
-
       {overlayActions && (
         <div
           className={cn(
             // The box spans the card's full width so a long "Open in…"
-            // label truncates instead of running under the expand control,
-            // but only the controls inside it may take the pointer. Left
-            // clickable, the empty space beside them swallows presses meant
-            // for the card, and the box covers the expand control too.
+            // label truncates at the card's edge, but only the controls
+            // inside it may take the pointer. Left clickable, the empty space
+            // beside them swallows presses meant for the card.
             "pointer-events-none absolute top-3 right-3 left-3 z-10 flex flex-col items-start gap-1",
             "opacity-0 transition-opacity duration-200 group-hover/media:opacity-100 group-hover/media:delay-400 group-has-[button[data-state=open]]/media:opacity-100 group-has-[button[data-state=open]]/media:delay-0",
             interactive && "[&>*]:pointer-events-auto",
@@ -172,8 +150,8 @@ export function MediaCardShell({
 
       {bottomBar}
 
-      {/* The version the tile is, in the corner the expand control takes
-          while the pointer is over it. */}
+      {/* The version the tile is, out of the way of the controls while the
+          pointer is over the tile. */}
       {version && (
         <span className="pointer-events-none absolute top-2.5 right-2.5 z-10 inline-flex h-5 items-center rounded-md bg-black/55 px-1.5 text-xs font-semibold text-white tabular-nums backdrop-blur transition-opacity duration-200 group-hover/media:opacity-0 group-has-[button[data-state=open]]/media:opacity-0">
           v{version.number}

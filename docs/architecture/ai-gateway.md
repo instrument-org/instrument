@@ -18,6 +18,8 @@ It sits below `workspace` in the layering (see [system-overview.md](system-overv
 
 Provider configs (which carry the API keys) originate in Studio's main-process stores (`getAIProviderConfigs`) and flow in via `WorkspaceConfig`; the renderer never sees them. When the user is signed in, a synthesized first-party config joins them, carrying their auth token and pointing at the platform gateway (`OUR_PROVIDER_CONFIG`), each ChatGPT account signed in brings a `chatgpt-account` config for its plan, with an id of its own, each Grok account with a subscription a `grok-account` config, and a Claude account the bundled Claude Code is signed in to a `claude-account` config, which holds no credential since Claude Code keeps the sign-in.
 
+Before changing the Claude account provider ([`providers/claude-account/`](../../packages/ai-gateway/src/lib/providers/claude-account)), whether resume, records, transcripts or CLI errors, read how the `opencode` and `t3code` references (`agent-reference get <name>`) handle the same problem, and describe what you take by mechanism only.
+
 ## The library
 
 The package has five entry points (`package.json` `exports`): the root [`index.ts`](../../packages/ai-gateway/src/index.ts), `./client` (a handful of schema types for the renderer), `./context-windows` (the windows providers reported while serving a model, which the context budget reads ahead of the catalog's), `./model-cache`, and `./schemas` — the Zod schemas without the provider stack, because importing the root pulls in every AI SDK provider at around a second of module evaluation that a test runner pays per file. Grouped by job:

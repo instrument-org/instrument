@@ -9,7 +9,9 @@ Using Instrument should never make the technical details underneath a primary co
 - No developer information on screen: timings in milliseconds, provider routing, request ids.
 - Folder actions keep the person in the product ("Open in Files") rather than sending them to a system tool.
 - Instrument is not a coding app or a developer tool. Git and terminals are niche, integrations aim at the AI people already use, and designs do not center on developer features.
+- Instrument is useful with no AI at all: a file browser with previews and a web browser, where a person starts from a thing (a page, a folder) and then asks about it.
 - Nothing a person needs requires opening a terminal: the app installs what it needs and handles sign-in itself.
+- Connecting a service is one click on Instrument's own client. The person is never asked to create an OAuth or vendor app; where a vendor has not approved the client, the work is getting it approved.
 - Raw commands and internal ids stay off the screen. At most, a raw command sits behind a drill-in.
 
 **Not:** a reason to hide what a person needs to know. Plain words, same facts.
@@ -22,3 +24,5 @@ Using Instrument should never make the technical details underneath a primary co
 - The person works above the technical details, stated 2026-10-30.
 - Raw commands behind a drill-in, stated 2026-08-20; no internal ids in chips, 2026-08-24.
 - Not a coding app or a developer tool, stated 2026-10-06, 2026-10-10 and 2026-10-15; no terminal, 2026-10-07.
+- Useful with no AI at all, a file browser and a web browser first, stated 2026-11-19.
+- Connecting a service is one click on Instrument's own client, never an app the person builds, stated 2026-11-25.

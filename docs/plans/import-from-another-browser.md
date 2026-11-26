@@ -60,6 +60,8 @@ A module `electron-main/browser-import/`:
 ## Order
 
 1. **Find out what macOS 27 asks.** On the macOS VM clone, try reading Chrome's and Firefox's folders from a fresh install. Do we get EPERM, a prompt, or nothing? And does picking the folder in an open panel grant access? Confirm there too that the signed app can `stat` `Local State` with no prompt, which so far has only been seen from a terminal. Ardia treats EPERM there as needing Full Disk Access, which is our hard line. If an open-panel pick doesn't grant access either, the direct way on a Mac is the panel itself ("Choose Chrome's folder"), or file-only.
+
+   Probed on macOS 27.0.1 as an ad-hoc signed app with no grants: Chrome's, Brave's, Edge's and Firefox's profile folders are refused at once with no prompt (App Data Protection), and a per-app switch for it shows in Files & Folders only after that first refusal. Automation for Chrome is one prompt and then gives every tab's title and address. The open-panel pick is still unchecked.
 2. The readers, the HTML parser and apply, with fixture tests. The file way alone is shippable at this point.
 3. Bookmark folders in the store and on the shelf.
 4. The screens: setup step, shelf, sheet, Settings tab.

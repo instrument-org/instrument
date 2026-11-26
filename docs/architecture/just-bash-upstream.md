@@ -28,6 +28,8 @@ Two ways to change what a just-bash command does, and they are for different pro
 
 **Fix it upstream and carry the fix** when the defect is in just-bash's own model: a quadratic accumulator, a wrong parse, a leaked rejection. just-bash runs in browsers, in plain Node, and over any `IFileSystem`, in-memory ones included, so a fix that works there is a fix every embedder gets, and carrying it until the release lands costs a manifest entry.
 
+Such a defect is never worked around with a subclass or a wrapper filesystem of our own to maintain: the upstream PR is carried as part of the generated patch (`patches/just-bash-sources/sources.json`, then `scripts/rebuild-just-bash-patch.ts`), with a `create-bash-env-*.test.ts` guard.
+
 **Replace the command with a custom one** when the better implementation needs what only an embedder running in Node or Electron has: a real binary, a worker thread, or the host disk behind our mounts. That is not something upstream can take, because it cannot assume any of them. `rg` is the real ripgrep binary in a subprocess, `git` is dugite's git with our argv policy, and `du` (`shell-commands/du.ts`) walks the real directories behind the mounts in a worker thread, so a walk over a large folder costs the main thread nothing where the builtin's costs it everything. A replacement resolves paths through the workspace layout with the same containment as the others, and hands anything it does not implement back to the builtin through `ctx.origCommand`, so it never makes a working command stop working.
 
 The replacements are where the performance headroom is. A builtin is interpreted TypeScript on the thread that paints the window; a subprocess or worker is not.

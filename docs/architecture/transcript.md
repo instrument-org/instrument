@@ -67,6 +67,10 @@ A chat's tabs show only in the pane beside it, under a row of them ([pane-tabs.t
 
 A command that outlasts its turn gets a card under the reply ([command-card.tsx](../../apps/studio/src/client/components/task/command-card.tsx)), with Stop while it runs and how long it ran once it ends. A command that ended while its turn went on gets none, since the reply covers it. The registry keeps ended commands only while the app runs, so after a restart a finished one has no card. What the chat and its tasks have running is a chip in the header, opening onto the same rows ([background-processes.md](background-processes.md)).
 
+Whatever waits on the person (a permission, a question, a sign-in, a wait for them) docks above the reply box ([permission-asks.tsx](../../apps/studio/src/client/components/permission-asks.tsx), [question-dock.tsx](../../apps/studio/src/client/components/question-dock.tsx)), never inline under the step that raised it, since it stands between them and their next message.
+
+A question card's numbers are labels, not shortcuts: a typed "2" is sent as a message, which the model reads against the card, so the reply box takes no keys for a card and a reply starting with a number goes through. An answered card stays whole in the transcript, each question over its answer.
+
 ## Checking a change
 
 The transcript debug page (`/debug/components/transcript`, scenarios in [`-transcript/scenarios.ts`](../../apps/studio/src/client/routes/debug/-transcript/scenarios.ts)) replays a scripted session frame by frame, with developer mode a switch away, or at a stream's own pace: a timing profile ([`-transcript/timing.ts`](../../apps/studio/src/client/routes/debug/-transcript/timing.ts)) says how fast and how unevenly its words and steps land, a real chat plays as it was recorded, and the page's clock is the stage's, so slowing or pausing playback slows or stops the reveal with it. While it plays, a trace counts every move the scroller made that the reader did not ask for. Add a scenario for a new state rather than a test of its pixels: tests pin the rules in `turnsOf`, `work-card.ts` and `work-card-face.ts`, where they run in milliseconds.

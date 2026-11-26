@@ -163,6 +163,60 @@ describe("the row Return runs while typing", () => {
   });
 });
 
+// The menu stays mounted between openings, so nothing of the last one's
+// pick may carry over: Return runs the first row of a fresh opening.
+describe("the row Return runs in a fresh opening", () => {
+  const moveOver = (row: ReturnType<typeof page.getByRole>, x: number) => {
+    const at = {
+      bubbles: true,
+      clientX: x,
+      clientY: 40,
+      screenX: x,
+      screenY: 40,
+    };
+    row.element().dispatchEvent(new PointerEvent("pointermove", at));
+    row.element().dispatchEvent(new MouseEvent("mousemove", at));
+  };
+
+  it("is the first, under a pointer that moved while it was closed", async () => {
+    const store = await renderMenu();
+    await expect.element(page.getByText("Commands")).toBeVisible();
+    const last = page.getByRole("option").last();
+    moveOver(last, 40);
+    moveOver(last, 42);
+    await expect.element(last).toHaveAttribute("aria-selected", "true");
+
+    store.set(commandMenuOpenAtom, false);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    store.set(commandMenuOpenAtom, true);
+    await expect.element(page.getByText("Commands")).toBeVisible();
+    // The list comes up under a pointer now somewhere else, and the browser
+    // says where it is.
+    moveOver(page.getByRole("option").last(), 300);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    await expect
+      .element(page.getByRole("option").first())
+      .toHaveAttribute("aria-selected", "true");
+  });
+
+  it("is the first after a key picked another in the last one", async () => {
+    const store = await renderMenu();
+    await expect.element(page.getByText("Commands")).toBeVisible();
+    await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+    await expect
+      .element(page.getByRole("option").nth(2))
+      .toHaveAttribute("aria-selected", "true");
+
+    store.set(commandMenuOpenAtom, false);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    store.set(commandMenuOpenAtom, true);
+    await expect.element(page.getByText("Commands")).toBeVisible();
+    await expect
+      .element(page.getByRole("option").first())
+      .toHaveAttribute("aria-selected", "true");
+  });
+});
+
 describe("the menu's icons", () => {
   it("asks for no icon for an address being typed", async () => {
     await renderMenu();

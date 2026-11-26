@@ -1210,6 +1210,7 @@ export function useCommandMenuRows({
     ]);
 
   const selection = useSelection({
+    active,
     rows,
     typed,
     words,
@@ -1242,10 +1243,13 @@ interface Selection {
  * a row for what was typed rather than for the letters before it.
  */
 function useSelection({
+  active,
   rows,
   typed,
   words,
 }: {
+  /** Whether the menu is on screen: each opening starts from its first row. */
+  active: boolean;
   rows: Row[];
   /** The words in the field, which `words` follows a beat behind. */
   typed: string;
@@ -1261,6 +1265,21 @@ function useSelection({
   const returnFor = useRef<string>(undefined);
   // Where the pointer last moved to on the list, across searches.
   const pointer = useRef<{ x: number; y: number }>(undefined);
+  // An opening forgets the last one's pick and pointer: the list comes up
+  // under a pointer at rest, whose first move is where it already was, not
+  // a move to a row.
+  const [wasActive, setWasActive] = useState(active);
+  if (active !== wasActive) {
+    setWasActive(active);
+    if (active) {
+      setPicked(undefined);
+    }
+  }
+  useEffect(() => {
+    if (active) {
+      pointer.current = undefined;
+    }
+  }, [active]);
   const items = rows.filter((row) => row.type === "item");
   const ids = items.map((item) => item.id);
   const first =

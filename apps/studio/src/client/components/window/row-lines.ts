@@ -132,11 +132,12 @@ export function newTabLines(words: string | undefined): RowLines {
 
 /**
  * What a built-in page's second line says with no part of it open: the
- * place it starts at where that is a real place, and nothing where it would
- * only restate the page's name.
+ * place or view it starts at. Apps, Bookmarks, Extensions and What's new,
+ * which start at no part, count what they have or name the version instead
+ * (`useRowLines`), and a page that is never a tab says nothing.
  */
 export const PAGE_START_LINES = {
-  activity: "",
+  activity: "All",
   apps: "",
   browser: "",
   chats: "",

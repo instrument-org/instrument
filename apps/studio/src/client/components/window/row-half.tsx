@@ -8,6 +8,9 @@ import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { withoutPathQuotes } from "@/client/lib/path-text";
 import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { bookmarksAtom } from "@/client/bookmarks/store";
+import { versionLabel } from "@/client/lib/release-notes";
+import { type ScreenName } from "@/shared/instrument-screens";
 import { type Draft } from "@/shared/drafts";
 import { safe } from "@orpc/client";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -164,6 +167,37 @@ export function RowLinesView({
 }
 
 /**
+ * Each built-in page's second line with no part of it open: the place or
+ * view it starts at, how many apps are connected, bookmarks saved and
+ * extensions installed, and the version What's new is for. A count still
+ * loading says nothing rather than none.
+ */
+function usePageStartLines(): Record<ScreenName, string> {
+  const apps = useQuery(
+    rpcClient.apps.live.list.experimental_liveOptions(),
+  ).data?.apps;
+  const bookmarks = useAtomValue(bookmarksAtom);
+  const extensions = useQuery(
+    rpcClient.browserExtensions.live.list.experimental_liveOptions(),
+  ).data;
+  const version = useQuery(
+    rpcClient.preferences.getAppVersion.queryOptions(),
+  ).data?.version;
+  const count = (n: number | undefined, what: string) =>
+    n === undefined ? "" : n === 0 ? `None ${what}` : `${n} ${what}`;
+  return {
+    ...PAGE_START_LINES,
+    apps: count(
+      apps?.filter((app) => app.status === "connected").length,
+      "connected",
+    ),
+    bookmarks: count(bookmarks.length, "saved"),
+    extensions: count(extensions?.length, "installed"),
+    "release-notes": version === undefined ? "" : versionLabel(version),
+  };
+}
+
+/**
  * What a tab says on its row's two lines: a chat or a task its state, a page its site,
  * a file the title it gives itself over the folders it is in, a built-in page its name over the
  * part open, a new tab the words typed in it (`row-lines.ts`).
@@ -179,6 +213,7 @@ export function useRowLines(
   const load = usePageLoad(tab);
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const volumes = places.data?.volumes;
+  const startLines = usePageStartLines();
   const fileTitles = useFileTabTitles([
     tab.kind === "page" ? undefined : tab.href,
   ]);
@@ -220,13 +255,13 @@ export function useRowLines(
       return placeLines(title, foldersOf(location.path, volumes));
     }
     case "builtin": {
-      return quiet(title, location.part ?? PAGE_START_LINES[location.screen]);
+      return quiet(title, location.part ?? startLines[location.screen]);
     }
     case "chats": {
-      return quiet(title, location.project ? "Project" : "");
+      return quiet(title, location.project ? "Project" : "All");
     }
     case "debug": {
-      return quiet(title, "");
+      return quiet(title, location.address);
     }
     case "missing": {
       return quiet(title, location.address);
@@ -235,7 +270,7 @@ export function useRowLines(
       return quiet(title, siteOf(location.site) || "App");
     }
     case "apps": {
-      return quiet(title, PAGE_START_LINES.apps);
+      return quiet(title, startLines.apps);
     }
     case "task": {
       return taskLines(

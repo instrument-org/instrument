@@ -39,6 +39,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import net from "node:net";
 import path from "node:path";
 
 import {
@@ -90,17 +91,11 @@ if (builds.some((build) => !build.input)) {
 
 const work = path.join(CACHE_ROOT, `run-${process.pid}`);
 mkdirSync(work, { recursive: true });
-const seeded = seed(fixture);
-for (const build of builds) {
-  build.appDir = appDirOf(build.input, build.label);
-  build.userDataDir = path.join(work, `data-${build.label}`);
-  cpSync(seeded, build.userDataDir, { recursive: true });
-  build.launches = [];
-}
 
-// The launch under way, which an interrupted run quits rather than leave.
+// The launch under way, which a run that ends early quits rather than leave,
+// and the run's folder, which goes with the run unless kept.
 let running;
-process.on("SIGINT", () => {
+process.on("exit", () => {
   if (running) {
     try {
       process.kill(-running.pid, "SIGKILL");
@@ -108,8 +103,26 @@ process.on("SIGINT", () => {
       running.kill("SIGKILL");
     }
   }
-  process.exit(130);
+  if (!has("--keep")) {
+    rmSync(work, { force: true, recursive: true });
+  }
 });
+for (const [signal, code] of [
+  ["SIGINT", 130],
+  ["SIGTERM", 143],
+  ["SIGHUP", 129],
+]) {
+  process.on(signal, () => {
+    process.exit(code);
+  });
+}
+const seeded = seed(fixture);
+for (const build of builds) {
+  build.appDir = appDirOf(build.input, build.label);
+  build.userDataDir = path.join(work, `data-${build.label}`);
+  cpSync(seeded, build.userDataDir, { recursive: true });
+  build.launches = [];
+}
 
 let port = 49_600 + (process.pid % 200);
 const order = [];
@@ -123,7 +136,9 @@ let done = 0;
 for (const index of order) {
   const build = builds[index];
   const isWarmup = build.launches.length < warmup;
-  const reading = await launch(build, (port += 1));
+  // A port something else answers on would have the paint read off its page.
+  port = await freePort(port + 1);
+  const reading = await launch(build, port);
   build.launches.push({ ...reading, warmup: isWarmup });
   done += 1;
   console.error(
@@ -142,10 +157,6 @@ if (jsonOut) {
     ),
   );
 }
-if (!has("--keep")) {
-  rmSync(work, { force: true, recursive: true });
-}
-
 // --- builds ------------------------------------------------------------
 
 /** Keeps this checkout's built `apps/studio/out` under a name, as a clone. */
@@ -371,6 +382,30 @@ async function launch(build, debugPort) {
     reading.output = output.slice(-2000);
   }
   return reading;
+}
+
+/** The first port from `from` on which nothing answers on this machine. */
+async function freePort(from) {
+  for (let candidate = from; ; candidate += 1) {
+    const answers = await new Promise((resolve) => {
+      const socket = net.connect({ host: "127.0.0.1", port: candidate });
+      socket.setTimeout(500);
+      socket.once("connect", () => {
+        socket.destroy();
+        resolve(true);
+      });
+      socket.once("timeout", () => {
+        socket.destroy();
+        resolve(true);
+      });
+      socket.once("error", () => {
+        resolve(false);
+      });
+    });
+    if (!answers) {
+      return candidate;
+    }
+  }
 }
 
 function readFrom(file, start) {

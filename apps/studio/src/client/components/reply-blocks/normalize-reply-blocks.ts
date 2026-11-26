@@ -299,7 +299,8 @@ const ATTRIBUTE =
 /**
  * The attributes after a directive's or a tag's name: `{pick="Pinecrest"}`,
  * `pick=Pinecrest, unit=$`, `pick='x'`, a bare `key` as `true`. Classes and
- * ids (`.x`, `#y`) are dropped. Words with no `=` at all are a title.
+ * ids (`.x`, `#y`) are dropped. Words with no `=` at all are a title,
+ * `:::chart Monthly spend`.
  */
 const attributesOf = (written: string): Attribute[] => {
   const text = written.trim();

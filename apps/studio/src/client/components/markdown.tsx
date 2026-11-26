@@ -106,6 +106,7 @@ import { PictureCard, PictureRows } from "./picture-card";
 import { MarkdownChatContext } from "./markdown-chat-context";
 import { MermaidDiagram } from "./mermaid-diagram";
 import { MessageFence } from "./message-card";
+import { ChartBlock } from "./reply-blocks/chart-block";
 import { normalizeMathDelimiters } from "./reply-blocks/normalize-math-delimiters";
 import { normalizeReplyBlocks } from "./reply-blocks/normalize-reply-blocks";
 import { OptionsBlock } from "./reply-blocks/options-block";
@@ -417,6 +418,10 @@ const MarkdownPre: Components["pre"] = ({ children, node }) => {
 
   if (fence.language === "options") {
     return <OptionsBlock code={fence.code} isArriving={isArriving} />;
+  }
+
+  if (fence.language === "chart") {
+    return <ChartBlock code={fence.code} isArriving={isArriving} />;
   }
 
   if (fence.language && isMermaidLanguage(fence.language)) {

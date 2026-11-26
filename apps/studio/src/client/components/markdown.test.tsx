@@ -892,6 +892,27 @@ describe("an options block", () => {
   });
 });
 
+describe("a chart block", () => {
+  it("draws its table as a chart with the table to copy", () => {
+    const { container } = renderMarkdown(
+      "```chart\n| Month | Bill |\n|---|---|\n| Jun | $182 |\n| Jul | $164 |\n| Aug | $228 |\n```",
+    );
+
+    expect(container.querySelector("[data-slot=chart]")).not.toBeNull();
+    expect(container.querySelector("table")).toBeNull();
+    expect(screen.getByRole("button", { name: "Copy data" })).toBeTruthy();
+  });
+
+  it("is the table it holds when the values are words", () => {
+    const { container } = renderMarkdown(
+      "```chart\n| Plan | Cost |\n|---|---|\n| A | a third less |\n```",
+    );
+
+    expect(container.querySelector("[data-slot=chart]")).toBeNull();
+    expect(container.querySelector("table")).not.toBeNull();
+  });
+});
+
 describe("Markdown table shape", () => {
   it("marks a table with the width it fits and what it does under it", () => {
     const { container } = renderMarkdown(

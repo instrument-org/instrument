@@ -14,6 +14,7 @@ const REPLY_BLOCK_NAMES = [
   AGENT_MESSAGE_LANGUAGE,
   AGENT_TIMELINE_LANGUAGE,
   "options",
+  "chart",
 ] as const;
 
 export type ReplyBlockName = (typeof REPLY_BLOCK_NAMES)[number];
@@ -44,6 +45,7 @@ export const replyBlockNameOf = (
  * entry would be read as a setting. A message reads its own headers.
  */
 export const HEADER_KEYS: Record<ReplyBlockName, readonly string[]> = {
+  chart: ["type", "unit", "title", "highlight"],
   files: [],
   message: ["message", "kind", "sender", "to", "subject", "via"],
   options: ["pick"],

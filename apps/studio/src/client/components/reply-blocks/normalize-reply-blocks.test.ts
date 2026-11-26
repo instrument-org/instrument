@@ -217,4 +217,19 @@ describe("normalizeReplyBlocks", () => {
       normalizeReplyBlocks(`${opener}\n| a | b |\n|---|---|\n${closer}`),
     ).toBe("```options\npick: Pinecrest\n| a | b |\n|---|---|\n```");
   });
+
+  it("titles a directive by the words after its name", () => {
+    expect(
+      normalizeReplyBlocks(
+        ":::chart Monthly spend\n| a | b |\n|---|---|\n| x | 1 |\n:::",
+      ),
+    ).toMatchInlineSnapshot(`
+      "\`\`\`chart
+      title: Monthly spend
+      | a | b |
+      |---|---|
+      | x | 1 |
+      \`\`\`"
+    `);
+  });
 });

@@ -35,12 +35,23 @@ const wait = (/** @type {number} */ ms) => new Promise((r) => setTimeout(r, ms))
  * this page uses swapped for the app's whole sheets, each kept as its own block so the
  * states share them. A part writes new markup in the app's classes, which a cut sheet
  * would not draw.
+ *
+ * A page of the in-app browser comes with its picture already in the slot that shows it
+ * (`pictureGuests`), where it moves and resizes with its card when a part changes the
+ * layout, so the box standing in for the page itself, and the pool's wrapper around it on
+ * the body, go.
  */
 const studioSnapshot = (/** @type {Record<string, string>} */ pictures) => `(async () => {
   const s = await (0, eval)(${JSON.stringify(SNAPSHOT)});
   const pictures = ${JSON.stringify(pictures)};
   const d = new DOMParser().parseFromString(s.html, "text/html");
   [...d.querySelectorAll("[data-snapshot-embed]")].forEach((box, i) => {
+    if (d.querySelector('[data-snap-guest-host="' + i + '"] > [data-snap-guest-picture]')) {
+      const wrapper = box.parentElement;
+      box.remove();
+      if (wrapper && wrapper.parentElement === d.body && !wrapper.children.length) wrapper.remove();
+      return;
+    }
     const picture = pictures[i];
     if (!picture) return box.remove();
     const img = d.createElement("img");
@@ -50,6 +61,9 @@ const studioSnapshot = (/** @type {Record<string, string>} */ pictures) => `(asy
     img.setAttribute("style", box.getAttribute("style") + ";display:block;width:100%;height:100%;object-fit:cover;object-position:top left");
     box.replaceWith(img);
   });
+  for (const el of d.querySelectorAll("[data-snap-guest-host]")) el.removeAttribute("data-snap-guest-host");
+  for (const el of d.querySelectorAll("[data-snap-guest-static]")) el.removeAttribute("data-snap-guest-static");
+  for (const el of d.querySelectorAll("[data-snap-guest-picture]")) el.removeAttribute("data-snap-guest-picture");
   // The icon sprites sit in hidden wrappers, so they come out of them first, still unshown.
   for (const svg of d.querySelectorAll("svg[data-icon-sprite]")) {
     svg.style.display = "none";
@@ -165,11 +179,27 @@ const injectNotices = (/** @type {any} */ notices) => `(() => {
 })()`;
 
 /**
+ * The bookmarks of the tg-* states that show any, as the ops that add them: a folder of
+ * the competitors' pricing pages on the bar, then two loose bookmarks.
+ * @type {({ type: "addFolder", folder: { id: string, order: number, title: string } } | { type: "add", bookmark: { id: string, folder?: string, order: number, title: string, url: string } })[]}
+ */
+const BOOKMARKS = [
+  { folder: { id: "snap-competitors", order: 1, title: "Competitors" }, type: "addFolder" },
+  { bookmark: { folder: "snap-competitors", id: "snap-zendesk", order: 1, title: "Zendesk pricing", url: "https://www.zendesk.com/pricing" }, type: "add" },
+  { bookmark: { folder: "snap-competitors", id: "snap-intercom", order: 2, title: "Intercom pricing", url: "https://www.intercom.com/pricing" }, type: "add" },
+  { bookmark: { folder: "snap-competitors", id: "snap-freshdesk", order: 3, title: "Freshdesk pricing", url: "https://www.freshworks.com/freshdesk/pricing/" }, type: "add" },
+  { bookmark: { id: "snap-notion", order: 2, title: "Notion pricing", url: "https://www.notion.com/pricing" }, type: "add" },
+  { bookmark: { id: "snap-hn", order: 3, title: "Hacker News", url: "https://news.ycombinator.com" }, type: "add" },
+];
+
+/**
  * Each state, by name: what it shows (INDEX.md's line for it), the themes it is taken in,
- * and how to get there from a window with one tab and nothing open. `h` is the run's
- * helpers: `h.app` the studio-drive handle (`click`, `press`, `type`, `eval`, `goto`),
+ * and how to get there from a window with one tab and nothing open (on the tab-groups
+ * branch, one new group). `h` is the run's helpers: `h.app` the studio-drive handle
+ * (`click`, `press`, `type`, `eval`, `goto`, and the drive words at `h.app.words`),
  * `h.go(href)`, `h.files(view, select)`, `h.chats` the seed's chats by role, `h.folder`
- * the Instrument folder, and `h.after(fn)` to undo what the state left open.
+ * the Instrument folder, `h.after(fn)` to undo what the state left open, and for the
+ * tab-groups window `h.chatAlone(id)`, `h.bookmarks()` and `h.bookmarksBar(on)`.
  */
 export const STATES = {
   chat: {
@@ -385,6 +415,66 @@ export const STATES = {
       await wait(700);
     },
   },
+  "tg-new-tab": {
+    about: "Tab groups: a new group just made with ⌘N, up above the pricing chat's group in the sidebar. The new tab as it ships: back, forward and reload off, + and New Tab in Split, the bookmarks bar with Apps, Chats and Files and the line on bookmarking (no bookmarks), the Instrument mark, \"How can I help?\" and the composer (+, Project, Auto), nothing typed.",
+    themes: ["light"],
+    run: async (h) => {
+      await h.bookmarksBar(false);
+      await h.chatAlone(h.chats.pricing);
+      await h.app.words.press("Meta+n");
+    },
+  },
+  "tg-page-beside-chat": {
+    about: "Tab groups: the pricing chat's group with the chat's card on the left and a card of pages on the right, Zendesk pricing behind and Intercom pricing up, loaded, the keyboard on the page side. Bookmarks kept (the star filled on Intercom), the bookmarks bar off. The pages are a picture.",
+    themes: ["light"],
+    run: async (h) => {
+      const { omnibar, press } = h.app.words;
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.pricing);
+      await omnibar.go("https://www.zendesk.com/pricing");
+      await press("Meta+t");
+      await omnibar.go("https://www.intercom.com/pricing");
+    },
+  },
+  "tg-two-pages": {
+    about: "Tab groups: a group of two pages split side by side, no chat card (its chat not started): Zendesk pricing on the left, Intercom pricing on the right with the keyboard, each side its own toolbar with no tab strip. The bookmarks bar off. The pages are a picture.",
+    themes: ["light"],
+    run: async (h) => {
+      const { click, omnibar } = h.app.words;
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await omnibar.go("https://www.zendesk.com/pricing");
+      await click("New Tab in Split");
+      await omnibar.go("https://www.intercom.com/pricing");
+    },
+  },
+  "tg-page-more-menu": {
+    about: "tg-page-beside-chat with the page toolbar's ⋮ (More actions) open and its Bookmarks submenu out: Bookmark this tab…, Bookmark all tabs…, Show bookmarks bar, Bookmark manager, then the Competitors folder, Notion pricing and Hacker News.",
+    themes: ["light"],
+    run: async (h) => {
+      const { button, item, omnibar, press } = h.app.words;
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.pricing);
+      await omnibar.go("https://www.zendesk.com/pricing");
+      await press("Meta+t");
+      await omnibar.go("https://www.intercom.com/pricing");
+      await button("More actions").click();
+      await item("Bookmarks").hover();
+      await wait(400);
+    },
+  },
+  "tg-new-tab-bar": {
+    about: "tg-new-tab with bookmarks: the new tab's bookmarks bar shows Apps, Chats and Files, then the Competitors folder, Notion pricing and Hacker News.",
+    themes: ["light"],
+    run: async (h) => {
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.pricing);
+      await h.app.words.press("Meta+n");
+    },
+  },
 };
 
 export default async (app, args) => {
@@ -415,7 +505,140 @@ export default async (app, args) => {
         await wait(250);
       }
     },
+    // The tab-groups window: a new group up, every other group closed.
+    oneGroup: async () => {
+      if (!(await app.eval(`!!document.querySelector('nav[aria-label="Tab groups"]')`))) return;
+      await app.words.press("Meta+n");
+      const rows = `nav[aria-label="Tab groups"] [data-group-row]`;
+      const up = await app.eval(`document.querySelector('${rows}[data-up]')?.getAttribute('aria-label')?.replace(/ tab group$/, '') ?? ''`);
+      if (up && (await app.eval(`document.querySelectorAll('${rows}:not([data-up])').length`))) await app.words.group(up).menu("Close Other Tab Groups");
+    },
+    // A chat's group up with the chat alone in it: its pages, which the chat keeps
+    // from one run to the next, closed with the side they are on.
+    chatAlone: async (/** @type {string} */ id) => {
+      const { title } = await app.rpc("workspace.chats.byId", { id });
+      await app.words.chat(title).open();
+      for (let tries = 0; tries < 3; tries++) {
+        const up = (await app.words.groups()).find((g) => g.isUp);
+        const at = up?.sides.findIndex((s) => !s.tabs.some((t) => t.address.startsWith("/chats")));
+        if (!up || up.sides.length < 2 || at === undefined || at < 0) break;
+        await app.words.side(at === 0 ? "left" : "right").button("Close Split").click();
+        // Off the button, which leaves whatever comes up under it lit.
+        await app.cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 700, y: 640 });
+      }
+    },
+    // The bookmarks the tg-* states show, through the window's own bridge to main
+    // (`shared/bookmarks.ts`), under fixed ids so a second add is a no-op, and taken
+    // away again once the state is taken.
+    bookmarks: async () => {
+      const batch = (/** @type {unknown[]} */ ops) =>
+        app.eval(`window.api.bookmarks.apply({ client: 'snapshot-capture', seq: Date.now(), ops: ${JSON.stringify(ops)} }).then(() => true)`);
+      await batch(BOOKMARKS);
+      h.after(() => batch(BOOKMARKS.filter((op) => op.type === "addFolder" || !op.bookmark.folder).map((op) => ({ id: op.type === "add" ? op.bookmark.id : op.folder.id, type: "remove" }))));
+      await wait(300);
+    },
+    // The bookmarks bar on pages shown or not (View › Show Bookmarks Bar), put back as it was.
+    bookmarksBar: async (/** @type {boolean} */ on) => {
+      const { showBookmarksBar } = await app.rpc("preferences.get");
+      if (showBookmarksBar === on) return;
+      await app.rpc("preferences.setShowBookmarksBar", { enabled: on });
+      h.after(() => app.rpc("preferences.setShowBookmarksBar", { enabled: showBookmarksBar }));
+      await wait(300);
+    },
   };
+  // A page in the in-app browser runs in a process of its own, drawn on the body over the
+  // slot that shows it (`browser-pool.ts`), and a window kept off screen composites it
+  // from stale frames: cut, scaled, half painted. So each page shown is left to finish
+  // loading, put at its top and pictured from its own debug target, which paints it as
+  // it is now, and the picture stands in the slot while the window is taken, the page
+  // made see-through above it (not hidden, which would take the keyboard off it). The
+  // slot is the window's own element with the page's box, the innermost of them that is
+  // not the page's wrapper. `restoreGuests` puts the pages back.
+  const pictureGuests = async () => {
+    const shown = await app.eval(`(async () => {
+      const out = [];
+      for (const [i, el] of [...document.querySelectorAll('webview, iframe')].entries()) {
+        const r = el.getBoundingClientRect();
+        if (el.tagName !== 'WEBVIEW' || getComputedStyle(el).visibility === 'hidden' || Number(getComputedStyle(el.parentElement ?? el).opacity) < 0.5 || r.width <= 4 || r.height <= 4) continue;
+        for (let t = 0; t < 60; t++) {
+          let loading = false;
+          try { loading = el.isLoading(); } catch {}
+          if (!loading) break;
+          await new Promise((done) => setTimeout(done, 250));
+        }
+        const mark = 'snap-' + i + '-' + Math.random().toString(36).slice(2);
+        try { await el.executeJavaScript('window.__snapGuest = ' + JSON.stringify(mark) + '; window.scrollTo(0, 0); 1'); } catch { continue; }
+        const near = (a, b) => Math.abs(a - b) <= 2;
+        let host = null;
+        for (const e of document.body.querySelectorAll('*')) {
+          if (e.contains(el) || e.matches('webview, iframe') || e.closest('svg')) continue;
+          const q = e.getBoundingClientRect();
+          if (near(q.x, r.x) && near(q.y, r.y) && near(q.width, r.width) && near(q.height, r.height)) host = e;
+        }
+        if (!host) continue;
+        host.setAttribute('data-snap-guest-host', String(i));
+        out.push({ i, mark, radius: getComputedStyle(el.parentElement ?? el).borderRadius });
+      }
+      return out;
+    })()`);
+    if (!shown.length) return;
+    await wait(600);
+    /** @type {{ i: number, radius: string, src: string }[]} */
+    const taken = [];
+    const targets = (await (await fetch(`http://127.0.0.1:${app.port}/json/list`)).json()).filter((/** @type {any} */ t) => t.type === "webview");
+    for (const target of targets) {
+      const socket = new WebSocket(target.webSocketDebuggerUrl);
+      await new Promise((done, fail) => ((socket.onopen = done), (socket.onerror = fail)));
+      let id = 0;
+      const send = (/** @type {string} */ method, params = {}) =>
+        new Promise((done) => {
+          const n = ++id;
+          socket.addEventListener("message", function reply(m) {
+            const msg = JSON.parse(String(m.data));
+            if (msg.id !== n) return;
+            socket.removeEventListener("message", reply);
+            done(msg.result);
+          });
+          socket.send(JSON.stringify({ id: n, method, params }));
+        });
+      try {
+        const { result } = await send("Runtime.evaluate", { expression: "[window.__snapGuest, innerWidth, innerHeight, devicePixelRatio]", returnByValue: true });
+        const [mark, width, height, ratio] = result?.value ?? [];
+        const guest = shown.find((g) => g.mark === mark);
+        if (!guest) continue;
+        const { data } = await send("Page.captureScreenshot", { format: "jpeg", quality: 82, clip: { x: 0, y: 0, width, height, scale: 1 / ratio } });
+        if (data) taken.push({ i: guest.i, radius: guest.radius, src: `data:image/jpeg;base64,${data}` });
+      } finally {
+        socket.close();
+      }
+    }
+    await app.eval(`(async () => {
+      for (const { i, radius, src } of ${JSON.stringify(taken)}) {
+        const host = document.querySelector('[data-snap-guest-host="' + i + '"]');
+        const el = document.querySelectorAll('webview, iframe')[i];
+        if (!host || !el) continue;
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = 'The page in the in-app browser, as it looked';
+        img.setAttribute('data-snap-guest-picture', '');
+        img.setAttribute('style', 'position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover;object-position:left top;border-radius:' + radius);
+        if (getComputedStyle(host).position === 'static') host.setAttribute('data-snap-guest-static', '');
+        host.append(img);
+        await img.decode().catch(() => {});
+        el.setAttribute('data-snap-guest-hidden', el.style.opacity);
+        el.style.opacity = '0';
+      }
+      for (const host of document.querySelectorAll('[data-snap-guest-static]')) host.style.position = 'relative';
+    })()`);
+    await wait(150);
+  };
+  const restoreGuests = () =>
+    app.eval(`(() => {
+      for (const img of document.querySelectorAll('[data-snap-guest-picture]')) img.remove();
+      for (const host of document.querySelectorAll('[data-snap-guest-static]')) { host.style.position = ''; host.removeAttribute('data-snap-guest-static'); }
+      for (const host of document.querySelectorAll('[data-snap-guest-host]')) host.removeAttribute('data-snap-guest-host');
+      for (const el of document.querySelectorAll('[data-snap-guest-hidden]')) { el.style.opacity = el.getAttribute('data-snap-guest-hidden'); el.removeAttribute('data-snap-guest-hidden'); }
+    })()`);
   const hideDevChrome = () =>
     app.eval(`(() => {
       for (const strip of document.querySelectorAll('[data-developer-strip]')) strip.setAttribute('data-snap-drop', '');
@@ -463,11 +686,13 @@ export default async (app, args) => {
         await app.press("Escape");
         await app.cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: 700, y: 640 });
         await h.oneTab();
+        await h.oneGroup();
         if (await app.eval(`!!document.querySelector('button[aria-label="Discard draft"]')`)) await app.click({ selector: 'button[aria-label="Close"]' });
         await wait(300);
         await hideDevChrome();
         await state.run(h);
         await wait(700);
+        await pictureGuests();
         await hideDevChrome();
         await app.eval(`window.__walkthroughPage.present(${JSON.stringify({ rootCrumb: path.basename(h.folder) })})`);
         await wait(200);
@@ -475,11 +700,13 @@ export default async (app, args) => {
         const outline = await app.snapshot({ depth: 14 });
         fs.writeFileSync(path.join(out, "raw", `${key}.outline.txt`), typeof outline === "string" ? outline : JSON.stringify(outline, null, 1));
         await markDrop();
-        // A page in the in-app browser runs in a process of its own, outside this DOM, so
-        // each one is kept as a picture of the box it fills, drawn where the page was.
+        // A frame in the window's own page that is another document is kept as a picture
+        // of its box, drawn where it was; a page of the in-app browser already has its
+        // picture in its slot (pictureGuests).
         const guests = await app.eval(`[...document.querySelectorAll('webview, iframe')].map((el, i) => {
           const r = el.getBoundingClientRect();
-          return { i, x: r.x, y: r.y, width: r.width, height: r.height, shown: getComputedStyle(el).visibility !== 'hidden' };
+          const pictured = !!document.querySelector('[data-snap-guest-host="' + i + '"] > [data-snap-guest-picture]');
+          return { i, x: r.x, y: r.y, width: r.width, height: r.height, shown: !pictured && getComputedStyle(el).visibility !== 'hidden' && Number(getComputedStyle(el.parentElement ?? el).opacity) >= 0.5 };
         })`);
         /** @type {Record<string, string>} */
         const pictures = {};
@@ -496,6 +723,7 @@ export default async (app, args) => {
       } catch (error) {
         done.push(`${key} FAILED: ${String(error instanceof Error ? error.message : error).slice(0, 240)}`);
       }
+      await restoreGuests().catch(() => {});
       for (const fn of afters.splice(0)) await Promise.resolve(fn()).catch(() => {});
     }
   }

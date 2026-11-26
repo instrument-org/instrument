@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
 import { publisher } from "../../rpc/publisher";
 import { type AskRecord } from "../../schemas/ask";
-import { ChatIdSchema } from "../../schemas/chat-id";
+import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { withTestRecords } from "../../test/helpers/with-test-records";
 import { isToolPart } from "../is-tool-part";
@@ -525,6 +525,70 @@ describe("ChatRecords", () => {
       ),
     ).resolves.toBe(1);
     sync.mockRestore();
+    await service.dispose();
+  });
+
+  /** Another device's log of the task session, arriving in the chat's folder. */
+  async function arrivesFromB(chatId: ChatId) {
+    await fs.mkdir(records.dirOf(chatId), { recursive: true });
+    await fs.writeFile(
+      path.join(records.dirOf(chatId), logFileName(taskSession, DEVICE_B)),
+      [
+        header(0, { device: DEVICE_B, id: taskSession }),
+        messageRecord(1, userMessage(taskSession, messageId(1), at(1))),
+      ]
+        .map(recordLine)
+        .join(""),
+    );
+  }
+
+  // Tabs in a few windows easily reach more than a handful of chats, and
+  // going back to one should read nothing from disk.
+  it("keeps more than eight chats nothing pins folded", async () => {
+    const service = new ChatRecords({
+      app: "0.0.0-test",
+      device: DEVICE_A,
+      dirOf: records.dirOf,
+      fsync: false,
+    });
+    const chats = Array.from({ length: 12 }, (_, index) =>
+      ChatIdSchema.parse(`records-tab-${index}`),
+    );
+    for (const chatId of chats) {
+      await service.read(chatId);
+    }
+    const [first] = chats;
+    if (!first) {
+      throw new Error("No chat to read");
+    }
+    await arrivesFromB(first);
+
+    expect((await service.read(first)).chat.sessions).toEqual([]);
+    await service.dispose();
+  });
+
+  it("lets go of chats nothing pins past the bytes kept, the last used aside", async () => {
+    const service = new ChatRecords({
+      app: "0.0.0-test",
+      device: DEVICE_A,
+      dirOf: records.dirOf,
+      fsync: false,
+      keepUnpinnedBytes: 1,
+    });
+    const older = ChatIdSchema.parse("records-older");
+    const newer = ChatIdSchema.parse("records-newer");
+    for (const chatId of [older, newer]) {
+      await arrivesFromB(chatId);
+      await service.read(chatId);
+    }
+    await fs.rm(records.dirOf(older), { force: true, recursive: true });
+    await fs.rm(records.dirOf(newer), { force: true, recursive: true });
+
+    // The newer stays folded though its files are past the bytes kept.
+    expect(
+      (await service.read(newer)).chat.sessions.map(({ id }) => id),
+    ).toEqual([taskSession]);
+    expect((await service.read(older)).chat.sessions).toEqual([]);
     await service.dispose();
   });
 

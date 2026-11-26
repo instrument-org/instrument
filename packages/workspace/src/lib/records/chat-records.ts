@@ -147,8 +147,13 @@ export interface ChatRecordsOptions {
    * survive a power cut (tests).
    */
   fsync?: boolean;
-  /** How many chats nothing pins stay folded. */
+  /** How many chats nothing pins stay folded, at most. */
   keepUnpinned?: number;
+  /**
+   * How many bytes of record files the chats nothing pins stay folded from,
+   * at most; the chat used last stays folded whatever its size.
+   */
+  keepUnpinnedBytes?: number;
   now?: () => Date;
   /** Told of what fails where no caller is waiting: a sweep's writes, a sync on the way out. */
   onError?: (error: unknown) => void;
@@ -163,7 +168,15 @@ export interface ChatRecordsOptions {
 /** How often a turn in memory says it changed, at most. */
 const LIVE_PUBLISH_MS = 100;
 
-const KEEP_UNPINNED = 8;
+/**
+ * Enough for every chat open in a window's tabs to stay folded, so going
+ * back to one reads nothing from disk: most chats' records are tens of
+ * kilobytes, and a fold of the longest takes tens of milliseconds.
+ */
+const KEEP_UNPINNED = 32;
+
+/** About what four of the longest chats' records come to. */
+const KEEP_UNPINNED_BYTES = 32 * 1024 * 1024;
 
 type LogBody = Unsequenced<Exclude<LogRecord, SessionHeader>>;
 
@@ -240,6 +253,7 @@ export class ChatRecords {
   #disposed = false;
   readonly #fsync: boolean;
   readonly #keepUnpinned: number;
+  readonly #keepUnpinnedBytes: number;
   #live = new Map<ChatId, Map<StoreId.Session, LiveState>>();
   readonly #now: () => Date;
   readonly #onError: (error: unknown) => void;
@@ -258,6 +272,7 @@ export class ChatRecords {
     dirOf,
     fsync = true,
     keepUnpinned = KEEP_UNPINNED,
+    keepUnpinnedBytes = KEEP_UNPINNED_BYTES,
     now = getCurrentDate,
     onError = noop,
     workspaceRoot,
@@ -268,6 +283,7 @@ export class ChatRecords {
     this.#dirOf = dirOf;
     this.#fsync = fsync;
     this.#keepUnpinned = keepUnpinned;
+    this.#keepUnpinnedBytes = keepUnpinnedBytes;
     this.#now = now;
     this.#onError = onError;
   }
@@ -1411,7 +1427,11 @@ export class ChatRecords {
     }
   }
 
-  /** Lets go of the least recently used chats nothing holds, past the few kept. */
+  /**
+   * Lets go of the least recently used chats nothing holds, past the ones
+   * kept: the most recently used, up to `keepUnpinned` of them and
+   * `keepUnpinnedBytes` of their files.
+   */
   #trim(): void {
     const idle = [...this.#chats]
       .filter(
@@ -1423,11 +1443,19 @@ export class ChatRecords {
           entry.open.pending.size === 0 &&
           !this.#live.has(chatId),
       )
-      .toSorted(([, a], [, b]) => a.lastUsed - b.lastUsed);
-    for (const [chatId, entry] of idle.slice(
-      0,
-      Math.max(0, idle.length - this.#keepUnpinned),
-    )) {
+      .toSorted(([, a], [, b]) => b.lastUsed - a.lastUsed);
+    let kept = 0;
+    let bytes = 0;
+    for (const [chatId, entry] of idle) {
+      const size = entry.open ? foldedBytes(entry.open.fold) : 0;
+      if (
+        kept < this.#keepUnpinned &&
+        (kept === 0 || bytes + size <= this.#keepUnpinnedBytes)
+      ) {
+        kept += 1;
+        bytes += size;
+        continue;
+      }
       this.#chats.delete(chatId);
       if (entry.open) {
         this.#commitAll(entry.open).catch(this.#onError);
@@ -2101,4 +2129,13 @@ function byId(a: string, b: string): number {
     return 0;
   }
   return a < b ? -1 : 1;
+}
+
+/** How many bytes of its files a fold has read. */
+function foldedBytes(fold: ChatFold): number {
+  let bytes = 0;
+  for (const offset of fold.readTo().values()) {
+    bytes += offset;
+  }
+  return bytes;
 }

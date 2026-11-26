@@ -27,12 +27,21 @@ import {
   writeDraftFile,
 } from "@instrument-org/workspace/drafts";
 import { saveProjectId, watchFolder } from "@instrument-org/workspace/electron";
+import ms from "ms";
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 
 import { logger } from "../lib/electron-logger";
 import { draftFileOf, draftOf, withFolderOf } from "./draft-record";
+
+/**
+ * How often a workspace a phone has used reads its drafts folder whatever
+ * the watchers said, window in front or not: a phone's Send waits at most
+ * this long on a sync event the system dropped, for four walks a minute of
+ * the drafts folder alone.
+ */
+export const PHONE_DRAFTS_RECHECK_MS = ms("15 seconds");
 
 /** An id a window made, which one draft or one pasted item is known by. */
 const IdSchema = z.string().regex(/^[\w-]+$/);
@@ -591,12 +600,38 @@ export function createDraftStore({
      * writes call back too; {@link reconcile} is what tells them apart. A
      * workspace with no drafts has no folder, and the first draft's making
      * it is a change.
+     *
+     * Once `hasPhone` answers true, the folder is also read every
+     * {@link PHONE_DRAFTS_RECHECK_MS} with no window in front: a phone's
+     * Send is sent from here while the person is away
+     * (`send-asked-drafts.ts`), so a sync the watchers missed can't wait
+     * for a window.
      */
-    watch(changed: () => void): () => void {
-      return watchFolder(draftsFolderDir(rootDir), {
-        depth: 1,
-        onChange: changed,
+    watch(
+      changed: () => void,
+      { hasPhone }: { hasPhone?: Promise<boolean> } = {},
+    ): () => void {
+      const dir = draftsFolderDir(rootDir);
+      let stopped = false;
+      let stop = watchFolder(dir, { depth: 1, onChange: changed });
+      void hasPhone?.then((found) => {
+        if (!found || stopped) {
+          return;
+        }
+        const before = stop;
+        stop = watchFolder(dir, {
+          depth: 1,
+          onChange: changed,
+          recheckAlwaysMs: PHONE_DRAFTS_RECHECK_MS,
+        });
+        before();
+        // What changed between the two watches' first reads.
+        changed();
       });
+      return () => {
+        stopped = true;
+        stop();
+      };
     },
   };
 }

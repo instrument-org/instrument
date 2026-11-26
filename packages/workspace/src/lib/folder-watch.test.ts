@@ -29,7 +29,13 @@ afterEach(async () => {
 });
 
 /** Counts the changes heard, and waits for the next one. */
-function listen(options: { depth?: number; recheckMs?: number } = {}) {
+function listen(
+  options: {
+    depth?: number;
+    recheckAlwaysMs?: number;
+    recheckMs?: number;
+  } = {},
+) {
   let heard = 0;
   let waiting: (() => void) | undefined;
   const stop = watchFolder(dir, {
@@ -105,6 +111,17 @@ describe("watchFolder", () => {
 
     const changed = watch.next();
     setWorkspaceInFront(true);
+    await expect(changed).resolves.toBeUndefined();
+  });
+
+  it("finds a deeper change behind every window when asked to read always", async () => {
+    setWorkspaceInFront(false);
+    await write("tidy/SKILL.md", "one\n");
+    const watch = listen({ depth: 0, recheckAlwaysMs: 300 });
+    await settled();
+
+    const changed = watch.next();
+    await write("tidy/scripts/run.sh", "echo\n");
     await expect(changed).resolves.toBeUndefined();
   });
 

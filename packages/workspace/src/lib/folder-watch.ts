@@ -15,7 +15,8 @@ const SETTLE_MS = ms("150 milliseconds");
  * window is in front, and as each comes forward: what they missed (a change
  * deeper than they watch, an event the system dropped, a network or synced
  * folder that reports nothing) is found then. Behind every window, the
- * watchers alone report.
+ * watchers alone report, unless the watch asks to be read always
+ * (`recheckAlwaysMs`).
  */
 const RECHECK_MS = ms("1 minute");
 
@@ -40,7 +41,8 @@ const WATCHED = new Map<string, Watched>();
  *
  * The folder and, to `depth`, the folders in it are watched, so an edit
  * there is heard within a beat; everything below is read again as a window
- * comes forward and every {@link RECHECK_MS} while one is in front, which
+ * comes forward and every {@link RECHECK_MS} while one is in front (and,
+ * with `recheckAlwaysMs`, on that timer behind every window too), which
  * also catches what a watcher missed. A watcher
  * that fails is set up again rather than given up on, and a folder that is
  * removed is waited for again, so neither ends the watch. A folder not made
@@ -54,23 +56,34 @@ export function watchFolder(
   {
     depth = 1,
     onChange,
+    recheckAlwaysMs,
     recheckMs = RECHECK_MS,
   }: {
     depth?: number;
     onChange: () => void;
+    /**
+     * How often it is also read whether or not a window is in
+     * front, for a folder whose missed change can't wait for one to come
+     * forward. Unset, behind every window the watchers alone report.
+     */
+    recheckAlwaysMs?: number;
     /** How often it is read regardless while a window is in front; the default suits every folder of the person's. */
     recheckMs?: number;
   },
 ): () => void {
-  const key = `${path.resolve(dir)}\0${depth}\0${recheckMs}`;
+  const key = `${path.resolve(dir)}\0${depth}\0${recheckMs}\0${recheckAlwaysMs ?? ""}`;
   let watched = WATCHED.get(key);
   if (!watched) {
     const listeners = new Set<() => void>();
-    const stop = startWatching(dir, { depth, recheckMs }, () => {
-      for (const listener of listeners) {
-        listener();
-      }
-    });
+    const stop = startWatching(
+      dir,
+      { depth, recheckAlwaysMs, recheckMs },
+      () => {
+        for (const listener of listeners) {
+          listener();
+        }
+      },
+    );
     watched = { listeners, stop };
     WATCHED.set(key, watched);
   }
@@ -98,7 +111,11 @@ export function stopWatchingFolders(): void {
 
 function startWatching(
   dir: string,
-  { depth, recheckMs }: { depth: number; recheckMs: number },
+  {
+    depth,
+    recheckAlwaysMs,
+    recheckMs,
+  }: { depth: number; recheckAlwaysMs?: number; recheckMs: number },
   changed: () => void,
 ): () => void {
   let stopped = false;
@@ -189,6 +206,11 @@ function startWatching(
   const stopRechecking = lookWhileInFront(() => {
     void read();
   }, recheckMs);
+  const recheckAlways =
+    recheckAlwaysMs === undefined
+      ? undefined
+      : setInterval(() => void read(), recheckAlwaysMs);
+  recheckAlways?.unref();
   // The first read, unless a window in front has just started it.
   if (!reading) {
     void read();
@@ -197,6 +219,7 @@ function startWatching(
   return () => {
     stopped = true;
     stopRechecking();
+    clearInterval(recheckAlways);
     clearTimeout(settle);
     stopWaiting?.();
     unwatch();

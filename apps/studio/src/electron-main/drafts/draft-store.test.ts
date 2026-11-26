@@ -15,7 +15,7 @@ import {
   hasWorkspaceConfig,
   setWorkspaceConfig,
 } from "../../../../../packages/workspace/src/lib/workspace-config";
-import { createDraftStore } from "./draft-store";
+import { createDraftStore, PHONE_DRAFTS_RECHECK_MS } from "./draft-store";
 
 vi.mock("../lib/electron-logger", () => ({
   logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
@@ -566,6 +566,52 @@ describe("the folder changing under the app", () => {
     expect(again.store.snapshot().drafts).toHaveLength(1);
     expect(tree()).toHaveLength(2);
   });
+});
+
+describe("the drafts folder behind every window", () => {
+  // A file in a folder inside a draft's folder is deeper than the watchers
+  // reach, as a sync event the system dropped is never heard: only a read
+  // of the folder finds it.
+  it.each([
+    { found: 1, hasPhone: true },
+    { found: 0, hasPhone: false },
+  ])(
+    "is read on a timer only once a phone has used the workspace (phone: $hasPhone)",
+    async ({ found, hasPhone }) => {
+      const notes = path.join(
+        root,
+        ".instrument",
+        "drafts",
+        "2026-10-19",
+        "notes",
+      );
+      fs.mkdirSync(notes, { recursive: true });
+      const { store } = await open();
+      vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+      let heard = 0;
+      const stop = store.watch(
+        () => {
+          heard += 1;
+        },
+        { hasPhone: Promise.resolve(hasPhone) },
+      );
+      try {
+        // The watchers' first reads, and the one after a phone is found.
+        await new Promise((done) => setTimeout(done, 600));
+        heard = 0;
+        fs.writeFileSync(path.join(notes, "list.txt"), "milk\n");
+        await new Promise((done) => setTimeout(done, 600));
+        expect(heard).toBe(0);
+
+        vi.advanceTimersByTime(PHONE_DRAFTS_RECHECK_MS);
+        await new Promise((done) => setTimeout(done, 600));
+        expect(heard).toBe(found);
+      } finally {
+        stop();
+        vi.useRealTimers();
+      }
+    },
+  );
 });
 
 describe("what the folder has that the store has not read yet", () => {

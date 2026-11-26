@@ -8,6 +8,8 @@ import {
   type DraftOpBatch,
   type DraftsSnapshot,
 } from "@/shared/drafts";
+import { whenWorkspaceHasPhone } from "@instrument-org/workspace/electron";
+import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { BrowserWindow, ipcMain, shell } from "electron";
 
 import { logger } from "../lib/electron-logger";
@@ -78,9 +80,16 @@ export function openDrafts() {
       isLoaded = true;
       tell(store.snapshot());
     });
-  store.watch(() => {
-    store.reconcile().catch(couldNotRead);
-  });
+  store.watch(
+    () => {
+      store.reconcile().catch(couldNotRead);
+    },
+    {
+      hasPhone: whenWorkspaceHasPhone({
+        devicesDir: workspaceLayout(getWorkspaceFolder()).devicesDir,
+      }),
+    },
+  );
 }
 
 function couldNotRead(error: unknown) {

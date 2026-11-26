@@ -6,6 +6,9 @@ import { describe, expect, it } from "vitest";
 import { agentBrowserPath } from "../../lib/agent-browser";
 import { browserLaunchedBy } from "./refuse-real-browsers";
 
+/** Node printing a line, since Windows has no /bin/echo. */
+const PRINT_OK = ["-e", 'console.log("ok")'];
+
 describe("the test setup's guard on real browsers", () => {
   it("refuses the installed agent-browser, however it is started", async () => {
     expect(() => execFileSync(agentBrowserPath(), ["--version"])).toThrow(
@@ -46,7 +49,7 @@ describe("the test setup's guard on real browsers", () => {
   });
 
   it("keeps the promisified form of execFile, which resolves to its output", async () => {
-    const { stdout } = await promisify(execFile)("/bin/echo", ["ok"]);
+    const { stdout } = await promisify(execFile)(process.execPath, PRINT_OK);
     expect(stdout).toBe("ok\n");
     expect(() =>
       promisify(execFile)(agentBrowserPath(), ["--version"]),
@@ -54,7 +57,7 @@ describe("the test setup's guard on real browsers", () => {
   });
 
   it("still starts other programs", () => {
-    expect(execFileSync("/bin/echo", ["ok"], { encoding: "utf8" })).toBe(
+    expect(execFileSync(process.execPath, PRINT_OK, { encoding: "utf8" })).toBe(
       "ok\n",
     );
   });

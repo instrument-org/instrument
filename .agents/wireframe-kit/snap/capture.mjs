@@ -581,6 +581,19 @@ export const STATES = {
       await wait(800);
     },
   },
+  "tg-files-tab-in-chat": {
+    about: "Tab groups: the pricing chat alone in its group, then ⌘T and the new tab's Files in the bookmarks bar, with nothing opened beside the chat first.",
+    themes: ["light"],
+    run: async (h) => {
+      const { click, press } = h.app.words;
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.pricing);
+      await press("Meta+t");
+      await click("Files");
+      await wait(800);
+    },
+  },
   "tg-new-tab-bar": {
     about: "tg-new-tab with bookmarks: the new tab's bookmarks bar shows Apps, Chats and Files, then the Competitors folder, Notion pricing and Hacker News.",
     themes: ["light"],

@@ -228,6 +228,47 @@ new RuleTester({
   ],
 });
 
+const queryResultRule = plugin.rules["no-whole-query-result"];
+if (!queryResultRule) {
+  throw new Error("The plugin has no studio/no-whole-query-result rule");
+}
+
+new RuleTester({
+  languageOptions: { parserOptions: { lang: "tsx" } },
+}).run("no-whole-query-result", queryResultRule, {
+  invalid: [
+    `function Info() { const size = useQuery(options); return <Walked size={size} />; }`,
+    `function Info() { const size = useQuery(options); return <Walked {...size} />; }`,
+    `function Info() { const q = useSuspenseQuery(options); return <Walked q={{ q }} />; }`,
+    `function useTrash() { const trash = useMutation(options); return useCallback(() => trash.mutate(), [trash]); }`,
+    `function Info() { const q = useQuery(options); useEffect(() => {}, [q]); }`,
+    `function Info() { const q = useQuery(options); const shown = useMemo(() => q.data, [q]); }`,
+  ]
+    .map((code) => ({ code, errors: [{ messageId: "wholeQueryResult" }] }))
+    .concat({
+      // Each mutation that could be the one handed on.
+      code: `function Info() { const a = useMutation(one); const b = useMutation(two); const pick = on ? a : b; return <Button run={pick} />; }`,
+      errors: [
+        { messageId: "wholeQueryResult" },
+        { messageId: "wholeQueryResult" },
+      ],
+    }),
+  valid: [
+    `function Info() { const size = useQuery(options); return <Walked data={size.data} isFetching={size.isFetching} />; }`,
+    `function Info() { const { data } = useQuery(options); return <Walked data={data} />; }`,
+    `function Info() { const data = useQuery(options).data; useEffect(() => {}, [data]); }`,
+    `function Info() { const trash = useMutation(options); return <Button onClick={() => trash.mutate()} />; }`,
+    `function useFeed() { const query = useQuery(options); return { ...query, more }; }`,
+    `function useFeed() { return useQuery(options); }`,
+    `function Info() { useQuery(options); return null; }`,
+    `function Info() { const listings = useQueries({ combine, queries }); useListed({ listings }); }`,
+    `function Info() { const q = useQuery(options); const latest = useRef({ q }); }`,
+    `function Info() { const q = useQuery(options); useListed({ q }); }`,
+    `function Info() { const q = useQuery(options); return isComplete(q) ? null : <Spinner />; }`,
+    `function Info() { const a = useMutation(one); const b = useMutation(two); const pick = on ? a : b; return <Button onClick={() => pick.mutate()} />; }`,
+  ],
+});
+
 const stageRule = plugin.rules["stage-reader-opts-out"];
 if (!stageRule) {
   throw new Error("The plugin has no studio/stage-reader-opts-out rule");

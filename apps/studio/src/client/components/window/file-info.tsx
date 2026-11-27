@@ -494,7 +494,10 @@ function FileInfo({ item }: { item: FileInfoItem }) {
         <InfoRow label="Size">{sizeWords(item.size)}</InfoRow>
       ) : item.isPackage ? (
         <InfoRow label="Size">
-          <WalkedSize size={packageSize} />
+          <WalkedSize
+            data={packageSize.data}
+            isFetching={packageSize.isFetching}
+          />
         </InfoRow>
       ) : null}
       {shape?.width && shape.height && type !== "audio" ? (
@@ -629,7 +632,7 @@ function FolderInfo({
         ) : isRefused ? (
           <Quiet>{CANT_BE_READ}</Quiet>
         ) : (
-          <WalkedSize size={size} />
+          <WalkedSize data={size.data} isFetching={size.isFetching} />
         )}
       </InfoRow>
       <WhereRow hostPath={item.hostPath} />
@@ -640,22 +643,21 @@ function FolderInfo({
 
 /** A size that took a walk: what it found, or that it is still looking, never an older answer. */
 function WalkedSize({
-  size,
+  data,
+  isFetching,
 }: {
-  size: {
-    data?: { bytes: number; complete: boolean } | null;
-    isFetching: boolean;
-  };
+  data?: { bytes: number; complete: boolean } | null;
+  isFetching: boolean;
 }) {
-  if (size.isFetching) {
+  if (isFetching) {
     return <Calculating />;
   }
-  if (!size.data) {
+  if (!data) {
     return <Quiet>{CANT_BE_READ}</Quiet>;
   }
-  return size.data.complete
-    ? sizeWords(size.data.bytes)
-    : `More than ${shortSize(size.data.bytes)}`;
+  return data.complete
+    ? sizeWords(data.bytes)
+    : `More than ${shortSize(data.bytes)}`;
 }
 
 function SeveralInfo({ items }: { items: FileInfoItem[] }) {

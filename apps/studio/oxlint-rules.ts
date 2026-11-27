@@ -1083,6 +1083,165 @@ const noSilentRpc = defineRule({
   },
 });
 
+/** TanStack Query's hooks, each answering a new result object on every render. */
+const QUERY_HOOKS = new Set([
+  "useInfiniteQuery",
+  "useMutation",
+  "useQueries",
+  "useQuery",
+  "useSuspenseInfiniteQuery",
+  "useSuspenseQueries",
+  "useSuspenseQuery",
+]);
+
+/** Node types that carry a value on whole: the value itself, or one holding it. */
+const CARRIES_WHOLE = new Set([
+  "ArrayExpression",
+  "ConditionalExpression",
+  "JSXExpressionContainer",
+  "LogicalExpression",
+  "ObjectExpression",
+  "ParenthesizedExpression",
+  "Property",
+  "SpreadElement",
+  "TSAsExpression",
+  "TSNonNullExpression",
+  "TSSatisfiesExpression",
+]);
+
+/**
+ * Whether a call names a `combine`, whose answer TanStack Query keeps from one
+ * render to the next until the results it reads change.
+ */
+const combines = (node: ESTree.CallExpression) => {
+  const [options] = node.arguments;
+  return (
+    options?.type === "ObjectExpression" &&
+    options.properties.some(
+      (property) =>
+        property.type === "Property" &&
+        property.key.type === "Identifier" &&
+        property.key.name === "combine",
+    )
+  );
+};
+
+/**
+ * React's hooks that compare what they are handed by identity: a dependency
+ * list, or a value kept until it changes. A hook of the app's own reads the
+ * fields it needs, which the React Compiler keeps it by.
+ */
+const IDENTITY_HOOKS = new Set([
+  "useCallback",
+  "useEffect",
+  "useImperativeHandle",
+  "useInsertionEffect",
+  "useLayoutEffect",
+  "useMemo",
+]);
+
+/**
+ * Where a value at `node` is handed whole, past what carries it on: a
+ * prop, an identity hook's argument (its dependencies included), or a name of
+ * its own to follow. A field read off it, or a test of it, hands nothing on.
+ */
+function handedWhole(
+  node: ESTree.Node,
+): "alias" | "hook" | "prop" | undefined {
+  let value = node;
+  let { parent } = value;
+  while (
+    parent &&
+    CARRIES_WHOLE.has(parent.type) &&
+    !(parent.type === "ConditionalExpression" && parent.test === value) &&
+    !(parent.type === "Property" && parent.value !== value)
+  ) {
+    value = parent;
+    ({ parent } = value);
+  }
+  switch (parent?.type) {
+    case "JSXAttribute":
+    case "JSXSpreadAttribute": {
+      return "prop";
+    }
+    case "CallExpression": {
+      const { callee } = parent;
+      return callee !== value &&
+        callee.type === "Identifier" &&
+        IDENTITY_HOOKS.has(callee.name)
+        ? "hook"
+        : undefined;
+    }
+    case "VariableDeclarator": {
+      return parent.init === value && parent.id.type === "Identifier"
+        ? "alias"
+        : undefined;
+    }
+    default: {
+      return undefined;
+    }
+  }
+}
+
+/**
+ * A query's result object is new on every render, so a prop or a dependency
+ * holding it whole changes every render too, and nothing reading it keeps
+ * what it derived: a child memoized on it draws again, an effect depending on
+ * it runs again. Its fields (`.data`, `.mutate`) hold still until they
+ * change, and so does what a `combine` answers. The name the result is given
+ * is followed, and a name that is given in turn; a hook of the app's own that
+ * returns a result whole is not followed into its callers.
+ */
+const noWholeQueryResult = defineRule({
+  create(context) {
+    const check = (node: ESTree.Node, hook: string, followed: boolean) => {
+      const handed = handedWhole(node);
+      if (handed === "prop" || handed === "hook") {
+        context.report({ data: { hook }, messageId: "wholeQueryResult", node });
+        return;
+      }
+      if (handed !== "alias" || followed) {
+        return;
+      }
+      let declarator: ESTree.Node | null = node.parent;
+      while (declarator && declarator.type !== "VariableDeclarator") {
+        declarator = declarator.parent;
+      }
+      if (declarator?.type !== "VariableDeclarator") {
+        return;
+      }
+      for (const variable of context.sourceCode.getDeclaredVariables(
+        declarator,
+      )) {
+        for (const reference of variable.references) {
+          if (!reference.init) {
+            check(reference.identifier, hook, node.type !== "CallExpression");
+          }
+        }
+      }
+    };
+    return {
+      CallExpression(node) {
+        if (
+          node.callee.type === "Identifier" &&
+          QUERY_HOOKS.has(node.callee.name) &&
+          !combines(node)
+        ) {
+          check(node, node.callee.name, false);
+        }
+      },
+    };
+  },
+  meta: {
+    messages: {
+      wholeQueryResult:
+        "{{hook}}'s result is a new object on every render, so a prop or a dependency holding it whole changes every render, and nothing downstream keeps what it derives. Hand over the field it reads: `.data`, `.mutate`, `.isPending`.",
+    },
+    schema: [],
+    type: "problem",
+  },
+});
+
 /**
  * Two doc comments with no line between them: code that moved or was replaced
  * leaves its comment behind, on top of the comment of whatever took its
@@ -1139,6 +1298,7 @@ export default definePlugin({
     "no-sync-content-read": noSyncContentRead,
     "no-sync-write": noSyncWrite,
     "no-transition-colors": noTransitionColors,
+    "no-whole-query-result": noWholeQueryResult,
     "one-tooltip-provider": oneTooltipProvider,
     "stage-reader-opts-out": stageReaderOptsOut,
   },

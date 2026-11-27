@@ -38,6 +38,7 @@
       "rules": {
         "studio/no-either-command-key": "error",
         "studio/no-os-words": "error",
+        "studio/no-whole-query-result": "error",
         "studio/stage-reader-opts-out": "error"
       }
     },

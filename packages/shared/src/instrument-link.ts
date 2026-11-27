@@ -1,4 +1,5 @@
 import { APP_NAME_SLUG, APP_PROTOCOL } from "./constants";
+import { expandHomePath } from "./folder-paths";
 
 // The one reading of an `instrument://` address, for the window that opens
 // it and the check that tells the agent a link in its reply opens nothing.
@@ -92,6 +93,28 @@ export function filePathOfInstrumentLink(url: string): string | undefined {
   // the absolute path the reply had in hand.
   const path = decoded(parsed.pathname).replace(/^\/+/, "/");
   return path === "/" ? undefined : path;
+}
+
+/**
+ * The one path an `instrument://files?path=<path>` address names, with `~`
+ * read from `home` and a folder's trailing slash kept, or undefined for any
+ * other address and for one naming several. It is the link the agent's own
+ * tools write for a file or folder, so a window shown one opens the path the
+ * way `file/` opens it.
+ */
+export function onlyPathOfFilesLink(
+  url: string,
+  home: string | undefined,
+): string | undefined {
+  const link = outsideLinkOf(url);
+  const [only] = link?.kind === "files" ? link.paths : [];
+  if (only === undefined || link?.kind !== "files" || link.paths.length > 1) {
+    return undefined;
+  }
+  const expanded = expandHomePath(only, home);
+  return /[\\/]$/.test(only) && !/[\\/]$/.test(expanded)
+    ? `${expanded}/`
+    : expanded;
 }
 
 /**

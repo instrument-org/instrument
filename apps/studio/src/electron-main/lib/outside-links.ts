@@ -7,7 +7,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { folderHref } from "@/shared/computer-href";
+import { folderHref, missingPathHref } from "@/shared/computer-href";
 
 import { type AppWindowAsk, outsideOpensOf } from "../windows/app-window-asks";
 import { hostPathOfUrlPath } from "./computer-files";
@@ -217,8 +217,14 @@ async function askOfPath(
   if (place === "folder") {
     return { href: folderHref(hostPath), type: "openScreen" };
   }
-  // Never a file to open: the window says it is not there, over the folder
-  // it was in when that is there.
+  // A tab at the path, which says it can't find it and shows it once it is
+  // there, as a tab whose file went missing does. A page is the exception:
+  // it is never a file to open, so one a site puts there later is not run
+  // straight from the link, and the window says it is not there, over the
+  // folder it was in when that is there.
+  if (place === "missing" && !PAGE.test(hostPath)) {
+    return { href: missingPathHref(hostPath, linkPath), type: "openScreen" };
+  }
   if (place === "missing") {
     const folder = hostPaths.dirname(hostPath);
     return {

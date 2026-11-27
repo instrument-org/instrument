@@ -2,6 +2,7 @@ import { instrumentAddressOf } from "@/shared/instrument-screens";
 import {
   filePathOfInstrumentLink,
   instrumentLinkOf,
+  onlyPathOfFilesLink,
 } from "@instrument-org/shared";
 import { type ChatId } from "@instrument-org/workspace/client";
 
@@ -67,7 +68,7 @@ export function isWebPage(url: string): boolean {
 /**
  * What a link written in a document names, read from its `href` as written:
  * a screen for an address into the app, a path for a file (an `instrument://file/`
- * address, a `file:` URL, or, given the document's `folder`, a path relative
+ * address, an `instrument://files?path=` address naming one path, a `file:` URL, or, given the document's `folder`, a path relative
  * to it), and a page for anything else. Undefined for no address and for a
  * place in the document itself, which the surface showing it scrolls to.
  */
@@ -82,7 +83,9 @@ export function openTargetOfHref(
   if (link) {
     return { href: link.href, kind: "screen" };
   }
-  const filePath = filePathOfInstrumentLink(href);
+  const filePath =
+    filePathOfInstrumentLink(href) ??
+    onlyPathOfFilesLink(href, globalThis.window?.api?.homeDir);
   if (filePath !== undefined) {
     return { kind: "path", path: filePath };
   }

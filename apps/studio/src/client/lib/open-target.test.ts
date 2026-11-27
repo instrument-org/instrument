@@ -14,6 +14,10 @@ it.each([
     { kind: "path", path: "/Users/sam/a.md" },
   ],
   ["file:///Users/sam/a%20b.md", { kind: "path", path: "/Users/sam/a b.md" }],
+  [
+    "instrument://files?path=%2FUsers%2Fsam%2FSpecs%2F&group=Specs",
+    { kind: "path", path: "/Users/sam/Specs/" },
+  ],
   ["plan.md", { kind: "path", path: "/notes/plan.md" }],
   ["../up.md", { kind: "path", path: "/up.md" }],
   ["https://example.com/x", { kind: "page", url: "https://example.com/x" }],

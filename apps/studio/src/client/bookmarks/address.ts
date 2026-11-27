@@ -15,6 +15,7 @@ import {
   filePathOfInstrumentLink,
   instrumentLinkOf,
   isInstrumentAddress,
+  onlyPathOfFilesLink,
 } from "@instrument-org/shared";
 
 /**
@@ -82,7 +83,8 @@ export type AddressTarget =
 /**
  * What an address opens. A `file://` address names a file or a folder, as the
  * address field reads one typed there, and so does the
- * `instrument://file/<path>` an earlier build kept; a `file://` address to a
+ * `instrument://file/<path>` an earlier build kept, and a link to one path
+ * (`instrument://files?path=<path>`); a `file://` address to a
  * place in a page (`?frame=2`, `#part`) is a page, since only the page
  * reaches it. An `instrument://` address this build does not know opens a
  * tab that says the page isn't there (`missingHref`). Anything else that is
@@ -102,7 +104,10 @@ export function targetOfAddress(address: string): AddressTarget | undefined {
     return { href: link.href, kind: "screen" };
   }
   return (
-    pathTarget(filePathOfInstrumentLink(address)) ?? {
+    pathTarget(
+      filePathOfInstrumentLink(address) ??
+        onlyPathOfFilesLink(address, homeDir()),
+    ) ?? {
       href: missingHref(address),
       kind: "screen",
     }

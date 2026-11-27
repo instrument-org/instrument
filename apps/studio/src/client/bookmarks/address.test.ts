@@ -83,7 +83,23 @@ describe("targetOfAddress", () => {
         path: "/Users/mac-user/Notes/plan #2.md",
       },
     ],
+    // The link the agent's tools write for one file or folder.
+    [
+      "instrument://files?path=%2FUsers%2Fmac-user%2FSpecs%2F&group=Specs",
+      { isFolder: true, kind: "path", path: "/Users/mac-user/Specs" },
+    ],
+    [
+      "instrument://files?path=%2FUsers%2Fmac-user%2Fa.md",
+      { isFolder: false, kind: "path", path: "/Users/mac-user/a.md" },
+    ],
     // An address of the app's own it doesn't know opens a tab that says so.
+    [
+      "instrument://files?path=%2Fa.md&path=%2Fb.md",
+      {
+        href: "/missing?address=instrument%3A%2F%2Ffiles%3Fpath%3D%252Fa.md%26path%3D%252Fb.md",
+        kind: "screen",
+      },
+    ],
     [
       "instrument://nowhere/x?y=1",
       {

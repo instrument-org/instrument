@@ -100,3 +100,25 @@ export function movedFilesAddress(
     });
   return `${address.slice(0, at)}?${query.join("&")}`;
 }
+
+/**
+ * Whether a path with nothing at it names a folder, read from how it is
+ * written: one ending in a separator does, and so does one whose last name
+ * has no extension, the way folders are named. Anything else names a file.
+ */
+export function namesFolder(written: string): boolean {
+  if (/[\\/]$/.test(written)) {
+    return true;
+  }
+  const name = written.split(/[\\/]/).at(-1) ?? "";
+  return !/^[^.].*\.[^.]+$/.test(name);
+}
+
+/**
+ * The address of a tab at a path with nothing at it, which stands there and
+ * says it can't find it (`NotFound`): a folder's tab or a file's, by how the
+ * path is written (`namesFolder`).
+ */
+export function missingPathHref(hostPath: string, written: string): string {
+  return namesFolder(written) ? folderHref(hostPath) : fileHref(hostPath);
+}

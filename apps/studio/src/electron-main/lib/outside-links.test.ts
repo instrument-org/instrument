@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { fileHref, folderHref } from "@/shared/computer-href";
+
 import { outsideOpensOf, tabHrefOfAsk } from "../windows/app-window-asks";
 import {
   asksOfOutsideLink,
@@ -193,34 +195,53 @@ describe("asksOfOutsideLink", () => {
     ).toEqual([]);
   });
 
-  // A file a link names that is not there is never one to open, so a page
+  // A page a link names that is not there is never one to open, so a page
   // that turns up there later is not run straight from the link; the window
   // says it is gone, over its folder when that is there.
-  it.each(["pricing.html", "notes.md"])(
-    "says %s is not there, over its folder",
-    async (name) => {
-      expect(
-        await asksOfOutsideLink(
-          `instrument://file${encodeURI(path.join(folder, "Notes", name))}`,
-          { isDownloaded: allowed, isRefused: allowed },
-        ),
-      ).toEqual([
-        {
-          folder: path.join(folder, "Notes"),
-          name,
-          type: "missingFile",
-        },
-      ]);
-    },
-  );
+  it("says a page is not there, over its folder", async () => {
+    expect(
+      await asksOfOutsideLink(
+        `instrument://file${encodeURI(path.join(folder, "Notes", "pricing.html"))}`,
+        { isDownloaded: allowed, isRefused: allowed },
+      ),
+    ).toEqual([
+      {
+        folder: path.join(folder, "Notes"),
+        name: "pricing.html",
+        type: "missingFile",
+      },
+    ]);
+  });
 
-  it("says a file is not there with no folder when that is gone too", async () => {
+  it("says a page is not there with no folder when that is gone too", async () => {
     expect(
       await asksOfOutsideLink(
         `instrument://file${encodeURI(path.join(folder, "Gone", "pricing.html"))}`,
         { isDownloaded: allowed, isRefused: allowed },
       ),
     ).toEqual([{ name: "pricing.html", type: "missingFile" }]);
+  });
+
+  // Any other file or folder that is not there opens a tab at it, which says
+  // it can't find it, as a tab whose file went missing does: a folder's when
+  // the link writes it as one.
+  it.each([
+    ["a file", ["Gone", "notes.md"], "", false],
+    ["a folder written with a slash", ["Gone", "Specs"], "/", true],
+    ["a name with no extension", ["Gone", "Specs"], "", true],
+  ])("opens a tab at %s that is not there", async (_case, parts, end, isFolder) => {
+    const hostPath = path.join(folder, ...parts);
+    expect(
+      await asksOfOutsideLink(`instrument://file${encodeURI(hostPath)}${end}`, {
+        isDownloaded: allowed,
+        isRefused: allowed,
+      }),
+    ).toEqual([
+      {
+        href: isFolder ? folderHref(hostPath) : fileHref(hostPath),
+        type: "openScreen",
+      },
+    ]);
   });
 
   it("opens nothing in a place the app refuses", async () => {
@@ -331,9 +352,8 @@ describe("a path from home", () => {
       }),
     ).toEqual([
       {
-        folder: path.join(folder, "Notes"),
-        name: "gone.md",
-        type: "missingFile",
+        href: fileHref(path.join(folder, "Notes", "gone.md")),
+        type: "openScreen",
       },
     ]);
     expect(
@@ -456,9 +476,8 @@ describe("asksOfOutsideLink with several files", () => {
           "type": "openScreen",
         },
         {
-          "folder": "/Users/mac-user/Work",
-          "name": "gone.md",
-          "type": "missingFile",
+          "href": "/files?file=%2FUsers%2Fmac-user%2FWork%2Fgone.md&path=&root=~",
+          "type": "openScreen",
         },
         {
           "href": "/files?path=&root=%2FUsers%2Fmac-user%2FWork",
@@ -496,9 +515,8 @@ describe("asksOfOutsideLink with several files", () => {
           "type": "openScreen",
         },
         {
-          "folder": "/Users/mac-user/Work",
-          "name": "gone.md",
-          "type": "missingFile",
+          "href": "/files?file=%2FUsers%2Fmac-user%2FWork%2Fgone.md&path=&root=~",
+          "type": "openScreen",
         },
       ]
     `);
@@ -891,7 +909,7 @@ describe("what a link opens", () => {
         isRefused: allowed,
         placeOf: (hostPath) =>
           Promise.resolve(
-            hostPath.endsWith("/gone.md")
+            hostPath.endsWith("/gone.md") || hostPath.includes("/Gone")
               ? "missing"
               : /\/(?:Work|Notes)$/.test(hostPath)
                 ? "folder"
@@ -962,7 +980,7 @@ describe("what a link opens", () => {
     `);
   });
 
-  it("opens a missing file's folder in the group and says it is gone", async () => {
+  it("opens a tab at a missing file in the group, where it was written", async () => {
     expect(
       await opens(
         "instrument://files?path=~%2Fa.md&path=~%2FWork%2Fgone.md&path=~%2FWork",
@@ -972,14 +990,28 @@ describe("what a link opens", () => {
         {
           "hrefs": [
             "/files?file=%2FUsers%2Fmac-user%2Fa.md&path=&root=~",
+            "/files?file=%2FUsers%2Fmac-user%2FWork%2Fgone.md&path=&root=~",
             "/files?path=&root=%2FUsers%2Fmac-user%2FWork",
           ],
           "type": "openGroup",
         },
+      ]
+    `);
+  });
+
+  // The link the open-in-instrument skill writes, to a folder on the
+  // computer it was written on, clicked on one where it is not.
+  it("opens a missing folder a group's link names as a tab of the group", async () => {
+    expect(
+      await opens("instrument://files?path=~%2FGone%2FSpecs%2F&group=Specs"),
+    ).toMatchInlineSnapshot(`
+      [
         {
-          "folder": "/Users/mac-user/Work",
-          "name": "gone.md",
-          "type": "missingFile",
+          "group": "Specs",
+          "hrefs": [
+            "/files?path=&root=%2FUsers%2Fmac-user%2FGone%2FSpecs",
+          ],
+          "type": "openGroup",
         },
       ]
     `);

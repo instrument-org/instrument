@@ -10,6 +10,7 @@ import {
   OUTSIDE_FILES_MAX,
   OUTSIDE_GROUP_MAX,
   OUTSIDE_WORDS_MAX,
+  onlyPathOfFilesLink,
   outsideLinkOf,
   projectOfLink,
 } from "./instrument-link";
@@ -201,6 +202,19 @@ describe("filePathOfInstrumentLink", () => {
     ["https://file/Users/sam/a.md", undefined],
   ])("%s", (url, path) => {
     expect(filePathOfInstrumentLink(url)).toBe(path);
+  });
+});
+
+describe("onlyPathOfFilesLink", () => {
+  it.each([
+    ["instrument://files?path=~%2FSpecs%2F&group=Specs", "/Users/sam/Specs/"],
+    ["instrument://files?path=~%2Fa.md", "/Users/sam/a.md"],
+    ["instrument://files?path=%2Ftmp%2Fa.md", "/tmp/a.md"],
+    ["instrument://files?path=%2Fa.md&path=%2Fb.md", undefined],
+    ["instrument://file/tmp/a.md", undefined],
+    ["instrument://open?path=%2Ftmp%2Fa.md", undefined],
+  ])("%s", (url, path) => {
+    expect(onlyPathOfFilesLink(url, "/Users/sam")).toBe(path);
   });
 });
 

@@ -339,9 +339,16 @@ function nextDay(day: string): string {
   return date.toISOString().slice(0, 10);
 }
 
-/** What a plan-less or refused search says, in place of any post. */
-const NO_GROK_ACCOUNT =
-  "there is no Grok account to search X with: none is signed in on this computer, or xAI refused the one that is.";
+/**
+ * A search with no Grok plan signed in to run on, which `app call` answers
+ * with the app's own refusal, naming it.
+ */
+export class NoGrokPlan extends Error {
+  constructor() {
+    super("No Grok plan is signed in on this computer.");
+    this.name = "NoGrokPlan";
+  }
+}
 
 /** One search of X, answering with the posts it cited. */
 async function searchPosts({
@@ -411,7 +418,7 @@ async function searchX<Shape>({
     workspaceServerURL: getWorkspaceServerURL(),
   });
   if (!resolved.ok) {
-    throw new Error(NO_GROK_ACCOUNT);
+    throw new NoGrokPlan();
   }
   const { config, model, tools } = resolved.value;
 

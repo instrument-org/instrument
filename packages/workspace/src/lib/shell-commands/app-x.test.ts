@@ -289,6 +289,17 @@ describe("an X tool with no Grok plan signed in", () => {
     expect(grokPlanRefusedLately(chatId)).toBe(true);
   });
 
+  it("refuses the same way when the plan goes between the gate and the search", async () => {
+    getXSearchModel.mockResolvedValue({ error: new Error("none"), ok: false });
+    const result = await app(["call", "x", "search", '{"query": "pixel"}']);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatchInlineSnapshot(`
+      "instrument app: "x" searches X on the user's Grok plan, which isn't signed in on this computer. Ask for it with connect_app naming "x": its row signs the user in to their Grok plan.
+      "
+    `);
+  });
+
   it("has a task leave the asking to the chat", async () => {
     expect(await unsigned("task")).toMatchInlineSnapshot(`
       "instrument app: "x" searches X on the user's Grok plan, which isn't signed in on this computer. Setting up and connecting apps is the chat's. End your last message with a needs fence naming the app and what it needs (set up, connected, or changed); the chat does it and sends you on.

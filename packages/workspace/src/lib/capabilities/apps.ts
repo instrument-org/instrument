@@ -55,7 +55,7 @@ import {
   noteGrokPlanRefused,
 } from "../apps/x-site";
 import { xToolsGuide } from "../../model-text/guides/x-guide";
-import { X_TOOLS } from "./x";
+import { NoGrokPlan, X_TOOLS } from "./x";
 import { webInsteadCommand } from "../apps/web-instead";
 import { INSTRUCTIONS_MAX } from "../instructions-in-context";
 import { baselineRecorded } from "../last-told";
@@ -546,7 +546,16 @@ async function runXTool(
       `The arguments do not fit what ${name} takes (${z.prettifyError(parsed.error).replaceAll("\n", " ")}). It takes:\n${JSON.stringify(xInputSchema(tool), null, 2)}`,
     );
   }
-  return z.json().parse(await tool.capability.run(parsed.data, ctx));
+  try {
+    return z.json().parse(await tool.capability.run(parsed.data, ctx));
+  } catch (error) {
+    // The plan went between the gate and the search.
+    if (error instanceof NoGrokPlan) {
+      noteGrokPlanRefused(ctx.chatId);
+      throw new CapabilityFailure(noGrokPlan(app.slug, ctx.role), "refused");
+    }
+    throw error;
+  }
 }
 
 /** An X app's tools, listed as `apps.tools` lists a server's. */

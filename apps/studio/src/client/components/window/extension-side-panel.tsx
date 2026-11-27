@@ -121,9 +121,9 @@ export function useExtensionSidePanelPages() {
   const wanted = panels.filter((panel) => here.has(panel.targetId));
   useEffect(() => {
     const kept = new Set(wanted.map((panel) => panel.targetId));
-    for (const [targetId, { webview }] of mounted) {
+    for (const [targetId, entry] of mounted) {
       if (!kept.has(targetId)) {
-        webview.remove();
+        entry.webview.remove();
         mounted.delete(targetId);
       }
     }

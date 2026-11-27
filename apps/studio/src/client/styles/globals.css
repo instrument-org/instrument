@@ -1486,6 +1486,17 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* Nothing inert is a handle for the window either. Chromium takes every drag
+ * area in the page whatever lies on top of it, so the app window kept mounted
+ * under setup (inert while setup is up) would keep its sidebar's and side
+ * panel's ground dragging under setup's buttons, and a press there would move
+ * the window instead. `initial` rather than `no-drag`, so an inert box opens no
+ * hole in a band around it. */
+[inert],
+[inert] * {
+  -webkit-app-region: initial !important;
+}
+
 /* While something open folds at a press anywhere else, no part of the window
  * is a handle for moving it, so a press on the tab strip, the sidebar or the
  * title bar reaches the document and puts it away instead of moving the

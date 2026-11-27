@@ -14,6 +14,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [A bare Chrome identity is what Google refuses](a-bare-chrome-identity-is-what-google-refuses.md): fixed in cb4a6b2f3, checked 2026-10-02;
 - [A chat whose conversion is refused reads as empty, and nobody is told](a-chat-whose-conversion-is-refused-reads-as-empty.md): half closed.
 - [A converted message is the read of its row, not the row](a-converted-message-is-the-read-not-the-row.md): open, and measured as costing nothing on the install this converter exists for.
+- [A drag area under a screen still takes the press](a-drag-area-under-a-screen-still-takes-the-press.md): fixed for inert content by a rule in `globals.css`, and `drag-audit.mjs` finds any other case.
 - [A driven chord opens the About panel](a-driven-chord-opens-the-about-panel.md): fixed on both paths (drive skill and guest relay d91dd7a74), checked 2026-10-02.
 - [A fetch that succeeds and returns no content](a-fetch-that-succeeds-and-returns-no-content.md): open.
 - [A file the user asks for gets copied somewhere writable](a-fetched-file-gets-copied-somewhere-writable.md): fixed in 0c256870d, measured below;

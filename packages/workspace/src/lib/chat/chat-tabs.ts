@@ -69,16 +69,19 @@ export async function forgetOpenedTabs(
 
 /**
  * Keeps word of a tab the chat closed while a task worked in it, for that
- * task's next browser command or note to say.
+ * task's next browser command or note to say. `movedOut` for one the chat
+ * moved to another tab group instead, where the task's agent-browser no
+ * longer reaches it.
  */
 export async function noteTabClosedByChat(
   chatId: ChatId,
   tab: { id: BrowserTargetId; session: StoreId.Session; url: string },
+  reason: "chat" | "movedOut" = "chat",
 ): Promise<void> {
   await updateChatState(chatDir(chatId), (state) => ({
     closedTabs: [
       ...state.closedTabs.filter((each) => each.id !== tab.id),
-      { ...tab, reason: "chat" as const },
+      { ...tab, reason },
     ],
   }));
 }

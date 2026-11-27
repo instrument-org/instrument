@@ -39,7 +39,11 @@ import { listChats } from "../chat/chats";
 import { recordAsk } from "../chat/asks";
 import { askWindow, WINDOW_TAB_TIMEOUT_MS } from "../chat/window-tab";
 import { isPersonsTurn } from "../chat/person-turn";
-import { noteTabClosedByChat, tabHolders } from "../chat/chat-tabs";
+import {
+  chatPageTabs,
+  noteTabClosedByChat,
+  tabHolders,
+} from "../chat/chat-tabs";
 import { noteTabCommand } from "../tab-activity";
 import { agentPathOfFileUrl, isLocalAddress } from "../local-page-address";
 import { recordRaisedAsk } from "../shell-commands/raised-asks";
@@ -119,6 +123,66 @@ async function holderOf(tabId: string, ctx: CapabilityContext) {
       : "",
     session: holder?.session,
   };
+}
+
+/**
+ * The tasks at work in tabs a move may take out of the chat's tab group,
+ * read before the move, and after it the way to tell each task whose tab
+ * left the group, where its agent-browser no longer reaches it: its next
+ * browser command says so, as for a tab the chat closed. `tellHolders`
+ * gives the clause for the line that reports each such tab, by its id.
+ */
+async function holdersOfMoved(ids: readonly string[], ctx: CapabilityContext) {
+  const held = (
+    await Promise.all(
+      ids.map(async (id) => ({ holder: await holderOf(id, ctx), id })),
+    )
+  ).filter(({ holder }) => holder.session !== undefined);
+  return {
+    async tellHolders(): Promise<Map<string, string>> {
+      const clauses = new Map<string, string>();
+      if (held.length === 0) {
+        return clauses;
+      }
+      const pages = await chatPageTabs(ctx.chatId);
+      for (const { holder, id } of held) {
+        const targetId = parseBrowserTargetId(id);
+        if (
+          pages === undefined ||
+          holder.session === undefined ||
+          targetId === null ||
+          pages.some((page) => page.id === id)
+        ) {
+          continue;
+        }
+        await noteTabClosedByChat(
+          ctx.chatId,
+          {
+            id: targetId,
+            session: holder.session,
+            url: getWorkspaceConfig().browser.getTargetAddress(targetId) ?? "",
+          },
+          "movedOut",
+        );
+        clauses.set(id, holder.clause);
+      }
+      return clauses;
+    },
+  };
+}
+
+/** The holder clauses of tabs one line reports together, each naming its tab when there are several. */
+function movedClauses(ids: readonly string[], clauses: Map<string, string>) {
+  return ids
+    .map((id) => {
+      const clause = clauses.get(id);
+      return clause === undefined
+        ? ""
+        : ids.length === 1
+          ? clause
+          : ` Tab ${id}:${clause}`;
+    })
+    .join("");
 }
 
 /** Whether an argument names a tab rather than a page, file or folder to show. */
@@ -972,6 +1036,7 @@ export const windowGroup = defineCapability({
   output: z.string(),
   async run({ tabs }, ctx) {
     const ids = tabs.map(idOf);
+    const holders = await holdersOfMoved(ids, ctx);
     const answer = await ask({ kind: "groupTabs", tabIds: ids }, ctx);
     if (!answer) {
       throw new Error(NO_WINDOW);
@@ -985,7 +1050,8 @@ export const windowGroup = defineCapability({
       made?.isShown === false
         ? "the window stays on the group it shows"
         : "it is on screen, since the group the window showed had no tab left";
-    return `Made the tab group ${words} of ${ids.join(", ")}; ${shown}.`;
+    const clauses = await holders.tellHolders();
+    return `Made the tab group ${words} of ${ids.join(", ")}; ${shown}.${movedClauses(ids, clauses)}`;
   },
   summary: `Make a new tab group of tabs, moved out of their groups as ${MOVE_TO_NEW_TAB_GROUP} moves one, in the window the chat works in; the window stays on the group it shows. The sidebar titles a group by its tabs.`,
   surfaces: {
@@ -1037,6 +1103,7 @@ export const windowMove = defineCapability({
       throw new Error(named.error);
     }
     const ids = tabs.map(idOf);
+    const holders = await holdersOfMoved(ids, ctx);
     const anchor = before ?? after;
     const answer = await ask(
       {
@@ -1064,14 +1131,17 @@ export const windowMove = defineCapability({
     if (answer.error !== undefined) {
       throw new Error(answer.error);
     }
+    const clauses = await holders.tellHolders();
     if (named !== undefined && placed.length === 0) {
       const into = await groupById(named.group.group.id, ctx);
-      return `Moved ${ids.join(", ")} into the tab group ${groupWords(named.group)}${into ? `; ${sightOf(into)}` : ""}.`;
+      return `Moved ${ids.join(", ")} into the tab group ${groupWords(named.group)}${into ? `; ${sightOf(into)}` : ""}.${movedClauses(ids, clauses)}`;
     }
     const lines: string[] = [];
     for (const id of ids) {
       const place = await placeOf(id, ctx);
-      lines.push(`Moved ${id}${place ? `: ${place}` : ""}.`);
+      lines.push(
+        `Moved ${id}${place ? `: ${place}` : ""}.${clauses.get(id) ?? ""}`,
+      );
     }
     return lines.join("\n");
   },

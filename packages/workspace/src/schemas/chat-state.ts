@@ -53,9 +53,12 @@ const ClosedTabSchema = z.object({
    * keep (`tabCap`), or, from builds that closed such tabs as a turn ended,
    * the chat's turn ended with nobody working in the tab and the person
    * never having used it (`turnEnd`), or the chat closed it with
-   * `instrument window close` while a task was working in it (`chat`).
+   * `instrument window close` while a task was working in it (`chat`), or
+   * moved it out of the chat's tab group, out of agent-browser's reach, with
+   * `instrument window move` or `group` while a task was working in it
+   * (`movedOut`).
    */
-  reason: z.enum(["chat", "tabCap", "turnEnd"]),
+  reason: z.enum(["chat", "movedOut", "tabCap", "turnEnd"]),
   title: z.string().optional(),
   url: z.string(),
 });

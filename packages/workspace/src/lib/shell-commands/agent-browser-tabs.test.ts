@@ -287,6 +287,27 @@ describe("a task's tab", () => {
     `);
   });
 
+  it("ends its next result with a tab the chat moved to another group while it worked there", async () => {
+    const moved = browserTargetOf(StoreId.newTabId());
+    await setChatState(chatDir(CHAT_ID), {
+      closedTabs: [
+        {
+          id: moved,
+          reason: "movedOut",
+          session: TASK_SESSION,
+          url: "https://example.com/cart",
+        },
+      ],
+    });
+
+    const result = await run(["snapshot", "-i"]);
+
+    expect(result.stdout.replaceAll(moved, "<tab>")).toMatchInlineSnapshot(`
+      "The chat moved a tab you were working in to another tab group, out of agent-browser's reach, <tab> at https://example.com/cart. Open the address again if the work still needs it.
+      "
+    `);
+  });
+
   describe("closing a tab", () => {
     const OWN = "tab_01M84R8BVN46VBYRPX9NFMSWSM";
     const OTHER = "tab_01M84R8BVN46VBYRPX9NFMSWSN";

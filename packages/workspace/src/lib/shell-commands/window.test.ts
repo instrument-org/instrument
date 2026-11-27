@@ -58,11 +58,19 @@ const holders = new Map<
 // How long a call waits on the window, short where a test has none answer.
 let windowTimeoutMs = 2000;
 // The word a close leaves for the task working in the tab.
-const closedByChat: { id: string; session: StoreId.Session }[] = [];
+const closedByChat: {
+  id: string;
+  reason?: string;
+  session: StoreId.Session;
+}[] = [];
 vi.mock(import("../chat/chat-tabs"), async (importOriginal) => ({
   ...(await importOriginal()),
-  noteTabClosedByChat: (_chatId, tab) => {
-    closedByChat.push({ id: tab.id, session: tab.session });
+  noteTabClosedByChat: (_chatId, tab, reason) => {
+    closedByChat.push({
+      id: tab.id,
+      session: tab.session,
+      ...(reason === undefined ? {} : { reason }),
+    });
     return Promise.resolve();
   },
   tabHolders: () => Promise.resolve(holders),
@@ -268,6 +276,8 @@ function answeringWindow() {
   const made: string[] = [];
   /** The tabs closed, which a list leaves out, as the window does. */
   const closed = new Set<string>();
+  /** The tabs moved to a group other than the chat's, which its pages leave out. */
+  const movedOut = new Set<string>();
   /** A group as the window lists it once the closed tabs are gone: the next tab on a side comes up, and a side or group left empty goes. */
   const open = <T extends LayoutSnapshot>(group: T): T => ({
     ...group,
@@ -295,6 +305,16 @@ function answeringWindow() {
     const { action } = ask;
     if (action.kind === "close" && known.has(action.tabId)) {
       closed.add(action.tabId);
+    }
+    if (
+      action.kind === "groupTabs" ||
+      (action.kind === "moveTabs" &&
+        action.group !== undefined &&
+        action.group !== "group_a")
+    ) {
+      for (const id of action.tabIds) {
+        movedOut.add(id);
+      }
     }
     if (action.kind === "reopenClosed") {
       // A tab back for a closed tab, two for a closed side.
@@ -352,7 +372,7 @@ function answeringWindow() {
                   title: "Suite plans",
                   url: "https://www.zendesk.com/pricing/",
                 },
-              ],
+              ].filter((page) => !movedOut.has(page.id)),
               read: { layout: open(own), movedIn: {}, movedOut: {} },
               windows: [
                 {
@@ -1088,6 +1108,43 @@ describe("window group, move, history and restore", () => {
       "Made the tab group "Launch plan" instrument://group/group:docs of tab_docs, tab_hn; the window stays on the group it shows.
       "
     `);
+  });
+
+  it("tells the task working in a tab moved to another group, and only then", async () => {
+    const session = StoreId.newSessionId();
+    holders.set(pageTab, { id: "t1", session, title: "Read the page" });
+    closedByChat.length = 0;
+
+    const beside = await run({}, "move", pageTab, "--side", "left");
+    expect(closedByChat).toEqual([]);
+    const moved = await run({}, "move", pageTab, "--group", "meeting notes");
+
+    expect(
+      [beside.stdout, moved.stdout].join("").replaceAll(pageTab, "<page>"),
+    ).toMatchInlineSnapshot(`
+      "Moved <page>: showing on the right side, beside you.
+      Moved <page> into the tab group "Meeting notes" instrument://group/group:notes; the window shows another group, so they are out of sight. Task t1 ("Read the page") was working in it; its next browser command tells it so.
+      "
+    `);
+    expect(closedByChat).toEqual([
+      { id: pageTab, reason: "movedOut", session },
+    ]);
+  });
+
+  it("tells the task working in a tab put in a new group", async () => {
+    const session = StoreId.newSessionId();
+    holders.set(pageTab, { id: "t1", session, title: "Read the page" });
+    closedByChat.length = 0;
+
+    const result = await run({}, "group", pageTab, "tab_docs");
+
+    expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
+      "Made the tab group "Launch plan" instrument://group/group:docs of <page>, tab_docs; the window stays on the group it shows. Tab <page>: Task t1 ("Read the page") was working in it; its next browser command tells it so.
+      "
+    `);
+    expect(closedByChat).toEqual([
+      { id: pageTab, reason: "movedOut", session },
+    ]);
   });
 
   it("moves tabs into a group named by its name", async () => {

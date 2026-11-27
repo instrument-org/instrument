@@ -82,12 +82,16 @@ function closedNote(closed: NonNullable<Status["closed"]>) {
       )
       .join("; ");
   const byChat = closed.filter((tab) => tab.reason === "chat");
+  const movedOut = closed.filter((tab) => tab.reason === "movedOut");
   const overCap = closed.filter((tab) => tab.reason === "tabCap");
   const atTurnEnd = closed.filter((tab) => tab.reason === "turnEnd");
   return [
     byChat.length === 0
       ? ""
       : ` The chat closed ${byChat.length === 1 ? "a tab" : "tabs"} you were working in, ${named(byChat)}. Open the address again if the work still needs it.`,
+    movedOut.length === 0
+      ? ""
+      : ` The chat moved ${movedOut.length === 1 ? "a tab" : "tabs"} you were working in to another tab group, out of agent-browser's reach, ${named(movedOut)}. Open the address again if the work still needs it.`,
     overCap.length === 0
       ? ""
       : ` The app closed ${overCap.length === 1 ? "a tab" : "tabs"} this chat's agents opened, ${named(overCap)}: the chat had more than ${CHAT_HIDDEN_TAB_CAP} tabs its agents opened out of the user's sight, and the one left alone longest that the user never used closes first.`,

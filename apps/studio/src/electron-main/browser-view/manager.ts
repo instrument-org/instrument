@@ -105,7 +105,10 @@ import { stopScreencast } from "./screencast";
 import {
   agentPopupTabOf,
   guestWindowOpenHandler,
+  hiddenBlankPopup,
+  isBlankPopup,
   isFileUrl,
+  isHttpUrl,
   newTabOpenOf,
   newWindowOpenOf,
   pageAddressOfLink,
@@ -504,10 +507,55 @@ function createBrowserViewManager(): BrowserViewManager {
     // guestWindowOpenHandler), so the opener/postMessage channel that
     // "Continue with Google" and similar flows complete through stays intact
     // instead of hanging.
+    // An empty popup the page opened while the agent drove it (see
+    // `hiddenBlankPopup`) becomes a tab of the chat at the first web address
+    // the page sends it to, as a popup opened at its address does, and the
+    // hidden window closes. One the page only writes into is closed after a
+    // minute, since nothing can see or reach it.
+    let hiddenPopupsAsked = 0;
+    guest.on("did-create-window", (window) => {
+      if (hiddenPopupsAsked === 0) {
+        return;
+      }
+      hiddenPopupsAsked -= 1;
+      const unused = setTimeout(() => {
+        window.destroy();
+      }, 60_000);
+      window.webContents.on("will-frame-navigate", (details) => {
+        if (!details.isMainFrame || !isHttpUrl(details.url)) {
+          return;
+        }
+        details.preventDefault();
+        clearTimeout(unused);
+        // Not from inside Chromium's decision on this navigation.
+        setImmediate(() => {
+          window.destroy();
+        });
+        if (!mayOpenFromPage(details.url)) {
+          return;
+        }
+        const tabId = StoreId.newTabId();
+        publisher.publish("browser.open-in-new-tab", {
+          background: true,
+          tabId,
+          targetId,
+          url: details.url,
+        });
+        notePageOpenedTab(targetId, { tabId, url: details.url });
+      });
+      window.on("closed", () => {
+        clearTimeout(unused);
+      });
+    });
+
     guest.setWindowOpenHandler((asked) => {
       // A link to a file in the app's own scheme opens as the page's link to
       // that file would, rather than going to the system.
       const details = { ...asked, url: pageAddressOfLink(asked.url) };
+      if (focusGuard.isGuarded(targetId) && isBlankPopup(details)) {
+        hiddenPopupsAsked += 1;
+        return hiddenBlankPopup(details);
+      }
       const response: WindowOpenHandlerResponse = focusGuard.isGuarded(targetId)
         ? { action: "deny" }
         : guestWindowOpenHandler(details);

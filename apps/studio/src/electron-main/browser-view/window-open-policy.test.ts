@@ -96,6 +96,36 @@ describe("guestWindowOpenHandler", () => {
   it("opens no popup for a Shift-click, which names no features", () => {
     expect(guestWindowOpenHandler(details({})).action).toBe("deny");
   });
+
+  it.each([
+    {
+      name: "an empty popup with a size",
+      overrides: { features: "width=480,height=640", url: "about:blank" },
+    },
+    {
+      name: "an empty named popup",
+      overrides: { frameName: "help", url: "about:blank" },
+    },
+    {
+      name: "an empty window.open with no features",
+      overrides: { disposition: "foreground-tab" as const, url: "about:blank" },
+    },
+  ])("allows $name, which the page sends somewhere next", ({ overrides }) => {
+    expect(guestWindowOpenHandler(details(overrides)).action).toBe("allow");
+  });
+
+  it.each([
+    {
+      name: "a Shift-click to an empty page",
+      overrides: { url: "about:blank" },
+    },
+    {
+      name: "a background tab to an empty page",
+      overrides: { disposition: "background-tab" as const, url: "about:blank" },
+    },
+  ])("denies $name", ({ overrides }) => {
+    expect(guestWindowOpenHandler(details(overrides)).action).toBe("deny");
+  });
 });
 
 describe("newWindowOpenOf", () => {

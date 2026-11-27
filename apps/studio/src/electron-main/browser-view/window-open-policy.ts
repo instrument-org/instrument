@@ -15,7 +15,8 @@ import { fromHome } from "@/electron-main/lib/link-home";
 // and finish by posting their result back to the opener; Chromium reports these
 // as `new-window`. Denying them -- window.open then returns null with no window
 // -- is what leaves such flows hanging, so allow real popups to http(s) URLs
-// (opened as a child window that inherits the guest's locked-down,
+// and empty ones the page sends somewhere next (`isBlankPopup`) (opened as a
+// child window that inherits the guest's locked-down,
 // same-partition session, preserving the opener channel). target=_blank links
 // and tab-opens report `foreground-tab`/`background-tab` and get no window;
 // `sameTabNavigationUrl` is what keeps those from being dead clicks. The caller
@@ -25,16 +26,47 @@ import { fromHome } from "@/electron-main/lib/link-home";
 export function guestWindowOpenHandler(
   details: HandlerDetails,
 ): WindowOpenHandlerResponse {
-  if (
-    details.disposition !== "new-window" ||
-    isWindowAsk(details) ||
-    !isHttpUrl(details.url)
-  ) {
+  const webPopup =
+    details.disposition === "new-window" &&
+    !isWindowAsk(details) &&
+    isHttpUrl(details.url);
+  if (!webPopup && !isBlankPopup(details)) {
     return { action: "deny" };
   }
   return {
     action: "allow",
     overrideBrowserWindowOptions: popupWindowOptions(details.features),
+  };
+}
+
+// A popup a page opens empty and then sends to its address or writes into
+// itself: `window.open("", name, features)` followed by `popup.location =
+// url`, which help chats and payment flows do to open the window inside the
+// click and look the address up afterward. The page needs the window
+// `window.open` returns to do either, so it opens as a window whatever its
+// disposition: a tab of the app cannot be handed back to the page.
+export function isBlankPopup(details: HandlerDetails): boolean {
+  return (
+    (details.disposition === "new-window" ||
+      details.disposition === "foreground-tab") &&
+    !isWindowAsk(details) &&
+    (details.url === "" || details.url === "about:blank")
+  );
+}
+
+// The window an empty popup gets while an agent drives its page: the page has
+// its handle, and the window stays hidden, since no debugger reaches it and
+// the person never asked for it. The guest's manager turns it into a tab of
+// the chat once the page sends it somewhere.
+export function hiddenBlankPopup(
+  details: HandlerDetails,
+): WindowOpenHandlerResponse {
+  return {
+    action: "allow",
+    overrideBrowserWindowOptions: {
+      ...popupWindowOptions(details.features),
+      show: false,
+    },
   };
 }
 

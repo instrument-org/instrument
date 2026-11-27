@@ -36,6 +36,7 @@ const chat = (
 describe("the recent chats that open", () => {
   const opened = (chats: Chat[], skip: Chat[] = []) =>
     recentChatsToOpen(chats, {
+      loadedAt: NOW,
       now: NOW,
       projects: [{ id: "travel" }, { id: "old", retired: true }],
       skip: new Set(skip.map((each) => each.id)),
@@ -78,6 +79,12 @@ describe("the recent chats that open", () => {
       chat(`r${day.toString()}`, day),
     );
     expect(opened(chats, chats.slice(0, 1))).toEqual(["r2", "r3", "r4", "r5"]);
+  });
+
+  it("leave out one written in since the window loaded, as a new tab's first send is", () => {
+    expect(opened([chat("before", 1), chat("since", -0.001)])).toEqual([
+      "before",
+    ]);
   });
 });
 

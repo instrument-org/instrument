@@ -58,15 +58,20 @@ interface RecentChat {
  * The chats that open as tab groups the first time a workspace comes up with
  * them, newest first as the chat list orders them: the ones the person wrote
  * in lately, a few at the root and a few in each project. None archived, with
- * a tab already, or closed here.
+ * a tab already, or closed here, and none written in since the window loaded,
+ * which no earlier build left: the chat a new tab just started is listed
+ * before that tab is turned to it.
  */
 export function recentChatsToOpen(
   chats: readonly Chat[],
   {
+    loadedAt,
     now,
     projects,
     skip,
   }: {
+    /** When the window's page loaded. */
+    loadedAt: number;
     now: number;
     projects: readonly Pick<Project, "id" | "retired">[];
     /** The chats with a tab in some group, or on the closed list. */
@@ -79,7 +84,10 @@ export function recentChatsToOpen(
   const counts = new Map<string | undefined, number>();
   return byLastUserMessage(
     chats.filter(
-      (chat) => !chat.archived && now - chat.lastUserMessageAt <= RECENT_MS,
+      (chat) =>
+        !chat.archived &&
+        chat.lastUserMessageAt < loadedAt &&
+        now - chat.lastUserMessageAt <= RECENT_MS,
     ),
   ).flatMap((chat): RecentChat[] => {
     const project =
@@ -208,24 +216,27 @@ export function useOpenRecentChats({
     const sides = z
       .record(z.string(), z.unknown())
       .safeParse(readKept("layout", EARLIER_SIDE_OPEN_KEY)).data;
-    const groups = recentChatsToOpen(chats, { now, projects, skip }).map(
-      ({ chat, project }) => {
-        const group = newGroupKey();
-        const { beside, tabs } = chatGroupTabs(chat, {
-          earlier: readKept("layout", `${EARLIER_TABS_KEY}/${chat}`),
-          group,
-          isSideOpen: sides?.[chat] !== false,
-          newId: newScreenId,
-          now,
-        });
-        windowTabs.restoreGroup(group, tabs, {
-          active: 0,
-          ...(beside === undefined ? {} : { beside }),
-        });
-        windowTabs.setGroupOwn(group, project === undefined ? {} : { project });
-        return group;
-      },
-    );
+    const groups = recentChatsToOpen(chats, {
+      loadedAt: performance.timeOrigin,
+      now,
+      projects,
+      skip,
+    }).map(({ chat, project }) => {
+      const group = newGroupKey();
+      const { beside, tabs } = chatGroupTabs(chat, {
+        earlier: readKept("layout", `${EARLIER_TABS_KEY}/${chat}`),
+        group,
+        isSideOpen: sides?.[chat] !== false,
+        newId: newScreenId,
+        now,
+      });
+      windowTabs.restoreGroup(group, tabs, {
+        active: 0,
+        ...(beside === undefined ? {} : { beside }),
+      });
+      windowTabs.setGroupOwn(group, project === undefined ? {} : { project });
+      return group;
+    });
     store.set(windowTabGroupsAtom, (listed) => [...(listed ?? []), ...groups]);
   });
 

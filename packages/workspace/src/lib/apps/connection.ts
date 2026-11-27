@@ -225,7 +225,9 @@ export async function readConnection(
 /**
  * Write a connection's standing, keeping what the patch does not name (the
  * account a sign-in learned survives a later failed test), and tell the host
- * app so every list of apps re-reads.
+ * app so every list of apps re-reads. The sites a sign-in left cookies on are
+ * the exception: they are only the write that names them, so any other
+ * write, connected or not, leaves none.
  */
 export async function recordConnection(
   slug: string,
@@ -246,10 +248,10 @@ export async function recordConnection(
           error: patch.error,
           manifestHash: undefined,
           seenSignedIn: undefined,
-          signInCookieSites: undefined,
         }),
     ended: patch.ended,
     keyRefused: patch.keyRefused,
+    signInCookieSites: patch.signInCookieSites,
     status: patch.status,
     updatedAt: Date.now(),
   };
@@ -280,7 +282,9 @@ function publishStanding(
   connection: AppConnection,
 ): Promise<void> {
   return publishSignIn(getWorkspaceConfig().deviceId, slug, {
-    ...(connection.account === undefined ? {} : { account: connection.account }),
+    ...(connection.account === undefined
+      ? {}
+      : { account: connection.account }),
     ...(connection.manifestHash === undefined
       ? {}
       : { manifestHash: connection.manifestHash }),

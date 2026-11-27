@@ -296,7 +296,9 @@ describe("connect_app for a web app", () => {
     const output = await ask(lisbon, ["amazon"], undefined, ["amazon"]);
 
     expect(output).toEqual({
-      apps: [{ name: "Amazon", seen: true, slug: "amazon", state: "connected" }],
+      apps: [
+        { name: "Amazon", seen: true, slug: "amazon", state: "connected" },
+      ],
     });
     expect(await openAsks(lisbon.chatId)).toEqual([]);
     expect(await readConnection("amazon")).toMatchObject({
@@ -304,14 +306,29 @@ describe("connect_app for a web app", () => {
       seenSignedIn: true,
       status: "connected",
     });
-    expect(
-      ConnectApp.toModelOutput({ input: INPUT, output, toolCallId: "1" }),
-    ).toMatchInlineSnapshot(`
+    expect(ConnectApp.toModelOutput({ input: INPUT, output, toolCallId: "1" }))
+      .toMatchInlineSnapshot(`
       {
         "type": "text",
         "value": "Amazon is recorded as signed in on this computer; no card was shown. Carry on in its tab.",
       }
     `);
+  });
+
+  it("leaves none of an earlier sign-in's cookie sites on a sign-in the agent saw", async () => {
+    await getWorkspaceConfig().apps.connections.set("amazon", {
+      manifestHash: "an-earlier-manifest",
+      signInCookieSites: [{ cookies: 7, site: "x.com" }],
+      status: "connected",
+      updatedAt: 1,
+    });
+    const lisbon = await chat();
+    await ChatWrites.sites(lisbon.chatId, lisbon.sessionId, ["www.amazon.com"]);
+    await ask(lisbon, ["amazon"], undefined, ["amazon"]);
+
+    const connection = await readConnection("amazon");
+    expect(connection?.status).toBe("connected");
+    expect(connection?.signInCookieSites).toBe(undefined);
   });
 
   it("puts the card up for a site the chat opened that loaded signed out", async () => {

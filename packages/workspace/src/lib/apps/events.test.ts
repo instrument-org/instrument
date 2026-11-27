@@ -429,6 +429,53 @@ describe("a card asking for several apps", () => {
     );
   });
 
+  it("names the cookie sites of sign-ins made on the card, and none from before it asked", async () => {
+    const { chatId } = await chatWithCard();
+    const signIn = async (slug: string, updatedAt: number) => {
+      await getWorkspaceConfig().apps.connections.set(slug, {
+        signInCookieSites: [{ cookies: 7, site: `${slug}-other.example` }],
+        status: "connected",
+        updatedAt,
+      });
+      publisher.publish("app.event", { event: "connected", name: slug, slug });
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    };
+
+    // Drive's record is one a sign-in wrote before the card asked.
+    await signIn("drive", 1);
+    await signIn("gmail", Date.now());
+    await answerRow("docs", "declined");
+
+    await vi.waitFor(() => expect(wakes()).not.toEqual([]));
+    const [events] =
+      woken.mock.calls.find(([, , woke]) => woke === chatId) ?? [];
+    expect(
+      (events as { signInCookieSites?: unknown; slug: string }[]).map(
+        ({ signInCookieSites, slug }) => ({ signInCookieSites, slug }),
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "signInCookieSites": undefined,
+          "slug": "docs",
+        },
+        {
+          "signInCookieSites": undefined,
+          "slug": "drive",
+        },
+        {
+          "signInCookieSites": [
+            {
+              "cookies": 7,
+              "site": "gmail-other.example",
+            },
+          ],
+          "slug": "gmail",
+        },
+      ]
+    `);
+  });
+
   it("names the apps its call could not ask for in the settling note", async () => {
     const reason =
       'No app is "sheets": no APP.md in Apps/ gives that as its id.';

@@ -782,7 +782,7 @@ export async function refreshSignIn(
     ...(await Promise.all(
       others.map((app) =>
         app.standing === "connected"
-          ? connectedEvent(app.slug)
+          ? connectedEvent(app.slug, ask.askedAt)
           : appEventOf(app.slug, { event: "declined" }),
       ),
     )),
@@ -825,15 +825,29 @@ export async function refreshSignIn(
 
 type AppEventLine = SessionMessageDataPart.AppEventDataPart["events"][number];
 
-/** An app's connection told as the event that made it, as `announceConnected` tells it. */
-async function connectedEvent(slug: string): Promise<AppEventLine> {
+/**
+ * An app's connection told as the event that made it, as `announceConnected`
+ * tells it. The other sites its sign-in left cookies on go with it only when
+ * that sign-in came after the card asked (`since`), as an app signed in
+ * earlier on a card of several apps did, whose own event woke nothing; an
+ * earlier sign-in's were told with that one.
+ */
+async function connectedEvent(
+  slug: string,
+  since: Date,
+): Promise<AppEventLine> {
   const connection = await readConnection(slug);
-  return appEventOf(slug, {
+  const { signInCookieSites, ...told } = await appEventOf(slug, {
     ...(connection?.toolCount === undefined
       ? {}
       : { detail: `${connection.toolCount} tools` }),
     event: "connected",
   });
+  return signInCookieSites !== undefined &&
+    connection !== undefined &&
+    connection.updatedAt >= since.getTime()
+    ? { ...told, signInCookieSites }
+    : told;
 }
 
 /**

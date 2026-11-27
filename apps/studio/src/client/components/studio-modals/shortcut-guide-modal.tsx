@@ -90,10 +90,10 @@ function ShortcutGuideContent({
   return (
     <DialogContent
       className="grid-rows-[auto_minmax(0,1fr)] gap-0 overflow-hidden p-0"
-      maxWidth="38rem"
+      maxWidth="56rem"
       onExitComplete={onExitComplete}
     >
-      <div className="flex flex-col gap-3 px-6 pt-6 pb-4">
+      <div className="flex flex-col gap-3 px-6 pt-6 pb-2">
         <DialogTitle>Keyboard shortcuts</DialogTitle>
         <DialogDescription className="sr-only">
           Every keyboard shortcut in Instrument.
@@ -112,22 +112,27 @@ function ShortcutGuideContent({
         </div>
       </div>
 
-      <div className="min-h-0 overflow-y-auto p-3">
+      {/* Two columns once the dialog is wide enough for both, a section
+          never split between them, so most of the guide is in view at once;
+          rows that scroll under the search fade rather than end on an edge. */}
+      <div className="@container min-h-0 overflow-y-auto scroll-fade-y px-3 pt-1 pb-4">
         {sections.length === 0 ? (
           <p className="px-3 py-8 text-center text-sm text-muted-foreground">
             No shortcuts match “{query}”
           </p>
         ) : (
-          sections.map((section) => (
-            <section className="pb-2" key={section.group}>
-              <h3 className="px-3 pt-3 pb-1 text-xs font-medium text-muted-foreground">
-                {section.group}
-              </h3>
-              {section.matches.map((match) => (
-                <ShortcutRow key={match.entry.id} match={match} />
-              ))}
-            </section>
-          ))
+          <div className="gap-6 @2xl:columns-2">
+            {sections.map((section) => (
+              <section className="break-inside-avoid pb-3" key={section.group}>
+                <h3 className="px-3 pt-3 pb-1 text-xs font-medium text-muted-foreground">
+                  {section.group}
+                </h3>
+                {section.matches.map((match) => (
+                  <ShortcutRow key={match.entry.id} match={match} />
+                ))}
+              </section>
+            ))}
+          </div>
         )}
       </div>
     </DialogContent>
@@ -137,7 +142,7 @@ function ShortcutGuideContent({
 function ShortcutRow({ match }: { match: ShortcutMatch }) {
   return (
     <div
-      className="flex items-center justify-between gap-6 rounded-lg px-3 py-1.5"
+      className="flex items-center justify-between gap-4 rounded-lg px-3 py-1"
       data-testid="shortcut-row"
     >
       <span className="min-w-0 truncate text-sm">

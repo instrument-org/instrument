@@ -63,6 +63,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [EPERM on a symlink reads as a macOS denial](eperm-on-a-symlink-reads-as-a-macos-denial.md): resolved 2026-09-10;
 - [Extensions' request rules never run in the in-app browser](extension-request-rules-never-run.md): open, checked 2026-11-27 against Electron 45.2.3's source and a probe on it (below).
 - [The file-open cache is sized for a cost that no longer exists](file-open-cache-is-sized-for-a-vanished-cost.md): open.
+- [The folder trail's test cuts nothing on CI](folding-trail-test-cuts-nothing-on-ci.md): open.
 - [GNU text commands on bundled uutils](gnu-text-commands-on-bundled-uutils.md): resolved, measured 2026-10-15: the GNU text commands answer from bundled uutils by a fixed table (native-and-builtin-commands.md has the table as it runs), n...
 - [Google refuses a search over HTTP/2](google-refuses-a-search-over-http-2.md): fixed where the network carries QUIC, open where it does not, checked 2026-11-25.
 - [Haiku narrates between tool calls, and prompt wording does not move it](haiku-narrates-between-calls.md)

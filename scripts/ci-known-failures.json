@@ -1,1 +1,7 @@
-[]
+[
+  {
+    "expires": "2026-12-11",
+    "failure": "Browser Tests: apps/studio/src/client/components/window/folding-trail.browser.test.tsx",
+    "why": "Fails on CI's Linux Chromium in some runs (18e534f7c, c7b6e0659, ff25f926d) and passes in others (1d1ac1f10) with no change to the trail; passes alone and in the full browser suite on macOS. See docs/findings/folding-trail-test-cuts-nothing-on-ci.md"
+  }
+]

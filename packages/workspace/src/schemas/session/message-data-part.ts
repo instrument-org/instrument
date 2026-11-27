@@ -385,7 +385,7 @@ export namespace SessionMessageDataPart {
       .array(
         z.object({
           id: z.string(),
-          reason: z.enum(["tabCap", "turnEnd"]),
+          reason: z.enum(["chat", "tabCap", "turnEnd"]),
           title: z.string().optional(),
           url: z.string(),
         }),

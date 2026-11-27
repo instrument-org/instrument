@@ -37,7 +37,8 @@ import { listChats } from "../chat/chats";
 import { recordAsk } from "../chat/asks";
 import { askWindow, WINDOW_TAB_TIMEOUT_MS } from "../chat/window-tab";
 import { isPersonsTurn } from "../chat/person-turn";
-import { tabHolders } from "../chat/chat-tabs";
+import { noteTabClosedByChat, tabHolders } from "../chat/chat-tabs";
+import { noteTabCommand } from "../tab-activity";
 import { agentPathOfFileUrl, isLocalAddress } from "../local-page-address";
 import { recordRaisedAsk } from "../shell-commands/raised-asks";
 import { recordWindowPicture } from "../shell-commands/window-pictures";
@@ -107,12 +108,15 @@ function ask(action: WindowTabAction, ctx: CapabilityContext) {
   });
 }
 
-/** Which task is at work in a tab, as a clause for the line that reports what happened to it. */
-async function holderClause(tabId: string, ctx: CapabilityContext) {
+/** Which task is at work in a tab, and the clause for the line that reports what happened to it. */
+async function holderOf(tabId: string, ctx: CapabilityContext) {
   const holder = (await tabHolders(ctx.chatId)).get(tabId);
-  return holder
-    ? ` Task ${holder.id} ("${holder.title}") was working in it; its next browser command tells it so.`
-    : "";
+  return {
+    clause: holder
+      ? ` Task ${holder.id} ("${holder.title}") was working in it; its next browser command tells it so.`
+      : "",
+    session: holder?.session,
+  };
 }
 
 /** Whether an argument names a tab rather than a page, file or folder to show. */
@@ -649,11 +653,16 @@ async function replace(
   if ("error" in target) {
     return { failed: true, said: target.error, target: arg };
   }
-  const holder = await holderClause(tabId, ctx);
+  const holder = await holderOf(tabId, ctx);
   const answer = await ask({ kind: "replace", tabId, target }, ctx);
   const error = answer ? answer.error : NO_WINDOW;
   if (error !== undefined) {
     return { failed: true, said: error, target: arg };
+  }
+  // The chat's act in the tab, which the task's next command there reports.
+  const targetId = parseBrowserTargetId(tabId);
+  if (holder.session !== undefined && targetId !== null) {
+    noteTabCommand(targetId, { chatId: ctx.chatId, sessionId: ctx.sessionId });
   }
   // A tab that changes kind, a page becoming a file's tab or the reverse,
   // comes back under a new id, which is the one to use next.
@@ -661,7 +670,7 @@ async function replace(
   const place = await placeOf(now, ctx);
   return {
     failed: false,
-    said: `Tab ${tabId} now shows ${describeTarget(target)}${now !== tabId ? `, as tab ${now}` : ""}${place ? `: ${place}` : ""}.${holder}`,
+    said: `Tab ${tabId} now shows ${describeTarget(target)}${now !== tabId ? `, as tab ${now}` : ""}${place ? `: ${place}` : ""}.${holder.clause}`,
     tab: now,
     target: arg,
   };
@@ -689,15 +698,31 @@ export const windowClose = defineCapability({
         outcomes.push(await closeGroup(tabId, ctx));
         continue;
       }
-      const holder = await holderClause(tabId, ctx);
+      const holder = await holderOf(tabId, ctx);
       const side = sideOf(await windowsOf(ctx), tabId);
+      const targetId = parseBrowserTargetId(tabId);
+      const url =
+        targetId === null
+          ? undefined
+          : getWorkspaceConfig().browser.getTargetAddress(targetId);
       const answer = await ask({ kind: "close", tabId }, ctx);
       const error = answer ? answer.error : NO_WINDOW;
+      if (
+        error === undefined &&
+        holder.session !== undefined &&
+        targetId !== null
+      ) {
+        await noteTabClosedByChat(ctx.chatId, {
+          id: targetId,
+          session: holder.session,
+          url: url ?? "",
+        });
+      }
       outcomes.push(
         error === undefined
           ? {
               failed: false,
-              said: `Closed tab ${tabId}.${side ? await closedSideLine(side, ctx) : ""}${holder}`,
+              said: `Closed tab ${tabId}.${side ? await closedSideLine(side, ctx) : ""}${holder.clause}`,
               tab: tabId,
               target: tabId,
             }

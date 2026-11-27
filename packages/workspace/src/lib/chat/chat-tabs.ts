@@ -68,8 +68,25 @@ export async function forgetOpenedTabs(
 }
 
 /**
- * The tabs the app closed on its own since the session was last told,
- * taken from the chat's state: whoever reads them tells it. The chat's own
+ * Keeps word of a tab the chat closed while a task worked in it, for that
+ * task's next browser command or note to say.
+ */
+export async function noteTabClosedByChat(
+  chatId: ChatId,
+  tab: { id: BrowserTargetId; session: StoreId.Session; url: string },
+): Promise<void> {
+  await updateChatState(chatDir(chatId), (state) => ({
+    closedTabs: [
+      ...state.closedTabs.filter((each) => each.id !== tab.id),
+      { ...tab, reason: "chat" as const },
+    ],
+  }));
+}
+
+/**
+ * The tabs closed out from under the session since it was last told, by the
+ * app or by the chat, taken from the chat's state: whoever reads them tells
+ * it. The chat's own
  * conversation hears of the ones that name no session.
  */
 export async function takeClosedTabs(

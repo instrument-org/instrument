@@ -57,8 +57,14 @@ const holders = new Map<
 >();
 // How long a call waits on the window, short where a test has none answer.
 let windowTimeoutMs = 2000;
+// The word a close leaves for the task working in the tab.
+const closedByChat: { id: string; session: StoreId.Session }[] = [];
 vi.mock(import("../chat/chat-tabs"), async (importOriginal) => ({
   ...(await importOriginal()),
+  noteTabClosedByChat: (_chatId, tab) => {
+    closedByChat.push({ id: tab.id, session: tab.session });
+    return Promise.resolve();
+  },
   tabHolders: () => Promise.resolve(holders),
 }));
 // The chat a tab in another group shows, and the project a group is in.
@@ -678,6 +684,17 @@ describe("window close, show and read on a tab", () => {
     expect(result.stdout).toContain(
       'Task read-the-page ("Read the page") was working in it',
     );
+  });
+
+  it("leaves word of a tab it closed for the task working in it", async () => {
+    await run({}, "show", "https://example.com/");
+    const session = StoreId.newSessionId();
+    holders.set(pageTab, { id: "t1", session, title: "Read the page" });
+    closedByChat.length = 0;
+
+    await run({}, "close", pageTab);
+
+    expect(closedByChat).toEqual([{ id: pageTab, session }]);
   });
 
   it("passes on the window's refusal of a tab it does not have", async () => {

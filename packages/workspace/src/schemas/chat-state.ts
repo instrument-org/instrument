@@ -52,9 +52,10 @@ const ClosedTabSchema = z.object({
    * Why: the chat had more tabs it opened itself out of sight than it may
    * keep (`tabCap`), or, from builds that closed such tabs as a turn ended,
    * the chat's turn ended with nobody working in the tab and the person
-   * never having used it (`turnEnd`).
+   * never having used it (`turnEnd`), or the chat closed it with
+   * `instrument window close` while a task was working in it (`chat`).
    */
-  reason: z.enum(["tabCap", "turnEnd"]),
+  reason: z.enum(["chat", "tabCap", "turnEnd"]),
   title: z.string().optional(),
   url: z.string(),
 });

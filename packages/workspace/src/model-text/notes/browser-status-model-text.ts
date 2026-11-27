@@ -81,16 +81,20 @@ function closedNote(closed: NonNullable<Status["closed"]>) {
           `${tab.id}${tab.url ? ` at ${tab.url}` : ""}${tab.title ? ` ("${tab.title}")` : ""}`,
       )
       .join("; ");
+  const byChat = closed.filter((tab) => tab.reason === "chat");
   const overCap = closed.filter((tab) => tab.reason === "tabCap");
   const atTurnEnd = closed.filter((tab) => tab.reason === "turnEnd");
   return [
+    byChat.length === 0
+      ? ""
+      : ` The chat closed ${byChat.length === 1 ? "a tab" : "tabs"} you were working in, ${named(byChat)}. Open the address again if the work still needs it.`,
     overCap.length === 0
       ? ""
       : ` The app closed ${overCap.length === 1 ? "a tab" : "tabs"} this chat's agents opened, ${named(overCap)}: the chat had more than ${CHAT_HIDDEN_TAB_CAP} tabs its agents opened out of the user's sight, and the one left alone longest that the user never used closes first.`,
     atTurnEnd.length === 0
       ? ""
       : ` The app closed ${atTurnEnd.length === 1 ? "a tab" : "tabs"} this chat's agents opened that nobody was working in and the user never used, ${named(atTurnEnd)}, as your last turn ended. Open the address again if the work needs it.`,
-    closed.length === 0
+    overCap.length + atTurnEnd.length === 0
       ? ""
       : " Tabs the user used stay until someone closes them, so close the tabs you opened once you are done with them.",
   ].join("");

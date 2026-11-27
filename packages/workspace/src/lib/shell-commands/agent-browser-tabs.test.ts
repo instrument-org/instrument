@@ -246,6 +246,27 @@ describe("a task's tab", () => {
     expect((await run(["snapshot", "-i"])).stdout).toBe("");
   });
 
+  it("ends its next result with a tab the chat closed while it worked there", async () => {
+    const closed = browserTargetOf(StoreId.newTabId());
+    await setChatState(chatDir(CHAT_ID), {
+      closedTabs: [
+        {
+          id: closed,
+          reason: "chat",
+          session: TASK_SESSION,
+          url: "https://example.com/cart",
+        },
+      ],
+    });
+
+    const result = await run(["snapshot", "-i"]);
+
+    expect(result.stdout.replaceAll(closed, "<tab>")).toMatchInlineSnapshot(`
+      "The chat closed a tab you were working in, <tab> at https://example.com/cart. Open the address again if the work still needs it.
+      "
+    `);
+  });
+
   describe("closing a tab", () => {
     const OWN = "tab_01M84R8BVN46VBYRPX9NFMSWSM";
     const OTHER = "tab_01M84R8BVN46VBYRPX9NFMSWSN";

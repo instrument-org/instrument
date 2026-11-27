@@ -243,11 +243,10 @@ export const MAIN_OVERRIDES: {
   "Browser.setDownloadBehavior": ({ entry, params }) =>
     applyDownloadBehavior(entry, params),
 
-  // A page's own dialogs are the app's (`page-dialogs.ts`), shown to the agent
-  // as the browser's would be; one Chromium showed itself, a frame's, goes on
-  // to the debugger.
-  "Page.handleJavaScriptDialog": ({ entry, forward, params }) =>
-    answerAgentDialog(entry, params) ?? forward(),
+  // A page's dialogs are the app's (`page-dialogs.ts`), shown to the agent as
+  // the browser's would be.
+  "Page.handleJavaScriptDialog": ({ entry, params }) =>
+    answerAgentDialog(entry, params),
 
   // Not forwarded to the debugger: the guest was resized rather than emulated,
   // so there is no override to clear, and the panel clears its own preview when

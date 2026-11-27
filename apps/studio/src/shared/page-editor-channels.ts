@@ -71,10 +71,9 @@ export const PAGE_CAPTURE_DEVICES_CHANNEL = "page-capture:devices";
 export const PAGE_CAPTURE_PAUSE_CHANNEL = "page-capture:pause";
 
 /**
- * A page's own dialog (`alert`, `confirm`, `prompt`), asked synchronously by
- * the guest preload's stand-ins for them, which main answers once the person
- * or the agent has: the dialog's kind, its message, and the default answer
- * a `prompt` offers.
+ * A page's `prompt`, asked synchronously by the guest preload's stand-in for
+ * it, which main answers once the person or the agent has: the dialog's
+ * kind, its message, and the default answer it offers.
  */
 export const PAGE_DIALOG_CHANNEL = "page-dialog";
 

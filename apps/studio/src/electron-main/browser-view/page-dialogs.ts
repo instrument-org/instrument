@@ -106,8 +106,8 @@ const leavingByGuest = new Map<number, Leaving>();
 const leaveOnce = new Set<number>();
 
 /**
- * Takes every page's dialogs and its word on where it is going, once for the
- * app. `entryOf` finds the tab a guest is, and `personUsedAt` when the
+ * Takes every page's `prompt` and its word on where it is going, once for
+ * the app. `entryOf` finds the tab a guest is, and `personUsedAt` when the
  * person last pressed or typed in it.
  */
 export function servePageDialogs({
@@ -124,19 +124,14 @@ export function servePageDialogs({
     (event, kind: unknown, message: unknown, defaultValue: unknown) => {
       const guest = event.sender;
       const entry = entryOf(guest.id);
-      if (
-        !entry ||
-        (kind !== "alert" && kind !== "confirm" && kind !== "prompt")
-      ) {
+      if (!entry || kind !== "prompt") {
         event.returnValue = null;
         return;
       }
       void ask({
         dialogs,
         dialog: {
-          ...(kind === "prompt"
-            ? { defaultValue: typeof defaultValue === "string" ? defaultValue : "" }
-            : {}),
+          defaultValue: typeof defaultValue === "string" ? defaultValue : "",
           kind,
           message: typeof message === "string" ? message : "",
           site: siteOf(guest),
@@ -146,12 +141,7 @@ export function servePageDialogs({
         guest,
         personUsedAt: personUsedAt(guest.id),
       }).then((answer) => {
-        event.returnValue =
-          kind === "prompt"
-            ? answer.accept
-              ? (answer.text ?? "")
-              : null
-            : answer.accept;
+        event.returnValue = answer.accept ? (answer.text ?? "") : null;
       });
     },
   );
@@ -174,6 +164,75 @@ export function servePageDialogs({
       }
     },
   );
+}
+
+/** What Electron hands a `-run-dialog` listener for a dialog a page opened. */
+interface RunDialog {
+  defaultPromptText: string;
+  dialogType: "alert" | "confirm" | "prompt";
+  messageText: string;
+}
+
+/**
+ * A page's `alert` and `confirm`, from any of its frames, asked in the tab.
+ * Electron's own `-run-dialog` listener (an internal event its types leave
+ * out) puts up a system sheet over the whole window, so this one takes its
+ * place. Chromium waits on the reply, and once Electron cancels a guest's
+ * dialogs (`-cancel-dialogs`, as its page goes) the reply is never sent.
+ */
+export function takePageDialogs(
+  guest: WebContents,
+  entry: BrowserEntry,
+  {
+    dialogs,
+    personUsedAt,
+  }: { dialogs: PageDialogs; personUsedAt: () => number | undefined },
+) {
+  const events: NodeJS.EventEmitter = guest;
+  const waiting = new Set<string>();
+  const canceled = new Set<string>();
+  events.removeAllListeners("-run-dialog");
+  events.on(
+    "-run-dialog",
+    (info: RunDialog, reply: (success: boolean, input: string) => void) => {
+      let id: string | undefined;
+      void ask({
+        dialogs,
+        dialog: {
+          ...(info.dialogType === "prompt"
+            ? { defaultValue: info.defaultPromptText }
+            : {}),
+          kind: info.dialogType,
+          message: info.messageText,
+          site: siteOf(guest),
+          targetId: entry.targetId,
+        },
+        entry,
+        guest,
+        onAsked: (asked) => {
+          id = asked;
+          waiting.add(asked);
+        },
+        personUsedAt: personUsedAt(),
+      }).then((answer) => {
+        if (id !== undefined) {
+          waiting.delete(id);
+          if (canceled.delete(id)) {
+            return;
+          }
+        }
+        if (!guest.isDestroyed()) {
+          reply(answer.accept, answer.accept ? (answer.text ?? "") : "");
+        }
+      });
+    },
+  );
+  events.on("-cancel-dialogs", () => {
+    for (const id of waiting) {
+      canceled.add(id);
+      dialogs.answer(id, { accept: false });
+    }
+  });
 }
 
 /**
@@ -330,6 +389,14 @@ function leave(guest: WebContents, going: Leaving | null) {
   }
 }
 
+/** The debugger's own word on a page's dialogs, which never reaches the agent: main tells it of each dialog it asks in the tab (`ask`). */
+export function isDebuggerDialogEvent(method: string): boolean {
+  return (
+    method === "Page.javascriptDialogOpening" ||
+    method === "Page.javascriptDialogClosed"
+  );
+}
+
 /**
  * Puts a page's dialog over its tab and, while an agent is at work in the
  * tab and the person has not just used it, before the agent too, as the
@@ -341,12 +408,15 @@ async function ask({
   dialogs,
   entry,
   guest,
+  onAsked,
   personUsedAt,
 }: {
   dialog: Omit<PageDialog, "id">;
   dialogs: PageDialogs;
   entry: BrowserEntry;
   guest: WebContents;
+  /** Told the dialog's id as it goes up. */
+  onAsked?: (id: string) => void;
   personUsedAt: number | undefined;
 }): Promise<PageDialogAnswer> {
   const byPerson =
@@ -365,6 +435,7 @@ async function ask({
       }
       resolve(answer);
     });
+    onAsked?.(id);
     log.info(
       `page dialog kind=${dialog.kind} targetId=${entry.targetId} toAgent=${String(toAgent)}`,
     );
@@ -393,17 +464,15 @@ const HandleDialogParamsSchema = z.object({
 const agentAsked = new WeakMap<BrowserEntry, string>();
 
 /**
- * The agent's answer to the dialog it was shown (`Page.handleJavaScriptDialog`),
- * or undefined when it was shown none, so the command goes on to the
- * guest's debugger for a dialog Chromium showed itself (a frame's).
+ * The agent's answer to the dialog it was shown (`Page.handleJavaScriptDialog`).
+ * Every dialog a tab's page opens is asked here, so with none shown to the
+ * agent the command fails as Chromium's does, rather than reach a dialog the
+ * guest's debugger holds behind the tab's card.
  */
-export function answerAgentDialog(
-  entry: BrowserEntry,
-  params: unknown,
-): object | undefined {
+export function answerAgentDialog(entry: BrowserEntry, params: unknown): object {
   const id = agentAsked.get(entry);
   if (id === undefined) {
-    return undefined;
+    throw new Error("No dialog is showing");
   }
   const { accept, promptText } = HandleDialogParamsSchema.parse(params ?? {});
   pageDialogs.answer(

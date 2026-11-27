@@ -572,21 +572,22 @@ function watchCaptureInPage(names: {
 }
 
 /**
- * Stands in for the page's `alert`, `confirm` and `prompt` with one
- * synchronous question to main, which the tab shows over its page and an
- * agent at work in it can answer; Electron would show the first two as a
- * system sheet over the whole window and refuses `prompt` outright. Also
- * tells main where the page is going as each navigation starts, which main
- * needs when the page's `beforeunload` holds the navigation up, since
- * Electron says only that one was held.
+ * Stands in for the page's `prompt`, which Electron refuses outright, with
+ * one synchronous question to main, which the tab shows over its page and an
+ * agent at work in it can answer (`alert` and `confirm` reach main without
+ * the page's help). Also tells main where the page is going as each
+ * navigation starts, which main needs when the page's `beforeunload` holds
+ * the navigation up, since Electron says only that one was held. The page's
+ * `navigate` events reach a listener here as well as its own; its steps
+ * through history ask first, so only those are replaced in its world.
  */
 function handDialogsToWindow() {
-  const ask = (kind: string, message: string, defaultValue?: string) => {
+  const prompt = (message: string, defaultValue: string) => {
     try {
       // oxlint-disable-next-line no-restricted-properties -- a page's dialog blocks its script until it is answered, as the browser's own does
       return ipcRenderer.sendSync(
         PAGE_DIALOG_CHANNEL,
-        kind,
+        "prompt",
         message,
         defaultValue,
       ) as unknown;
@@ -599,30 +600,38 @@ function handDialogsToWindow() {
   };
   try {
     contextBridge.executeInMainWorld({
-      args: [ask, leaving],
+      args: [prompt, leaving],
       func: replaceDialogsInPage,
     });
   } catch {
     // A page with no main world to run in has no script to ask anything.
   }
+  window.navigation.addEventListener("navigate", (event) => {
+    if (event.hashChange) {
+      return;
+    }
+    const from = window.navigation.currentEntry?.index ?? -1;
+    const to = event.destination.index;
+    leaving(
+      event.destination.url,
+      event.navigationType,
+      event.navigationType === "traverse" && from !== -1 && to !== -1
+        ? to - from
+        : 0,
+    );
+  });
 }
 
 /** Runs in the page's world, so everything it uses is its own. */
 function replaceDialogsInPage(
-  ask: (kind: string, message: string, defaultValue?: string) => unknown,
+  ask: (message: string, defaultValue: string) => unknown,
   leaving: (url: string, kind: string, steps: number) => void,
 ) {
   const text = (value: unknown) =>
     // oxlint-disable-next-line no-base-to-string -- the page's message is whatever it passed, made text the way the browser's own dialog makes it
     value === undefined ? "" : String(value);
-  window.alert = function alert(message?: unknown) {
-    ask("alert", text(message));
-  };
-  window.confirm = function confirm(message?: unknown) {
-    return ask("confirm", text(message)) === true;
-  };
   window.prompt = function prompt(message?: unknown, defaultValue?: unknown) {
-    const answer = ask("prompt", text(message), text(defaultValue));
+    const answer = ask(text(message), text(defaultValue));
     return typeof answer === "string" ? answer : null;
   };
   // A traverse asks the page whether to leave before it fires `navigate`,
@@ -643,20 +652,6 @@ function replaceDialogsInPage(
     leaving("", delta ? "traverse" : "reload", delta ?? 0);
     go(delta);
   };
-  window.navigation.addEventListener("navigate", (event) => {
-    if (event.hashChange) {
-      return;
-    }
-    const from = window.navigation.currentEntry?.index ?? -1;
-    const to = event.destination.index;
-    leaving(
-      event.destination.url,
-      event.navigationType,
-      event.navigationType === "traverse" && from !== -1 && to !== -1
-        ? to - from
-        : 0,
-    );
-  });
 }
 
 /**

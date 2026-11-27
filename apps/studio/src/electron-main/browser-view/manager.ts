@@ -100,8 +100,10 @@ import { mayPageNavigateTo } from "./local-file-policy";
 import { log } from "./log";
 import {
   guardPageLeaving,
+  isDebuggerDialogEvent,
   pageDialogs,
   servePageDialogs,
+  takePageDialogs,
 } from "./page-dialogs";
 import { readMemoryLevel } from "./memory-level";
 import { isCapturing } from "./page-capture";
@@ -448,7 +450,10 @@ function createBrowserViewManager(): BrowserViewManager {
         if (method === "Page.downloadWillBegin" && frameSession === undefined) {
           captureDownloadWillBeginGuid(current, params);
         }
-        if (holdsDownloadEvent(current, method, params)) {
+        if (
+          holdsDownloadEvent(current, method, params) ||
+          isDebuggerDialogEvent(method)
+        ) {
           return;
         }
         for (const listener of current.eventListeners) {
@@ -603,10 +608,12 @@ function createBrowserViewManager(): BrowserViewManager {
       exceptions: certificateExceptions,
       signIns: guestSignIns,
     });
-    guardPageLeaving(guest, entry, {
+    const pageDialogsOf = {
       dialogs: pageDialogs,
       personUsedAt: () => guests.get(guest.id)?.userInputAt,
-    });
+    };
+    takePageDialogs(guest, entry, pageDialogsOf);
+    guardPageLeaving(guest, entry, pageDialogsOf);
     // Muted until a person uses the page: an agent drives it, often while
     // nobody is looking, and its CDP clicks count as the user gesture a page
     // needs to start sound. The first click, tap or key press of a person's

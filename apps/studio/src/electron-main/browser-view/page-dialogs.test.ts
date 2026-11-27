@@ -14,7 +14,7 @@ vi.mock("@/electron-main/rpc/publisher", () => ({
   publisher: { publish: vi.fn() },
 }));
 
-const { createPageDialogs, guardPageLeaving, noteGoing } =
+const { createPageDialogs, guardPageLeaving, noteGoing, takePageDialogs } =
   await import("./page-dialogs");
 
 const tab = "tab-1" as BrowserTargetId;
@@ -175,5 +175,72 @@ describe("leaving a page that holds its navigation up", () => {
     dialogs.answer(dialogs.list()[0]!.id, { accept: false });
     await vi.advanceTimersByTimeAsync(0);
     expect(loadURL).not.toHaveBeenCalled();
+  });
+});
+
+describe("a page's alert and confirm", () => {
+  const guestWithSheet = () => {
+    const sheet = vi.fn();
+    const guest = Object.assign(new EventEmitter(), {
+      getURL: () => "https://example.com/form",
+      id: 21,
+      isDestroyed: () => false,
+    });
+    guest.on("-run-dialog", sheet);
+    return { guest, sheet };
+  };
+
+  it.each([
+    ["confirm", { accept: true }, [true, ""]],
+    ["confirm", { accept: false }, [false, ""]],
+    ["alert", { accept: true }, [true, ""]],
+  ] as const)(
+    "asks a %s in the tab and replies with the answer",
+    async (kind, answer, replied) => {
+      const dialogs = createPageDialogs(vi.fn());
+      const { guest, sheet } = guestWithSheet();
+      takePageDialogs(
+        guest as unknown as WebContents,
+        { targetId: tab } as BrowserEntry,
+        { dialogs, personUsedAt: () => Date.now() },
+      );
+      const reply = vi.fn();
+      guest.emit(
+        "-run-dialog",
+        { defaultPromptText: "", dialogType: kind, messageText: "Sure?" },
+        reply,
+      );
+      await vi.waitFor(() => {
+        expect(dialogs.list()).toHaveLength(1);
+      });
+      expect(sheet).not.toHaveBeenCalled();
+      dialogs.answer(dialogs.list()[0]!.id, answer);
+      await vi.waitFor(() => {
+        expect(reply).toHaveBeenCalledWith(...replied);
+      });
+    },
+  );
+
+  it("takes the card down without replying once Electron cancels the page's dialogs", async () => {
+    const dialogs = createPageDialogs(vi.fn());
+    const { guest } = guestWithSheet();
+    takePageDialogs(
+      guest as unknown as WebContents,
+      { targetId: tab } as BrowserEntry,
+      { dialogs, personUsedAt: () => Date.now() },
+    );
+    const reply = vi.fn();
+    guest.emit(
+      "-run-dialog",
+      { defaultPromptText: "", dialogType: "alert", messageText: "Hi" },
+      reply,
+    );
+    await vi.waitFor(() => {
+      expect(dialogs.list()).toHaveLength(1);
+    });
+    guest.emit("-cancel-dialogs");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(dialogs.list()).toEqual([]);
+    expect(reply).not.toHaveBeenCalled();
   });
 });

@@ -15,11 +15,13 @@ vi.mock("electron", () => ({
   BrowserWindow: { fromWebContents: () => null },
 }));
 vi.mock("./page-dialogs", () => ({
-  answerAgentDialog: () => undefined,
+  answerAgentDialog: () => ({}),
   guardPageLeaving: vi.fn(),
+  isDebuggerDialogEvent: () => false,
   noteAgentLeaving: vi.fn(),
   pageDialogs: {},
   servePageDialogs: vi.fn(),
+  takePageDialogs: vi.fn(),
 }));
 vi.mock("@/electron-main/rpc/publisher", () => ({
   publisher: { publish: vi.fn() },

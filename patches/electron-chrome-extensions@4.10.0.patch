@@ -1,8 +1,51 @@
 diff --git a/dist/chrome-extension-api.preload.js b/dist/chrome-extension-api.preload.js
-index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..28744774bafee446743b0c2e2266c2d1f685a562 100644
+index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..7741f8aa5789d84cc46a07ba3db493ec02290d9d 100644
 --- a/dist/chrome-extension-api.preload.js	
 +++ b/dist/chrome-extension-api.preload.js	
-@@ -114,6 +114,34 @@
+@@ -55,12 +55,11 @@
+       if (options.serialize) {
+         args = options.serialize(...args);
+       }
+-      let result;
+-      try {
+-        result = await import_electron2.ipcRenderer.invoke("crx-msg", extensionId, fnName, ...args);
+-      } catch (e) {
+-        console.error(e);
+-        result = void 0;
++      const result = await import_electron2.ipcRenderer.invoke("crx-msg", extensionId, fnName, ...args);
++      // A refused call rejects, as Chrome's do; the main world's caller
++      // turns that into runtime.lastError for a callback.
++      if (result && typeof result === "object" && "__crxError" in result) {
++        throw new Error(result.__crxError);
+       }
+       if (true) {
+         console.log(fnName, "(result)", result);
+@@ -104,7 +103,23 @@
+       const chrome = globalThis.chrome || {};
+       const extensionId = chrome.runtime?.id;
+       const manifest = extensionId && chrome.runtime.getManifest?.() || {};
+-      const invokeExtension2 = (fnName, opts = {}) => (...args) => electron.invokeExtension(extensionId, fnName, opts, ...args);
++      const invokeExtension2 = (fnName, opts = {}) => (...args) => {
++        const callback = typeof args[args.length - 1] === "function" ? args.pop() : void 0;
++        const result = electron.invokeExtension(extensionId, fnName, opts, ...args);
++        if (!callback) return result;
++        result.then(
++          (value) => callback(value),
++          (error) => {
++            const runtime = chrome.runtime;
++            if (runtime) runtime.lastError = { message: error?.message ?? String(error) };
++            try {
++              callback();
++            } finally {
++              if (runtime) delete runtime.lastError;
++            }
++          }
++        );
++      };
+       function imageData2base64(imageData) {
+         const canvas = document.createElement("canvas");
+         const ctx = canvas.getContext("2d");
+@@ -114,6 +129,34 @@
          ctx.putImageData(imageData, 0, 0);
          return canvas.toDataURL();
        }
@@ -37,7 +80,7 @@ index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..28744774bafee446743b0c2e2266c2d1
        class ExtensionEvent {
          constructor(name) {
            this.name = name;
-@@ -319,24 +347,25 @@
+@@ -319,24 +362,25 @@
              };
            }
          },
@@ -75,7 +118,7 @@ index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..28744774bafee446743b0c2e2266c2d1
                onChanged: new ExtensionEvent("downloads.onChanged"),
                onCreated: new ExtensionEvent("downloads.onCreated"),
                onDeterminingFilename: new ExtensionEvent("downloads.onDeterminingFilename"),
-@@ -361,6 +390,18 @@
+@@ -361,6 +405,18 @@
              };
            }
          },
@@ -94,7 +137,7 @@ index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..28744774bafee446743b0c2e2266c2d1
          i18n: {
            shouldInject: () => manifest.manifest_version === 3,
            factory: (base) => {
-@@ -442,6 +483,9 @@
+@@ -442,6 +498,9 @@
                  electron.connectNative(extensionId, application, receive, disconnect, callback);
                  return port;
                },
@@ -104,7 +147,7 @@ index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..28744774bafee446743b0c2e2266c2d1
                openOptionsPage: invokeExtension2("runtime.openOptionsPage"),
                sendNativeMessage: invokeExtension2("runtime.sendNativeMessage")
              };
-@@ -568,6 +612,14 @@
+@@ -568,6 +627,14 @@
        });
        delete globalThis.electron;
        Object.freeze(chrome);
@@ -120,7 +163,7 @@ index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..28744774bafee446743b0c2e2266c2d1
      if (!process.contextIsolated) {
        console.warn(`injectExtensionAPIs: context isolation disabled in ${location.href}`);
 diff --git a/dist/cjs/index.js b/dist/cjs/index.js
-index a91ca8fd07194abb081e9bb35fad0060fefddf91..fe87d1c9398d108b8ca553d9783416e0df6083ef 100644
+index a91ca8fd07194abb081e9bb35fad0060fefddf91..86929269090049caa0b5b3ad90a6c65406ac4f82 100644
 --- a/dist/cjs/index.js	
 +++ b/dist/cjs/index.js	
 @@ -906,7 +906,8 @@ var _TabsAPI = class _TabsAPI {
@@ -197,7 +240,22 @@ index a91ca8fd07194abb081e9bb35fad0060fefddf91..fe87d1c9398d108b8ca553d9783416e0
      handle("runtime.sendNativeMessage", this.sendNativeMessage, { permission: "nativeMessaging" });
    }
  };
-@@ -2629,9 +2638,10 @@ var PermissionsAPI = class {
+@@ -2273,7 +2282,13 @@ var RoutingDelegate = class _RoutingDelegate {
+     this.onRouterMessage = async (event, extensionId, handlerName, ...args) => {
+       d8(`received '${handlerName}'`, args);
+       const observer = this.sessionMap.get(getSessionFromEvent(event));
+-      return observer?.onExtensionMessage(event, extensionId, handlerName, ...args);
++      // A refusal goes back to the extension as a value, which its preload
++      // rejects with, rather than a throw Electron writes to the app's log.
++      try {
++        return await observer?.onExtensionMessage(event, extensionId, handlerName, ...args);
++      } catch (error) {
++        return { __crxError: error instanceof Error ? error.message : String(error) };
++      }
+     };
+     this.onRemoteMessage = async (event, sessionPartition, handlerName, ...args) => {
+       d8(`received remote '${handlerName}' for '${sessionPartition}'`, args);
+@@ -2629,9 +2644,10 @@ var PermissionsAPI = class {
    }
    processExtension(extension) {
      const manifest = extension.manifest;
@@ -210,7 +268,7 @@ index a91ca8fd07194abb081e9bb35fad0060fefddf91..fe87d1c9398d108b8ca553d9783416e0
      });
    }
  };
-@@ -2773,6 +2783,18 @@ var ElectronChromeExtensions = class _ElectronChromeExtensions extends import_no
+@@ -2773,6 +2789,18 @@ var ElectronChromeExtensions = class _ElectronChromeExtensions extends import_no
      this.checkWebContentsArgument(tab);
      this.ctx.store.removeTab(tab);
    }
@@ -230,7 +288,7 @@ index a91ca8fd07194abb081e9bb35fad0060fefddf91..fe87d1c9398d108b8ca553d9783416e0
    selectTab(tab) {
      this.checkWebContentsArgument(tab);
 diff --git a/dist/esm/index.mjs b/dist/esm/index.mjs
-index 43929222572e4d6875cc192aca0750da79d8ff14..53e9a82d3e5393d67981916992d8e8414990d70c 100644
+index 43929222572e4d6875cc192aca0750da79d8ff14..4148d01dfbc6fe8a613bb76b6702741ade3c9123 100644
 --- a/dist/esm/index.mjs	
 +++ b/dist/esm/index.mjs	
 @@ -869,7 +869,8 @@ var _TabsAPI = class _TabsAPI {
@@ -307,7 +365,22 @@ index 43929222572e4d6875cc192aca0750da79d8ff14..53e9a82d3e5393d67981916992d8e841
      handle("runtime.sendNativeMessage", this.sendNativeMessage, { permission: "nativeMessaging" });
    }
  };
-@@ -2592,9 +2601,10 @@ var PermissionsAPI = class {
+@@ -2236,7 +2245,13 @@ var RoutingDelegate = class _RoutingDelegate {
+     this.onRouterMessage = async (event, extensionId, handlerName, ...args) => {
+       d8(`received '${handlerName}'`, args);
+       const observer = this.sessionMap.get(getSessionFromEvent(event));
+-      return observer?.onExtensionMessage(event, extensionId, handlerName, ...args);
++      // A refusal goes back to the extension as a value, which its preload
++      // rejects with, rather than a throw Electron writes to the app's log.
++      try {
++        return await observer?.onExtensionMessage(event, extensionId, handlerName, ...args);
++      } catch (error) {
++        return { __crxError: error instanceof Error ? error.message : String(error) };
++      }
+     };
+     this.onRemoteMessage = async (event, sessionPartition, handlerName, ...args) => {
+       d8(`received remote '${handlerName}' for '${sessionPartition}'`, args);
+@@ -2592,9 +2607,10 @@ var PermissionsAPI = class {
    }
    processExtension(extension) {
      const manifest = extension.manifest;
@@ -320,7 +393,7 @@ index 43929222572e4d6875cc192aca0750da79d8ff14..53e9a82d3e5393d67981916992d8e841
      });
    }
  };
-@@ -2736,6 +2746,18 @@ var ElectronChromeExtensions = class _ElectronChromeExtensions extends EventEmit
+@@ -2736,6 +2752,18 @@ var ElectronChromeExtensions = class _ElectronChromeExtensions extends EventEmit
      this.checkWebContentsArgument(tab);
      this.ctx.store.removeTab(tab);
    }

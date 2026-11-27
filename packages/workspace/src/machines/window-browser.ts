@@ -1,5 +1,5 @@
 import ms from "ms";
-import { noop } from "radashi";
+import { noop, sift } from "radashi";
 import { type ActorRefFrom, fromCallback } from "xstate";
 
 import {
@@ -7,35 +7,37 @@ import {
   onBrowserAgentActivity,
 } from "../lib/browser-agent-activity";
 import { type BrowserConfig, type BrowserTargetId } from "../types";
+import {
+  AGENT_PROTECTION_MS,
+  type MemoryLevel,
+  nextLookInMs,
+  nextPageState,
+  type PageEvent,
+  type PageFacts,
+  type PageState,
+  pagesToClose,
+  SEEN_TAB_DISCARD_MS,
+  SLEEP_AFTER_MS,
+  UNSEEN_TAB_DISCARD_MS,
+} from "./page-lifetime";
 
-/** How long a tab the person has looked at keeps its page once off screen. */
-export const SEEN_TAB_DISCARD_MS = ms("1 hour");
+export {
+  AGENT_PROTECTION_MS,
+  DRIVEN_SLEEP_AFTER_MS,
+  SEEN_TAB_DISCARD_MS,
+  SLEEP_AFTER_MS,
+  SLEEP_RECHECK_MS,
+  UNSEEN_TAB_DISCARD_MS,
+} from "./page-lifetime";
 
-/** How long a tab only an agent opened, and nobody has looked at, keeps its page. */
-export const UNSEEN_TAB_DISCARD_MS = ms("15 minutes");
-
-/** How long an agent's last command keeps a tab's page, whatever its clock says. */
-export const AGENT_PROTECTION_MS = ms("10 minutes");
-
-/** How often hidden tabs are checked against their clocks. */
+/**
+ * How often the system's memory level is read while it is normal, the check
+ * that closes pages before their clocks run out.
+ */
 export const DISCARD_CHECK_MS = ms("1 minute");
 
-/**
- * How long a tab's page is off screen, and an agent's last command to it
- * past, before its guest sleeps: it stops drawing until the next command or
- * the window showing it wakes it.
- */
-export const SLEEP_AFTER_MS = ms("5 seconds");
-
-/** How long a working agent that drives a tab leaves it without a command before it sleeps all the same. */
-export const DRIVEN_SLEEP_AFTER_MS = ms("2 minutes");
-
-/**
- * How soon a tab kept awake by something no event announces (its guest
- * busy, a working agent driving it, a refusal from main, or a wake from a
- * command) is looked at again.
- */
-export const SLEEP_RECHECK_MS = ms("10 seconds");
+/** How often the memory level is read while it is low or critical, closing one page each time. */
+export const MEMORY_RECHECK_MS = ms("5 seconds");
 
 /** What the running window browser knows of a tab's page: whether it is drawn, and how long it has left. */
 export interface TabLifetime {
@@ -76,35 +78,32 @@ export interface WindowBrowserInput {
 }
 
 interface Guest {
-  /** Being closed for its clock; not checked again. */
+  /** Being closed; not looked at again. */
   discarding: boolean;
   /** When its page last left the screen, or null while drawn. */
   hiddenSince: null | number;
+  /** The next look at it, waiting for when its state might change. */
+  lookTimer: ReturnType<typeof setTimeout> | undefined;
   /** Whether the person has seen its page since it was made. */
   seen: boolean;
-  /** The look at whether it may sleep, waiting for when it might. */
-  sleepTimer: ReturnType<typeof setTimeout> | undefined;
   unwatch: () => void;
 }
 
 /**
  * The lifetime of the window's browser guests, one tab at a time, on
- * Chromium's discard rules. A tab whose page is off screen keeps its guest
- * for a clock, then the guest goes and the tab stays in the strip with its
- * address: the window opens a fresh guest there when the tab is shown again.
- * A tab is never discarded while it is drawn, while an agent sent it a
- * command in the last ten minutes, while a working agent drives it, while
- * the guest is busy (playing sound, downloading, in a call, or open in
- * DevTools), or while its page holds something a person entered
- * (`isGuestEdited`); such a tab waits for the next check.
+ * Chromium's discard rules, which `nextPageState` (`page-lifetime.ts`) holds
+ * whole. This owns the timers, asks main for each page's facts, and carries
+ * out what the rules return: `asleep` is `BrowserConfig.sleepGuest`, and
+ * `closed` is `discardTarget`, after which the tab stays in the strip with
+ * its address and the window opens a fresh guest there when it is shown
+ * again.
  *
- * Long before that, a tab sleeps (`BrowserConfig.sleepGuest`) once it has
- * been off screen, and an agent's last command to it past, for
- * `SLEEP_AFTER_MS`, or for `DRIVEN_SLEEP_AFTER_MS` since that command while a
- * working agent drives it: a guest out of sight otherwise draws every frame
- * its page animates. Each tab has a timer of its own for when it might, so
- * the seconds are real. A command or the window showing it wakes it again,
- * and it sleeps once more when it has been quiet as long again.
+ * Each page out of sight has a timer of its own for when it could next
+ * sleep or its clock runs out, so the seconds are real, and is looked at
+ * every few seconds while something no event announces keeps it as it is.
+ * Where main can read the system's memory level (`BrowserConfig.memoryLevel`),
+ * it is read each minute, and every few seconds while it is not normal, and
+ * each reading under pressure closes the first page `pagesToClose` names.
  *
  * Opening and closing tabs is not this actor's: a guest is made when a tab
  * is opened or shown and destroyed when its tab closes, and this only follows
@@ -117,6 +116,8 @@ export const windowBrowserLogic = fromCallback<
   const { browser, isDrivenByWorkingAgent } = input;
   const now = input.now ?? (() => performance.now());
   const guests = new Map<BrowserTargetId, Guest>();
+  // Set once the actor stops: nothing is scheduled or carried out after.
+  let stopped = false;
   // Kept apart from the guests: a page stays drawn across its guest going
   // and coming back (a crash, a reload), and the guest that returns is
   // still on screen.
@@ -124,6 +125,138 @@ export const windowBrowserLogic = fromCallback<
 
   const isDrawn = (targetId: BrowserTargetId) =>
     (leases.get(targetId) ?? 0) > 0;
+
+  const stateOf = (targetId: BrowserTargetId, guest: Guest): PageState => {
+    if (guest.hiddenSince === null) {
+      return "drawn";
+    }
+    return browser.isGuestAsleep(targetId) ? "asleep" : "hidden";
+  };
+
+  /**
+   * Whether the guest is still the tab's, out of sight since `hiddenSince`,
+   * and not on its way out.
+   */
+  const isCurrent = (
+    targetId: BrowserTargetId,
+    guest: Guest,
+    hiddenSince: number,
+  ) =>
+    guests.get(targetId) === guest &&
+    !guest.discarding &&
+    guest.hiddenSince === hiddenSince;
+
+  /**
+   * Where a page out of sight stands and what is true of it, or undefined
+   * once it is drawn again, gone, or on its way out, the moment the working
+   * agents were asked about included.
+   */
+  const pageOf = async (targetId: BrowserTargetId, guest: Guest) => {
+    const { hiddenSince } = guest;
+    if (hiddenSince === null || !isCurrent(targetId, guest, hiddenSince)) {
+      return undefined;
+    }
+    // A tab whose drivers cannot be read counts as driven.
+    const drivenByWorkingAgent = await isDrivenByWorkingAgent(targetId).catch(
+      () => true,
+    );
+    if (!isCurrent(targetId, guest, hiddenSince)) {
+      return undefined;
+    }
+    const agentAt = lastBrowserAgentActivity(targetId);
+    const facts: PageFacts = {
+      agentQuietForMs:
+        agentAt === undefined ? Number.POSITIVE_INFINITY : Date.now() - agentAt,
+      busy: browser.isGuestBusy(targetId),
+      drivenByWorkingAgent,
+      edited: browser.isGuestEdited(targetId),
+      hiddenForMs: now() - hiddenSince,
+      seen: guest.seen,
+    };
+    return {
+      facts,
+      guest,
+      hiddenSince,
+      state: stateOf(targetId, guest),
+      targetId,
+    };
+  };
+
+  const scheduleLook = (
+    targetId: BrowserTargetId,
+    guest: Guest,
+    delay: number,
+  ) => {
+    clearTimeout(guest.lookTimer);
+    if (stopped) {
+      return;
+    }
+    guest.lookTimer = setTimeout(
+      () => {
+        guest.lookTimer = undefined;
+        void look(targetId, guest);
+      },
+      Math.max(0, delay),
+    );
+  };
+
+  /** Carries out a transition the rules returned for a page out of sight. */
+  const enter = (
+    targetId: BrowserTargetId,
+    guest: Guest,
+    from: PageState,
+    to: PageState,
+  ) => {
+    if (stopped) {
+      return;
+    }
+    if (to === "closed") {
+      clearTimeout(guest.lookTimer);
+      guest.discarding = true;
+      void browser.discardTarget(targetId);
+    } else if (to === "asleep" && from === "hidden") {
+      browser.sleepGuest(targetId);
+    }
+  };
+
+  /** Applies a tick to a page out of sight, and sets its next look. */
+  const look = async (targetId: BrowserTargetId, guest: Guest) => {
+    const page = await pageOf(targetId, guest);
+    if (!page) {
+      return;
+    }
+    const to = nextPageState(page.state, { facts: page.facts, type: "tick" });
+    enter(targetId, guest, page.state, to);
+    if (to !== "closed") {
+      scheduleLook(targetId, guest, nextLookInMs(to, page.facts));
+    }
+  };
+
+  /**
+   * Applies an event that needs no facts: the page shown, hidden, or sent a
+   * command. Main itself wakes a sleeping page shown or sent a command, and
+   * a closed page has no guest here, so only the clock is this one's.
+   */
+  const apply = (
+    targetId: BrowserTargetId,
+    guest: Guest,
+    event: Extract<PageEvent, { type: "agentCommand" | "hidden" | "shown" }>,
+  ) => {
+    const from = stateOf(targetId, guest);
+    const to = nextPageState(from, event);
+    if (to === "drawn") {
+      guest.hiddenSince = null;
+      guest.seen = true;
+      clearTimeout(guest.lookTimer);
+      return;
+    }
+    if (from === "drawn") {
+      guest.hiddenSince = now();
+    }
+    // Left the screen, or a command restarted its quiet: looked at again
+    // once it could sleep.
+    scheduleLook(targetId, guest, SLEEP_AFTER_MS);
+  };
 
   const register = (targetId: BrowserTargetId) => {
     if (guests.has(targetId)) {
@@ -133,118 +266,20 @@ export const windowBrowserLogic = fromCallback<
     const guest: Guest = {
       discarding: false,
       hiddenSince: drawn ? null : now(),
+      lookTimer: undefined,
       seen: drawn,
-      sleepTimer: undefined,
       unwatch: noop,
     };
     guests.set(targetId, guest);
     // Called at once for a guest already gone, which leaves nothing behind.
     guest.unwatch = browser.onTargetDestroyed(targetId, () => {
-      clearTimeout(guest.sleepTimer);
+      clearTimeout(guest.lookTimer);
       if (guests.get(targetId) === guest) {
         guests.delete(targetId);
       }
     });
     if (guests.get(targetId) === guest && guest.hiddenSince !== null) {
-      scheduleSleep(targetId, guest, 0);
-    }
-  };
-
-  /** How long until the tab has been off screen, and its agent quiet for `quietMs`, long enough to sleep. */
-  const sleepDueIn = (
-    targetId: BrowserTargetId,
-    guest: Guest,
-    quietMs: number,
-  ) => {
-    const hidden =
-      guest.hiddenSince === null
-        ? Number.POSITIVE_INFINITY
-        : SLEEP_AFTER_MS - (now() - guest.hiddenSince);
-    const agentAt = lastBrowserAgentActivity(targetId);
-    const quiet = agentAt === undefined ? 0 : quietMs - (Date.now() - agentAt);
-    return Math.max(hidden, quiet);
-  };
-
-  const scheduleSleep = (
-    targetId: BrowserTargetId,
-    guest: Guest,
-    delay: number,
-  ) => {
-    clearTimeout(guest.sleepTimer);
-    guest.sleepTimer = setTimeout(
-      () => {
-        guest.sleepTimer = undefined;
-        void trySleep(targetId, guest);
-      },
-      Math.max(0, delay),
-    );
-  };
-
-  const trySleep = async (targetId: BrowserTargetId, guest: Guest) => {
-    const current = () =>
-      guests.get(targetId) === guest &&
-      !guest.discarding &&
-      guest.hiddenSince !== null;
-    if (!current()) {
-      return;
-    }
-    // Asleep already, or woken since by something no event here announces:
-    // looked at again in a while either way.
-    if (browser.isGuestAsleep(targetId)) {
-      scheduleSleep(targetId, guest, SLEEP_RECHECK_MS);
-      return;
-    }
-    const due = sleepDueIn(targetId, guest, SLEEP_AFTER_MS);
-    if (due > 0) {
-      scheduleSleep(targetId, guest, due);
-      return;
-    }
-    if (browser.isGuestBusy(targetId)) {
-      scheduleSleep(targetId, guest, SLEEP_RECHECK_MS);
-      return;
-    }
-    // A tab whose drivers cannot be read counts as driven.
-    if (await isDrivenByWorkingAgent(targetId).catch(() => true)) {
-      const drivenDue = sleepDueIn(targetId, guest, DRIVEN_SLEEP_AFTER_MS);
-      if (drivenDue > 0) {
-        scheduleSleep(targetId, guest, Math.min(drivenDue, SLEEP_RECHECK_MS));
-        return;
-      }
-    }
-    // Drawn again, or gone, while the working agents were asked about.
-    if (!current()) {
-      return;
-    }
-    browser.sleepGuest(targetId);
-    scheduleSleep(targetId, guest, SLEEP_RECHECK_MS);
-  };
-
-  const check = async () => {
-    const at = now();
-    for (const [targetId, guest] of guests) {
-      if (guest.discarding || guest.hiddenSince === null) {
-        continue;
-      }
-      const clock = guest.seen ? SEEN_TAB_DISCARD_MS : UNSEEN_TAB_DISCARD_MS;
-      if (at - guest.hiddenSince < clock) {
-        continue;
-      }
-      const agentAt = lastBrowserAgentActivity(targetId);
-      if (
-        (agentAt !== undefined && Date.now() - agentAt < AGENT_PROTECTION_MS) ||
-        browser.isGuestBusy(targetId) ||
-        browser.isGuestEdited(targetId) ||
-        // A tab whose drivers cannot be read is left for the next check.
-        (await isDrivenByWorkingAgent(targetId).catch(() => true))
-      ) {
-        continue;
-      }
-      // Drawn again while the working agents were asked about.
-      if (guest.hiddenSince === null || guests.get(targetId) !== guest) {
-        continue;
-      }
-      guest.discarding = true;
-      void browser.discardTarget(targetId);
+      scheduleLook(targetId, guest, 0);
     }
   };
 
@@ -253,9 +288,70 @@ export const windowBrowserLogic = fromCallback<
   const stopActivity = onBrowserAgentActivity((targetId) => {
     const guest = guests.get(targetId);
     if (guest && guest.hiddenSince !== null) {
-      scheduleSleep(targetId, guest, SLEEP_AFTER_MS);
+      apply(targetId, guest, { type: "agentCommand" });
     }
   });
+
+  let memory: MemoryLevel = "normal";
+  let memoryTimer: ReturnType<typeof setTimeout> | undefined;
+  let readFailed = false;
+
+  /** Closes the first page the memory level names, if any. */
+  const closeForMemory = async (level: MemoryLevel) => {
+    const pages = await Promise.all(
+      [...guests].map(([targetId, guest]) => pageOf(targetId, guest)),
+    );
+    const [first] = pagesToClose(sift(pages), level);
+    // Drawn again, or gone, while the other pages were looked at.
+    if (!first || !isCurrent(first.targetId, first.guest, first.hiddenSince)) {
+      return;
+    }
+    console.info(
+      `page closed for memory targetId=${first.targetId} level=${level} state=${first.state} hiddenFor=${Math.round(first.facts.hiddenForMs / 1000)}s`,
+    );
+    enter(first.targetId, first.guest, first.state, "closed");
+  };
+
+  const readMemory = async () => {
+    const read = browser.memoryLevel;
+    if (!read || stopped) {
+      return;
+    }
+    // A reading that fails keeps the last level: failing to start a process
+    // is likeliest when memory is shortest.
+    const level = await read().then(
+      (reading) => {
+        readFailed = false;
+        return reading;
+      },
+      (error: unknown) => {
+        if (!readFailed) {
+          console.warn(`memory level unread, kept at ${memory}`, error);
+        }
+        readFailed = true;
+        return memory;
+      },
+    );
+    if (stopped) {
+      return;
+    }
+    if (level !== memory) {
+      console.info(`memory pressure ${memory} -> ${level}`);
+      memory = level;
+    }
+    if (level !== "normal") {
+      await closeForMemory(level);
+    }
+    if (!stopped) {
+      memoryTimer = setTimeout(
+        () => void readMemory(),
+        level === "normal" ? DISCARD_CHECK_MS : MEMORY_RECHECK_MS,
+      );
+    }
+  };
+  if (browser.memoryLevel) {
+    memoryTimer = setTimeout(() => void readMemory(), DISCARD_CHECK_MS);
+  }
 
   const lifetime = (targetId: BrowserTargetId): TabLifetime | undefined => {
     const guest = guests.get(targetId);
@@ -280,17 +376,6 @@ export const windowBrowserLogic = fromCallback<
   };
   readLifetime = lifetime;
 
-  let checking = false;
-  const interval = setInterval(() => {
-    if (checking) {
-      return;
-    }
-    checking = true;
-    void check().finally(() => {
-      checking = false;
-    });
-  }, DISCARD_CHECK_MS);
-
   receive((event) => {
     const { targetId } = event.value;
     switch (event.type) {
@@ -298,9 +383,7 @@ export const windowBrowserLogic = fromCallback<
         leases.set(targetId, (leases.get(targetId) ?? 0) + 1);
         const guest = guests.get(targetId);
         if (guest) {
-          guest.hiddenSince = null;
-          guest.seen = true;
-          clearTimeout(guest.sleepTimer);
+          apply(targetId, guest, { type: "shown" });
         }
         return;
       }
@@ -317,8 +400,7 @@ export const windowBrowserLogic = fromCallback<
         leases.delete(targetId);
         const guest = guests.get(targetId);
         if (guest) {
-          guest.hiddenSince = now();
-          scheduleSleep(targetId, guest, SLEEP_AFTER_MS);
+          apply(targetId, guest, { type: "hidden" });
         }
         return;
       }
@@ -326,15 +408,17 @@ export const windowBrowserLogic = fromCallback<
   });
 
   return () => {
-    clearInterval(interval);
+    stopped = true;
+    clearTimeout(memoryTimer);
     stopActivity();
     if (readLifetime === lifetime) {
       readLifetime = undefined;
     }
     for (const guest of guests.values()) {
-      clearTimeout(guest.sleepTimer);
+      clearTimeout(guest.lookTimer);
       guest.unwatch();
     }
+    guests.clear();
   };
 });
 

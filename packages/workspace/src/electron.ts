@@ -270,6 +270,7 @@ export {
   type WorkspaceEvent,
   workspaceMachine,
 } from "./machines/workspace";
+export { type MemoryLevel } from "./machines/page-lifetime";
 export { router as workspaceRouter } from "./rpc";
 export type { WorkspaceRPCContext } from "./rpc/base";
 export { distinct, liveRead, where } from "./rpc/live-read";

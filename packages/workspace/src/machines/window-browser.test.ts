@@ -10,9 +10,11 @@ import {
   type BrowserTargetId,
   browserTargetOf,
 } from "../types";
+import { type MemoryLevel } from "./page-lifetime";
 import {
   AGENT_PROTECTION_MS,
   DISCARD_CHECK_MS,
+  MEMORY_RECHECK_MS,
   SEEN_TAB_DISCARD_MS,
   DRIVEN_SLEEP_AFTER_MS,
   SLEEP_AFTER_MS,
@@ -115,6 +117,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe("windowBrowserLogic", () => {
@@ -444,5 +447,129 @@ describe("windowBrowserLogic", () => {
         unloadsInMs: null,
       });
     });
+  });
+});
+
+describe("memory pressure", () => {
+  it("closes pages out of sight while memory is short, the one hidden longest first", async () => {
+    const lines: string[] = [];
+    vi.spyOn(console, "info").mockImplementation((line: string) => {
+      lines.push(line);
+    });
+    let level: MemoryLevel = "normal";
+    const { browser, closed, edited } = makeBrowser();
+    browser.memoryLevel = () => Promise.resolve(level);
+    // Main refuses this one page sleep, as it does a page in full screen.
+    const awake = tab();
+    const sleepGuest = browser.sleepGuest;
+    browser.sleepGuest = (targetId) => {
+      if (targetId !== awake) {
+        sleepGuest(targetId);
+      }
+    };
+    const actor = createActor(windowBrowserLogic, {
+      input: {
+        browser,
+        isDrivenByWorkingAgent: () => Promise.resolve(false),
+        now: () => clock,
+      },
+    }).start();
+    const send = (
+      type: "acquireVisible" | "registerTarget" | "releaseVisible",
+      targetId: BrowserTargetId,
+    ) => {
+      actor.send({ type, value: { targetId } });
+    };
+    const names = new Map<BrowserTargetId, string>();
+    const seenThenHidden = (name: string, page = tab()) => {
+      names.set(page, name);
+      send("acquireVisible", page);
+      send("registerTarget", page);
+      send("releaseVisible", page);
+      return page;
+    };
+    const closedNames = () => closed.map((page) => names.get(page));
+
+    const oldest = seenThenHidden("oldest");
+    await pass(ms("10 minutes"));
+    seenThenHidden("older");
+    await pass(ms("10 minutes"));
+    seenThenHidden("awake", awake);
+    edited.add(seenThenHidden("typed in"));
+    const drawn = tab();
+    names.set(drawn, "drawn");
+    send("acquireVisible", drawn);
+    send("registerTarget", drawn);
+    await pass(ms("5 minutes"));
+    expect(closedNames()).toEqual([]);
+
+    // Low: sleeping pages, one each reading, until none is left that
+    // nothing keeps.
+    level = "low";
+    await pass(DISCARD_CHECK_MS);
+    expect(closedNames()).toEqual(["oldest"]);
+    await pass(MEMORY_RECHECK_MS);
+    expect(closedNames()).toEqual(["oldest", "older"]);
+    await pass(MEMORY_RECHECK_MS * 3);
+    expect(closedNames()).toEqual(["oldest", "older"]);
+
+    // Shown again, the oldest comes back with a fresh guest, drawn.
+    send("acquireVisible", oldest);
+    send("registerTarget", oldest);
+
+    // Critical: hidden pages still awake too.
+    level = "critical";
+    await pass(MEMORY_RECHECK_MS);
+    expect(closedNames()).toEqual(["oldest", "older", "awake"]);
+    await pass(MEMORY_RECHECK_MS * 3);
+
+    level = "normal";
+    await pass(MEMORY_RECHECK_MS + DISCARD_CHECK_MS * 3);
+    expect(closedNames()).toEqual(["oldest", "older", "awake"]);
+
+    expect(
+      lines.map((line) =>
+        line.replace(/targetId=(\S+)/, (_, id: BrowserTargetId) => `page=${names.get(id)}`),
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        "memory pressure normal -> low",
+        "page closed for memory page=oldest level=low state=asleep hiddenFor=1560s",
+        "page closed for memory page=older level=low state=asleep hiddenFor=965s",
+        "memory pressure low -> critical",
+        "page closed for memory page=awake level=critical state=hidden hiddenFor=385s",
+        "memory pressure critical -> normal",
+      ]
+    `);
+    actor.stop();
+  });
+
+  it("keeps the last level through a reading that fails", async () => {
+    vi.spyOn(console, "info").mockImplementation(noop);
+    vi.spyOn(console, "warn").mockImplementation(noop);
+    const readings: (MemoryLevel | Error)[] = ["low", new Error("no sysctl")];
+    const { browser, closed } = makeBrowser();
+    browser.memoryLevel = () => {
+      const next = readings.shift() ?? "normal";
+      return next instanceof Error ? Promise.reject(next) : Promise.resolve(next);
+    };
+    const actor = createActor(windowBrowserLogic, {
+      input: {
+        browser,
+        isDrivenByWorkingAgent: () => Promise.resolve(false),
+        now: () => clock,
+      },
+    }).start();
+    const first = tab();
+    const second = tab();
+    actor.send({ type: "registerTarget", value: { targetId: first } });
+    await pass(ms("1 minute") - SLEEP_AFTER_MS);
+    actor.send({ type: "registerTarget", value: { targetId: second } });
+    await pass(SLEEP_AFTER_MS);
+    expect(closed).toEqual([first]);
+
+    await pass(MEMORY_RECHECK_MS);
+    expect(closed).toEqual([first, second]);
+    actor.stop();
   });
 });

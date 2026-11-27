@@ -20,6 +20,7 @@ import { type StoredAppKey } from "./lib/apps/origin-bound";
 import { type FinderEntry } from "./lib/chat/finder-entries";
 import { type SentFromDraft } from "./lib/drafts/send-from-folder";
 import { type DeviceId } from "./lib/records/device-id";
+import { type MemoryLevel } from "./machines/page-lifetime";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
 import { type WebSearchClient } from "./schemas/web-search";
@@ -90,6 +91,12 @@ export interface BrowserConfig {
    * not counted. Undefined when nobody has since it was made.
    */
   personInputAt: (targetId: BrowserTargetId) => number | undefined;
+  /**
+   * How short the system is of memory, by its own account, read when asked.
+   * Unset where there is no system to read, as in tests, and pages then
+   * close on their clocks alone.
+   */
+  memoryLevel?: () => Promise<MemoryLevel>;
   /** Whether the guest is asleep (`sleepGuest`), until a command or the window showing it wakes it. */
   isGuestAsleep: (targetId: BrowserTargetId) => boolean;
   /**

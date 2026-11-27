@@ -112,6 +112,19 @@ const keyOf = ({ processId, routingId }: FrameId) =>
   `${processId}:${routingId}`;
 
 /**
+ * The key of a frame a caller passes in, or undefined once it is gone: a
+ * `WebFrameMain` whose render frame was disposed (a page mid-unload) throws
+ * on reading `processId`.
+ */
+const keyOfLive = (frame: FrameId) => {
+  try {
+    return keyOf(frame);
+  } catch {
+    return undefined;
+  }
+};
+
+/**
  * Every web contents in the app's browser sessions, by its webContents id.
  *
  * All of a workspace's guests share one session, so a request, a download or
@@ -212,7 +225,8 @@ export function createGuestRegistry() {
       if (id === undefined || !frame) {
         return;
       }
-      const found = records.get(id)?.frames.get(keyOf(frame));
+      const key = keyOfLive(frame);
+      const found = key ? records.get(id)?.frames.get(key) : undefined;
       return found && /^https?:/i.test(found.url)
         ? (found.shown ?? found.url)
         : found?.url;
@@ -232,7 +246,8 @@ export function createGuestRegistry() {
       if (id === undefined || !frame) {
         return;
       }
-      return records.get(id)?.frames.get(keyOf(frame))?.url;
+      const key = keyOfLive(frame);
+      return key ? records.get(id)?.frames.get(key)?.url : undefined;
     },
     /** The tab's entry for a guest, when the contents is one bound to a tab. */
     entryOf(id: number): BrowserEntry | undefined {

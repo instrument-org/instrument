@@ -118,6 +118,24 @@ describe("createGuestRegistry", () => {
     ).toBeUndefined();
   });
 
+  it("answers nothing for a frame whose page went away mid-read", () => {
+    const registry = createGuestRegistry();
+    const contents = contentsIn({});
+    registry.track(contents as unknown as WebContents, "webview");
+    commit(contents, 1, "https://example.com/");
+    const disposed = {
+      get processId(): number {
+        throw new Error(
+          "Render frame was disposed before WebFrameMain could be accessed",
+        );
+      },
+      routingId: 1,
+    };
+
+    expect(registry.documentOf(contents.id, disposed)).toBeUndefined();
+    expect(registry.addressOf(contents.id, disposed)).toBeUndefined();
+  });
+
   it("answers for a contents only once one names it", () => {
     const registry = createGuestRegistry();
     expect(

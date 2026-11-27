@@ -8,6 +8,8 @@
 # <path>=<copy> commits <copy>'s contents as <path>, for committing only part
 # of a file's edits. Nothing else in the working tree or the shared index goes
 # in, and the shared index comes out matching the commit for those paths.
+# Files go in formatted, as the pre-commit hook formats them for `git commit`
+# (scripts/format-staged.sh).
 #
 # The commit is built on a private index from the branch tip and the branch
 # moves only if it is still at that tip, so a commit another session lands in
@@ -95,6 +97,7 @@ if [[ -n "$amend" ]]; then
       fi
     done <<< "$specs"
   fi
+  "$top/scripts/format-staged.sh" "$parent"
   commit=$(git commit-tree ${sign[@]+"${sign[@]}"} "$(git write-tree)" -p "$parent" -F "$message")
   unset GIT_INDEX_FILE
   # Moves the branch only if it is still at the commit being replaced.
@@ -132,6 +135,7 @@ for attempt in 1 2 3 4 5; do
   [[ -n "$staged" ]] || fail "none of the named paths differ from HEAD"
   unchanged=$(LC_ALL=C comm -23 <(echo "$paths") <(echo "$staged"))
   [[ -z "$unchanged" ]] || fail "these named paths do not differ from HEAD: $unchanged"
+  "$top/scripts/format-staged.sh" "$base"
   commit=$(git commit-tree ${sign[@]+"${sign[@]}"} "$(git write-tree)" -p "$base" -F "$message")
   unset GIT_INDEX_FILE
 

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Moves the shared index to the text pre-commit formatted, where `git commit --
+# <path>` wrote it unformatted (scripts/format-staged.sh).
+script="$(git rev-parse --show-toplevel)/scripts/format-staged.sh"
+# A checkout of a branch from before this script has none to run.
+[[ -x "$script" ]] || exit 0
+exec "$script" --after

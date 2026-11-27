@@ -9,7 +9,9 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import {
+  handOverBackgroundProcesses,
   killSessionBackgroundProcesses,
+  noteJobsHandedTo,
   promoteBackgroundProcess,
   startBackgroundRun,
 } from "./background-processes";
@@ -123,6 +125,25 @@ describe("createBackgroundProcessesPart", () => {
     expect(part.data.ended.map(({ id: endedId }) => endedId)).toEqual([
       info.id,
     ]);
+  });
+
+  it("says nothing of a process handed to a task, which went on running there", async () => {
+    const info = startRunning("node work/server.js");
+    await makePart();
+    const task = StoreId.newSessionId();
+    handOverBackgroundProcesses({
+      from: sessionId,
+      ids: [info.id],
+      to: task,
+      toChatId: chatId,
+    });
+    noteJobsHandedTo(sessionId, [info.id], "t1");
+
+    try {
+      expect(await makePart()).toBeUndefined();
+    } finally {
+      await killSessionBackgroundProcesses(task);
+    }
   });
 
   it("stops mentioning a process once its ending has been reported", async () => {

@@ -1,7 +1,7 @@
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { listBackgroundProcesses } from "./background-processes";
+import { jobHandedTo, listBackgroundProcesses } from "./background-processes";
 import { getCurrentDate } from "./get-current-date";
 import { partsAfter } from "./last-told";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -89,7 +89,12 @@ export async function createBackgroundProcessesPart({
       )
       .map(({ command, id }) => ({ command, id }));
     const stillThereIds = new Set(stillThere.map((process) => process.id));
-    const ended = previous.filter((process) => !stillThereIds.has(process.id));
+    // One handed to a task went on running there, which `task new` said.
+    const ended = previous.filter(
+      (process) =>
+        !stillThereIds.has(process.id) &&
+        jobHandedTo(sessionId, process.id) === undefined,
+    );
 
     // Nothing running and nothing to correct is the common case.
     if (running.length === 0 && ended.length === 0) {

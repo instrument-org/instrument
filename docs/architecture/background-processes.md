@@ -92,7 +92,7 @@ The agent-facing surface is one file: [`lib/shell-commands/background-jobs.ts`](
 
 The registry is keyed by **session**, not chat ([`recordsBySession`](../../packages/workspace/src/lib/background-processes.ts)). One chat holds several sessions, its own conversation and each task it started, all working in the same folder, so a chat-keyed registry would let one session read and kill another's work.
 
-Ownership moves in one case: when the chat hands work to a task partway, `instrument task new --job bg_1` ([`task/fork.ts`](../../packages/workspace/src/lib/capabilities/task/fork.ts)) moves that command to the task's session under the same id (`handOverBackgroundProcesses`), so the task waits on it with `fg` instead of starting it a second time. The task works in the chat's folder, so the logs stay put.
+Ownership moves in one case: when the chat hands work to a task partway, `instrument task new --job bg_1` ([`task/fork.ts`](../../packages/workspace/src/lib/capabilities/task/fork.ts)) moves that command to the task's session under the same id (`handOverBackgroundProcesses`), so the task waits on it with `fg` instead of starting it a second time. The task works in the chat's folder, so the logs stay put. The chat is told the id went to the task: `task new` says so, its background-process note leaves the id out of what ended, and `fg` and `kill` on it name the task (`noteJobsHandedTo`, `jobHandedTo`).
 
 | Trigger | Reaches | Where |
 |---|---|---|

@@ -9,6 +9,7 @@ import { defaultTaskName } from "../../default-task-name";
 import {
   handOverBackgroundProcesses,
   listBackgroundProcesses,
+  noteJobsHandedTo,
 } from "../../background-processes";
 import { newMessage } from "../../new-message";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
@@ -39,6 +40,8 @@ export const taskNew = defineCapability({
   output: z.object({
     /** Its handle in the chat, `t1`. */
     id: z.string(),
+    /** The background processes handed to it with `--job`. */
+    jobs: z.array(z.string()).default([]),
     name: z.string(),
   }),
   async run({ brief, job, name }, ctx) {
@@ -73,8 +76,9 @@ export const taskNew = defineCapability({
           ? `${directive}\n\nStill running in the background, and yours now under the same ids: ${jobs.join(", ")}. Wait on them with \`fg\` rather than starting them again.`
           : directive,
     });
+    noteJobsHandedTo(chatSessionId, jobs, task.handle);
     recordHandOff({ kind: "created", sessionId: task.id });
-    return { id: task.handle, name: title };
+    return { id: task.handle, jobs, name: title };
   },
   summary:
     "Start a task: you, carrying on in the background with this conversation as it stands, in this same folder and with the same folders, apps and memories, doing what stdin says while you keep answering here.",
@@ -88,8 +92,8 @@ id, t1. You are told when it finishes; do not poll it.`,
       words: ["task", "new"],
     },
   },
-  text: ({ id, name }) =>
-    `Started task ${id} ("${name}"). It is running now, in this folder with your folders.\nYou will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.`,
+  text: ({ id, jobs, name }) =>
+    `Started task ${id} ("${name}"). It is running now, in this folder with your folders.${jobs.length > 0 ? `\n${jobs.join(", ")} ${jobs.length === 1 ? "is" : "are"} ${id}'s now: it waits on ${jobs.length === 1 ? "it" : "them"}, and fg, kill and jobs here no longer see ${jobs.length === 1 ? "it" : "them"}.` : ""}\nYou will be told when it finishes; do not poll it or wait on it, and say nothing more about it until then unless the user asked something else.`,
   where: TASKS_ARE_THE_CHATS,
 });
 

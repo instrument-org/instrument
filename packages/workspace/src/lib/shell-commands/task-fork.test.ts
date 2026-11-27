@@ -614,8 +614,11 @@ describe("task new", () => {
       { id: "bg_1", status: "running" },
       { id: "bg_2", status: "exited" },
     ];
-    const { handOffs } = await fork(["--job", "%1"]);
+    const { handOffs, result } = await fork(["--job", "%1"]);
     const id = forkId(handOffs);
+    expect(result.stdout).toContain(
+      "bg_1 is t1's now: it waits on it, and fg, kill and jobs here no longer see it.",
+    );
     expect(jobs.handed).toMatchObject([
       { from: chatSessionId, ids: ["bg_1"], to: id, toChatId: context.chatId },
     ]);

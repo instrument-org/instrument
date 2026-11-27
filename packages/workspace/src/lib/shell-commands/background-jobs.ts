@@ -5,6 +5,7 @@ import os from "node:os";
 import { type StoreId } from "../../schemas/store-id";
 import {
   type BackgroundProcessInfo,
+  jobHandedTo,
   killBackgroundProcess,
   listBackgroundProcesses,
   markBackgroundProcessesReported,
@@ -123,10 +124,13 @@ export function createFgCommand({
           : undefined;
         if (!read) {
           failed = true;
+          const handle = id ? jobHandedTo(sessionId, id) : undefined;
           sections.push(
-            /^\d+$/.test(argument)
-              ? `${called}: pid ${argument} is not a background process this conversation started. \`${JOBS_COMMAND.name} -l\` lists them.`
-              : `${called}: no background process "${argument}".`,
+            handle && id
+              ? `${called}: ${id} was handed to task ${handle}, which waits on it.`
+              : /^\d+$/.test(argument)
+                ? `${called}: pid ${argument} is not a background process this conversation started. \`${JOBS_COMMAND.name} -l\` lists them.`
+                : `${called}: no background process "${argument}".`,
           );
           continue;
         }
@@ -345,10 +349,7 @@ async function signalJob({
     (process) => process.id === id,
   );
   if (!info) {
-    return {
-      failed: true,
-      text: [`${KILL_COMMAND.name}: no background process "${id}".`],
-    };
+    return { failed: true, text: [noProcessLine(id, sessionId)] };
   }
   if (info.status !== "running") {
     return {
@@ -380,6 +381,14 @@ async function signalJob({
     : { failed: false, text: [] };
 }
 
+/** What `kill` says of an id the session has no process under. */
+function noProcessLine(id: string, sessionId: StoreId.Session): string {
+  const handle = jobHandedTo(sessionId, id);
+  return handle
+    ? `${KILL_COMMAND.name}: ${id} was handed to task ${handle}, which waits on it.`
+    : `${KILL_COMMAND.name}: no background process "${id}".`;
+}
+
 async function stopJob({
   id,
   pid,
@@ -391,10 +400,7 @@ async function stopJob({
 }): Promise<KillLine> {
   const killed = await killBackgroundProcess({ by: "agent", id, sessionId });
   if (!killed) {
-    return {
-      failed: true,
-      text: [`${KILL_COMMAND.name}: no background process "${id}".`],
-    };
+    return { failed: true, text: [noProcessLine(id, sessionId)] };
   }
   const name = pid === undefined ? id : `${pid} (${id})`;
   const after = ms(killed.info.durationMs, { long: true });

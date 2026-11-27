@@ -440,6 +440,30 @@ export function handOverBackgroundProcesses({
   }
 }
 
+/** Per session, the processes it handed to a task, by id: the task's handle. */
+const handedTo = new Map<StoreId.Session, Map<string, string>>();
+
+/** Keeps which task a session's processes went to (`instrument task new --job`). */
+export function noteJobsHandedTo(
+  from: StoreId.Session,
+  ids: readonly string[],
+  handle: string,
+): void {
+  const handed = handedTo.get(from) ?? new Map<string, string>();
+  for (const id of ids) {
+    handed.set(id, handle);
+  }
+  handedTo.set(from, handed);
+}
+
+/** The handle of the task a session handed a process to, if it did. */
+export function jobHandedTo(
+  sessionId: StoreId.Session,
+  id: string,
+): string | undefined {
+  return handedTo.get(sessionId)?.get(id);
+}
+
 export function listBackgroundProcesses(
   sessionId: StoreId.Session,
 ): BackgroundProcessInfo[] {

@@ -13,6 +13,7 @@ import { BashTool } from "../../tools/bash";
 import {
   killBackgroundProcess,
   killSessionBackgroundProcesses,
+  noteJobsHandedTo,
   listBackgroundProcesses,
 } from "../background-processes";
 import { interruptWaits } from "../wait-interrupts";
@@ -62,6 +63,20 @@ describe("background job commands", () => {
     const started = await bash("node work/tick.js", 500);
     return started.processId ?? "";
   }
+
+  it("names the task a process was handed to", async () => {
+    noteJobsHandedTo(sessionId, ["bg_7"], "t3");
+
+    const waited = await bash("fg bg_7");
+    const killed = await bash("kill bg_7");
+
+    expect(waited.output).toContain(
+      "fg: bg_7 was handed to task t3, which waits on it.",
+    );
+    expect(killed.output).toContain(
+      "kill: bg_7 was handed to task t3, which waits on it.",
+    );
+  });
 
   it("lists nothing before anything has been promoted", async () => {
     const listed = await bash("jobs");

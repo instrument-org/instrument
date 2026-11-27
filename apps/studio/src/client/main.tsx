@@ -12,6 +12,7 @@ import { initExceptionCapture } from "./lib/capture-exception";
 import { firstAnswers } from "./lib/first-answers";
 import { initNetworkStatusForwarding } from "./lib/network-status-forwarding";
 import { reportClosedRPCPort } from "./lib/report-closed-rpc-port";
+import { watchScrollFades } from "./lib/scroll-fades";
 import { initDebugRpcBridge } from "./lib/debug-rpc-bridge";
 import { initStudioDrive } from "./lib/studio-drive";
 import { watchOpenOverlays } from "./lib/window-drag-overlays";
@@ -25,6 +26,7 @@ initBeforeLeaving();
 initDebugRpcBridge();
 initNetworkStatusForwarding();
 watchOpenOverlays();
+watchScrollFades();
 
 function start() {
   const rootElement = document.querySelector("#root");

@@ -1,7 +1,6 @@
 import { type Draft } from "@/shared/drafts";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { keepKeyboardInList, letGoOfList } from "@/client/lib/keyboard-home";
-import { cn } from "@/client/lib/utils";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Fragment,
@@ -10,7 +9,6 @@ import {
   type RefObject,
   useLayoutEffect,
   useRef,
-  useState,
 } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
@@ -350,7 +348,6 @@ export function ChatList({
       }
     }
   });
-  const isScrollable = useIsScrollable(ref, rows.length);
   // The chat a held arrow stopped on, opened as the key is let go of.
   const pendingOpen = useRef<null | { open: () => void; timer: number }>(null);
   const clearPending = () => {
@@ -396,10 +393,7 @@ export function ChatList({
     // Fading into the head over it once there is anything scrolled under
     // it, and at its foot while there is more below.
     <div
-      className={cn(
-        "min-h-0 flex-1 overflow-y-auto pb-4",
-        isScrollable && "scroll-fade-y",
-      )}
+      className="min-h-0 flex-1 overflow-y-auto scroll-fade-y pb-4"
       data-chat-list
       // After the composer of the chat open beside it.
       data-keyboard-home="2"
@@ -583,33 +577,4 @@ function RowSkeleton({ peek, title }: { peek: string; title: string }) {
       </div>
     </div>
   );
-}
-
-/**
- * Whether the list runs past its own height, measured on every change of its
- * size or its rows. The fade has to be taken off a list that stops
- * scrolling, since its scroll timeline holds the last fade it drew once the
- * list fits, and a filter narrows the list that far all the time.
- */
-function useIsScrollable(
-  ref: React.RefObject<HTMLDivElement | null>,
-  rowCount: number,
-): boolean {
-  const [isScrollable, setScrollable] = useState(false);
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) {
-      return;
-    }
-    const measure = () => {
-      setScrollable(element.scrollHeight > element.clientHeight);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-    };
-  }, [ref, rowCount]);
-  return isScrollable;
 }

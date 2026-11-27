@@ -2,7 +2,7 @@ import { Input } from "@/client/components/ui/input";
 import { cn } from "@/client/lib/utils";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useState } from "react";
 
 /** One thing a menu offers: what stands for it, what it is called, and whether it is on. */
 export interface PickEntry {
@@ -41,29 +41,6 @@ export function PickList({
         (entry) => !entry.isNone && entry.label.toLowerCase().includes(words),
       )
     : entries;
-  const scrollerRef = useRef<HTMLDivElement>(null);
-  const [isOverflowing, setOverflowing] = useState(false);
-  // `scroll-fade-y` only while there is something to scroll: Chromium holds
-  // the fade's scroll-driven animation at its last value once a scroller
-  // stops being scrollable, so a list scrolled down and then narrowed by the
-  // find field would keep its top fade over rows with nothing above them.
-  // Both boxes are watched: the scroller stops growing at its cap, and the
-  // rows inside it keep going.
-  useEffect(() => {
-    const scroller = scrollerRef.current;
-    const rows = scroller?.firstElementChild;
-    if (!scroller || !rows) {
-      return;
-    }
-    const observer = new ResizeObserver(() => {
-      setOverflowing(scroller.scrollHeight > scroller.clientHeight);
-    });
-    observer.observe(scroller);
-    observer.observe(rows);
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
   return (
     <div className="flex max-h-80 min-h-0 flex-col">
       <div className="relative mb-1 shrink-0">
@@ -87,11 +64,7 @@ export function PickList({
         />
       </div>
       <div
-        className={cn(
-          "min-h-0 flex-1 overflow-y-auto",
-          isOverflowing && "scroll-fade-y",
-        )}
-        ref={scrollerRef}
+        className="min-h-0 flex-1 overflow-y-auto scroll-fade-y"
         role="group"
       >
         <div>

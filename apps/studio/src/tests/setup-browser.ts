@@ -11,6 +11,7 @@
 import "@/client/styles/globals.css";
 import { resetStudioModals } from "@/client/atoms/studio-modal";
 import { clearKeptState } from "@/client/lib/kept-state";
+import { watchScrollFades } from "@/client/lib/scroll-fades";
 import { watchOpenOverlays } from "@/client/lib/window-drag-overlays";
 import { afterEach } from "vitest";
 
@@ -25,6 +26,9 @@ afterEach(resetStudioModals);
 // The stylesheet's window drag rule reads an attribute the app keeps on the
 // root, so the measured app keeps it here too.
 watchOpenOverlays();
+
+// The scroll fades draw only on scrollers the app marks as overflowing.
+watchScrollFades();
 
 // Persisted atoms outlive more than that. What the windows keep (`keptAtom`)
 // is one module's memory here, and a plain `atomWithStorage` writes through to

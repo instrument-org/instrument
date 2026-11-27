@@ -1107,20 +1107,23 @@ body {
   initial-value: 0px;
 }
 
-/* Scroll-driven edge fade for a vertical scroll area. The mask's top/bottom
-   stops are registered as animatable lengths and driven by the element's own
-   scroll timeline, so the top fade appears only once scrolled down and the
-   bottom fade clears at the end. No JS. Registering the stops via @property is
-   what makes them interpolate.
+/* Scroll-driven edge fades for a scroll area, `scroll-fade-y` down and
+   `scroll-fade-x` across. The mask's stops are registered as animatable
+   lengths and driven by the element's own scroll timeline, so the start fade
+   appears only once scrolled in and the end fade clears at the end. Registering
+   the stops via @property is what makes them interpolate.
 
-   An area that has never been scrollable has an inactive timeline and shows no
-   fade, since both stops sit at their 0 initial value. One that stops being
-   scrollable is a different case: Chromium holds the animation at its last
-   committed value rather than retiring it, so a scroller that shrinks back
-   under its own height keeps whatever fade it had when it last scrolled. A
-   scroller whose content can shrink that far has to carry this utility
-   conditionally -- `scroll-state()` queries reach only descendants, and the
-   mask has to live on the scroll container itself, so CSS alone cannot tell. */
+   The fade is drawn only while the scroller carries `data-overflow-y` or
+   `data-overflow-x`, which `watchScrollFades` keeps on every scroller wearing
+   the utility. Chromium holds a scroll-driven animation at its last value once
+   its scroller stops overflowing, so a scroller that shrinks back under its
+   own size would otherwise keep whatever fade it had when it last scrolled;
+   `scroll-state()` queries reach only descendants, and the mask has to live on
+   the scroll container itself, so CSS alone cannot tell.
+
+   The mask fades everything the scroller paints, its own background, border
+   and shadow included, so the utility goes on a scroller whose surface is drawn
+   by a box around it. */
 @property --scroll-fade-top {
   syntax: "<length>";
   inherits: false;
@@ -1128,6 +1131,18 @@ body {
 }
 
 @property --scroll-fade-bottom {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --scroll-fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --scroll-fade-end {
   syntax: "<length>";
   inherits: false;
   initial-value: 0px;
@@ -1160,26 +1175,76 @@ body {
   }
 }
 
+@keyframes scroll-fade-reveal-start {
+  from {
+    --scroll-fade-start: 0px;
+  }
+  to {
+    --scroll-fade-start: var(--scroll-fade-size);
+  }
+}
+
+@keyframes scroll-fade-reveal-end {
+  from {
+    --scroll-fade-end: var(--scroll-fade-size);
+  }
+  to {
+    --scroll-fade-end: 0px;
+  }
+}
+
 @utility scroll-fade-y {
   --scroll-fade-size: 1.5rem;
-  mask-image: linear-gradient(
-    to bottom,
-    transparent,
-    black var(--scroll-fade-top),
-    black calc(100% - var(--scroll-fade-bottom)),
-    transparent
-  );
-  /* Not using the `animation` shorthand: the shorthand resets
-     animation-duration to 0s, which stops a scroll-timeline animation from
-     tracking scroll. `auto` lets the timeline drive progress. */
-  animation-name: scroll-fade-reveal-top, scroll-fade-reveal-bottom;
-  animation-duration: auto;
-  animation-timing-function: linear;
-  animation-fill-mode: both;
-  animation-timeline: scroll(self);
-  animation-range:
-    0 var(--scroll-fade-size),
-    calc(100% - var(--scroll-fade-size)) 100%;
+
+  &[data-overflow-y] {
+    mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      black var(--scroll-fade-top),
+      black calc(100% - var(--scroll-fade-bottom)),
+      transparent
+    );
+    /* Not using the `animation` shorthand: the shorthand resets
+       animation-duration to 0s, which stops a scroll-timeline animation from
+       tracking scroll. `auto` lets the timeline drive progress. */
+    animation-name: scroll-fade-reveal-top, scroll-fade-reveal-bottom;
+    animation-duration: auto;
+    animation-timing-function: linear;
+    animation-fill-mode: both;
+    animation-timeline: scroll(self);
+    animation-range:
+      0 var(--scroll-fade-size),
+      calc(100% - var(--scroll-fade-size)) 100%;
+  }
+}
+
+@utility scroll-fade-x {
+  --scroll-fade-size: 1.5rem;
+
+  &[data-overflow-x] {
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      black var(--scroll-fade-start),
+      black calc(100% - var(--scroll-fade-end)),
+      transparent
+    );
+    animation-name: scroll-fade-reveal-start, scroll-fade-reveal-end;
+    animation-duration: auto;
+    animation-timing-function: linear;
+    animation-fill-mode: both;
+    animation-timeline: scroll(self inline);
+    animation-range:
+      0 var(--scroll-fade-size),
+      calc(100% - var(--scroll-fade-size)) 100%;
+  }
+}
+
+/* A scroller that is meant to end at a hard edge: a document page, a grid
+   with its own frozen headers, a scroller whose surface the mask would fade.
+   Marks the choice for the `studio/scroll-fade` lint rule and draws nothing. */
+@utility scroll-fade-none {
+  --scroll-fade-size: 0px;
 }
 
 /* The window a group's stand-in rolls through; see `GroupStandIn`.

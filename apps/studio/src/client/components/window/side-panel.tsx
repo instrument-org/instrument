@@ -40,7 +40,6 @@ import {
   sidePanelWidthAtom,
 } from "@/client/atoms/tab-groups";
 import { noteTypedPage } from "@/client/hooks/use-browser-history";
-import { useIsScrollable } from "@/client/hooks/use-is-scrollable";
 import { useWindowPlaces } from "@/client/hooks/use-open-target";
 import { cn, isMacOS, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -476,15 +475,9 @@ function PanelHead({
  * room under the last row moves the window, as the ground around it does.
  */
 function PanelScroll({ children }: { children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const isScrollable = useIsScrollable(ref);
   return (
     <div
-      className={cn(
-        "flex min-h-0 flex-1 flex-col overflow-y-auto pb-2 [-webkit-app-region:no-drag]",
-        isScrollable && "scroll-fade-y",
-      )}
-      ref={ref}
+      className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-fade-y pb-2 [-webkit-app-region:no-drag]"
     >
       {children}
       <div className={cn("min-h-2 flex-1", WINDOW_DRAG)} />

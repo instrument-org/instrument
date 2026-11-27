@@ -14,7 +14,6 @@ import {
   AvatarImage,
 } from "@/client/components/ui/avatar";
 import { UpdateStatusIndicator } from "@/client/components/update-status-indicator";
-import { useIsScrollable } from "@/client/hooks/use-is-scrollable";
 import { useInlineRename } from "@/client/hooks/use-inline-rename";
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { Input } from "@/client/components/ui/input";
@@ -685,16 +684,10 @@ function ListItem({
  * where it lands (`sidebarDropAt`) and a lifted row stands.
  */
 function GroupList({ children }: { children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const isScrollable = useIsScrollable(ref);
   return (
     <div
-      className={cn(
-        "relative flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pr-1 pb-2 pl-2",
-        isScrollable && "scroll-fade-y",
-      )}
+      className="relative flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto scroll-fade-y pr-1 pb-2 pl-2"
       data-group-list=""
-      ref={ref}
     >
       {children}
     </div>

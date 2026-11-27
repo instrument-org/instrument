@@ -428,7 +428,6 @@ export function PromptEditor({
     openerRef.current?.(href, newTab);
   };
   const chipIdRef = useRef(0);
-  const [overflowing, setOverflowing] = useState(false);
   const initialPropsRef = useRef({ autoFocus, placeholder });
   // Kept current rather than captured, because the view below is not built only
   // once: a hidden `<Activity>` runs every effect's cleanup, so the task page
@@ -809,30 +808,6 @@ export function PromptEditor({
     });
   }, [placeholder]);
 
-  // `scroll-fade-y` is only correct while there is something to scroll: Chromium
-  // holds a scroll-driven animation at its last committed value once the
-  // scroller stops being scrollable, so clearing a draft that was scrolled down
-  // would leave the top fade painted over an empty composer. Carrying the
-  // utility on and off is what actually retires the animation. Both boxes are
-  // measured because they move independently -- the scroller stops growing at
-  // its max height, and the editor inside it keeps going.
-  useEffect(() => {
-    const scroller = mountRef.current;
-    if (!scroller) {
-      return;
-    }
-    const observer = new ResizeObserver(() => {
-      setOverflowing(scroller.scrollHeight > scroller.clientHeight);
-    });
-    observer.observe(scroller);
-    for (const child of scroller.children) {
-      observer.observe(child);
-    }
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
-
   // Replace the content through a transaction rather than a fresh EditorState:
   // recreating the state drops the history stack, so an external write (the
   // skill prefill, a clear after submit) would silently make undo a no-op.
@@ -1023,10 +998,9 @@ export function PromptEditor({
               whichever theme is on. */}
             <div
               className={cn(
-                "min-h-0 flex-1 overflow-y-auto",
+                "min-h-0 flex-1 overflow-y-auto scroll-fade-y",
                 // A quote's card sits 6px past the words on three sides.
                 "has-data-quote:-mx-1.5 has-data-quote:-mt-1.5 has-data-quote:px-1.5",
-                overflowing && "scroll-fade-y",
               )}
               ref={mountRef}
             />
@@ -1071,7 +1045,7 @@ export function PromptEditor({
           align="start"
           alignOffset={alignOffset}
           avoidCollisions={false}
-          className="overflow-y-auto rounded-[20px] p-1 shadow-float-lg"
+          className="overflow-y-auto scroll-fade-none rounded-[20px] p-1 shadow-float-lg"
           maxHeight="18rem"
           onCloseAutoFocus={preventDefault}
           // The popover's layer takes Escape on the document before the editor

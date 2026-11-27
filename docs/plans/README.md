@@ -74,7 +74,6 @@ Each entry is the plan's title and the opening of its status.
 - [Skills from attached folders](skills-from-attached-folders.md): Proposed, not started (checked 2026-10-29: `getSkillSources` reads no attached folders).
 - [Structure after the chat rework](structure-after-the-chat-rework.md): In progress.
 - [Inference through the user's Claude and ChatGPT subscriptions](subscription-inference.md): ChatGPT direct route landed (`ca68bb66d`, `8b3b27b53`, first shipped in v2.0.0-beta.37).
-- [Tab groups prototype](tab-groups-prototype.md): open
 - [One owner for every tab](tab-service.md): The back history of a discarded page, the table of where opens land, and keeping a page a person entered something into are done.
 - [Testing the Instrument folder](testing-the-instrument-folder.md): Under way.
 - [Two sides prototype](two-sides-prototype.md): open
@@ -149,6 +148,7 @@ Each entry is the plan's title and the opening of its status.
 - [Skills in Studio](skills-in-studio.md): Completed.
 - [Skills mount instead of copy, and a task installs once](skills-mount-instead-of-copy.md): Landed, with a different answer for Node dependencies.
 - [Switchable workspaces](switchable-workspaces.md): Landed.
+- [Tab groups prototype](tab-groups-prototype.md): done
 - [Rename threads to chats](threads-to-chats-rename.md): Landed.
 - [Bound tool results before they consume the context window](tool-result-context-budgets.md): Complete, two phases of three.
 - [Rename topics to projects](topics-to-projects-rename.md): Landed in one change.

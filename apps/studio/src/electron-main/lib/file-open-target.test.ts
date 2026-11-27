@@ -930,6 +930,86 @@ describe("icon resolution", () => {
   });
 });
 
+describe("Mac app icons", () => {
+  it("renders a kept icon again once its app is updated or removed", async () => {
+    const appPath = path.join(userDataDir, "Notes.app");
+    const plist = path.join(appPath, "Contents", "Info.plist");
+    await fs.mkdir(path.dirname(plist), { recursive: true });
+    await fs.writeFile(plist, "<plist/>");
+    await fs.utimes(plist, new Date(NOW - DAY_MS), new Date(NOW - DAY_MS));
+    let app = { appPath, iconBase64: "png-v1" };
+    execImpl = () => Promise.resolve(JSON.stringify(app));
+    // A launch that renders the icon keeps it on disk for the next.
+    const launch = async ({ renders = true } = {}) => {
+      const { getMacAppIconUrl } = await importModule();
+      const icon = await getMacAppIconUrl("com.example.notes");
+      if (renders) {
+        await flushSave();
+      }
+      return icon;
+    };
+
+    expect(await launch()).toBe("icon://png-v1");
+    expect(execCalls).toHaveLength(1);
+    // Unchanged: kept, with no helper run.
+    expect(await launch({ renders: false })).toBe("icon://png-v1");
+    expect(execCalls).toHaveLength(1);
+
+    // Updated, which rewrites its Info.plist.
+    await fs.utimes(plist, new Date(NOW), new Date(NOW));
+    app = { appPath, iconBase64: "png-v2" };
+    expect(await launch()).toBe("icon://png-v2");
+    expect(execCalls).toHaveLength(2);
+
+    await fs.rm(appPath, { recursive: true });
+    app = { appPath: "", iconBase64: "" };
+    expect(await launch()).toBeNull();
+    expect(execCalls).toHaveLength(3);
+  });
+  it("renders an icon kept with no app recorded once, then keeps it", async () => {
+    const appPath = path.join(userDataDir, "Notes.app");
+    await fs.mkdir(appPath);
+    await writeCache({
+      icons: {
+        "bundle-id:com.example.notes": { resolvedAt: NOW, value: "icon://old" },
+      },
+      version: CACHE_VERSION,
+    });
+    execImpl = () =>
+      Promise.resolve(JSON.stringify({ appPath, iconBase64: "png-new" }));
+
+    const first = await importModule();
+    expect(await first.getMacAppIconUrl("com.example.notes")).toBe(
+      "icon://png-new",
+    );
+    await flushSave();
+    const second = await importModule();
+    expect(await second.getMacAppIconUrl("com.example.notes")).toBe(
+      "icon://png-new",
+    );
+    expect(execCalls).toHaveLength(1);
+  });
+
+  it("serves the kept icon when its changed app cannot be rendered", async () => {
+    const appPath = path.join(userDataDir, "Notes.app");
+    await fs.mkdir(appPath);
+    await writeCache({
+      icons: {
+        "bundle-id:com.example.notes": {
+          resolvedAt: NOW,
+          source: { appPath, changedAt: 1 },
+          value: "icon://old",
+        },
+      },
+      version: CACHE_VERSION,
+    });
+    execImpl = () => Promise.reject(new Error("osascript timed out"));
+
+    const { getMacAppIconUrl } = await importModule();
+    expect(await getMacAppIconUrl("com.example.notes")).toBe("icon://old");
+  });
+});
+
 describe("warmCommonFileOpenTargets", () => {
   it("does nothing off macOS", async () => {
     setPlatform("linux");

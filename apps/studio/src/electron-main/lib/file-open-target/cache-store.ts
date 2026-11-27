@@ -38,15 +38,25 @@ export interface CachedEntry<T> {
   value: T;
 }
 
+/** The app an icon was rendered from: its path, and when it last changed then. */
+export interface IconSource {
+  appPath: string;
+  changedAt: number;
+}
+
 interface Caches {
   candidates: Map<string, StoredEntry<CandidateApp[]>>;
-  icons: Map<string, StoredEntry<null | string>>;
+  icons: Map<string, StoredIcon>;
   targets: Map<string, StoredEntry<FileOpenTarget>>;
 }
 
 interface StoredEntry<T> {
   resolvedAt: number;
   value: T;
+}
+
+interface StoredIcon extends StoredEntry<null | string> {
+  source?: IconSource;
 }
 
 const PersistedTargetSchema = z.object({
@@ -66,6 +76,7 @@ const PersistedCandidatesSchema = z.object({
 
 const PersistedIconSchema = z.object({
   resolvedAt: z.number(),
+  source: z.object({ appPath: z.string(), changedAt: z.number() }).optional(),
   value: z.string().nullable(),
 });
 
@@ -94,11 +105,15 @@ export async function getCandidates(
 // because a per-path round trip would re-await the load for every app.
 export async function getIcons(appPaths: string[]) {
   const { icons } = await load();
-  const found = new Map<string, CachedEntry<null | string>>();
+  const found = new Map<
+    string,
+    CachedEntry<null | string> & { source?: IconSource }
+  >();
   for (const appPath of appPaths) {
-    const entry = toCachedEntry(icons.get(appPath), ICON_CACHE_TTL_MS);
+    const stored = icons.get(appPath);
+    const entry = toCachedEntry(stored, ICON_CACHE_TTL_MS);
     if (entry) {
-      found.set(appPath, entry);
+      found.set(appPath, { ...entry, source: stored?.source });
     }
   }
   return found;
@@ -123,6 +138,17 @@ export async function setIcons(icons: Map<string, null | string>) {
   for (const [appPath, value] of icons) {
     store.icons.set(appPath, { resolvedAt, value });
   }
+  scheduleSave();
+}
+
+/** One icon, with the app it was rendered from where that is known. */
+export async function setIcon(
+  key: string,
+  value: null | string,
+  source: IconSource | undefined,
+) {
+  const store = await load();
+  store.icons.set(key, { resolvedAt: Date.now(), source, value });
   scheduleSave();
 }
 

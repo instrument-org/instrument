@@ -18,6 +18,11 @@ const DarwinResultSchema = z.object({
   iconBase64: z.string(),
 });
 
+const DarwinBundleIconSchema = z.object({
+  appPath: z.string(),
+  iconBase64: z.string(),
+});
+
 const DarwinCandidatesSchema = z.object({
   apps: z.array(CandidateAppSchema),
 });
@@ -45,7 +50,8 @@ export async function enumerateDarwinCandidates(fullPath: string) {
 }
 
 // The icon of an installed app by its bundle identifier, as raw base64,
-// rendered at the screen's scale; empty when no such app is installed.
+// rendered at the screen's scale, and the app's path; both empty when no such
+// app is installed.
 export async function renderDarwinBundleIcon(bundleId: string, size: number) {
   const stdout = await runThrottledHelper({
     args: [
@@ -59,7 +65,7 @@ export async function renderDarwinBundleIcon(bundleId: string, size: number) {
     file: "osascript",
     maxBuffer: 8 * 1024 * 1024,
   });
-  return stdout.trim();
+  return DarwinBundleIconSchema.parse(JSON.parse(stdout));
 }
 
 // Renders one icon per app path in a single interpreter, returning raw base64.

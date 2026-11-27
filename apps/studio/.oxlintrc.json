@@ -89,8 +89,8 @@
             "src/client/components/window/tab-strip.tsx": 2,
             "src/client/components/window/use-window-commands.ts": 1,
             "src/client/hooks/use-dictation.ts": 1,
-            "src/client/lib/browser-pool.ts": 2,
             "src/client/lib/keyboard-loan.ts": 1,
+            "src/client/lib/page-keyboard.ts": 2,
             "src/client/lib/tab-view-state.ts": 2
           }
         ]
@@ -128,8 +128,9 @@
             "src/client/hooks/use-dictation.ts": 1,
             "src/client/hooks/use-recent-files.ts": 1,
             "src/client/hooks/use-search-picks.ts": 1,
-            "src/client/lib/browser-pool.ts": 8,
-            "src/client/lib/network-status-forwarding.ts": 1
+            "src/client/lib/browser-pool.ts": 6,
+            "src/client/lib/network-status-forwarding.ts": 1,
+            "src/client/lib/page-keyboard.ts": 2
           }
         ]
       }

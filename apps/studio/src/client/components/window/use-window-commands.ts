@@ -31,7 +31,7 @@ import {
   openFindForKeyboard,
 } from "@/client/lib/find-targets";
 import { stepForKeyboard, stepSurfaceAt } from "@/client/lib/history-surfaces";
-import { pageHoldingKeyboard } from "@/client/lib/browser-pool";
+import { pageHoldingKeyboard } from "@/client/lib/page-keyboard";
 import { runPageChord } from "@/client/lib/page-chords";
 import { reloadScreenWithKeyboard } from "@/client/lib/screen-reloads";
 import { runPictureChord } from "@/client/lib/picture-keys";

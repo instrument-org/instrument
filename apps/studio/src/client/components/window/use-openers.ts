@@ -10,7 +10,7 @@ import { bookmarkChangesBetween } from "@/client/bookmarks/agent-changes";
 import { bookmarksRead, bookmarksStateAtom } from "@/client/bookmarks/store";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
-import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
+import { takeKeyboardOnArrival } from "@/client/lib/page-keyboard";
 import { captureException } from "@/client/lib/capture-exception";
 import { keepListening } from "@/client/lib/keep-listening";
 import { rpcClient } from "@/client/rpc/client";

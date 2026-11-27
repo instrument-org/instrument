@@ -21,8 +21,8 @@ In a 2.1 beta's `main.log` (`BrowserViewManager` scope):
 ## What each answer means
 
 - **No `shown=false` lines over a couple of weeks of use:** the hand-back covers it. Drop `page keyboard` and `tab chord from page` lines if they are noise, and close this.
-- **`shown=false` lines:** read the `guest parked` and `page keyboard taken` lines just before, to find what put the keyboard in a page off screen, and close that path in `browser-pool.ts`.
+- **`shown=false` lines:** read the `guest parked` and `page keyboard taken` lines just before, to find what put the keyboard in a page off screen, and close that path in `page-keyboard.ts` or `browser-pool.ts`.
 
 ## What comes out once the cause is found
 
-The pool's two hand-backs are a backstop, not the cause: the look again after `SLOT_MOVE_SETTLE_MS` in `releaseGuestFocus`, and the hand-back as a parked page goes to sleep in `reconcile`. The suspected cause is the keyboard side still naming the page in the microtask after it parks, while its tab group leaves the screen. Once the path that leaves the keyboard in a page off screen is closed where it starts, remove both. The tab-switch chords run from a page's key handler stay: Chrome keeps those chords from pages too.
+The pool's two hand-backs are a backstop, not the cause: the look again after `SLOT_MOVE_SETTLE_MS` in `releaseGuestFocus` (`page-keyboard.ts`), and the hand-back as a parked page goes to sleep in `reconcile` (`browser-pool.ts`). The suspected cause is the keyboard side still naming the page in the microtask after it parks, while its tab group leaves the screen. Once the path that leaves the keyboard in a page off screen is closed where it starts, remove both. The tab-switch chords run from a page's key handler stay: Chrome keeps those chords from pages too.

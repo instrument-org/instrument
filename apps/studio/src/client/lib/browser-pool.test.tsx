@@ -13,15 +13,17 @@ import {
 import {
   getAttachedTargetsSnapshot,
   getGuest,
-  giveKeyboardTo,
-  holdKeyboardFromPages,
   initBrowserPool,
-  pageHoldingKeyboard,
   setPagePanes,
   setPaintHost,
   showOverSlot,
-  takeKeyboardOnArrival,
 } from "./browser-pool";
+import {
+  giveKeyboardTo,
+  holdKeyboardFromPages,
+  pageHoldingKeyboard,
+  takeKeyboardOnArrival,
+} from "./page-keyboard";
 import { installKeyboardLoan } from "./keyboard-loan";
 
 const targetTab = StoreId.newTabId();

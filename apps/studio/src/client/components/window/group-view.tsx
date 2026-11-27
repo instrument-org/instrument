@@ -10,7 +10,7 @@ import {
   onPagePress,
   pageHoldingKeyboard,
   takeKeyboardOnArrival,
-} from "@/client/lib/browser-pool";
+} from "@/client/lib/page-keyboard";
 import {
   dropCaretOutside,
   keepCaretOnKeyboardSide,

@@ -12,7 +12,7 @@ import {
 
 // How many holds keep pages off the keyboard (`holdKeyboardFromPages`).
 const keyboard = vi.hoisted(() => ({ holds: 0 }));
-vi.mock("@/client/lib/browser-pool", () => ({
+vi.mock("@/client/lib/page-keyboard", () => ({
   holdKeyboardFromPages: () => {
     keyboard.holds += 1;
     let isHeld = true;

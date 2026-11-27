@@ -57,7 +57,7 @@ import { useRefetchOnWindowSwitch } from "@/client/hooks/use-refetch-on-window-s
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
 import { useRefreshProjectsOnChange } from "@/client/hooks/use-refresh-projects-on-change";
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
-import { wasPagePressed } from "@/client/lib/browser-pool";
+import { wasPagePressed } from "@/client/lib/page-keyboard";
 import { restoreUnsentFeedback } from "@/client/lib/problem-reports";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";

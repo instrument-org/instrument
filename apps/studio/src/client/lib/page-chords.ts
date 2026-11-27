@@ -1,8 +1,5 @@
-import {
-  getGuest,
-  pageHoldingKeyboard,
-  stepPage,
-} from "@/client/lib/browser-pool";
+import { getGuest, stepPage } from "@/client/lib/browser-pool";
+import { pageHoldingKeyboard } from "@/client/lib/page-keyboard";
 import { foregroundBrowser } from "@/client/lib/foreground-browser-registry";
 import { keyboardSide, pageOfSide } from "@/client/lib/keyboard-place";
 import { BROWSER_ZOOM_MAX, BROWSER_ZOOM_MIN } from "@/shared/browser";

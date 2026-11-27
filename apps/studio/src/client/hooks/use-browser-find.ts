@@ -1,6 +1,7 @@
 import { useGuest } from "@/client/hooks/use-browser-targets";
 import { useFindTarget } from "@/client/hooks/use-find-target";
-import { getGuest, pageHoldingKeyboard } from "@/client/lib/browser-pool";
+import { getGuest } from "@/client/lib/browser-pool";
+import { pageHoldingKeyboard } from "@/client/lib/page-keyboard";
 import { registerForegroundBrowser } from "@/client/lib/foreground-browser-registry";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import {

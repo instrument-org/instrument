@@ -17,11 +17,8 @@ import {
 } from "@/client/components/ui/dialog";
 import { useGuest } from "@/client/hooks/use-browser-targets";
 import { useWatchedFileUrl } from "@/client/hooks/use-watched-file-url";
-import {
-  getGuestElement,
-  onPageEdge,
-  pageOfPress,
-} from "@/client/lib/browser-pool";
+import { getGuestElement, onPageEdge } from "@/client/lib/browser-pool";
+import { pageOfPress } from "@/client/lib/page-keyboard";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { currentOs } from "@/client/lib/utils";
 import { getFileType } from "@/client/lib/get-file-type";

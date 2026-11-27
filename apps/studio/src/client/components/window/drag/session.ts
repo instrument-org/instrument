@@ -1,4 +1,4 @@
-import { holdKeyboardFromPages } from "@/client/lib/browser-pool";
+import { holdKeyboardFromPages } from "@/client/lib/page-keyboard";
 import { focusScreenHome } from "@/client/lib/keyboard-home";
 import { atom, getDefaultStore, useAtomValue } from "jotai";
 import { useEffect, useLayoutEffect, useRef } from "react";

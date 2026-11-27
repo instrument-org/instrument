@@ -26,7 +26,7 @@ import { folderFoldByTab } from "./folder-fold";
 import {
   pageHoldingKeyboard,
   takeKeyboardOnArrival,
-} from "@/client/lib/browser-pool";
+} from "@/client/lib/page-keyboard";
 import { setHomeFocus } from "@/client/lib/keyboard-home";
 import { togglePlayerIn } from "@/client/lib/media-players";
 import { cn } from "@/client/lib/utils";

@@ -23,11 +23,8 @@ const {
   stepPage: vi.fn(),
 }));
 
-vi.mock("@/client/lib/browser-pool", () => ({
-  getGuest,
-  pageHoldingKeyboard,
-  stepPage,
-}));
+vi.mock("@/client/lib/browser-pool", () => ({ getGuest, stepPage }));
+vi.mock("@/client/lib/page-keyboard", () => ({ pageHoldingKeyboard }));
 vi.mock("@/client/lib/foreground-browser-registry", () => ({
   foregroundBrowser,
 }));

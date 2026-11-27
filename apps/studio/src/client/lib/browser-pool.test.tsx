@@ -16,9 +16,11 @@ import {
   giveKeyboardTo,
   holdKeyboardFromPages,
   initBrowserPool,
+  pageHoldingKeyboard,
   setPagePanes,
   setPaintHost,
   showOverSlot,
+  takeKeyboardOnArrival,
 } from "./browser-pool";
 import { installKeyboardLoan } from "./keyboard-loan";
 
@@ -58,6 +60,7 @@ const asks = vi.hoisted(() => {
     };
   };
   return {
+    focus: feed<{ targetId: string }>(),
     hostFocus: { synced: 0 },
     pressed: feed<{ targetId: string }>(),
     restore: feed<null>(),
@@ -105,7 +108,7 @@ vi.mock("@/client/rpc/client", () => {
     rpcClient: {
       browser: {
         events: {
-          focusGuest: stream,
+          focusGuest: { call: asks.focus.stream },
           pagePressed: { call: asks.pressed.stream },
           restoreHostFocus: { call: asks.restore.stream },
           setGuestSurface: stream,
@@ -610,5 +613,165 @@ describe("a page parked while it has the keyboard", () => {
       },
       { interval: 1 },
     );
+  });
+});
+
+// After the case that brings the guest to dom-ready: a page takes the
+// keyboard only once it is ready.
+describe("the keyboard between the window and a page", () => {
+  const guest = (id = target) => {
+    const found = [...document.querySelectorAll<HTMLElement>("webview")].find(
+      (each) => each.getAttribute("partition")?.includes(id) === true,
+    );
+    if (!found) {
+      throw new Error("no guest");
+    }
+    // jsdom focuses only what has a tab index; Electron's guest takes focus itself.
+    found.tabIndex = -1;
+    return found;
+  };
+  const slot = Symbol("slot");
+  const wait = (ms: number) =>
+    new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
+  let field: HTMLInputElement;
+  beforeAll(() => {
+    Element.prototype.checkVisibility = () => true;
+  });
+  afterAll(() => {
+    // @ts-expect-error jsdom's own prototype has none.
+    delete Element.prototype.checkVisibility;
+  });
+  beforeEach(() => {
+    field = document.createElement("input");
+    document.body.append(field);
+    // Long past any press an earlier case reported.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 60_000);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    setPaintHost(target, slot);
+    field.remove();
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  });
+
+  it("goes to a page opened in place of the view once a slot shows it, and back to the window as it parks", async () => {
+    takeKeyboardOnArrival(target);
+    showOverSlot(target, inlineBounds, slot);
+    expect(document.activeElement).toBe(document.body);
+    await Promise.resolve();
+    expect(document.activeElement).toBe(guest());
+    expect(pageHoldingKeyboard()).toBe(target);
+
+    setPaintHost(target, slot);
+    expect(document.activeElement).toBe(guest());
+    await Promise.resolve();
+    expect(document.activeElement).toBe(document.body);
+    expect(pageHoldingKeyboard()).toBeNull();
+  });
+
+  it("stays out of a page opened in place of the view once the person focuses somewhere", async () => {
+    takeKeyboardOnArrival(target);
+    field.focus();
+    field.remove();
+    showOverSlot(target, inlineBounds, slot);
+    await Promise.resolve();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("stays out of a page opened in place of the view while the keyboard is somewhere", async () => {
+    field.focus();
+    showOverSlot(target, inlineBounds, slot);
+    takeKeyboardOnArrival(target);
+    await Promise.resolve();
+    expect(document.activeElement).toBe(field);
+  });
+
+  it("goes to a page sent the keyboard from wherever it is", () => {
+    showOverSlot(target, inlineBounds, slot);
+    field.focus();
+    giveKeyboardTo(target);
+    expect(document.activeElement).toBe(guest());
+  });
+
+  it("goes to a page sent the keyboard as a slot shows it, unless the person pressed meanwhile", async () => {
+    field.focus();
+    giveKeyboardTo(target);
+    document.dispatchEvent(new PointerEvent("pointerdown"));
+    showOverSlot(target, inlineBounds, slot);
+    await Promise.resolve();
+    expect(document.activeElement).toBe(field);
+    setPaintHost(target, slot);
+
+    giveKeyboardTo(target);
+    showOverSlot(target, inlineBounds, slot);
+    await Promise.resolve();
+    expect(document.activeElement).toBe(guest());
+  });
+
+  it("goes to a page main asks to focus for an agent", async () => {
+    showOverSlot(target, inlineBounds, slot);
+    asks.focus.send({ targetId: target });
+    await wait(0);
+    expect(document.activeElement).toBe(guest());
+  });
+
+  it("is not in a parked page as far as a chord can tell", () => {
+    guest(behind).focus();
+    expect(pageHoldingKeyboard()).toBeNull();
+  });
+
+  describe("with the page on the side of a tab group without the keyboard", () => {
+    let group: HTMLElement;
+    let home: HTMLElement;
+    beforeEach(() => {
+      group = document.createElement("div");
+      group.setAttribute("data-app-tab-active", "");
+      group.innerHTML = `
+        <div data-group-side="0" data-keyboard>
+          <div data-keyboard-home tabindex="0" aria-label="home"></div>
+        </div>
+        <div data-group-side="1" data-page-tab="${targetTab}"></div>
+      `;
+      document.body.append(group);
+      const found = group.querySelector<HTMLElement>("[data-keyboard-home]");
+      if (!found) {
+        throw new Error("no home");
+      }
+      home = found;
+      showOverSlot(target, inlineBounds, slot);
+    });
+    afterEach(() => {
+      group.remove();
+    });
+
+    it("never sends it there", async () => {
+      giveKeyboardTo(target);
+      takeKeyboardOnArrival(target);
+      await Promise.resolve();
+      asks.focus.send({ targetId: target });
+      await wait(0);
+      expect(document.activeElement).toBe(document.body);
+    });
+
+    it("takes it back from the page to the side's home a moment after the page took it with no press", async () => {
+      guest().focus();
+      await wait(50);
+      expect(document.activeElement).toBe(guest());
+      await wait(200);
+      expect(document.activeElement).toBe(home);
+    });
+
+    it("leaves it in the page after a press the person made there", async () => {
+      asks.pressed.send({ targetId: target });
+      await wait(0);
+      guest().focus();
+      await wait(250);
+      expect(document.activeElement).toBe(guest());
+    });
   });
 });

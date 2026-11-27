@@ -1339,3 +1339,101 @@ describe("a tab marked as an app's sign-in page", () => {
     expect(markSignIn(state, "gone", { slug: "notes" })).toBe(state);
   });
 });
+
+// Agents name a tab by one id for its whole life, whatever kind of tab it
+// turns into: a page landing on a local HTML file, a file's page leaving for
+// a site, a step back to a visit of the other kind.
+describe("a tab's agent id", () => {
+  const FILE = "/Users/mac-user/site/report.html";
+  const agentIds = (state: WindowTabs) =>
+    state.tabs
+      .filter((tab) => tab.group === CHAT)
+      .map((tab) => tab.agentId ?? tab.id);
+
+  it("stays the page's as the page lands on a file and becomes its tab", () => {
+    const next = pageBecomesFile(
+      windowOf([pageTab("page", `file://${FILE}`, CHAT)], { [CHAT]: "page" }),
+      {
+        file: { href: fileHref(FILE), id: "file" },
+        hostGroup: "page:file",
+        page: "page",
+      },
+    );
+    expect(agentIds(next)).toEqual(["page"]);
+    // The page drawn inside the tab goes by its own id alone.
+    expect(next.tabs.find((tab) => tab.id === "page")).not.toHaveProperty(
+      "agentId",
+    );
+  });
+
+  it("stays the file tab's as its page leaves for a site", () => {
+    const next = pageTakesOver(
+      windowOf(
+        [
+          screenTab("file", fileHref(FILE), CHAT),
+          pageTab("page", `file://${FILE}`, "page:file"),
+        ],
+        { [CHAT]: "file" },
+      ),
+      { page: "page", tab: "file", url: "https://example.com/" },
+    );
+    expect(agentIds(next)).toEqual(["file"]);
+  });
+
+  it("goes through a page to its file and back out to a site unchanged", () => {
+    const onFile = pageBecomesFile(
+      windowOf([pageTab("page", `file://${FILE}`, CHAT)], { [CHAT]: "page" }),
+      {
+        file: { href: fileHref(FILE), id: "file" },
+        hostGroup: "page:file",
+        page: "page",
+      },
+    );
+    const out = pageTakesOver(onFile, {
+      page: "page",
+      tab: "file",
+      url: "https://example.com/",
+    });
+    expect(agentIds(out)).toEqual(["page"]);
+    expect(out.tabs[0]).not.toHaveProperty("agentId");
+  });
+
+  it("stays the tab's as a page opens in its place", () => {
+    const opened = openPage(THREE, {
+      group: undefined,
+      page: { id: "p", openedAt: 0, url: "https://example.com" },
+      replacing: THREE.tabs[1],
+      select: false,
+    });
+    expect(agentIds(opened)).toEqual(["a", "b", "c"]);
+  });
+
+  it("stays the page's as it goes to a screen, and back", () => {
+    const screen = tabToScreen(
+      windowOf([pageTab("page", "https://example.com/", CHAT)]),
+      { href: "/apps", id: "page", newId: "apps" },
+    );
+    expect(agentIds(screen)).toEqual(["page"]);
+    const back = stepVisit(screen, "apps", -1).state;
+    expect(back.tabs).toEqual([
+      expect.objectContaining({ id: "page", kind: "page" }),
+    ]);
+    expect(back.tabs[0]).not.toHaveProperty("agentId");
+    expect(agentIds(stepVisit(back, "page", 1).state)).toEqual(["page"]);
+  });
+
+  it("goes with the tab to another group", () => {
+    const moved = moveTabTo(
+      windowOf([
+        { ...screenTab("file", fileHref(FILE), CHAT), agentId: "page" },
+        screenTab("b", "/apps", CHAT),
+        screenTab("x", "/apps", OTHER),
+      ]),
+      { group: OTHER, id: "file", side: 0 },
+    );
+    expect(moved.tabs.find((tab) => tab.id === "file")).toMatchObject({
+      agentId: "page",
+      group: OTHER,
+    });
+  });
+});

@@ -31,3 +31,26 @@ describe("a tab group's name as it is kept", () => {
     );
   });
 });
+
+describe("a tab's agent id as it is kept", () => {
+  it("comes back as it was written, through the kept file's JSON", () => {
+    const tabs = {
+      activeByGroup: { group_a: "file" },
+      tabs: [
+        {
+          agentId: "page",
+          group: "group_a",
+          href: "/files?file=%2Freport.html",
+          id: "file",
+          kind: "screen" as const,
+        },
+      ],
+    };
+    const written = JSON.parse(
+      JSON.stringify(Object.fromEntries(splitTabGroups(tabs))),
+    ) as Record<string, unknown>;
+    expect(joinTabGroups(new Map(Object.entries(written))).tabs).toMatchObject([
+      { agentId: "page", group: "group_a", id: "file" },
+    ]);
+  });
+});

@@ -937,6 +937,17 @@ textarea.md-input {
     --table-fade-end: 0px;
   }
 }
+/* A cell holding the selected node: a faint outline, as Notion marks one. */
+.md-editor
+  .milkdown
+  .milkdown-table-block
+  :is(th, td):has(.ProseMirror-selectednode) {
+  outline-color: color-mix(in srgb, var(--foreground) 25%, transparent);
+}
+/* The link tooltip over the table's drag handles (`z-index: 50`). */
+.md-editor .milkdown :is(.milkdown-link-preview, .milkdown-link-edit) {
+  z-index: 51;
+}
 /* Crepe's table controls on the app's popover and ghost buttons. */
 .md-editor .milkdown .milkdown-table-block .cell-handle {
   background: var(--popover);

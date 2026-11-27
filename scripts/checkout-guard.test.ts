@@ -1,6 +1,5 @@
-// node --test scripts/checkout-guard.test.ts
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 
 import { gitCommands, refusal } from "./checkout-guard.ts";
 
@@ -9,7 +8,7 @@ const refused = (command: string) =>
     ({ args, env }) => refusal(args, env) !== undefined,
   );
 
-void test("refuses what discards or takes in other sessions' edits", () => {
+test("refuses what discards or takes in other sessions' edits", () => {
   for (const command of [
     "git stash",
     "git stash pop",
@@ -31,7 +30,7 @@ void test("refuses what discards or takes in other sessions' edits", () => {
   }
 });
 
-void test("lets through what touches only the index, history or a private index", () => {
+test("lets through what touches only the index, history or a private index", () => {
   for (const command of [
     "git status",
     "git stash list",
@@ -48,7 +47,7 @@ void test("lets through what touches only the index, history or a private index"
   }
 });
 
-void test("follows cd and -C to the folder a git command runs in", () => {
+test("follows cd and -C to the folder a git command runs in", () => {
   assert.deepEqual(
     gitCommands(
       "cd /elsewhere && git stash; git -C ../wt checkout x",

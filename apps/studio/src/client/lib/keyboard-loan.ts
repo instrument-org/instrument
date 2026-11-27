@@ -20,6 +20,8 @@
  * press or key makes, or the window's own code, is heard as it happens.
  */
 
+import { isShown } from "@/client/lib/keyboard-place";
+
 /** How long the window waits to hear where the keyboard went once it is neither in a page nor back, in ms. */
 const PASSING_MS = 100;
 
@@ -32,8 +34,6 @@ type Options = {
   isBrowsersDoing?: () => boolean;
   /** Whether a person put the keyboard in this page. */
   isPersonsPage: (guest: Element) => boolean;
-  /** Whether a person can see this element. */
-  isShown: (element: Element) => boolean;
 };
 
 /**
@@ -61,9 +61,6 @@ let isTelling = false;
 let isPersonActing = false;
 
 let settling: ReturnType<typeof setTimeout> | null = null;
-
-/** Whether a person can see an element, as whoever installed this says. */
-let isOnShow: (element: Element) => boolean = () => true;
 
 const pageListeners = new Set<(guest: HTMLElement) => void>();
 
@@ -101,7 +98,7 @@ export function returnLentKeyboard() {
     }
     return true;
   }
-  if (!from.isConnected || !isOnShow(from)) {
+  if (!from.isConnected || !isShown(from)) {
     return false;
   }
   from.focus({ preventScroll: true });
@@ -172,11 +169,9 @@ function hasNoScriptUnder() {
 export function installKeyboardLoan({
   isBrowsersDoing = hasNoScriptUnder,
   isPersonsPage,
-  isShown,
 }: Options) {
   const controller = new AbortController();
   const options = { capture: true, signal: controller.signal };
-  isOnShow = isShown;
 
   const settle = () => {
     settling = null;
@@ -344,6 +339,5 @@ export function installKeyboardLoan({
     endLoan();
     strayedOnto = null;
     isPersonActing = false;
-    isOnShow = () => true;
   };
 }

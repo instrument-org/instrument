@@ -1,5 +1,6 @@
 import {
   isOnSideWithoutKeyboard,
+  isShown,
   keyboardPlace,
   listenForKeyboardPlace,
 } from "@/client/lib/keyboard-place";
@@ -88,11 +89,7 @@ function findTargetForKeyboard(): FindTarget | undefined {
               surface,
               target,
               // Drawn, and not under something that put it out of reach.
-              visible:
-                surface.checkVisibility({
-                  opacityProperty: true,
-                  visibilityProperty: true,
-                }) && surface.closest("[inert]") === null,
+              visible: isShown(surface, { opacity: true }),
             },
           ]
         : [];

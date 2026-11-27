@@ -33,6 +33,7 @@ import {
 } from "@/client/lib/keyboard-loan";
 import {
   isOnSideWithoutKeyboard,
+  isShown,
   keyboardSide,
 } from "@/client/lib/keyboard-place";
 
@@ -43,13 +44,6 @@ const HOME_WAIT_FRAMES = 30;
 const PART_WAIT_FRAMES = 300;
 
 const ACTIVE_TAB = "[data-app-tab-active]";
-
-/**
- * Marks a page's guest while a slot shows it. The pool's to set: a guest is
- * drawn on the body, outside every element of the window's own, and one put
- * away stays drawn there out of sight.
- */
-export const PAGE_ON_SCREEN = "data-page-on-screen";
 
 /** Homes the window cannot put the keyboard in by focusing them, with how to. */
 const homeFocus = new WeakMap<
@@ -385,7 +379,7 @@ export function focusReplyBox(from: Element) {
   const home =
     column &&
     [...column.querySelectorAll<HTMLElement>("[data-keyboard-home]")].find(
-      isShown,
+      (each) => isShown(each),
     );
   const way = home && homeFocus.get(home);
   const target = home && targetIn(home);
@@ -495,7 +489,7 @@ function rememberHome() {
 /** The homes drawn in `root`, the one that goes first first. */
 function homesIn(root: ParentNode): HTMLElement[] {
   return [...root.querySelectorAll<HTMLElement>("[data-keyboard-home]")]
-    .filter(isShown)
+    .filter((home) => isShown(home))
     .sort(
       (a, b) =>
         Number(a.dataset.keyboardHome || 1) -
@@ -531,23 +525,10 @@ function isInScreen(element: Element | null): element is HTMLElement {
 
 function first(root: HTMLElement, selector: string) {
   return (
-    [...root.querySelectorAll<HTMLElement>(selector)].find(isShown) ?? null
+    [...root.querySelectorAll<HTMLElement>(selector)].find((each) =>
+      isShown(each),
+    ) ?? null
   );
-}
-
-/**
- * Drawn, and not in a part of the screen put out of reach (`inert`); a
- * page's guest, while a slot shows it (`PAGE_ON_SCREEN`). Opacity does not
- * count: a popover or menu fades in from zero, and the keyboard its opening
- * put in it is not gone.
- */
-function isShown(element: Element) {
-  if (element.closest("[inert]") !== null) {
-    return false;
-  }
-  return element.tagName === "WEBVIEW"
-    ? element.hasAttribute(PAGE_ON_SCREEN)
-    : element.checkVisibility({ visibilityProperty: true });
 }
 
 /**
@@ -705,7 +686,6 @@ export function installKeyboardHome() {
   const { signal } = controller;
   const endLoans = installKeyboardLoan({
     isPersonsPage: (guest) => guest === lastPlace,
-    isShown,
   });
   // Whether the press now ending was on a button or a tab, which leaves the
   // keyboard where it was; a page beside the screen loses it all the same,

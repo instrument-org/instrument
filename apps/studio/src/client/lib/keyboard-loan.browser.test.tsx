@@ -34,7 +34,6 @@ beforeEach(() => {
   uninstall = installKeyboardLoan({
     isBrowsersDoing: () => isBrowsers,
     isPersonsPage: (guest) => guest === personsPage,
-    isShown: (element) => element.checkVisibility(),
   });
   field = document.createElement("input");
   field.setAttribute("aria-label", "field");
@@ -245,7 +244,6 @@ describe("a field losing the keyboard some other way", () => {
     uninstall();
     uninstall = installKeyboardLoan({
       isPersonsPage: () => false,
-      isShown: () => true,
     });
     const blurred = vi.fn();
     field.addEventListener("blur", blurred);

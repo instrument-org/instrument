@@ -4,6 +4,31 @@ import {
 } from "@instrument-org/workspace/client";
 
 /**
+ * Marks a page's guest while a slot shows it. The pool's to set: a guest is
+ * drawn on the body, outside every element of the window's own, and one put
+ * away stays drawn there out of sight.
+ */
+export const PAGE_ON_SCREEN = "data-page-on-screen";
+
+/**
+ * Drawn, and not in a part of the screen put out of reach (`inert`); a
+ * page's guest, while a slot shows it (`PAGE_ON_SCREEN`). Opacity counts only
+ * when asked for: a popover or menu fades in from zero, and the keyboard its
+ * opening put in it is not gone.
+ */
+export function isShown(element: Element, { opacity = false } = {}) {
+  if (element.closest("[inert]") !== null) {
+    return false;
+  }
+  return element.tagName === "WEBVIEW"
+    ? element.hasAttribute(PAGE_ON_SCREEN)
+    : element.checkVisibility({
+        opacityProperty: opacity,
+        visibilityProperty: true,
+      });
+}
+
+/**
  * The side of the tab group on screen that has the keyboard, which every
  * chord meaning "the tab up" acts on, whatever holds the caret. Null while
  * no tab group is on screen.

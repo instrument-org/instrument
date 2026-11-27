@@ -1,8 +1,5 @@
-import {
-  installKeyboardHome,
-  PAGE_ON_SCREEN,
-  setHomeFocus,
-} from "@/client/lib/keyboard-home";
+import { installKeyboardHome, setHomeFocus } from "@/client/lib/keyboard-home";
+import { PAGE_ON_SCREEN } from "@/client/lib/keyboard-place";
 import { renderInBrowser } from "@/tests/render-browser";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { afterEach, beforeEach, expect, it } from "vitest";

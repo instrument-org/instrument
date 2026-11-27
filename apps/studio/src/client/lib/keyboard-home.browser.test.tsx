@@ -9,13 +9,12 @@ import {
   keepCaretOnKeyboardSide,
   leaveField,
   notePersonInPage,
-  PAGE_ON_SCREEN,
   placeCaretAfterPress,
   returnKeyboardFromAgent,
   returnKeyboardToWindow,
   setHomeFocus,
 } from "./keyboard-home";
-import { isPageOnSideWithoutKeyboard } from "./keyboard-place";
+import { isPageOnSideWithoutKeyboard, PAGE_ON_SCREEN } from "./keyboard-place";
 
 let uninstall: () => void;
 

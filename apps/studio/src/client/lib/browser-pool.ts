@@ -3,7 +3,6 @@ import {
   focusHomeIn,
   isKeyboardNowhere,
   notePersonInPage,
-  PAGE_ON_SCREEN,
   returnKeyboardFromAgent,
   returnKeyboardToWindow,
 } from "@/client/lib/keyboard-home";
@@ -16,6 +15,7 @@ import {
 import {
   isPageOnSideWithoutKeyboard,
   keyboardSide,
+  PAGE_ON_SCREEN,
   pageOfSide,
 } from "@/client/lib/keyboard-place";
 import {

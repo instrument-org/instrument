@@ -281,10 +281,18 @@ describe("a page found holding a keyboard it took from a field", () => {
     new Promise((resolve) => {
       setTimeout(resolve, 200);
     });
+  // jsdom draws nothing and has no checkVisibility, so every element counts
+  // as shown.
+  beforeAll(() => {
+    Element.prototype.checkVisibility = () => true;
+  });
+  afterAll(() => {
+    // @ts-expect-error jsdom's own prototype has none.
+    delete Element.prototype.checkVisibility;
+  });
   beforeEach(() => {
     endLoans = installKeyboardLoan({
       isPersonsPage: () => false,
-      isShown: () => true,
     });
     field = document.createElement("input");
     field.addEventListener("blur", () => {

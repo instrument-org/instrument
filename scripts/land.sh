@@ -241,29 +241,55 @@ run_checks
 
 # Fast-forwarding refuses to update a file with uncommitted changes in the
 # target checkout. Those are another session's edits, so wait for it to commit
-# them; discarding or stashing them would throw its work away.
+# them; discarding or stashing them would throw its work away. The one
+# exception is a file that differs from its commit only by oxfmt's output: a
+# format hook that ran after the commit left it, and putting the commit back
+# loses nothing. The wait gives up the land slot, so the landings queued
+# behind this one go ahead meanwhile.
+format_only() {
+  local file=$1 formatted
+  [[ -x "$target_root/node_modules/.bin/oxfmt" ]] || return 1
+  formatted=$(git -C "$target_root" show "HEAD:$file" 2> /dev/null |
+    (cd "$target_root" && node_modules/.bin/oxfmt --stdin-filepath "$file") 2> /dev/null) || return 1
+  [[ "$formatted" == "$(cat "$target_root/$file")" ]]
+}
 wait_for_target() {
-  local waited=0 updates blocking
+  local waited=0 updates blocking file left
   while true; do
     updates=$(git diff --name-only "$target" HEAD)
-    [[ -n "$updates" ]] || return 0
+    [[ -n "$updates" ]] || break
     # shellcheck disable=SC2086
     blocking=$({
       git -C "$target_root" diff --name-only HEAD -- $updates
       git -C "$target_root" ls-files --others --exclude-standard -- $updates
     } | sort -u)
-    [[ -z "$blocking" ]] && return 0
+    left=
+    while read -r file; do
+      [[ -n "$file" ]] || continue
+      if format_only "$file"; then
+        git -C "$target_root" checkout --quiet HEAD -- "$file"
+        echo "land: put back $file in $target_root, which differed from its commit only by formatting"
+      else
+        left+="$file"$'\n'
+      fi
+    done <<< "$blocking"
+    [[ -z "$left" ]] && break
     if ((waited >= ${LAND_WAIT_SECONDS:-600})); then
       fail "another session still has uncommitted edits to files this branch changes, so $target was left alone. They are its work: never discard or stash them. Rerun once it commits them:
-$blocking"
+$left"
     fi
     if ((waited == 0)); then
+      release_check_slot
       echo "land: waiting for another session to commit its edits in $target_root to:"
-      sed 's/^/  /' <<< "$blocking"
+      sed '/^$/d; s/^/  /' <<< "$left"
     fi
     sleep 15
     waited=$((waited + 15))
   done
+  if [[ -z "$check_slot_dir" ]]; then
+    take_check_slot land 1 "${LAND_QUEUE_SECONDS:-1800}" ||
+      fail "another landing held the queue for ${check_slot_waited}s; rerun once it finishes"
+  fi
 }
 
 # The target keeps moving while the checks run, so rebase onto wherever it went and

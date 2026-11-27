@@ -52,8 +52,8 @@ const CHAT_FACTS = {
 const pageTab = StoreId.newTabId();
 let pageUrls: string[];
 /** A tab on an HTML file, and the page that draws it, which earlier builds named the tab by. */
-const fileTab = StoreId.newTabId();
-const filePage = StoreId.newTabId();
+const fileTab = StoreId.TabSchema.parse("tab_01M8FKN7EM04DCR24XDM65DP1C");
+const filePage = StoreId.TabSchema.parse("tab_01M8FKN7EM04DCR24XDM65DP1D");
 
 // Which task is at work in which tab, as the chat's tasks' records would say.
 const holders = new Map<
@@ -386,6 +386,12 @@ function answeringWindow() {
               kind: "website" as const,
               title: "Example",
             })),
+            {
+              address: path.join(chatFolder, "report.html"),
+              id: fileTab,
+              kind: "file" as const,
+              title: "report.html",
+            },
           ],
         },
       ],
@@ -846,7 +852,11 @@ describe("window close, show and read on a tab", () => {
   it("prints the text of the page in a tab", async () => {
     const result = await run({}, "read", "tab_known");
 
-    expect(asked[0]?.action).toEqual({ kind: "read", tabId: "tab_known" });
+    // After the list that finds the page the tab draws.
+    expect(asked.map(({ action }) => action)).toEqual([
+      { kind: "list" },
+      { kind: "read", tabId: "tab_known" },
+    ]);
     expect(result.stdout).toBe("Jar\nA rigid container.\n");
   });
 
@@ -958,9 +968,20 @@ describe("a tab on an HTML file", () => {
 
     const result = await run({}, "read", fileTab);
 
+    expect(asked.map(({ action }) => action.kind)).not.toContain("read");
     expect(result.exitCode).toBe(1);
-    expect(result.stdout).toBe("");
     expect(result.stderr).toContain(`tab ${fileTab} shows a file outside`);
+  });
+
+  it("says what its side shows once closed by its page's id", async () => {
+    const result = await run({}, "close", filePage);
+
+    expect(
+      result.stdout.replaceAll(pageTab, "<page>").replaceAll(fileTab, "<file>"),
+    ).toMatchInlineSnapshot(`
+      "Closed tab <file>. That side now shows zendesk.com/pricing.
+      "
+    `);
   });
 
   it("waits on it named by its page's id, under the tab's", async () => {
@@ -999,6 +1020,7 @@ describe("window list", () => {
           tab_known  left     [chat] Prices (you)  instrument://chat/this
         right (keyboard):
           <page>  right    Suite plans · https://www.zendesk.com/pricing/  instrument://tab/<page>  task t1 is working in it
+          tab_01M8FKN7EM04DCR24XDM65DP1C  hidden   /work/chats/window-command-chat/report.html  instrument://tab/tab_01M8FKN7EM04DCR24XDM65DP1C
       Showing: you on the left; zendesk.com/pricing on the right, beside you.
       2 other tab groups in this window: "Launch plan" (pinned), "Meeting notes". 1 other window has 1 tab group. \`instrument window list --all\` lists their tabs.
       "
@@ -1017,6 +1039,7 @@ describe("window list", () => {
           tab_known  left     [chat] Prices (you)  instrument://chat/this
         right (keyboard):
           <page>  right    Suite plans · https://www.zendesk.com/pricing/  instrument://tab/<page>  you are working in it
+          tab_01M8FKN7EM04DCR24XDM65DP1C  hidden   /work/chats/window-command-chat/report.html  instrument://tab/tab_01M8FKN7EM04DCR24XDM65DP1C
       Showing: you on the left; zendesk.com/pricing on the right, beside you.
       2 other tab groups in this window: "Launch plan" (pinned), "Meeting notes". 1 other window has 1 tab group. \`instrument window list --all\` lists their tabs.
       "
@@ -1069,6 +1092,7 @@ describe("window list, of other groups", () => {
             tab_known  left     [chat] Prices (you)  instrument://chat/this
           right (keyboard):
             <page>  right    Suite plans · https://www.zendesk.com/pricing/  instrument://tab/<page>
+            tab_01M8FKN7EM04DCR24XDM65DP1C  hidden   /work/chats/window-command-chat/report.html  instrument://tab/tab_01M8FKN7EM04DCR24XDM65DP1C
         Tab group "report.md" named "Launch plan" instrument://group/group:docs, pinned, in the project "Launch", not on screen, last brought up 2026-11-24T09:12Z:
           tab_docs  showing  /Users/me/Instrument/report.md  instrument://tab/tab_docs
           tab_settings  hidden   [app] Settings · instrument://screen/settings  instrument://tab/tab_settings
@@ -1829,7 +1853,7 @@ describe("in a task", () => {
       const result = await run({ role: "task" }, ...args);
 
       expect(result.exitCode).toBe(0);
-      expect(asked).toHaveLength(1);
+      expect(asked.at(-1)?.action.kind).toBe(args[0]);
     },
   );
 

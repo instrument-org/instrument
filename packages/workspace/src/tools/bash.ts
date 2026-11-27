@@ -471,15 +471,21 @@ const bashCapability = defineCapability({
           movedForMessageFrom?: WaitInterrupt["from"],
         ) => {
           const { omittedBytes, text } = handle.buffer.drain();
+          // What the command collected before it moved: a card it raised
+          // ends the turn, a hand-off counts, as for a call that finished.
+          const browserNews = browserFollowUp.takeNews();
           void handle.completion.then(
             () => settleFacts(text),
             () => settleFacts(text),
           );
           return ok({
             ...(ampersand === "trailing" ? { backgrounded: true } : {}),
+            ...(asks.length > 0 ? { asks: [...asks] } : {}),
+            ...(browserNews.length > 0 ? { browserNews } : {}),
             command: input.command,
             commands: [],
             durationMs: Math.round(performance.now() - startedAt),
+            ...(handOffs.length > 0 ? { handOffs: [...handOffs] } : {}),
             logFilePath: info.logFilePath,
             logOmittedBytes: info.logOmittedBytes,
             ...(info.logWriteError
@@ -782,6 +788,7 @@ function bashOutputText(output: z.output<typeof bashOutputSchema>): {
           // which commands ran once it finishes, and this call returns before
           // that.
           ...(promotedSkippedBuilds ? [promotedSkippedBuilds] : []),
+          ...(output.browserNews ? ["", ...output.browserNews] : []),
           systemNote`
             ${output.processId} is still running. Follow it with \`${FG_COMMAND.name} ${output.processId}\`, which prints what it has written since your last read and exits with its exit code once it finishes, and stop it with \`${KILL_COMMAND.name} ${output.processId}\`. \`${JOBS_COMMAND.name}\` lists everything still running. Its bounded process log is at ${output.logFilePath}.
             Do not start a second copy of a process that is already running. A process you leave running stays running after your turn ends, so kill anything the user does not need -- but leave a server running if they still want to reach it.

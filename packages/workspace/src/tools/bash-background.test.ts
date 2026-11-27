@@ -21,6 +21,36 @@ import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 
 const model = createMockAIGatewayModel();
 
+// A command naming RAISE raises a card and hands work to a task as its
+// first act, as an `instrument` command in a script does, then runs on.
+const raised = vi.hoisted(() => ({
+  askId: "ask_1",
+  taskId: "ses_01M8FCWWX74N5CA7DG6N4NJ3HM",
+}));
+vi.mock(import("../lib/create-bash-env"), async (importOriginal) => {
+  const original = await importOriginal();
+  const { recordRaisedAsk } = await import("../lib/shell-commands/raised-asks");
+  const { recordHandOff } = await import("../lib/shell-commands/task-hand-off");
+  return {
+    ...original,
+    createBashEnv: async (...args) => {
+      const env = await original.createBashEnv(...args);
+      const exec = env.exec.bind(env);
+      env.exec = (command, options) => {
+        if (command.includes("RAISE")) {
+          recordRaisedAsk(raised.askId);
+          recordHandOff({
+            kind: "created",
+            sessionId: StoreId.SessionSchema.parse(raised.taskId),
+          });
+        }
+        return exec(command, options);
+      };
+      return env;
+    },
+  };
+});
+
 /**
  * The only tests that put a real subprocess through the real interpreter.
  *
@@ -229,6 +259,27 @@ describe("bash background processes, end to end", () => {
       ),
     ]);
     expect((await bash("echo again", 10_000)).jobsEnded).toBeUndefined();
+  }, 30_000);
+
+  it("keeps the cards and hand-offs a command collected before it moved", async () => {
+    const started = await bash(": RAISE; sleep 5", 300);
+    expect(started.processId).toBeDefined();
+    expect({
+      asks: started.asks,
+      handOffs: started.handOffs,
+    }).toMatchInlineSnapshot(`
+      {
+        "asks": [
+          "ask_1",
+        ],
+        "handOffs": [
+          {
+            "kind": "created",
+            "sessionId": "ses_01M8FCWWX74N5CA7DG6N4NJ3HM",
+          },
+        ],
+      }
+    `);
   }, 30_000);
 
   it("returns a fast command inline without registering anything", async () => {

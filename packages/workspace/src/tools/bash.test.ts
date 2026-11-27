@@ -343,6 +343,24 @@ describe("BashTool toModelOutput", () => {
       `);
     });
 
+    it("says what a script's browser commands had to say before it moved", () => {
+      expect(
+        promotedLead({
+          ...promoted,
+          browserNews: ["Tab 4 opened from tab 2: https://example.com/login."],
+          durationMs: 1000,
+        }),
+      ).toMatchInlineSnapshot(`
+        "Still running after 1 second, so it moved to the background.
+        Process id: bg_1
+
+        No output yet.
+
+        Tab 4 opened from tab 2: https://example.com/login.
+        "
+      `);
+    });
+
     it("says a message moved it to the background, not its yield", () => {
       expect(
         promotedLead({

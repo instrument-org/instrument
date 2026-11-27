@@ -26,6 +26,8 @@ import { browserTargetOf } from "../../types";
 import { agentBrowserSocketDir } from "../agent-browser";
 import { publisher } from "../../rpc/publisher";
 import { scriptStillRunningMessage } from "../running-page-script";
+import { notePageDownload } from "../chat/page-downloads";
+import { noteTabCommand } from "../tab-activity";
 import { sessionLayout } from "../session-layout";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
@@ -1208,6 +1210,24 @@ describe("agent-browser routing", () => {
       expect(runs).toContainEqual(clicked);
     },
   );
+
+  it("names the file a click downloaded in the click's result", async () => {
+    const tab = browserTargetOf(StoreId.newTabId());
+    noteTabCommand(tab, { chatId, sessionId });
+    const saved = path.join(workRoot, "downloads", "report.csv");
+    await answerAgentBrowser((given) => {
+      if (given.includes("click")) {
+        notePageDownload(tab, "d1", { path: saved, state: "completed" });
+      }
+      return { exitCode: 0, stderr: "", stdout: "✓ Done\n" };
+    });
+
+    const result = await command.execute(["click", "@e2"], commandCtx);
+
+    expect(result.stdout.replace(tab, "<tab>")).toBe(
+      `✓ Done\nThe page in tab <tab> downloaded report.csv to ${shellPath(saved)}.\n`,
+    );
+  });
 
   it("gives a network-idle wait the harness's timeout and reports when the network stayed busy", async () => {
     const { args } = await spawnedWith(["wait", "--load", "networkidle"]);

@@ -9,6 +9,10 @@ import { z } from "zod";
 import type { BrowserEntry } from "./entry";
 
 import { publisher } from "@/electron-main/rpc/publisher";
+import {
+  agentDownloadsFolder,
+  notePageDownload,
+} from "@instrument-org/workspace/electron";
 
 import { type DownloadOrigin, trackDownload } from "./download-list";
 import { markFromInternet } from "../lib/download-mark";
@@ -122,6 +126,11 @@ function takeAskedSave(webContentsId: number, item: DownloadItem) {
 // The agent's authorization covers a download only while no person has used
 // the guest since it was given: a click of the agent's that starts no download
 // leaves it in place, and the person's own click afterwards is theirs. A
+// download with no authorization that starts soon after an agent's command
+// in the guest, with no person's input since, is the agent's too, as a plain
+// click on a download link is: it lands in the downloads folder of the chat
+// driving the tab (`agentFolderOf`) under its own name, goes on the list as
+// the agent's, and is named in that session's next result. A
 // person's download from a guest that never committed a page leaves its tab
 // with nothing to show, and `pageBecameDownload` says so once the file has a
 // place, or the person declined to give it one, as Chromium's
@@ -130,12 +139,16 @@ export function routeGuestDownloads(
   session: Session,
   registry: Pick<GuestRegistry, "documentOf" | "entryOf" | "get">,
   {
+    agentFolderOf = agentDownloadsFolder,
     markDownloaded = markFromInternet,
+    noteAgentDownload = notePageDownload,
     pageBecameDownload = (targetId) => {
       publisher.publish("browser.page-became-download", { targetId });
     },
   }: {
+    agentFolderOf?: (targetId: BrowserEntry["targetId"]) => string | undefined;
     markDownloaded?: (file: string) => Promise<void>;
+    noteAgentDownload?: typeof notePageDownload;
     pageBecameDownload?: (targetId: BrowserEntry["targetId"]) => void;
   } = {},
 ) {
@@ -213,11 +226,19 @@ export function routeGuestDownloads(
         });
       }
     };
+    const agentStartedIt =
+      Date.now() - entry.lastAgentCommandAt < PRESS_STARTS_DOWNLOAD_MS &&
+      (record?.userInputAt ?? 0) <= entry.lastAgentCommandAt;
+    const agentFolder = agentStartedIt
+      ? agentFolderOf(entry.targetId)
+      : undefined;
     const owner = takeAskedSave(webContents.id, item)
       ? "asked"
       : entry.authorizedDownloadPath && !usedSinceAuthorized
         ? "agent"
-        : "person";
+        : agentFolder === undefined
+          ? "person"
+          : "agent-page";
     log.info(
       `download for=${owner} targetId=${entry.targetId} committed=${String(!leftNothing)} ${describeDownload(item)}`,
     );
@@ -231,11 +252,80 @@ export function routeGuestDownloads(
         origin,
         stillOwned,
       });
+    } else if (owner === "agent-page" && agentFolder !== undefined) {
+      saveForAgentPage(entry, item, {
+        folder: agentFolder,
+        noteAgentDownload,
+        origin,
+      });
     } else {
       saveForPerson(item, origin);
       onceItHasAPlace();
     }
   });
+}
+
+// A download the agent's own click or navigation started, with no folder
+// authorized for it: saved in the chat's downloads folder under its own name,
+// numbered as a browser numbers one when the name is taken, listed as the
+// agent's, and told to the session driving the tab as it begins and ends.
+// A folder that cannot be made sends it to the person's place instead.
+function saveForAgentPage(
+  entry: BrowserEntry,
+  item: DownloadItem,
+  {
+    folder,
+    noteAgentDownload,
+    origin,
+  }: {
+    folder: string;
+    noteAgentDownload: typeof notePageDownload;
+    origin: DownloadOrigin;
+  },
+) {
+  try {
+    fs.mkdirSync(folder, { recursive: true });
+  } catch (error) {
+    log.warn("Could not make the agent's downloads folder", error);
+    saveForPerson(item, origin);
+    return;
+  }
+  const savePath = path.join(
+    folder,
+    browserAvailableFilename(folder, item.getFilename()),
+  );
+  item.setSavePath(savePath);
+  trackDownload(item, savePath, { agent: true, origin });
+  const id = crypto.randomUUID();
+  noteAgentDownload(entry.targetId, id, { path: savePath, state: "running" });
+  item.once("done", (_event, state) => {
+    noteAgentDownload(entry.targetId, id, {
+      path: savePath,
+      state:
+        state === "completed"
+          ? "completed"
+          : state === "cancelled"
+            ? "canceled"
+            : "failed",
+    });
+  });
+}
+
+// A browser's convention for a name already taken in a folder: `report (1).csv`,
+// `report (2).csv`, and so on, done synchronously since the save path has to
+// be set before the will-download handler returns.
+function browserAvailableFilename(dir: string, filename: string): string {
+  const taken = (candidate: string) => fs.existsSync(path.join(dir, candidate));
+  if (!taken(filename)) {
+    return filename;
+  }
+  const ext = path.extname(filename);
+  const stem = ext ? filename.slice(0, -ext.length) : filename;
+  let suffix = 1;
+  while (taken(`${stem} (${suffix})${ext}`)) {
+    suffix += 1;
+  }
+  return `${stem} (${suffix})${ext}`;
 }
 
 // Runs `then` once the download has a place on disk, or ended without one:

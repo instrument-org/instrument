@@ -234,6 +234,10 @@ export { ensurePythonBase } from "./lib/python-base";
 export { linkOfficeIfInstalled } from "./lib/office/run";
 export { lastBrowserAgentActivity } from "./lib/browser-agent-activity";
 export { notePageOpenedTab } from "./lib/chat/popup-tabs";
+export {
+  agentDownloadsFolder,
+  notePageDownload,
+} from "./lib/chat/page-downloads";
 export { notePersonUsedTab } from "./lib/chat/person-used-tabs";
 export { WINDOW_ID } from "./schemas/window-id";
 export {

@@ -92,7 +92,7 @@ A browser extension's own pages (\`chrome-extension://\`) are the user's and are
 
 ## Downloads
 
-Save a file a page offers with \`agent-browser download @ref <name>\`, which puts it in \`${CHAT_FOLDER_NAMES.downloads}/\` under your work folder; a plain \`click\` on a download link can save it to the user's Downloads folder instead.`,
+A file a page offers lands in \`${CHAT_FOLDER_NAMES.downloads}/\` under your work folder, under its own name when a \`click\` starts it (the result says where), or under a name you pick with \`agent-browser download @ref <name>\`.`,
 };
 
 /** Every reference `--ref` and `--full` print: this app's own, then the release's. */

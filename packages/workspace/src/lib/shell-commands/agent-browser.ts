@@ -111,6 +111,7 @@ import {
 import { recordProgramStart } from "./command-runs";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 import { workDir } from "../work-dir";
+import { pageDownloadsNote } from "../chat/page-downloads";
 import { shellPath } from "../shell-path";
 
 const AGENT_BROWSER_SKILL_NAME = "agent-browser";
@@ -1609,6 +1610,7 @@ export function createAgentBrowserCommand({
       ...(drivesChatTabs
         ? [
             pageOpenedTabsNote(sessionId),
+            pageDownloadsNote(sessionId),
             await tabNewsNote({ chatId, sessionId }),
             await closedTabsNote({ chatId, sessionId }),
           ]

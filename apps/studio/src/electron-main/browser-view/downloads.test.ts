@@ -887,6 +887,92 @@ describe("routeGuestDownloads", () => {
   });
 });
 
+describe("a download an agent's own click started", () => {
+  // The guest an agent just pressed in, the chat driving it keeping its
+  // downloads in `folder`.
+  function agentClicked({
+    agentAt = Date.now(),
+    personAt = 0,
+  }: { agentAt?: number; personAt?: number } = {}) {
+    const folder = path.join(home.dir, "work", "chat", "downloads");
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
+    const entry = makeEntry();
+    entry.lastAgentCommandAt = agentAt;
+    entries.set(TARGET_ID, entry);
+    const noted: unknown[] = [];
+    const { session, trigger } = makeSession();
+    routeGuestDownloads(
+      session,
+      lookupIn(entries, [
+        recordOf(entry, { committed: true, userInputAt: personAt }),
+      ]),
+      {
+        agentFolderOf: (targetId) =>
+          targetId === TARGET_ID ? folder : undefined,
+        noteAgentDownload: (from, _id, download) => {
+          noted.push({ from, ...download });
+        },
+      },
+    );
+    return { entry, folder, noted, trigger };
+  }
+
+  it("lands in the chat's downloads folder under its own name, on the list as the agent's, and is told", () => {
+    const { entry, folder, noted, trigger } = agentClicked();
+
+    const item = makeFakeItem();
+    trigger(item, entry);
+    item.emit("done", {}, "completed");
+
+    const savedAt = path.join(folder, "report.pdf");
+    expect(item.setSavePath).toHaveBeenCalledWith(savedAt);
+    expect(listDownloads()[0]).toMatchObject({
+      agent: true,
+      path: savedAt,
+      state: "completed",
+    });
+    expect(noted).toEqual([
+      { from: TARGET_ID, path: savedAt, state: "running" },
+      { from: TARGET_ID, path: savedAt, state: "completed" },
+    ]);
+  });
+
+  it("numbers a name already taken the way a browser does", () => {
+    const { entry, folder, trigger } = agentClicked();
+    fs.mkdirSync(folder, { recursive: true });
+    fs.writeFileSync(path.join(folder, "report.pdf"), "");
+    fs.writeFileSync(path.join(folder, "report (1).pdf"), "");
+
+    const item = makeFakeItem();
+    trigger(item, entry);
+
+    expect(item.setSavePath).toHaveBeenCalledWith(
+      path.join(folder, "report (2).pdf"),
+    );
+  });
+
+  it.each([
+    {
+      name: "a person's click after the agent's",
+      times: { agentAt: Date.now() - 1000, personAt: Date.now() },
+    },
+    {
+      name: "an agent's command long before",
+      times: { agentAt: Date.now() - 60_000 },
+    },
+  ])("leaves $name the person's, in Downloads", ({ times }) => {
+    const { entry, noted, trigger } = agentClicked(times);
+
+    const item = makeFakeItem();
+    trigger(item, entry);
+
+    expect(item.setSavePath).toHaveBeenCalledWith(
+      path.join(home.downloads, "report.pdf"),
+    );
+    expect(noted).toEqual([]);
+  });
+});
+
 describe("an agent's authorization a person's click comes after", () => {
   it("leaves the person's download theirs, in Downloads", () => {
     const entries = new Map<BrowserTargetId, BrowserEntry>();

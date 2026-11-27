@@ -98,9 +98,13 @@ const macAppIcons = new Map<string, Promise<null | string>>();
 
 /**
  * The icon of an installed Mac app by its bundle identifier, for an app
- * whose server drives it. Null off macOS, when the app is not installed, or
- * when it could not be rendered. Rendered once per session; a failure is
- * dropped so the next ask tries again.
+ * whose server drives it. Null off macOS, when the app was not installed as
+ * its icon was last rendered, or when it could not be rendered. Kept across launches (`cache-store.ts`):
+ * rendering one runs a helper process, and the apps list waits on it as the
+ * window first draws, so a kept icon is answered at once and one past its age
+ * is rendered again behind it. Once per session otherwise; a failure is
+ * dropped so the next ask tries again, and an app with no icon is rendered
+ * again at the next launch, so one installed later has its icon then.
  */
 export function getMacAppIconUrl(bundleId: string): Promise<null | string> {
   if (process.platform !== "darwin") {
@@ -110,9 +114,17 @@ export function getMacAppIconUrl(bundleId: string): Promise<null | string> {
   if (cached) {
     return cached;
   }
-  const pending = renderDarwinBundleIcon(bundleId, APP_ICON_SIZE).then(
-    (base64) => storeFileOpenIcon(base64, APP_ICON_SIZE),
-  );
+  const key = macAppIconKey(bundleId);
+  const pending = cacheStore.getIcons([key]).then((kept) => {
+    const entry = kept.get(key);
+    if (!entry?.value) {
+      return renderMacAppIcon(bundleId);
+    }
+    if (entry.isStale) {
+      void renderMacAppIcon(bundleId).catch(() => null);
+    }
+    return entry.value;
+  });
   macAppIcons.set(bundleId, pending);
   void pending.catch(() => {
     if (macAppIcons.get(bundleId) === pending) {
@@ -120,6 +132,21 @@ export function getMacAppIconUrl(bundleId: string): Promise<null | string> {
     }
   });
   return pending;
+}
+
+/** Where a Mac app's icon is kept among the icons kept by app path, which no bundle identifier can be mistaken for. */
+function macAppIconKey(bundleId: string) {
+  return `bundle-id:${bundleId}`;
+}
+
+async function renderMacAppIcon(bundleId: string) {
+  const url = await storeFileOpenIcon(
+    await renderDarwinBundleIcon(bundleId, APP_ICON_SIZE),
+    APP_ICON_SIZE,
+  );
+  // None, for an app since uninstalled, replaces the icon kept for it.
+  await cacheStore.setIcons(new Map([[macAppIconKey(bundleId), url]]));
+  return url;
 }
 
 // The Finder, with its own icon rendered the way every candidate app's is, for

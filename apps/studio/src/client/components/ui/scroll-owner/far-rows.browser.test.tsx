@@ -144,16 +144,22 @@ const rowsOf = (turn: number) => [
   ),
 ];
 
-/** The row under the middle of the view, and its top on screen. */
+/** The row under the middle of the view (or the next, past a gap), and its top on screen. */
 function middleRow() {
   const view = viewport().getBoundingClientRect();
   const middle = view.top + view.height / 2;
   const row = [
     ...document.querySelectorAll<HTMLElement>("[data-message-scroller-item]"),
-  ].find((item) => {
-    const rect = item.getBoundingClientRect();
-    return rect.top <= middle && rect.bottom >= middle;
-  });
+  ].find((item) => item.getBoundingClientRect().bottom >= middle);
+  return row && { row, top: row.getBoundingClientRect().top };
+}
+
+/** The first row in view, and its top on screen. */
+function topRow() {
+  const top = viewport().getBoundingClientRect().top;
+  const row = [
+    ...document.querySelectorAll<HTMLElement>("[data-message-scroller-item]"),
+  ].find((item) => item.getBoundingClientRect().bottom > top);
   return row && { row, top: row.getBoundingClientRect().top };
 }
 
@@ -207,6 +213,9 @@ describe("FarRows", () => {
     expect(opener?.offsetHeight).toBe(48);
     expect(reply?.offsetHeight).toBe(replyHeight(0));
     expect(document.querySelector('[data-reply="0"]')).toBeNull();
+    // Only what arrives in the turns kept drawn is read out by the log.
+    expect(opener?.ariaLive).toBe("off");
+    expect(rowsOf(TURNS - 1).map((row) => row.ariaLive)).toEqual([null, null]);
   });
 
   it("lists every row's place in the column, boxes included", async () => {
@@ -258,6 +267,33 @@ describe("FarRows", () => {
       // Turns were drawn again on the way, so their heights changed.
       expect([...draws.values()].some((count) => count > 2)).toBe(true);
       expect(Math.min(up.boxedOnTheWay, down.boxedOnTheWay)).toBeGreaterThan(5);
+    },
+  );
+
+  it.each([0.75, 1, 1.5])(
+    "keeps the place a jump past the band lands on as the boxes there draw, at %fx zoom",
+    async (zoom) => {
+      draws.clear();
+      await renderInBrowser(<Harness zoom={zoom} />);
+      await expect.poll(() => boxedTurns().size).toBeGreaterThan(10);
+      const view = viewport();
+      for (const at of [0.4, 0.15, 0.6]) {
+        view.dispatchEvent(
+          new WheelEvent("wheel", { bubbles: true, deltaY: -100 }),
+        );
+        view.scrollTop = at * view.scrollHeight;
+        // The row the top of the view is in, which is what stays put: rows
+        // below it in view may draw at another height and move under it.
+        const landed = topRow();
+        expect(landed?.row.hasAttribute("data-placeholder")).toBe(true);
+        await frames(10);
+        expect(landed?.row.hasAttribute("data-placeholder")).toBe(false);
+        expect(
+          Math.abs(
+            (landed?.row.getBoundingClientRect().top ?? 0) - (landed?.top ?? 0),
+          ),
+        ).toBeLessThanOrEqual(1);
+      }
     },
   );
 

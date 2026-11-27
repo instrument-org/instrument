@@ -394,6 +394,10 @@ function MessageScrollerItem({
   const isBox = boxHeight !== undefined;
   return (
     <div
+      // The column is a log, which reads out what is added to it. A turn
+      // drawn again as the reader comes back to it, or a page of older ones,
+      // is not news; what arrives in the turns kept drawn is.
+      aria-live={turnId !== undefined && !keepDrawn ? "off" : undefined}
       className={cn("min-w-0 shrink-0", className)}
       data-message-id={messageId}
       data-message-scroller-item=""

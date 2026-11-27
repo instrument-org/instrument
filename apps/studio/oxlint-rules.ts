@@ -1417,7 +1417,7 @@ const noStackedDocComments = defineRule({
 // choice is read from the whole class list: the `className` it is in, or the
 // `cn(...)` call, or the string alone.
 const scrollingClass = /(?:^|\s)!?overflow-(?:[xy]-)?(?:auto|scroll)!?(?:\s|$)/;
-const scrollFadeChoice = /(?:^|\s)scroll-fade-(?:x|y|none)(?:[\s"'`]|$)/;
+const scrollFadeChoice = /(?:^|[\s"'`])scroll-fade-(?:x|y|none)(?:[\s"'`]|$)/;
 
 function classListOf(node: ESTree.Node): ESTree.Node {
   let list: ESTree.Node = node;

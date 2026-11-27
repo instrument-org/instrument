@@ -319,7 +319,7 @@ function SkillRow({
         </span>
       </span>
       {opens ? (
-        <span className="shrink-0 self-center text-xs text-muted-foreground opacity-0 group-hover/skill-row:opacity-100 group-focus-within/skill-row:opacity-100 @max-sm/app-content:hidden">
+        <span aria-hidden className="shrink-0 self-center text-xs text-muted-foreground opacity-0 group-focus-within/skill-row:opacity-100 group-hover/skill-row:opacity-100 @max-sm/app-content:hidden">
           {showInFolderLabel("folder")}
         </span>
       ) : null}

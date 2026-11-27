@@ -1,9 +1,10 @@
 /**
- * A side's narrowest, in layout px: a chat's composer and the toolbar still
- * fit, tightly. A group too narrow for its sides at this scrolls sideways
- * rather than squeezing either.
+ * A side's narrowest, in layout px: a page's row still fits once it has
+ * folded what it folds (`ROW_FOLDS`), with room in its field for an address,
+ * and most sites lay out at it, being a phone's width. A group too narrow for
+ * its sides at this scrolls sideways rather than squeezing either.
  */
-export const SIDE_WIDTH_MIN = 240;
+export const SIDE_WIDTH_MIN = 320;
 
 /** How near the middle, in layout px, a dragged gutter settles on it. */
 const SIDE_SNAP_PX = 15;

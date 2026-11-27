@@ -38,7 +38,8 @@ export class FarRows {
   private readonly boxed = new Set<string>();
   /**
    * What each boxed turn had drawn as it boxed, for finding a box by what is
-   * in it: its elements' ids and its words, whitespace aside.
+   * in it: its elements' ids and its replies' words (`data-reply-row`, what
+   * a quote is taken from), whitespace aside.
    */
   private readonly boxedContent = new Map<string, BoxedContent>();
   private boxedView: ReadonlySet<string> = new Set();
@@ -230,8 +231,8 @@ export class FarRows {
 
   /**
    * The boxed turns, in the column's order, that had drawn an element named
-   * `id` or the words `words` (whitespace aside) as they boxed: where a link
-   * or a quote lands when nothing drawn has it.
+   * `id` or a reply with the words `words` (whitespace aside) as they boxed:
+   * where a link or a quote lands when nothing drawn has it.
    */
   boxesHaving(match: { id: string } | { words: string }): string[] {
     const turns: { row: HTMLElement; turn: string }[] = [];
@@ -424,7 +425,11 @@ export class FarRows {
           ),
         ),
         words: rows
-          .map((row) => row.textContent)
+          .flatMap((row) =>
+            [...row.querySelectorAll("[data-reply-row]")].map(
+              (reply) => reply.textContent,
+            ),
+          )
           .join("")
           .replaceAll(/\s/g, ""),
       });

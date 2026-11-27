@@ -4,7 +4,7 @@
 // observers.
 import { useHashLinkScroll } from "@/client/hooks/use-hash-link-scroll";
 import { renderInBrowser } from "@/tests/render-browser";
-import { createRef } from "react";
+import { createRef, useRef } from "react";
 import { expect, it } from "vitest";
 
 import {
@@ -28,7 +28,7 @@ function HeadingLink() {
 }
 
 function Turns({ quote }: { quote: React.Ref<QuoteSelectionRef> }) {
-  const contentRef = createRef<HTMLDivElement>();
+  const contentRef = useRef<HTMLDivElement>(null);
   return (
     <MessageScrollerProvider autoScroll>
       <MessageScroller style={{ height: 600, width: 640 }}>
@@ -43,6 +43,10 @@ function Turns({ quote }: { quote: React.Ref<QuoteSelectionRef> }) {
                   messageId={id}
                   turnId={id}
                 >
+                  {index === 1 && (
+                    // The person's own words, which a quote is never of.
+                    <p>Simmer the onions slowly?</p>
+                  )}
                   <div data-reply-row={id} style={{ minHeight: 400 }}>
                     {index === 0 ? (
                       <>

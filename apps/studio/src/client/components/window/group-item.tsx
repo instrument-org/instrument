@@ -56,6 +56,7 @@ import { isKeptScreen, keptScreensAtom, withScreenUp } from "./kept-screens";
 import { keepFolderShown } from "./folder-fold";
 import { folderOf, segmentsOf } from "./host-path";
 import { editField } from "./omnibar-field";
+import { leaveField } from "@/client/lib/keyboard-home";
 import { screenIdentity } from "./screen-presentation";
 import { type TabLocation, tasksOfHref } from "./tab-location";
 import {
@@ -298,12 +299,14 @@ export function GroupItem({
     });
   }, [isReloaded, isShown]);
 
-  // A chat has no row over it, and Open Location brings its field up over
-  // its head until the caret leaves it.
+  // A chat has no row over it and a new tab's row has no field, and Open
+  // Location brings a field up over the head of either until the caret
+  // leaves it.
   const isRowless = up.kind === "screen" && chatOfTab(up) !== undefined;
+  const hasAskedField = isRowless || isNewChat;
   const [isFieldAsked, setFieldAsked] = useState(false);
   useEffect(() => {
-    if (!isRowless || !isShown) {
+    if (!hasAskedField || !isShown) {
       return;
     }
     return offerScreenField({
@@ -312,7 +315,7 @@ export function GroupItem({
         setFieldAsked(true);
       },
     });
-  }, [isRowless, isShown]);
+  }, [hasAskedField, isShown]);
 
   // A screen up is kept drawn once another tab or group takes its place
   // (`kept-screens.ts`), the one longest out of sight let go first.
@@ -498,29 +501,48 @@ export function GroupItem({
   // A new tab hints at a browser with bare, quiet controls and no field,
   // since its own box takes an address; a chat is the app's own page and
   // has no row over it at all.
+  // Open Location lays a field over the bare row, which stays under it so
+  // nothing below moves.
   const head = !isShown ? null : isNewChat ? (
-    <TabLocationRow
-      canGoBack={canGoBack}
-      canGoForward={canGoForward}
-      hasField={false}
-      isBare
-      location={location}
-      onBack={goBack}
-      onForward={goForward}
-      onSite={openHere}
-      onVisit={(href) => {
-        windowTabs.visitHref(up.id, href);
-      }}
-      reload={
-        <TabRowControl
-          chord="reloadPage"
-          disabled
-          icon={<ArrowClockwiseIcon className="size-4" />}
-          label="Reload"
-          onClick={noop}
-        />
-      }
-    />
+    <>
+      {isFieldAsked && (
+        <AskedField
+          onLeft={() => {
+            setFieldAsked(false);
+          }}
+        >
+          <TabLocationRow
+            location={location}
+            onSite={openHere}
+            onVisit={(href) => {
+              windowTabs.visitHref(up.id, href);
+            }}
+          />
+        </AskedField>
+      )}
+      <TabLocationRow
+        canGoBack={canGoBack}
+        canGoForward={canGoForward}
+        hasField={false}
+        isBare
+        location={location}
+        onBack={goBack}
+        onForward={goForward}
+        onSite={openHere}
+        onVisit={(href) => {
+          windowTabs.visitHref(up.id, href);
+        }}
+        reload={
+          <TabRowControl
+            chord="reloadPage"
+            disabled
+            icon={<ArrowClockwiseIcon className="size-4" />}
+            label="Reload"
+            onClick={noop}
+          />
+        }
+      />
+    </>
   ) : chatOfTab(up) === undefined ? (
     row(location)
   ) : isFieldAsked ? (
@@ -675,6 +697,18 @@ function AskedField({
   return (
     <div
       className="absolute inset-x-0 top-0 z-30"
+      onKeyDown={(event) => {
+        // Escape in an empty field, which has no place to go back to (a new
+        // tab's), puts the field away as it does one showing its place.
+        if (
+          event.key === "Escape" &&
+          !event.defaultPrevented &&
+          event.target instanceof HTMLInputElement &&
+          event.target.value === ""
+        ) {
+          leaveField(event.target);
+        }
+      }}
       onBlur={(event) => {
         // The window losing the keyboard takes it from the box only until
         // the window has it again.

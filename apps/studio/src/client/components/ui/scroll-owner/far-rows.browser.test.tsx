@@ -114,9 +114,9 @@ const prose = (index: number) =>
   `Reply ${index.toString()}: ${"the harbor wall and its berths ".repeat(8 + ((index * 7) % 30))}`;
 
 /**
- * Turns of words that wrap, in a window whose width on screen stays put, so a
- * zoom gives the column fewer layout px and the words more lines, as the
- * app's zoom does.
+ * Turns of a block that keeps its height over words that wrap, as a tool row
+ * over a reply, in a window whose width on screen stays put, so a zoom gives
+ * the column fewer layout px and the words more lines, as the app's zoom does.
  */
 function ProseHarness() {
   const [zoom, setZoom] = useState(1);
@@ -142,6 +142,7 @@ function ProseHarness() {
                       style={{ padding: 8 }}
                       turnId={id}
                     >
+                      <div style={{ height: 120 }} />
                       <p style={{ margin: 0 }}>{prose(index)}</p>
                     </MessageScrollerItem>
                   );
@@ -379,12 +380,12 @@ describe("FarRows", () => {
       );
       await expect.poll(() => boxedTurns().size).toBe(0);
       await frames(2);
-      // Within a few screens of the column drawn whole, which runs to some
-      // seventy: a line a turn ends part way along does not scale. Left at
-      // the heights taken before the zoom, the boxes were 6,600 px short at
-      // 1.5x and 3,600 px long at 0.75x.
+      // Within a screen of the column drawn whole, which runs to some
+      // seventy. Scaled as words alone would wrap, the boxes made it 4,400 px
+      // long at 1.5x and 1,700 px short at 0.75x, since a block of fixed
+      // height does not grow with the lines.
       expect(Math.abs(estimated - view.scrollHeight)).toBeLessThan(
-        3 * view.clientHeight,
+        view.clientHeight,
       );
     },
   );

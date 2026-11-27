@@ -23,7 +23,9 @@ import { scrollTopOf } from "./scroll-owner";
  * a rect is on-screen px. A far row keeps its own style and holds one empty
  * box as tall as its content was, so a row the browser anchors the view on
  * never changes its own height style as it is drawn again, which would stop
- * the browser keeping the view where it is for that layout.
+ * the browser keeping the view where it is for that layout. When a box's
+ * width changes (a zoom, a narrower window), it takes the height it measured
+ * at that width before, else grows or shrinks as the drawn rows did.
  */
 export class FarRows {
   private viewport: HTMLElement | null = null;
@@ -130,6 +132,7 @@ export class FarRows {
     this.rows.set(row, {
       height: undefined,
       inner: undefined,
+      innerAt: new Map(),
       isNear: true,
       width: undefined,
       keep,
@@ -203,8 +206,8 @@ export class FarRows {
 
   /**
    * How tall the box inside a row far from view is drawn: the height its
-   * content had when last measured, so the row, its padding around the box,
-   * is as tall as it was.
+   * content had when last measured, or as estimated for a new width, so the
+   * row, its padding around the box, is as tall as it was.
    */
   boxHeightOf(row: HTMLElement): number | undefined {
     return this.rows.get(row)?.inner;
@@ -316,32 +319,50 @@ export class FarRows {
 
   private onResize(entries: ResizeObserverEntry[]) {
     const touched = new Set<string>();
-    const rescaled = new Set<string>();
+    const boxes: { state: RowState; width: number }[] = [];
+    // How the drawn rows' content heights went with a change of width, by
+    // the width they had: what the boxes beside them are taken to do.
+    const growth = new Map<number, { after: number; before: number }>();
     for (const entry of entries) {
       const row = entry.target;
       const state = row instanceof HTMLElement ? this.rows.get(row) : undefined;
       if (!state) {
         continue;
       }
-      const width = entry.contentBoxSize[0]?.inlineSize ?? 0;
+      const width = Math.round(entry.contentBoxSize[0]?.inlineSize ?? 0);
       if (this.boxed.has(state.turn)) {
-        // A box keeps the height it was drawn at, but for its width: a zoom
-        // or a narrower window wraps its words onto more lines, so its height
-        // goes as its width does the other way.
-        if (rescale(state, width)) {
-          rescaled.add(state.turn);
-        }
+        boxes.push({ state, width });
         continue;
+      }
+      const inner = entry.contentBoxSize[0]?.blockSize ?? 0;
+      if (
+        state.width !== undefined &&
+        state.width !== width &&
+        state.inner !== undefined
+      ) {
+        const sum = growth.get(state.width) ?? { after: 0, before: 0 };
+        sum.after += inner;
+        sum.before += state.inner;
+        growth.set(state.width, sum);
       }
       if (state.height === undefined) {
         touched.add(state.turn);
       }
       state.height = entry.borderBoxSize[0]?.blockSize ?? 0;
-      state.inner = entry.contentBoxSize[0]?.blockSize ?? 0;
+      state.inner = inner;
       state.width = width;
+      state.innerAt.set(width, inner);
     }
     for (const turn of touched) {
       this.update(turn);
+    }
+    // A box keeps the height it was drawn at, but for its width: a zoom or a
+    // narrower window wraps its words onto more or fewer lines.
+    const rescaled = new Set<string>();
+    for (const { state, width } of boxes) {
+      if (rescale(state, width, growth)) {
+        rescaled.add(state.turn);
+      }
     }
     for (const turn of rescaled) {
       for (const listener of this.listeners.get(turn) ?? []) {
@@ -465,12 +486,18 @@ interface BoxedContent {
 }
 
 interface RowState {
-  /** Last measured, in layout px; none until it has been drawn and measured. */
+  /**
+   * In layout px, as last measured, or for a box whose width has changed
+   * since, as estimated for that width; none until it has been drawn and
+   * measured.
+   */
   height: number | undefined;
-  /** Its content box's height when last measured, in layout px. */
+  /** Its content box's height, as `height` is. */
   inner: number | undefined;
-  /** Its content box's width when last measured, in layout px. */
+  /** Its content box's width, in whole layout px, that `inner` is for. */
   width: number | undefined;
+  /** Its content box's height as measured at each width it was drawn at. */
+  innerAt: Map<number, number>;
   /** Within the band: came within `NEAR_SCREENS` and has not gone past `FAR_SCREENS`. */
   isNear: boolean;
   /** Its item asks to stay drawn. */
@@ -479,10 +506,16 @@ interface RowState {
 }
 
 /**
- * Scales a box's heights for its new `width`, as wrapped words take lines in
- * the inverse of the width they have; whether they changed.
+ * Sets a box's heights for its new `width`: as measured there, when it was
+ * drawn at that width before, else scaled as the drawn rows that had its old
+ * width grew or shrank. With neither it keeps the heights it has, for the
+ * width it had. Whether they changed.
  */
-function rescale(state: RowState, width: number): boolean {
+function rescale(
+  state: RowState,
+  width: number,
+  growth: ReadonlyMap<number, { after: number; before: number }>,
+): boolean {
   const { height, inner } = state;
   if (
     width <= 0 ||
@@ -493,7 +526,13 @@ function rescale(state: RowState, width: number): boolean {
   ) {
     return false;
   }
-  const next = (inner * state.width) / width;
+  const sum = growth.get(state.width);
+  const next =
+    state.innerAt.get(width) ??
+    (sum && sum.before > 0 ? (inner * sum.after) / sum.before : undefined);
+  if (next === undefined) {
+    return false;
+  }
   state.height = height + next - inner;
   state.inner = next;
   state.width = width;

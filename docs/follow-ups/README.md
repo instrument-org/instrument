@@ -41,6 +41,7 @@ Each entry is the follow-up's title and the opening of its own `Status:` line.
 - [Whether CI stays near four minutes a run](ci-wall-clock.md): open · Check after: 2026-11-24 · Last checked: 2026-11-10
 - [Why Claude account sessions cold-start, counted over real use](claude-account-cold-starts.md): open · Check after: a week of real chats on a Claude account · Last checked: 2026-11-08 (no Claude account requests in the inspected activity)
 - [Why reply streams drop partway](dropped-reply-streams.md): open · Check after: 2026-11-22, or when production exception reports are accessible · Last checked: 2026-11-08
+- [Whether Electron lets extensions block requests beside the browser's own listeners](electron-extension-request-fixes.md): open · Check after: 2026-12-18, or at the next Electron upgrade · Last checked: 2026-11-27
 - [Whether agents choose from a closed select's folded options as well as from option lines](folded-select-options.md): open · Check after: 2026-12-15, or at the next agent-browser upgrade · Last checked: never
 - [Which parts of the app write their log too fast](log-volume.md): open · Check after: 2026-12-10, after a week or more on a beta that carries the day warning · Last checked: 2026-11-26
 - [How often the main thread freezes in real use, and whether the watchdog tells the truth](main-thread-freezes.md): open · Check after: 2026-12-05 · Last checked: never

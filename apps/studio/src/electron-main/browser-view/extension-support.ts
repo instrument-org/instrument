@@ -89,7 +89,9 @@ export function unsupportedFeatures(manifest: unknown): string[] {
     "Side panel": parsed.side_panel !== undefined,
     "Signing in through the browser": parsed.oauth2 !== undefined,
   };
-  const blocks = BLOCKING_PERMISSIONS.some((permission) => asked.has(permission));
+  const blocks = BLOCKING_PERMISSIONS.some((permission) =>
+    asked.has(permission),
+  );
   return FEATURES.filter(([feature, permissions]) => {
     // An extension that blocks is told so once, not also that it watches.
     if (feature === "Seeing what pages load" && blocks) {

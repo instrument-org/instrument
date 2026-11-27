@@ -121,6 +121,26 @@ export function keptAs(
   }
 }
 
+/** What is held as the ids of the bookmarks it moves: a folder itself, and anything else as `keptAs` keeps it. */
+function movingOf(held: Held, context: KeptContext): string[] {
+  return held.kind === "folder"
+    ? [held.folder]
+    : keptAs(held, context).map((each) => each.id);
+}
+
+/** The index at the end of a folder's or root's bookmarks, counted without those moving. */
+function indexAmong(
+  state: Bookmarks,
+  moving: Iterable<string>,
+  folder: string | undefined,
+  root?: BookmarkRoot,
+) {
+  const isMoving = new Set(moving);
+  return siblingsIn(state, folder, root).filter(
+    (each) => !isMoving.has(each.id),
+  ).length;
+}
+
 /** What a drag knows of the window, read as it draws. */
 function useKeptContext(
   titleOf: (tab: WindowTab) => string,
@@ -240,27 +260,17 @@ export function useBookmarksTarget({
         element?.checkVisibility({ visibilityProperty: true }) === true &&
         holds(element.getBoundingClientRect(), point);
       const element = row();
-      const kept =
-        held.kind === "folder"
-          ? []
-          : keptAs(held, { ...context, bookmarks: state.bookmarks });
-      const moving =
-        held.kind === "folder"
-          ? [held.folder]
-          : [STANDING_ID, ...kept.map((each) => each.id)];
-      if (held.kind !== "folder" && kept.length === 0) {
+      const kept = movingOf(held, { ...context, bookmarks: state.bookmarks });
+      if (kept.length === 0) {
         return undefined;
       }
+      const moving = held.kind === "folder" ? kept : [STANDING_ID, ...kept];
       if (isOn(overflow?.())) {
-        const index = siblingsIn(state, undefined).filter(
-          (each) => !moving.includes(each.id),
-        ).length;
+        const index = indexAmong(state, moving, undefined);
         return { chip: OVERFLOW_CHIP, index, kind: "bookmarks" };
       }
       if (isOn(others?.())) {
-        const index = siblingsIn(state, undefined, OTHER_ROOT).filter(
-          (each) => !moving.includes(each.id),
-        ).length;
+        const index = indexAmong(state, moving, undefined, OTHER_ROOT);
         return {
           chip: OTHER_ROOT,
           index,
@@ -271,9 +281,7 @@ export function useBookmarksTarget({
       const folder = element ? folderAt(point, element, moving) : undefined;
       if (folder !== undefined) {
         // Into it, after what is in it already.
-        const index = siblingsIn(state, folder).filter(
-          (each) => !moving.includes(each.id),
-        ).length;
+        const index = indexAmong(state, moving, folder);
         return { chip: folder, folder, index, kind: "bookmarks" };
       }
       const index = element ? bookmarkIndexAt(point, element, moving) : 0;
@@ -369,18 +377,12 @@ export function useMenuTarget({
             ) {
               return undefined;
             }
-            const kept =
-              held.kind === "folder"
-                ? []
-                : keptAs(held, { ...context, bookmarks: state.bookmarks });
-            if (held.kind !== "folder" && kept.length === 0) {
+            const moving = new Set(
+              movingOf(held, { ...context, bookmarks: state.bookmarks }),
+            );
+            if (moving.size === 0) {
               return undefined;
             }
-            const moving = new Set(
-              held.kind === "folder"
-                ? [held.folder]
-                : kept.map((each) => each.id),
-            );
             const items = [
               ...element.querySelectorAll<HTMLElement>("[data-bookmark-id]"),
             ].filter((item) => !moving.has(item.dataset.bookmarkId ?? ""));
@@ -398,9 +400,7 @@ export function useMenuTarget({
               );
             })?.dataset.bookmarkFolder;
             if (into !== undefined) {
-              const index = siblingsIn(state, into).filter(
-                (each) => !moving.has(each.id),
-              ).length;
+              const index = indexAmong(state, moving, into);
               return { folder: into, index, kind: "bookmarks" };
             }
             const there = siblingsIn(state, place.folder, place.root).filter(
@@ -466,11 +466,7 @@ export function useOutlineTarget({
     const ids =
       held.kind === "rows"
         ? held.ids
-        : held.kind === "folder"
-          ? [held.folder]
-          : keptAs(held, { ...context, bookmarks: state.bookmarks }).map(
-              (each) => each.id,
-            );
+        : movingOf(held, { ...context, bookmarks: state.bookmarks });
     const elements = [
       ...(list()?.querySelectorAll<HTMLElement>("[data-outline-row]") ?? []),
     ];
@@ -580,20 +576,12 @@ export function useAllBookmarksTarget({
   useDropTarget({
     landingAt: (_point, { held }) => {
       const state = store.get(bookmarksStateAtom);
-      const kept =
-        held.kind === "folder"
-          ? []
-          : keptAs(held, { ...context, bookmarks: state.bookmarks });
-      if (held.kind !== "folder" && kept.length === 0) {
+      const kept = movingOf(held, { ...context, bookmarks: state.bookmarks });
+      if (kept.length === 0) {
         return undefined;
       }
-      const moving =
-        held.kind === "folder"
-          ? [held.folder]
-          : [STANDING_ID, ...kept.map((each) => each.id)];
-      const index = siblingsIn(state, undefined, OTHER_ROOT).filter(
-        (each) => !moving.includes(each.id),
-      ).length;
+      const moving = held.kind === "folder" ? kept : [STANDING_ID, ...kept];
+      const index = indexAmong(state, moving, undefined, OTHER_ROOT);
       return {
         index,
         kind: "bookmarks",
@@ -658,11 +646,7 @@ export function useMenuDropLine(
   // What is held as the bookmarks it moves, a tab or link whose address is
   // kept already included, as the landing's index counts without them.
   const held = new Set(
-    what.kind === "folder"
-      ? [what.folder]
-      : keptAs(what, { ...context, bookmarks: state.bookmarks }).map(
-          (each) => each.id,
-        ),
+    movingOf(what, { ...context, bookmarks: state.bookmarks }),
   );
   const there = siblingsIn(state, place.folder, place.root).filter(
     (each) => !held.has(each.id),
@@ -705,9 +689,6 @@ export function useBarDropLine():
     return undefined;
   }
   const { held } = drag;
-  const moving =
-    held.kind === "folder"
-      ? [held.folder]
-      : keptAs(held, { ...context, bookmarks: all }).map((each) => each.id);
+  const moving = movingOf(held, { ...context, bookmarks: all });
   return { index: landing.index, moving };
 }

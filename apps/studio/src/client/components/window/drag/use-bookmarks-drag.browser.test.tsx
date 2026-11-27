@@ -1,4 +1,4 @@
-import { outlineRows } from "@/client/bookmarks/outline";
+import { dropTargetAt, outlineRows } from "@/client/bookmarks/outline";
 import {
   applyBookmarkOpsAtom,
   bookmarksStateAtom,
@@ -114,7 +114,7 @@ function Outline({ together = [] }: { together?: readonly string[] }) {
   useOutlineTarget({
     isOff: false,
     list: () => document.querySelector<HTMLElement>("[data-list]"),
-    rows,
+    targetAt: (now, ...at) => dropTargetAt(now, rows, ...at),
   });
   return (
     <div

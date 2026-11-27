@@ -10,6 +10,7 @@ import {
   type ClipItem,
   addressesOf,
   clipOf,
+  dropTargetAt,
   NOTHING_SELECTED,
   type OutlineRow,
   outlineRows,
@@ -442,7 +443,11 @@ export function BookmarksPage({
     }
   };
 
-  useOutlineTarget({ isOff: isSearch, list: () => list.current, rows });
+  useOutlineTarget({
+    isOff: isSearch,
+    list: () => list.current,
+    targetAt: (now, ...at) => dropTargetAt(now, rows, ...at),
+  });
   const drop = useOutlineDrop();
   /**
    * A press that past the start holds the rows picked, or its own row alone

@@ -4,11 +4,7 @@ import {
   fileAddressOf,
   sameAddress,
 } from "@/client/bookmarks/address";
-import {
-  dropTargetAt,
-  moveOps,
-  type OutlineRow,
-} from "@/client/bookmarks/outline";
+import { type DropTarget, moveOps } from "@/client/bookmarks/outline";
 import {
   applyBookmarkOpsAtom,
   bookmarksAtom,
@@ -17,6 +13,7 @@ import {
 import {
   type Bookmark,
   type BookmarkRoot,
+  type Bookmarks,
   OTHER_ROOT,
   isWithin,
   siblingsIn,
@@ -434,22 +431,29 @@ export function useMenuTarget({
 }
 
 /**
- * The Bookmarks page's outline as a place to land (`rows`, as the page
- * lists them, each drawn in `list` marked `data-outline-row`): what is held
- * lands where the pointer is among the rows (`dropTargetAt`), before or after
- * a row, or into the folder or All Bookmarks it is over. A bookmark moves
- * there and anything else is kept there, as on the bar (`keptAs`); rows of
- * the page held together move there and land nowhere else. Over a row that
- * is held, letting go changes nothing. Nothing in a search's flat list.
+ * An outline of bookmarks as a place to land, the Bookmarks page's or the
+ * side panel's (its rows drawn in `list` marked `data-outline-row`, in
+ * order): what is held lands where the pointer is among the rows
+ * (`targetAt`, `dropTargetAt` for the page's rows), before or after a row,
+ * or into the folder or root it is over. A bookmark or a folder moves there
+ * and anything else is kept there, as on the bar (`keptAs`); rows of the
+ * page held together move there and land nowhere else. Over a row that is
+ * held, letting go changes nothing. Nothing in a search's flat list.
  */
 export function useOutlineTarget({
   isOff,
   list,
-  rows,
+  targetAt,
 }: {
   isOff: boolean;
   list: () => HTMLElement | null;
-  rows: readonly OutlineRow[];
+  /** Where what is held lands over the row at `index`, `fraction` of the way down it. */
+  targetAt: (
+    state: Bookmarks,
+    index: number,
+    fraction: number,
+    held: ReadonlySet<string>,
+  ) => DropTarget | undefined;
 }) {
   const context = useKeptContext(() => "");
   const store = useStore();
@@ -462,9 +466,11 @@ export function useOutlineTarget({
     const ids =
       held.kind === "rows"
         ? held.ids
-        : keptAs(held, { ...context, bookmarks: state.bookmarks }).map(
-            (each) => each.id,
-          );
+        : held.kind === "folder"
+          ? [held.folder]
+          : keptAs(held, { ...context, bookmarks: state.bookmarks }).map(
+              (each) => each.id,
+            );
     const elements = [
       ...(list()?.querySelectorAll<HTMLElement>("[data-outline-row]") ?? []),
     ];
@@ -486,9 +492,8 @@ export function useOutlineTarget({
       return undefined;
     }
     const moving = new Set(ids);
-    const target = dropTargetAt(
+    const target = targetAt(
       state,
-      rows,
       index,
       (point.y - over.top) / over.height,
       moving,
@@ -558,8 +563,8 @@ export function useOutlineTarget({
 }
 
 /**
- * What the Bookmarks page draws of a drag: the rows held, which stay
- * dimmed in their places, and the row a landing on the page is drawn at.
+ * What an outline of bookmarks draws of a drag: the rows held, which stay
+ * dimmed in their places, and the row a landing on it is drawn at.
  */
 export function useOutlineDrop(): {
   held: ReadonlySet<string>;
@@ -572,9 +577,11 @@ export function useOutlineDrop(): {
     held: new Set(
       held?.kind === "rows"
         ? held.ids
-        : held?.kind === "link" && held.bookmark !== undefined
-          ? [held.bookmark]
-          : [],
+        : held?.kind === "folder"
+          ? [held.folder]
+          : held?.kind === "link" && held.bookmark !== undefined
+            ? [held.bookmark]
+            : [],
     ),
     row: landing?.kind === "bookmarks" ? landing.row : undefined,
   };

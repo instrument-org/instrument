@@ -43,7 +43,7 @@ import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { XCircleIcon } from "@phosphor-icons/react/XCircle";
 import { useAtomValue, useStore } from "jotai";
-import { useEffect, useRef, useState } from "react";
+import { type ReactElement, useEffect, useRef, useState } from "react";
 
 import { AddressMark } from "./app-chip";
 import {
@@ -102,81 +102,108 @@ export function FolderChip({
   onRename: () => void;
   open: OpenAddress;
 }) {
-  const edits = useBookmarkFolders();
-  const renaming = useRef(false);
   const store = useStore();
   const openAll = useOpenAllBookmarks();
   return (
     <DropdownMenu modal={false} onOpenChange={onOpenChange} open={isOpen}>
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          <DropdownMenuTrigger
-            {...(isOver ? { "aria-hidden": true, tabIndex: -1 } : {})}
-            className={cn(
-              "flex h-6 max-w-40 shrink-0 cursor-default items-center gap-1.5 rounded-md px-1.5 text-xs text-foreground/80 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8",
-              isLit && DROP_TONE,
-              isOver && "invisible",
-            )}
-            data-bookmark-folder={folder.id}
-            data-bookmark-id={folder.id}
-            {...folderClicks(() => {
-              openAll(
-                bookmarksToOpen(store.get(bookmarksStateAtom), folder.id),
-                "group",
-              );
-            })}
-            onPointerDown={(event) => {
-              // A Cmd-press opens the bookmarks, and the menu, which opens
-              // as the pointer goes down, stays shut.
-              if (commandKeyHeld(event)) {
-                event.preventDefault();
-              }
-              pressFolder(event, folder, bookmarksDirectlyIn(items));
-            }}
-            onPointerEnter={onHover}
-            title={folder.title}
-          >
-            <FolderSimpleIcon className="size-3.5 shrink-0 text-foreground/60" />
-            <span className="min-w-0 truncate">{folder.title}</span>
-          </DropdownMenuTrigger>
-        </ContextMenuTrigger>
-        <ContextMenuContent
-          className="min-w-52"
-          onCloseAutoFocus={(event) => {
-            if (renaming.current) {
-              renaming.current = false;
+      <FolderContextMenu
+        folder={folder}
+        onNewFolder={onNewFolder}
+        onRename={onRename}
+      >
+        <DropdownMenuTrigger
+          {...(isOver ? { "aria-hidden": true, tabIndex: -1 } : {})}
+          className={cn(
+            "flex h-6 max-w-40 shrink-0 cursor-default items-center gap-1.5 rounded-md px-1.5 text-xs text-foreground/80 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8",
+            isLit && DROP_TONE,
+            isOver && "invisible",
+          )}
+          data-bookmark-folder={folder.id}
+          data-bookmark-id={folder.id}
+          {...folderClicks(() => {
+            openAll(
+              bookmarksToOpen(store.get(bookmarksStateAtom), folder.id),
+              "group",
+            );
+          })}
+          onPointerDown={(event) => {
+            // A Cmd-press opens the bookmarks, and the menu, which opens
+            // as the pointer goes down, stays shut.
+            if (commandKeyHeld(event)) {
               event.preventDefault();
-              onRename();
             }
+            pressFolder(event, folder, bookmarksDirectlyIn(items));
           }}
+          onPointerEnter={onHover}
+          title={folder.title}
         >
-          <OpenAllItems of={folder.id} />
-          <ContextMenuSeparator />
-          <ContextMenuItem
-            onClick={() => {
-              renaming.current = true;
-            }}
-          >
-            <PencilSimpleIcon className="size-4" />
-            <span>Rename…</span>
-          </ContextMenuItem>
-          <ContextMenuItem
-            onClick={() => {
-              edits.remove(folder);
-            }}
-          >
-            <XCircleIcon className="size-4" />
-            <span>Delete</span>
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-          <NewFolderItem onSelect={onNewFolder} />
-          <ManageBookmarksItem />
-          <ContextMenuSeparator />
-          <ShowBookmarksBarItem />
-        </ContextMenuContent>
-      </ContextMenu>
+          <FolderSimpleIcon className="size-3.5 shrink-0 text-foreground/60" />
+          <span className="min-w-0 truncate">{folder.title}</span>
+        </DropdownMenuTrigger>
+      </FolderContextMenu>
       <FolderMenuContent folder={folder.id} items={items} open={open} />
     </DropdownMenu>
+  );
+}
+
+/**
+ * The menu over a folder of bookmarks, on the bar or in the side panel:
+ * open every bookmark in it, rename it, delete it, and the bar's own: a new
+ * folder, the Bookmarks page and the bar's switch.
+ */
+export function FolderContextMenu({
+  children,
+  folder,
+  onNewFolder,
+  onRename,
+}: {
+  /** The folder's own chip or row, which the menu comes up over. */
+  children: ReactElement;
+  folder: BookmarkFolder;
+  onNewFolder: () => void;
+  /** Opens the dialog that renames the folder. */
+  onRename: () => void;
+}) {
+  const edits = useBookmarkFolders();
+  const renaming = useRef(false);
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuContent
+        className="min-w-52"
+        onCloseAutoFocus={(event) => {
+          if (renaming.current) {
+            renaming.current = false;
+            event.preventDefault();
+            onRename();
+          }
+        }}
+      >
+        <OpenAllItems of={folder.id} />
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          onClick={() => {
+            renaming.current = true;
+          }}
+        >
+          <PencilSimpleIcon className="size-4" />
+          <span>Rename…</span>
+        </ContextMenuItem>
+        <ContextMenuItem
+          onClick={() => {
+            edits.remove(folder);
+          }}
+        >
+          <XCircleIcon className="size-4" />
+          <span>Delete</span>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <NewFolderItem onSelect={onNewFolder} />
+        <ManageBookmarksItem />
+        <ContextMenuSeparator />
+        <ShowBookmarksBarItem />
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 

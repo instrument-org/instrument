@@ -1,14 +1,15 @@
 # Plan: a side panel down the window's right edge
 
-Status: done. The panel, its open state per tab group, the corner controls, the Chat chip and the bookmarks bar's move to web pages are built. Not built: dragging bookmarks to reorder them inside the panel (drag out and the context menu work), and hints at the window's edge.
+Status: done. The panel, its open state per tab group, the corner controls, the Chat chip and the bookmarks bar's move to web pages are built. Not built: hints at the window's edge.
 
 A tab group's corner had one control that split it: unnamed on a new tab or a chat, named Chat on a page. A new tab forced the bookmarks bar on, and the places a person goes most (recent chats, folders, bookmarks, apps) lived in the left sidebar or nowhere. The side panel gathers them on the right, the way a browser's side panel does, and the corner stops splitting.
 
 ## The panel
 
 - 288pt wide until dragged by its left edge (240 to 420, kept across launches; dragged under 180 it slides shut), on the window's ground at the right edge, outside the card (`WindowFrame`'s `aside`, `SidePanelSlot`). It opens and closes on the left sidebar's slide (`StudioSidebarRail` with `side="right"`), keeping its contents until the slide ends; a switch to another group's panel lands at once. Its top row has only an X.
-- Apps (icons only), Chats (four recent, then All chats, a searchable list in the panel), Files (the project folder and the Files sidebar's places), Bookmarks (the bar as a folder, the bookmarks kept off it, then All bookmarks).
-- The tab up on the keyboard side draws it (`SidePanelHere`, portaled into the slot), so a pick uses that tab's own way in: it replaces the tab as a bookmark does, Back returns, and Cmd-click, right-click and drag work as they do on the bar. It never opens a new tab by itself.
+- Apps (icons only, no tiles), Chats (four recent, then All chats, a searchable list in the panel), Files (the project folder and the Files sidebar's places), Bookmarks (the bar as a folder, the bookmarks kept off it, then All bookmarks).
+- The tab up on the keyboard side draws it (`SidePanelHere`, portaled into the slot), so a pick uses that tab's own way in: it replaces the tab as a bookmark does, Back returns, and Cmd-click, right-click and drag work as they do on the bar. It never opens a new tab by itself. Its bookmarks are an outline as the Bookmarks page's is: what is held lands among the rows, folders drag and have the bar's folder menu, and a Files row drags as a shortcut does, so it opens as a tab at a page's edge or in a strip.
+- It is gray until the pointer or the keyboard is on it, or one of its menus is open, so its icons draw no eye from the page.
 - A chat already open in another group brings that group up and opens the panel there.
 
 ## Open and closed

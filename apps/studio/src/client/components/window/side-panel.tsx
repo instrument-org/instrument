@@ -1,41 +1,71 @@
 import { targetOfAddress } from "@/client/bookmarks/address";
+import { useBookmarkFolders } from "@/client/bookmarks/folders";
 import {
   askedOfBookmark,
+  bookmarksToOpen,
   useOpenAddress,
+  useOpenAllBookmarks,
 } from "@/client/bookmarks/open-address";
+import {
+  type DropTarget,
+  dropTargetAt,
+  type OutlineRow,
+} from "@/client/bookmarks/outline";
 import { bookmarksStateAtom } from "@/client/bookmarks/store";
+import { copyFolderPath } from "@/client/components/folder-row";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/client/components/ui/context-menu";
+import { contextMenuComponents } from "@/client/components/ui/menu-components";
 import { useWindow } from "@/client/components/window/context";
 import { noteTypedPage } from "@/client/hooks/use-browser-history";
+import { useWindowPlaces } from "@/client/hooks/use-open-target";
 import { cn, isMacOS } from "@/client/lib/utils";
 import {
   type BarItem,
-  type Bookmark,
   type BookmarkFolder,
+  type Bookmarks,
   barItems,
+  bookmarksDirectlyIn,
+  itemsOfFolder,
   OTHER_ROOT,
   rootItems,
+  siblingsIn,
 } from "@/shared/bookmarks";
 import { folderHref } from "@/shared/computer-href";
 import { windowCardTop } from "@/shared/constants";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
+import { ArrowSquareInIcon } from "@phosphor-icons/react/ArrowSquareIn";
+import { BookmarksSimpleIcon } from "@phosphor-icons/react/BookmarksSimple";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
-import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
-import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
+import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
+import { FolderIcon } from "@phosphor-icons/react/Folder";
+import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
-import { atom, useAtomValue, useSetAtom } from "jotai";
-import { type ReactNode, useState } from "react";
+import { atom, useAtomValue, useSetAtom, useStore } from "jotai";
+import { type ReactNode, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { AddressMark } from "./app-chip";
 import { AppIcon } from "./app-icon";
+import { FolderEditor } from "./bookmark-editor";
+import { BookmarkNameDialog, FolderContextMenu } from "./bookmark-folders";
 import {
   type OpenAddress,
   BookmarkContextMenu,
   bookmarkClicks,
+  folderClicks,
+  ManageBookmarksItem,
+  NewFolderItem,
+  ShowBookmarksBarItem,
 } from "./bookmark-menu";
 import { bookmarkName } from "./bookmark-edits";
 import { chatListOptions } from "./chat-list-query";
@@ -45,10 +75,14 @@ import { useShowChatGroup } from "./chat-group";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import {
   pressBookmark,
+  pressFolder,
   pressPlace,
   pressShortcut,
 } from "./drag/press-bookmark";
+import { DROP_TONE } from "./drag/tone";
+import { useOutlineDrop, useOutlineTarget } from "./drag/use-bookmarks-drag";
 import { type Place, useFilesPlaces } from "./files-places";
+import { PlaceItems } from "./place-items";
 import { TabRowControl } from "./tab-location-row";
 import { useOwnApps } from "./use-own-apps";
 import { useSidePanel } from "./side-panel-state";
@@ -170,8 +204,10 @@ function SidePanel({
   const home = () => {
     setView("home");
   };
+  // Gray until the pointer or the keyboard is on it, or a menu of its own
+  // is open, so its icons draw no eye away from the page.
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col grayscale transition-[filter] duration-200 hover:grayscale-0 has-focus-visible:grayscale-0 has-data-[state=open]:grayscale-0">
       <div className="flex h-10 shrink-0 items-center gap-1 pl-1">
         {view !== "home" && (
           <button
@@ -262,13 +298,13 @@ function AppsSection({
   return (
     <>
       <Heading>Apps</Heading>
-      <div className="flex flex-wrap gap-1.5 px-2 pb-1">
+      <div className="flex flex-wrap gap-0.5 px-0.5">
         {apps.map((app) => {
           const page = `/apps/${app.slug}`;
           return (
             <button
               aria-label={app.name}
-              className="grid size-8 cursor-default place-items-center rounded-lg bg-card shadow-xs ring-1 ring-foreground/8 hover:bg-accent"
+              className="grid size-8 cursor-default place-items-center rounded-lg hover:bg-foreground/6 data-[state=open]:bg-foreground/6"
               key={app.slug}
               {...(app.opensAt === undefined
                 ? bookmarkClicks(page, openScreen)
@@ -285,6 +321,7 @@ function AppsSection({
               type="button"
             >
               <AppIcon
+                className="size-5"
                 icon={app.icon}
                 name={app.name}
                 site={app.site}
@@ -445,22 +482,50 @@ function FilesSection({ group, open }: { group: string; open: OpenAddress }) {
   );
 }
 
+/** A folder of Files' sidebar: it opens and drags as a bookmark does, and its menu opens it elsewhere or copies its path. */
 function PlaceRow({ open, place }: { open: OpenAddress; place: Place }) {
+  const href = folderHref(place.path);
+  const placesOf = useWindowPlaces();
   return (
-    <button
-      className={ROW}
-      {...bookmarkClicks(folderHref(place.path), open)}
-      onPointerDown={(event) => {
-        pressPlace(event, place);
-      }}
-      title={place.path}
-      type="button"
-    >
-      <span className="flex size-4 shrink-0 items-center justify-center">
-        {place.icon}
-      </span>
-      <span className="min-w-0 truncate">{place.name}</span>
-    </button>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <button
+          className={ROW}
+          {...bookmarkClicks(href, open)}
+          onPointerDown={(event) => {
+            pressPlace(event, { ...place, shortcut: true });
+          }}
+          title={place.path}
+          type="button"
+        >
+          <span className="flex size-4 shrink-0 items-center justify-center">
+            {place.icon}
+          </span>
+          <span className="min-w-0 truncate">{place.name}</span>
+        </button>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="min-w-52">
+        <ContextMenuItem
+          onClick={() => {
+            open(href);
+          }}
+        >
+          <ArrowSquareInIcon className="size-4" />
+          <span>Open</span>
+        </ContextMenuItem>
+        <PlaceItems
+          components={contextMenuComponents}
+          destinations={placesOf((options) => {
+            open(href, options);
+          })}
+        />
+        <ContextMenuSeparator />
+        <ContextMenuItem onClick={() => void copyFolderPath(place.path)}>
+          <ClipboardTextIcon className="size-4" />
+          <span>Copy Path</span>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
@@ -473,21 +538,18 @@ function BookmarksSection({
   open: OpenAddress;
 }) {
   const state = useAtomValue(bookmarksStateAtom);
-  const bar = barItems(state);
-  const others = rootItems(state, OTHER_ROOT);
+  const isEmpty =
+    barItems(state).length === 0 && rootItems(state, OTHER_ROOT).length === 0;
   return (
     <>
       <Heading>Bookmarks</Heading>
-      {bar.length === 0 && others.length === 0 ? (
+      {isEmpty ? (
         <p className="px-2 py-1 text-[13px] text-muted-foreground">
           Bookmarks you keep show up here.
         </p>
       ) : (
         <>
-          {bar.length > 0 && (
-            <FolderRow items={bar} open={open} title="Bookmarks bar" />
-          )}
-          <BookmarkItems items={others.slice(0, BOOKMARKS_SHOWN)} open={open} />
+          <BookmarkTree open={open} othersShown={BOOKMARKS_SHOWN} />
           <MoreRow label="All bookmarks" onClick={onAll} />
         </>
       )}
@@ -497,130 +559,322 @@ function BookmarksSection({
 
 /** Every bookmark: the bar's, open, then those kept off it. */
 function AllBookmarks({ open }: { open: OpenAddress }) {
-  const state = useAtomValue(bookmarksStateAtom);
-  const bar = barItems(state);
-  const others = rootItems(state, OTHER_ROOT);
   return (
     <>
       <Heading>Bookmarks</Heading>
-      {bar.length > 0 && (
-        <FolderRow
-          isOpenAtFirst
-          items={bar}
-          open={open}
-          title="Bookmarks bar"
-        />
-      )}
-      <BookmarkItems items={others} open={open} />
+      <BookmarkTree isBarOpenAtFirst open={open} />
     </>
   );
 }
 
-function BookmarkItems({
-  depth = 0,
-  items,
+/** The bookmarks bar's row in the panel, which opens in place over the bar's items. */
+const BAR_ROW = ":bar";
+
+/** A row of the panel's bookmarks: the bar's, or a folder or bookmark as the Bookmarks page has them. */
+type PanelRow =
+  | { count: number; id: typeof BAR_ROW; isOpen: boolean; kind: "bar" }
+  | Extract<OutlineRow, { kind: "bookmark" | "folder" }>;
+
+/**
+ * The rows the panel lists: the bar as a folder, with its items under it
+ * while it is open, then the first `othersShown` of those kept off it, each
+ * folder over what is in it while it is open.
+ */
+function panelRows(
+  state: Bookmarks,
+  isOpen: ReadonlySet<string>,
+  othersShown: number,
+): PanelRow[] {
+  const rowsIn = (items: readonly BarItem[], depth: number): PanelRow[] =>
+    items.flatMap((item): PanelRow[] => {
+      if (item.kind === "bookmark") {
+        return [
+          { bookmark: item.bookmark, depth, id: item.bookmark.id, kind: "bookmark" },
+        ];
+      }
+      const { folder, items: within } = item;
+      const isFolderOpen = isOpen.has(folder.id);
+      return [
+        {
+          count: within.length,
+          depth,
+          folder,
+          id: folder.id,
+          isOpen: isFolderOpen,
+          kind: "folder",
+        },
+        ...(isFolderOpen ? rowsIn(within, depth + 1) : []),
+      ];
+    });
+  const bar = barItems(state);
+  const isBarOpen = isOpen.has(BAR_ROW);
+  const barRow: PanelRow = {
+    count: bar.length,
+    id: BAR_ROW,
+    isOpen: isBarOpen,
+    kind: "bar",
+  };
+  return [
+    ...(bar.length > 0
+      ? [
+          barRow,
+          ...(isBarOpen ? rowsIn(bar, 1) : []),
+        ]
+      : []),
+    ...rowsIn(rootItems(state, OTHER_ROOT).slice(0, othersShown), 0),
+  ];
+}
+
+/**
+ * Where something held over a row of the panel's bookmarks lands: the
+ * bar's row takes it at the bar's end, or first in the bar from its lower
+ * half while it is open; a folder or a bookmark as on the Bookmarks page
+ * (`dropTargetAt`).
+ */
+function panelTargetAt(
+  state: Bookmarks,
+  row: PanelRow | undefined,
+  fraction: number,
+  held: ReadonlySet<string>,
+): DropTarget | undefined {
+  if (row?.kind !== "bar") {
+    return row && dropTargetAt(state, [row], 0, fraction, held);
+  }
+  if (row.isOpen && fraction > 0.5) {
+    return {
+      kind: "between",
+      line: { after: BAR_ROW },
+      place: {
+        before: siblingsIn(state, undefined).find((each) => !held.has(each.id))?.id,
+      },
+    };
+  }
+  return { id: BAR_ROW, kind: "into", place: {} };
+}
+
+/**
+ * The panel's bookmarks as an outline, each row as it is on the bar: a
+ * bookmark opens and drags as one there, and a folder opens in place,
+ * drags as one, and opens all on a Cmd-click; each has the bar's menu on a
+ * right click. What is held lands among the rows (`useOutlineTarget`).
+ */
+function BookmarkTree({
+  isBarOpenAtFirst = false,
   open,
+  othersShown = Infinity,
 }: {
-  depth?: number;
-  items: BarItem[];
+  isBarOpenAtFirst?: boolean;
   open: OpenAddress;
+  othersShown?: number;
 }) {
-  return items.map((item) =>
-    item.kind === "folder" ? (
-      <FolderRow
-        depth={depth}
-        folder={item.folder}
-        items={item.items}
-        key={item.folder.id}
-        open={open}
-        title={item.folder.title}
-      />
-    ) : (
-      <BookmarkRow
-        bookmark={item.bookmark}
-        depth={depth}
-        key={item.bookmark.id}
-        open={open}
-      />
-    ),
+  const state = useAtomValue(bookmarksStateAtom);
+  const store = useStore();
+  const openAll = useOpenAllBookmarks();
+  const folders = useBookmarkFolders();
+  const [isOpen, setOpen] = useState<ReadonlySet<string>>(
+    () => new Set(isBarOpenAtFirst ? [BAR_ROW] : []),
+  );
+  // A folder being named in a dialog: a new one, placed after the item
+  // whose menu asked for it, or one under a new name.
+  const [naming, setNaming] = useState<
+    | { after?: string; kind: "folder" }
+    | { folder: BookmarkFolder; kind: "rename" }
+  >();
+  const list = useRef<HTMLDivElement>(null);
+  const rows = panelRows(state, isOpen, othersShown);
+  useOutlineTarget({
+    isOff: false,
+    list: () => list.current,
+    targetAt: (now, index, ...at) =>
+      panelTargetAt(now, panelRows(now, isOpen, othersShown)[index], ...at),
+  });
+  const drop = useOutlineDrop();
+  const toggle = (id: string) => {
+    const next = new Set(isOpen);
+    if (!next.delete(id)) {
+      next.add(id);
+    }
+    setOpen(next);
+  };
+  return (
+    <>
+      <div className="flex flex-col" ref={list}>
+        {rows.map((row) => {
+          const at = drop.row?.id === row.id ? drop.row.at : undefined;
+          const marks = {
+            className: cn(
+              ROW,
+              "relative",
+              at === "into" && DROP_TONE,
+              drop.held.has(row.id) && "opacity-40",
+            ),
+            "data-outline-row": row.id,
+          };
+          const line = at === "before" || at === "after" ? at : undefined;
+          if (row.kind === "bar") {
+            return (
+              <ContextMenu key={row.id}>
+                <ContextMenuTrigger asChild>
+                  <button
+                    {...marks}
+                    aria-expanded={row.isOpen}
+                    onClick={() => {
+                      toggle(row.id);
+                    }}
+                    type="button"
+                  >
+                    <DropLine at={line} />
+                    <BookmarksSimpleIcon className="size-4 shrink-0 text-foreground/70" />
+                    <span className="min-w-0 flex-1 truncate">Bookmarks bar</span>
+                    <Count count={row.count} />
+                  </button>
+                </ContextMenuTrigger>
+                <ContextMenuContent className="min-w-52">
+                  <NewFolderItem
+                    onSelect={() => {
+                      setNaming({ kind: "folder" });
+                    }}
+                  />
+                  <ManageBookmarksItem />
+                  <ContextMenuSeparator />
+                  <ShowBookmarksBarItem />
+                </ContextMenuContent>
+              </ContextMenu>
+            );
+          }
+          if (row.kind === "folder") {
+            const { folder } = row;
+            const clicks = folderClicks(() => {
+              openAll(
+                bookmarksToOpen(store.get(bookmarksStateAtom), folder.id),
+                "group",
+              );
+            });
+            return (
+              <FolderContextMenu
+                folder={folder}
+                key={row.id}
+                onNewFolder={() => {
+                  setNaming({ after: folder.id, kind: "folder" });
+                }}
+                onRename={() => {
+                  setNaming({ folder, kind: "rename" });
+                }}
+              >
+                <button
+                  {...marks}
+                  {...clicks}
+                  aria-expanded={row.isOpen}
+                  data-bookmark-folder={folder.id}
+                  onClick={(event) => {
+                    clicks.onClick(event);
+                    if (!event.defaultPrevented) {
+                      toggle(row.id);
+                    }
+                  }}
+                  onPointerDown={(event) => {
+                    pressFolder(
+                      event,
+                      folder,
+                      bookmarksDirectlyIn(itemsOfFolder(state, folder.id)),
+                    );
+                  }}
+                  style={indent(row.depth)}
+                  title={folder.title}
+                  type="button"
+                >
+                  <DropLine at={line} />
+                  <BookmarkFolderIcon isOpen={row.isOpen} />
+                  <span className="min-w-0 flex-1 truncate">{folder.title}</span>
+                  <Count count={row.count} />
+                </button>
+              </FolderContextMenu>
+            );
+          }
+          const { bookmark } = row;
+          return (
+            <BookmarkContextMenu
+              bookmark={bookmark}
+              key={row.id}
+              onNewFolder={() => {
+                setNaming({ after: bookmark.id, kind: "folder" });
+              }}
+              open={open}
+            >
+              <button
+                {...marks}
+                {...bookmarkClicks(bookmark.url, open)}
+                data-bookmark-id={bookmark.id}
+                onPointerDown={(event) => {
+                  pressBookmark(event, bookmark);
+                }}
+                style={indent(row.depth)}
+                title={`${bookmarkName(bookmark)}\n${bookmark.url}`}
+                type="button"
+              >
+                <DropLine at={line} />
+                <span className="flex size-4 shrink-0 items-center justify-center">
+                  <AddressMark address={bookmark.url} />
+                </span>
+                <span className="min-w-0 truncate">{bookmarkName(bookmark)}</span>
+              </button>
+            </BookmarkContextMenu>
+          );
+        })}
+      </div>
+      {naming?.kind === "folder" && (
+        <FolderEditor
+          after={naming.after}
+          onClose={() => {
+            setNaming(undefined);
+          }}
+        />
+      )}
+      {naming?.kind === "rename" && (
+        <BookmarkNameDialog
+          action="Save"
+          name={naming.folder.title}
+          onClose={() => {
+            setNaming(undefined);
+          }}
+          onCommit={(title) => {
+            folders.rename(naming.folder, title);
+          }}
+          title="Rename folder"
+        />
+      )}
+    </>
   );
 }
 
 /** Indents a row under the folder it is in. */
 const indent = (depth: number) => ({ paddingLeft: 8 + depth * 16 });
 
-function BookmarkRow({
-  bookmark,
-  depth,
-  open,
-}: {
-  bookmark: Bookmark;
-  depth: number;
-  open: OpenAddress;
-}) {
+/** A folder's mark, open while its items show under it. */
+function BookmarkFolderIcon({ isOpen }: { isOpen: boolean }) {
+  const Icon = isOpen ? FolderOpenIcon : FolderIcon;
+  return <Icon className="size-4 shrink-0 text-foreground/70" />;
+}
+
+function Count({ count }: { count: number }) {
   return (
-    <BookmarkContextMenu bookmark={bookmark} open={open}>
-      <button
-        className={ROW}
-        {...bookmarkClicks(bookmark.url, open)}
-        data-bookmark-id={bookmark.id}
-        onPointerDown={(event) => {
-          pressBookmark(event, bookmark);
-        }}
-        style={indent(depth)}
-        title={`${bookmarkName(bookmark)}\n${bookmark.url}`}
-        type="button"
-      >
-        <AddressMark address={bookmark.url} />
-        <span className="min-w-0 truncate">{bookmarkName(bookmark)}</span>
-      </button>
-    </BookmarkContextMenu>
+    <span className="text-xs text-muted-foreground tabular-nums">{count}</span>
   );
 }
 
-/** A folder of bookmarks that opens in place, with how many it has. */
-function FolderRow({
-  depth = 0,
-  folder,
-  isOpenAtFirst = false,
-  items,
-  open,
-  title,
-}: {
-  depth?: number;
-  folder?: BookmarkFolder;
-  isOpenAtFirst?: boolean;
-  items: BarItem[];
-  open: OpenAddress;
-  title: string;
-}) {
-  const [isOpen, setOpen] = useState(isOpenAtFirst);
+/** Where something held would land beside a row: above it or below it. */
+function DropLine({ at }: { at: "after" | "before" | undefined }) {
+  if (at === undefined) {
+    return null;
+  }
   return (
-    <>
-      <button
-        aria-expanded={isOpen}
-        className={ROW}
-        {...(folder ? { "data-bookmark-folder": folder.id } : {})}
-        onClick={() => {
-          setOpen(!isOpen);
-        }}
-        style={indent(depth)}
-        type="button"
-      >
-        <CaretRightIcon
-          className={cn(
-            "-ml-1 size-3 shrink-0 text-muted-foreground transition-transform",
-            isOpen && "rotate-90",
-          )}
-          weight="bold"
-        />
-        <FolderSimpleIcon className="size-4 shrink-0 text-foreground/70" />
-        <span className="min-w-0 flex-1 truncate">{title}</span>
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {items.length}
-        </span>
-      </button>
-      {isOpen && <BookmarkItems depth={depth + 1} items={items} open={open} />}
-    </>
+    <span
+      aria-hidden
+      className={cn(
+        "pointer-events-none absolute inset-x-2 h-0.5 rounded-full bg-primary",
+        at === "before" ? "-top-px" : "-bottom-px",
+      )}
+      data-slot="bookmark-drop-line"
+    />
   );
 }

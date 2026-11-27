@@ -1480,9 +1480,12 @@ body {
  * region it covers and stop answering the pointer at all, which reads as an
  * item that cannot be hovered or clicked. `-webkit-app-region` inherits, so
  * naming every box inside the portal target as well is for one that is given
- * `drag` itself. */
+ * `drag` itself. The toasters stand outside the portal target, over the
+ * sidebar's ground, which drags. */
 [data-slot="portal-container"],
-[data-slot="portal-container"] * {
+[data-slot="portal-container"] *,
+[data-sonner-toaster],
+[data-sonner-toaster] * {
   -webkit-app-region: no-drag;
 }
 

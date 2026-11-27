@@ -14,4 +14,6 @@ Setup draws over the app window, which stays mounted under it as `inert` (`windo
 
 `[inert], [inert] *` sets `app-region: initial`, so nothing inert is a handle for the window. `initial` rather than `no-drag`, which would cut a hole in a band around an inert box.
 
-The same trap waits for any surface drawn over a drag area that is neither inert nor in the portal container (whose boxes are `no-drag`). `.agents/skills/studio-chrome-devtools/scripts/drag-audit.mjs` works out the drag area as Electron does and lists every visible control whose middle lies in it; `--args '{"setup":true}'` walks setup step by step, and `sweep-screens.mjs` runs it on every screen it visits.
+Toasts were the second case: the toasters sit at the window's lower left, outside the portal container, and a stack fanned out on hover lies over the sidebar's empty space, so Undo and the close buttons moved the window. The toasters' boxes are `no-drag` as the portal container's are.
+
+The same trap waits for any surface drawn over a drag area that is neither inert, in the portal container nor in a toaster. `.agents/skills/studio-chrome-devtools/scripts/drag-audit.mjs` works out the drag area as Electron does and lists every visible control whose middle lies in it; `--args '{"setup":true}'` walks setup step by step, and `sweep-screens.mjs` runs it on every screen it visits.

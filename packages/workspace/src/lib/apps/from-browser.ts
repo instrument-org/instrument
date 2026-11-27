@@ -1,4 +1,8 @@
-import { type AppCatalogEntry, catalogEntryAt, getAppCatalog } from "./catalog";
+import {
+  type AppCatalogEntry,
+  catalogEntryFinder,
+  getAppCatalog,
+} from "./catalog";
 
 /** A page the person visited in the in-app browser, or an origin keeping site data there, and when it was last used where that is known. */
 export interface UsedAddress {
@@ -22,31 +26,34 @@ function ownHosts(entry: AppCatalogEntry): string[] {
 }
 
 /**
- * The entry a host sits under: the one whose own host it is below, the
+ * Finds the entry a host sits under: the one whose own host it is below, the
  * nearest winning (`console.cloud.shop.com` is Shop Cloud's at
  * `cloud.shop.com`, not Shop's at `shop.com`), and none where two are as
  * near. Never the reverse: `amazon.com` is under no entry of `aws.amazon.com`.
  */
-function entryAbove(
-  host: string,
+function entryAboveFinder(
   entries: readonly AppCatalogEntry[],
-): AppCatalogEntry | undefined {
-  let nearest: AppCatalogEntry[] = [];
-  let depth = 0;
+): (host: string) => AppCatalogEntry | undefined {
+  const owners = new Map<string, Set<AppCatalogEntry>>();
   for (const entry of entries) {
     for (const own of ownHosts(entry)) {
-      if (!host.endsWith(`.${own}`)) {
-        continue;
-      }
-      if (own.length > depth) {
-        nearest = [entry];
-        depth = own.length;
-      } else if (own.length === depth && !nearest.includes(entry)) {
-        nearest.push(entry);
-      }
+      owners.set(own, (owners.get(own) ?? new Set()).add(entry));
     }
   }
-  return nearest.length === 1 ? nearest[0] : undefined;
+  return (host) => {
+    // The hosts above it, nearest first.
+    for (
+      let dot = host.indexOf(".");
+      dot !== -1;
+      dot = host.indexOf(".", dot + 1)
+    ) {
+      const nearest = owners.get(host.slice(dot + 1));
+      if (nearest !== undefined) {
+        return nearest.size === 1 ? [...nearest][0] : undefined;
+      }
+    }
+    return undefined;
+  };
 }
 
 /**
@@ -66,31 +73,16 @@ export function catalogEntriesFromBrowser(
   const entries = catalog.filter(
     (entry) => entry.tier !== "hidden" && !isMacAppOnly(entry),
   );
-  // Only on a host some entry's web app is at does the path tell entries
-  // apart, so every other address is matched once for its whole origin.
-  const homeHosts = new Set(
-    entries.flatMap((entry) => {
-      const home = URL.parse(entry.home ?? `https://${entry.domain}`);
-      return home ? [home.host] : [];
-    }),
-  );
-  const matched = new Map<string, AppCatalogEntry | undefined>();
+  // The directory is read once, so a page costs a lookup by its host.
+  const entryAt = catalogEntryFinder(entries);
+  const entryAbove = entryAboveFinder(entries);
   const found = new Map<string, { at: number; host: string }>();
   for (const { address, at = 0 } of used) {
     const url = URL.parse(address);
     if (!url?.hostname) {
       continue;
     }
-    const key = homeHosts.has(url.host)
-      ? `${url.origin}${url.pathname}`
-      : url.origin;
-    if (!matched.has(key)) {
-      matched.set(
-        key,
-        catalogEntryAt(key, entries) ?? entryAbove(url.hostname, entries),
-      );
-    }
-    const entry = matched.get(key);
+    const entry = entryAt(url) ?? entryAbove(url.hostname);
     const seen = entry === undefined ? undefined : found.get(entry.slug);
     if (entry !== undefined && (seen === undefined || at > seen.at)) {
       found.set(entry.slug, { at, host: url.hostname });

@@ -496,37 +496,53 @@ function isPathWithin(pathname: string, appPath: string): boolean {
  * docs.google.com/spreadsheets is Sheets and not Docs; failing that, the one
  * entry on the address's host. A second account of a service lives at its
  * own address of the same site (mail.google.com/mail/u/1/), which is how it
- * is still that service. Looks among `catalog`, the whole directory unless
- * given.
+ * is still that service.
  */
-export function catalogEntryAt(
-  address: string,
-  catalog: readonly AppCatalogEntry[] = getAppCatalog(),
-): AppCatalogEntry | undefined {
+export function catalogEntryAt(address: string): AppCatalogEntry | undefined {
   const url = URL.parse(address);
-  if (url === null) {
-    return undefined;
+  return url === null ? undefined : catalogEntryFinder(getAppCatalog())(url);
+}
+
+/**
+ * `catalogEntryAt` over a set of entries, for matching many addresses: each
+ * entry's web app is read once, and an address looks only at the entries on
+ * its host.
+ */
+export function catalogEntryFinder(
+  catalog: readonly AppCatalogEntry[],
+): (url: URL) => AppCatalogEntry | undefined {
+  // Each host's web apps, the longest path first, and its entries by their
+  // domain or their web app.
+  const appsOn = new Map<string, { entry: AppCatalogEntry; path: string }[]>();
+  const entriesOn = new Map<string, Set<AppCatalogEntry>>();
+  const onHost = (host: string, entry: AppCatalogEntry) => {
+    const entries = entriesOn.get(host) ?? new Set();
+    entriesOn.set(host, entries.add(entry));
+  };
+  for (const entry of catalog) {
+    onHost(entry.domain, entry);
+    const home = URL.parse(entry.home ?? `https://${entry.domain}`);
+    if (home !== null) {
+      onHost(home.host, entry);
+      appsOn.set(home.host, [
+        ...(appsOn.get(home.host) ?? []),
+        { entry, path: home.pathname },
+      ]);
+    }
   }
-  const homeOf = (entry: AppCatalogEntry) =>
-    URL.parse(entry.home ?? `https://${entry.domain}`);
-  const within = catalog
-    .map((entry) => ({ entry, home: homeOf(entry) }))
-    .filter(
-      ({ home }) =>
-        home !== null &&
-        home.host === url.host &&
-        isPathWithin(url.pathname, home.pathname),
-    )
-    .sort(
-      (a, b) => (b.home?.pathname.length ?? 0) - (a.home?.pathname.length ?? 0),
-    );
-  if (within[0]) {
-    return within[0].entry;
+  for (const apps of appsOn.values()) {
+    apps.sort((a, b) => b.path.length - a.path.length);
   }
-  const onHost = catalog.filter(
-    (entry) => entry.domain === url.host || homeOf(entry)?.host === url.host,
-  );
-  return onHost.length === 1 ? onHost[0] : undefined;
+  return (url) => {
+    const app = appsOn
+      .get(url.host)
+      ?.find(({ path }) => isPathWithin(url.pathname, path));
+    if (app !== undefined) {
+      return app.entry;
+    }
+    const entries = [...(entriesOn.get(url.host) ?? [])];
+    return entries.length === 1 ? entries[0] : undefined;
+  };
 }
 
 /**

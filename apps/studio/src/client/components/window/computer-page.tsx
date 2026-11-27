@@ -2,6 +2,7 @@ import { undoOnShow } from "@/client/lib/undo-toast";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { useLatest } from "@/client/hooks/use-latest";
 import { useIsNarrower } from "@/client/hooks/use-is-narrower";
+import { useDebouncedValue } from "@/client/hooks/use-debounced-value";
 import { type ChosenItem } from "@/shared/drafts";
 import {
   computerColumnWidthAtom,
@@ -542,41 +543,62 @@ export function ComputerPage({
   const walkedFrom = expandHomePath(hostPathOf(current), homePath);
   const folderWalk = useQuery(
     rpcClient.files.walkFolder.queryOptions({
+      input: isSearching && !isFolderless ? { path: walkedFrom } : skipToken,
+      refetchOnWindowFocus: false,
+      retry: false,
+    }),
+  );
+  // Spotlight fills in the folders the walk stepped over, from those macOS
+  // lets this app read, by the longest word typed; a kind alone asks nothing.
+  const spotlightWord = useDebouncedValue(
+    (query ?? "")
+      .trim()
+      .split(/\s+/)
+      .reduce(
+        (longest, word) => (word.length > longest.length ? word : longest),
+        "",
+      ),
+    250,
+  );
+  const spotlight = useQuery(
+    rpcClient.files.spotlightMatches.queryOptions({
       input:
-        isSearching && !isFolderless
-          ? { path: walkedFrom }
+        isSearching &&
+        spotlightWord !== "" &&
+        (folderWalk.data?.notSearched.length ?? 0) > 0
+          ? { path: walkedFrom, word: spotlightWord }
           : skipToken,
       refetchOnWindowFocus: false,
       retry: false,
     }),
   );
-  const searchItems = (folderWalk.data?.entries ?? []).map(
-    (entry): FileSystemItem => {
-      const stamps = {
-        createdAt: new Date(entry.createdAt).toISOString(),
-        updatedAt: new Date(entry.modifiedAt).toISOString(),
-      };
-      const prefix =
-        entry.folder === "" ? current : `${current}${entry.folder}/`;
-      if (entry.isFolder) {
-        return {
-          ...stamps,
-          hasChildren: true,
-          kind: "folder",
-          metadata: { hostPath: entry.path },
-          path: `${prefix}${entry.name}/`,
-        };
-      }
+  const searchItems = [
+    ...(folderWalk.data?.entries ?? []),
+    ...(spotlight.data ?? []),
+  ].map((entry): FileSystemItem => {
+    const stamps = {
+      createdAt: new Date(entry.createdAt).toISOString(),
+      updatedAt: new Date(entry.modifiedAt).toISOString(),
+    };
+    const prefix = entry.folder === "" ? current : `${current}${entry.folder}/`;
+    if (entry.isFolder) {
       return {
         ...stamps,
-        kind: "file",
+        hasChildren: true,
+        kind: "folder",
         metadata: { hostPath: entry.path },
-        path: `${prefix}${entry.name}`,
-        ...previewOf(entry, resolvedTheme),
-        ...(entry.size === undefined ? {} : { size: entry.size }),
+        path: `${prefix}${entry.name}/`,
       };
-    },
-  );
+    }
+    return {
+      ...stamps,
+      kind: "file",
+      metadata: { hostPath: entry.path },
+      path: `${prefix}${entry.name}`,
+      ...previewOf(entry, resolvedTheme),
+      ...(entry.size === undefined ? {} : { size: entry.size }),
+    };
+  });
   // Listed as files and opened as one, but folders inside, which the menu's
   // Show Package Contents goes into.
   const packagePaths = new Set([

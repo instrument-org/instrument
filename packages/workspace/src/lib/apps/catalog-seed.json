@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-11-25T21:09:44.229Z",
-  "entriesHash": "90734b63cd9cb377",
+  "revision": "2026-11-27T22:30:52.082Z",
+  "entriesHash": "930c6cd197ed0104",
   "entries": [
     {
       "slug": "activecampaign",
@@ -2747,7 +2747,8 @@
       "category": "ai",
       "aliases": ["xai"],
       "tier": "featured",
-      "rank": 40
+      "rank": 40,
+      "signIn": "https://grok.com/sign-in"
     },
     {
       "slug": "habitify",

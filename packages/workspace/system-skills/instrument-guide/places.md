@@ -12,7 +12,7 @@ Read one section, `sed -n '/^## Tabs/,/^## /p'` on this file; the sections are S
 - Right-click a project, or its ⋯: View project details
 - Right-click the Projects heading: New Project…
 - History button: <tab groups closed lately>; Show All History
-- Help button: Send feedback…, Support; Keyboard shortcuts (?)
+- Help button: Send feedback…, Support; Keyboard shortcuts (⌘/ / Ctrl+/)
 
 ## Tabs
 
@@ -67,4 +67,4 @@ Read one section, `sed -n '/^## Tabs/,/^## /p'` on this file; the sections are S
 
 ## Command menu
 
-- Commands: Actual Size, Check for Updates, Clear Browsing Data, Hide Sidebar, Keyboard Shortcuts, Merge All Windows, New Tab, New Tab Group, New Window, Reopen Closed Tab, Send Feedback, Show Bookmarks Bar, Use Dark Theme, Use Light Theme, Zoom In, Zoom Out
+- Commands: Actual Size, Check for Updates, Clear Browsing Data, Hide Sidebar, Keyboard Shortcuts, Merge All Windows, New Skill, New Tab, New Tab Group, New Window, Reopen Closed Tab, Send Feedback, Show Bookmarks Bar, Use Dark Theme, Use Light Theme, Zoom In, Zoom Out

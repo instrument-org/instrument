@@ -997,7 +997,7 @@ export const appsResources = defineCapability({
         "refused",
       );
     }
-    const keys = await requireAppKeys(app.slug, manifest);
+    const keys = await keysFor(app.slug, manifest, ctx.role);
     const redact = await redactorFor(app.slug, manifest, keys);
     const result = await withAppMcpClient({
       keys,
@@ -1011,7 +1011,11 @@ export const appsResources = defineCapability({
       slug: app.slug,
     });
     if (result.isErr()) {
-      throw new CapabilityFailure(redact(result.error.message));
+      await noteIfSignInLost(app.slug, manifest, result.error);
+      throw (
+        taskNeedsChat(app.slug, ctx.role, result.error) ??
+        new CapabilityFailure(redact(result.error.message))
+      );
     }
     const listing = result.value;
     const text = (value: string | undefined) =>
@@ -1094,7 +1098,7 @@ export const appsRead = defineCapability({
         "refused",
       );
     }
-    const keys = await requireAppKeys(app.slug, manifest);
+    const keys = await keysFor(app.slug, manifest, ctx.role);
     const redact = await redactorFor(app.slug, manifest, keys);
     const result = await withAppMcpClient({
       keys,
@@ -1108,7 +1112,11 @@ export const appsRead = defineCapability({
       slug: app.slug,
     });
     if (result.isErr()) {
-      throw new CapabilityFailure(redact(result.error.message));
+      await noteIfSignInLost(app.slug, manifest, result.error);
+      throw (
+        taskNeedsChat(app.slug, ctx.role, result.error) ??
+        new CapabilityFailure(redact(result.error.message))
+      );
     }
     return result.value
       .map((part) =>

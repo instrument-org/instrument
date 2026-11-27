@@ -10,6 +10,7 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { knowChat } from "../../test/helpers/mock-chat-config";
 import { createMemoryAppsConfig } from "../apps/memory-config";
+import { recordConnection } from "../apps/connection";
 import { readAppGuide, loadApp } from "../apps/store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
@@ -184,6 +185,44 @@ describe("app setup from a task", () => {
       "/me",
     ]);
     expect(chat.stderr).toContain("instrument app test");
+  });
+});
+
+// A task reading an MCP app's documents meets a missing key as every other
+// app command does in a task: the key is the chat's to ask for.
+describe("app documents from a task", () => {
+  it.each([
+    ["resources", ["resources", "task-docs"]],
+    ["read", ["read", "task-docs", "docs://readme"]],
+  ])("hands a missing key on %s to the chat", async (_word, args) => {
+    const made = await app("chat", [
+      "new",
+      "task-docs",
+      "--name",
+      "Docs",
+      "--mcp",
+      "https://mcp.example.com/mcp",
+      "--auth",
+      "bearer",
+      "--force",
+    ]);
+    expect(made.exitCode).toBe(0);
+    const { manifestHash } = (await loadApp("task-docs"))._unsafeUnwrap();
+    await recordConnection("task-docs", {
+      connectedAt: 1,
+      manifestHash,
+      status: "connected",
+    });
+
+    const task = await app("task", args);
+    expect(task.exitCode).toBe(1);
+    expect(task.stderr).toMatchInlineSnapshot(`
+      "instrument app: "task-docs" needs a key from the user. Setting up and connecting apps is the chat's. End your last message with a needs fence naming the app and what it needs (set up, connected, or changed); the chat does it and sends you on.
+      "
+    `);
+
+    const chat = await app("chat", args);
+    expect(chat.stderr).toContain("connect_app");
   });
 });
 

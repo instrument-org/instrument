@@ -43,6 +43,7 @@ function boot() {
   }
   let answer: Boot | null = null;
   try {
+    // oxlint-disable-next-line no-restricted-properties -- asked before the page's first script, so the editor watches the page build itself
     answer = ipcRenderer.sendSync(PAGE_EDITOR_BOOT_CHANNEL) as Boot | null;
   } catch {
     return;

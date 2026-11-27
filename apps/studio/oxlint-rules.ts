@@ -545,6 +545,41 @@ const SYNC_LISTINGS = new Set([
 const FS_MODULES = new Set(["fs", "node:fs"]);
 
 /**
+ * The name a call goes by: what `node:fs` exports a function as, where it
+ * was imported under another name, or else the function's or method's own.
+ * `ImportDeclaration` learns those names, and is the rule's visitor too.
+ */
+function fsCallNames() {
+  // Local names `node:fs` imports go by, to the name it exports them as.
+  const fsImports = new Map<string, string>();
+  return {
+    ImportDeclaration: (node: ESTree.ImportDeclaration) => {
+      if (!FS_MODULES.has(node.source.value)) {
+        return;
+      }
+      for (const specifier of node.specifiers) {
+        if (
+          specifier.type === "ImportSpecifier" &&
+          specifier.imported.type === "Identifier"
+        ) {
+          fsImports.set(specifier.local.name, specifier.imported.name);
+        }
+      }
+    },
+    nameOf: ({ callee }: ESTree.CallExpression): string | undefined => {
+      if (callee.type === "Identifier") {
+        return fsImports.get(callee.name) ?? callee.name;
+      }
+      return callee.type === "MemberExpression" &&
+        !callee.computed &&
+        callee.property.type === "Identifier"
+        ? callee.property.name
+        : undefined;
+    },
+  };
+}
+
+/**
  * Whether `openSync` is called with a flag that truncates (`"w"`, `"wx"`,
  * `"w+"`), which starts the file empty and so never waits on its contents.
  * Any other flag, or one not written as a string, is read as a read.
@@ -567,8 +602,7 @@ const opensForWriting = (args: ESTree.CallExpression["arguments"]) => {
  */
 const noSyncContentRead = defineRule({
   create(context) {
-    // Local names `node:fs` imports go by, to the name it exports them as.
-    const fsImports = new Map<string, string>();
+    const names = fsCallNames();
     const listings = ratchet(context, "no-sync-content-read");
     const report = (node: ESTree.CallExpression, name: string) => {
       if (SYNC_LISTINGS.has(name)) {
@@ -585,32 +619,13 @@ const noSyncContentRead = defineRule({
     };
     return {
       CallExpression(node) {
-        const { callee } = node;
-        if (callee.type === "Identifier") {
-          const name = fsImports.get(callee.name) ?? callee.name;
+        const name = names.nameOf(node);
+        if (name !== undefined) {
           report(node, name);
-        } else if (
-          callee.type === "MemberExpression" &&
-          !callee.computed &&
-          callee.property.type === "Identifier"
-        ) {
-          report(node, callee.property.name);
         }
       },
+      ImportDeclaration: names.ImportDeclaration,
       "Program:exit": listings.report,
-      ImportDeclaration(node) {
-        if (!FS_MODULES.has(node.source.value)) {
-          return;
-        }
-        for (const specifier of node.specifiers) {
-          if (
-            specifier.type === "ImportSpecifier" &&
-            specifier.imported.type === "Identifier"
-          ) {
-            fsImports.set(specifier.local.name, specifier.imported.name);
-          }
-        }
-      },
     };
   },
   meta: {
@@ -621,6 +636,55 @@ const noSyncContentRead = defineRule({
         "{{name}} lists a folder, or reads what it copies, on the calling thread ({{count}} here, {{allowed}} recorded), and one in a synced workspace folder may have to be downloaded or wait on macOS's approval first, which freezes the app. Use fs.promises. A folder only ever on local disk, or a call that has to stay synchronous, takes `// oxlint-disable-next-line studio/no-sync-content-read -- <why>`, or puts its file on the allowlist in the package's .oxlintrc.json.",
       syncContentRead:
         "{{name}} reads a file's contents on the calling thread, and a file in a synced workspace folder may not be downloaded yet, which freezes the app until it is. Read workspace files with lib/workspace-files.ts (packages/workspace). A file only ever on local disk, or a read that has to stay synchronous, goes on the allowlist in the package's .oxlintrc.json, or takes `// oxlint-disable-next-line studio/no-sync-content-read -- <why>`.",
+    },
+    schema: RATCHET_SCHEMA,
+    type: "problem",
+  },
+});
+
+/**
+ * Sync calls that write a file, by the name `node:fs` gives them, and the
+ * repo's wrappers over them. An append or a copy is a read too, and
+ * `no-sync-content-read` reports it as one.
+ */
+const SYNC_WRITES = new Set([
+  "appendFileSync",
+  "copyFileSync",
+  "rewriteFileSync",
+  "writeDeviceStatusFileSync",
+  "writeFileSync",
+  "writeJsonAtomic",
+  "writeStoreRowsSync",
+  "writeSync",
+]);
+
+/**
+ * A sync write in the main process holds every window until the disk is
+ * done, however often it comes: a file rewritten on each tab switch did.
+ * The writes that have to stay synchronous are counted by file in the
+ * package's `.oxlintrc.json`, each with its reason, or excused by line.
+ */
+const noSyncWrite = defineRule({
+  create(context) {
+    const names = fsCallNames();
+    const writes = ratchet(context, "no-sync-write");
+    return {
+      CallExpression(node) {
+        const name = names.nameOf(node);
+        if (name !== undefined && SYNC_WRITES.has(name)) {
+          writes.add("syncWrite", node, { name });
+        }
+      },
+      ImportDeclaration: names.ImportDeclaration,
+      "Program:exit": writes.report,
+    };
+  },
+  meta: {
+    messages: {
+      fewer:
+        "This file has {{count}} synchronous writes where {{allowed}} are recorded. Lower its count under studio/no-sync-write in apps/studio/.oxlintrc.json, or drop the entry at none.",
+      syncWrite:
+        "{{name}} writes on the main process's thread, and every window waits until the disk is done ({{count}} here, {{allowed}} recorded). Use fs.promises, written to a temporary file and renamed into place. A write that has to finish before the process goes on (a launch step, the quit's last flush) gets its file's count raised in apps/studio/.oxlintrc.json with its reason, or takes `// oxlint-disable-next-line studio/no-sync-write -- <why>`.",
     },
     schema: RATCHET_SCHEMA,
     type: "problem",
@@ -1073,6 +1137,7 @@ export default definePlugin({
     "no-silent-rpc": noSilentRpc,
     "no-stacked-doc-comments": noStackedDocComments,
     "no-sync-content-read": noSyncContentRead,
+    "no-sync-write": noSyncWrite,
     "no-transition-colors": noTransitionColors,
     "one-tooltip-provider": oneTooltipProvider,
     "stage-reader-opts-out": stageReaderOptsOut,

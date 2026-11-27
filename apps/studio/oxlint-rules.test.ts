@@ -177,6 +177,57 @@ new RuleTester({
   ],
 });
 
+const syncWriteRule = plugin.rules["no-sync-write"];
+if (!syncWriteRule) {
+  throw new Error("The plugin has no studio/no-sync-write rule");
+}
+
+/** A line that writes a file synchronously through `name`, in a file with none recorded. */
+const writesSync = (code: string, name: string) => ({
+  code,
+  errors: [
+    { data: { allowed: "0", count: "1", name }, messageId: "syncWrite" },
+  ],
+});
+
+new RuleTester({
+  languageOptions: { parserOptions: { lang: "ts" } },
+}).run("no-sync-write", syncWriteRule, {
+  invalid: [
+    writesSync(`fs.writeFileSync(file, text);`, "writeFileSync"),
+    writesSync(
+      `import { writeFileSync as write } from "node:fs"; write(file, text);`,
+      "writeFileSync",
+    ),
+    writesSync(`fs.writeSync(fd, text);`, "writeSync"),
+    writesSync(`writeJsonAtomic(file, value);`, "writeJsonAtomic"),
+    {
+      code: `fs.writeFileSync(a, text); fs.writeFileSync(b, text);`,
+      errors: [
+        {
+          data: { allowed: "1", count: "2", name: "writeFileSync" },
+          messageId: "syncWrite",
+        },
+        {
+          data: { allowed: "1", count: "2", name: "writeFileSync" },
+          messageId: "syncWrite",
+        },
+      ],
+      filename: "/repo/src/lib/kept.ts",
+      options: [{ "lib/kept.ts": 1 }],
+    },
+  ],
+  valid: [
+    `await fs.promises.writeFile(file, text);`,
+    `fs.renameSync(from, to);`,
+    {
+      code: `fs.writeFileSync(file, text);`,
+      filename: "/repo/src/lib/kept.ts",
+      options: [{ "lib/kept.ts": 1 }],
+    },
+  ],
+});
+
 const stageRule = plugin.rules["stage-reader-opts-out"];
 if (!stageRule) {
   throw new Error("The plugin has no studio/stage-reader-opts-out rule");

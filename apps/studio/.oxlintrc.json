@@ -165,6 +165,91 @@
       }
     },
     {
+      // The writes that stay synchronous, by file, each with its reason. A
+      // count only falls; a new one is asynchronous, or takes a disable
+      // comment with its reason.
+      "files": ["src/electron-main/**"],
+      "rules": {
+        "studio/no-sync-write": [
+          "error",
+          {
+            // Launch only, before a window opens: migrations, the move of a
+            // workspace's records, and the update's own Update.exe put back,
+            // each read back by synchronous code.
+            "src/electron-main/lib/machine-data-migration.ts": 2,
+            "src/electron-main/lib/settings-migration.ts": 5,
+            "src/electron-main/lib/update-velopack.ts": 5,
+            "src/electron-main/lib/workspace-move.ts": 3,
+            // The workspaces registry, its lock and the open workspace's pid
+            // mark, a few bytes at launch and when a workspace is added,
+            // moved or picked, under a lock its synchronous callers hold; and
+            // a damaged registry or workspace.json kept beside the new one.
+            "src/electron-main/lib/workspaces.ts": 8,
+            // The crash markers: at launch, as the system ends the session,
+            // and on a throw in main, which may be the process's last.
+            "src/electron-main/lib/register-crash-diagnostics.ts": 4,
+            // Dev builds only, at launch.
+            "src/electron-main/lib/app-session.ts": 1,
+            // Just before the process ends: the quit's last flush of the
+            // windows' kept state and of the phone's status file, the install
+            // scripts an update runs once the app quits, and the registry file
+            // Velopack's hooks import before they end the process.
+            "src/electron-main/lib/device-status.ts": 1,
+            "src/electron-main/lib/update-bridge.ts": 1,
+            "src/electron-main/lib/update.ts": 1,
+            "src/electron-main/lib/windows-open-with.ts": 1,
+            "src/electron-main/stores/workspace/kept-state.ts": 1,
+            // The freeze marker, written by the watchdog's worker, and a line
+            // in the log as a freeze ends.
+            "src/electron-main/lib/main-thread-freezes.ts": 2,
+            // A few bytes in userData or the machine folder, once per
+            // catalog fetch, setup answer or workspace made (with the sign-ins
+            // copied into it); and an empty file in a folder picked for the
+            // workspace, proving it writable.
+            "src/electron-main/lib/app-catalog.ts": 1,
+            "src/electron-main/lib/model-settings.ts": 1,
+            "src/electron-main/lib/setup-state.ts": 1,
+            "src/electron-main/lib/workspace-management.ts": 2,
+            // An empty file proving Downloads writable on the click that
+            // saves, which also raises macOS's question then; its caller picks
+            // the folder synchronously.
+            "src/electron-main/browser-view/downloads.ts": 1,
+            // Not justified, counted so they cannot grow: bytes pasted into a
+            // draft are written into its folder as the paste is staged, and
+            // the new tab drafts file is rewritten as those drafts change.
+            "src/electron-main/drafts/draft-store.ts": 1,
+            "src/electron-main/drafts/new-tab-drafts.ts": 1
+          }
+        ]
+      }
+    },
+    {
+      "files": ["**/*.test.*"],
+      "rules": {
+        "studio/no-sync-write": "off"
+      }
+    },
+    {
+      // The preloads. The rest repeats the root rule, whose options this
+      // replaces.
+      "files": ["src/electron-preload/**", "src/page-editor-guest/**"],
+      "rules": {
+        "no-restricted-properties": [
+          "error",
+          {
+            "message": "window.open is not allowed in the Electron app. Use shell.openExternal or ExternalLink component instead.",
+            "object": "window",
+            "property": "open"
+          },
+          {
+            "message": "sendSync holds the window's thread until the main process answers, and that waits on whatever main is doing. Use ipcRenderer.invoke. A read the first render needs takes `// oxlint-disable-next-line no-restricted-properties -- <why>`.",
+            "object": "ipcRenderer",
+            "property": "sendSync"
+          }
+        ]
+      }
+    },
+    {
       // Where a file's contents may be read synchronously. The rule cannot
       // tell a file in the synced workspace folder from one on local disk, so
       // this list carries that judgment, a file at a time. A file that reads

@@ -50,6 +50,7 @@ import { keptChangeFeed, tabsChangedFeed } from "./kept-changes";
 function applyInitialTheme() {
   let theme: unknown;
   try {
+    // oxlint-disable-next-line no-restricted-properties -- the theme class has to land before the stylesheet paints
     theme = ipcRenderer.sendSync(RESOLVE_THEME_CHANNEL);
   } catch {
     // Leave the class to ThemeProvider rather than guessing wrong.
@@ -91,6 +92,7 @@ applyInitialTheme();
 function loadKeptState(): KeptSnapshot {
   let value: unknown;
   try {
+    // oxlint-disable-next-line no-restricted-properties -- the first render draws the tabs the window was left with
     value = ipcRenderer.sendSync(KEPT_STATE_CHANNEL.load);
   } catch {
     return {};
@@ -114,6 +116,7 @@ function loadKeptState(): KeptSnapshot {
  */
 function loadSetupState(): null | SetupState {
   try {
+    // oxlint-disable-next-line no-restricted-properties -- a first launch draws setup in its first render
     const value: unknown = ipcRenderer.sendSync(SETUP_STATE_CHANNEL);
     if (value !== null && typeof value === "object" && "step" in value) {
       // Main's own readSetupState, made for this window as it loads.
@@ -132,6 +135,7 @@ function loadSetupState(): null | SetupState {
  */
 function loadDrafts(): DraftsSnapshot {
   try {
+    // oxlint-disable-next-line no-restricted-properties -- a chat's box draws the reply waiting in it in its first render
     const value: unknown = ipcRenderer.sendSync(DRAFTS_CHANNEL.load);
     if (
       value !== null &&
@@ -174,6 +178,7 @@ ipcRenderer.on(
  */
 function loadBookmarks(): BookmarksSnapshot {
   try {
+    // oxlint-disable-next-line no-restricted-properties -- the browser's starting view draws them in its first render
     const value: unknown = ipcRenderer.sendSync(BOOKMARKS_CHANNEL.load);
     if (
       value !== null &&
@@ -315,6 +320,7 @@ const api: Window["api"] = {
   initialSetupState: loadSetupState(),
   keptState: {
     otherWindows: (key) => {
+      // oxlint-disable-next-line no-restricted-properties -- its callers decide synchronously, and it is asked rarely
       const values: unknown = ipcRenderer.sendSync(
         KEPT_STATE_CHANNEL.otherWindows,
         key,

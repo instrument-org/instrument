@@ -28,6 +28,8 @@ const config: KnipConfig = {
       entry: [
         "scripts/*.ts!",
         "scripts/sandbox-bakeoff/*.ts!",
+        // A fixture too big to write by hand is written by its own script.
+        "fixtures/workspaces/*/generate.ts!",
         ".agents/wireframe-kit/**/*.{ts,mjs}!",
       ],
       ignoreBinaries: ["actionlint", "electron"],

@@ -58,6 +58,10 @@
           "description": "A label for this call: a short phrase starting with a verb ending in -ing, e.g. 'Reading the sales spreadsheet'. Generate this before the call's other fields.",
           "type": "string"
         },
+        "admin": {
+          "description": "Run the command as an administrator, outside the sandbox: only for a change only an administrator can make (the time zone, a system setting, installing for every user). The user sees the exact command on a card, allows it, then answers the system's own password prompt. Your turn ends with the call, and their answer wakes you. Never put sudo in the command or ask for a password.",
+          "type": "boolean"
+        },
         "command": {
           "type": "string",
           "description": "The bash command to run"
@@ -70,6 +74,11 @@
           "default": 120000,
           "description": "How long to wait for the command before the call returns. A command that finishes sooner returns its output as usual; one that does not is NOT killed -- it keeps running and you get a process id to follow with the `fg` command. Default 120000; range 250-600000. Leave it unset for ordinary commands. Raise it to cover a command you know runs longer than the default. Start a server or watcher with a trailing `&`, which returns its id at once.",
           "type": "number"
+        },
+        "reason": {
+          "description": "With `admin`, one line to the user saying what the command changes, shown on the card: 'Changes the time zone to Eastern Time.'",
+          "type": "string",
+          "maxLength": 300
         }
       },
       "required": [

@@ -34,6 +34,7 @@ import {
   watchMacosPrompt,
 } from "../permissions/macos";
 import { type Level, placePaths } from "../permissions/places";
+import { type AdminRun, runAsAdmin } from "../permissions/run-as-admin";
 import {
   type PermissionSettings,
   updatePermissionSettings,
@@ -227,6 +228,26 @@ async function step(
     }
     return refreshSignIn(chatId, ask.id, undefined, workspaceRef);
   }
+  if (
+    stage.is === "waiting" &&
+    ask.kind === "permission" &&
+    ask.on === "admin" &&
+    !looks.has(ask.id)
+  ) {
+    // The app closed while the command waited on the system's prompt, or
+    // ran: nobody can say which.
+    return close(
+      chatId,
+      ask.id,
+      permissionOutcome({
+        answer: stage.allowed,
+        kind: "admin",
+        run: { is: "unknown" },
+        target: ask.target,
+      }),
+      stage.answer,
+    );
+  }
   if (stage.is === "taken" && ask.kind === "permission") {
     const { answer } = stage;
     // A yes whose look is running is the look's to finish.
@@ -346,6 +367,9 @@ async function carryOut(
       answer,
     );
     return undefined;
+  }
+  if (ask.on === "admin") {
+    return { look: startAdminRun(chatId, ask, answer, workspaceRef) };
   }
   try {
     await grant(chatId, ask, answer.decision);
@@ -533,6 +557,66 @@ function startLook(
   looks.set(ask.id, look);
   // The look's outcome is woken by the pass after it.
   return look.then(() => driveAsks(chatId, workspaceRef));
+}
+
+/**
+ * Runs an allowed command as an administrator, beside the passes, since the
+ * system's prompt can stay up for minutes: the ask waits on the prompt
+ * (`admin-prompt`) while it runs, then closes with how the run went, which
+ * the pass after it wakes the askers with. Canceling the prompt is a no.
+ */
+function startAdminRun(
+  chatId: ChatId,
+  ask: PermissionAskRecord,
+  answer: AnswerRef,
+  workspaceRef: WorkspaceActorRef,
+): Promise<void> {
+  const running = looks.get(ask.id);
+  if (running) {
+    return running;
+  }
+  const given = { at: answer.at, device: answer.device };
+  const run = (async () => {
+    const waiting = await changeAsk(chatId, ask.id, (now) =>
+      now.ask.stage.is === "taken"
+        ? {
+            ...now.ask,
+            stage: {
+              allowed: "allowed",
+              answer: given,
+              is: "waiting",
+              on: "admin-prompt",
+            },
+          }
+        : undefined,
+    );
+    if (waiting === undefined) {
+      return;
+    }
+    const ran = await runAsAdmin(ask.target);
+    await changeAsk(chatId, ask.id, (now) =>
+      now.ask.stage.is === "waiting"
+        ? {
+            ...now.ask,
+            stage: closedStage(adminOutcome(ask.target, ran), given),
+          }
+        : undefined,
+    );
+  })().finally(() => {
+    looks.delete(ask.id);
+  });
+  looks.set(ask.id, run);
+  return run.then(() => driveAsks(chatId, workspaceRef));
+}
+
+/** What a run as administrator closes its ask with: a canceled prompt is a no. */
+function adminOutcome(command: string, run: AdminRun): Outcome {
+  return permissionOutcome({
+    answer: run.is === "canceled" ? "declined" : "allowed",
+    kind: "admin",
+    run,
+    target: command,
+  });
 }
 
 /** How long the wake for a set of questions waits for another call under its key. */
@@ -979,6 +1063,26 @@ export async function answerAsk(
     });
   }
   const { ask } = state;
+  if (ask.on === "admin" && ask.stage.is === "waiting") {
+    throw new ORPCError("BAD_REQUEST", {
+      message: "That command is waiting on the system.",
+    });
+  }
+  // A command runs as an administrator once, and only where it was asked.
+  if (ask.on === "admin" && decision === "always") {
+    throw new ORPCError("BAD_REQUEST", {
+      message: "A command can only be allowed to run once.",
+    });
+  }
+  if (
+    ask.on === "admin" &&
+    decision !== "declined" &&
+    ask.device !== thisDevice()
+  ) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: `That command runs on ${await computerName(ask.device)}. Open this chat there to run it.`,
+    });
+  }
   if (ask.device !== thisDevice()) {
     if (!answerableElsewhere(state)) {
       const answered = state.pending !== undefined || ask.stage.is === "taken";
@@ -1139,7 +1243,11 @@ export async function driveOwedAsks(
           pending !== undefined ||
           ask.stage.is === "taken" ||
           (ask.stage.is === "closed" && !ask.stage.woken) ||
-          (!live && ask.stage.is !== "closed"),
+          (!live && ask.stage.is !== "closed") ||
+          // A command left waiting on the system's prompt by a quit.
+          (ask.kind === "permission" &&
+            ask.on === "admin" &&
+            ask.stage.is === "waiting"),
       );
       if (owed || refreshed) {
         await driveAsks(chatId, workspaceRef);
@@ -1214,7 +1322,7 @@ async function grant(
   decision: "allowed" | "always",
 ): Promise<void> {
   const { on, target } = ask;
-  if (on === "page") {
+  if (on === "page" || on === "admin") {
     return;
   }
   await setDenied(chatId, on, target, false);

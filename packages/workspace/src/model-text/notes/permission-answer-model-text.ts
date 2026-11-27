@@ -1,6 +1,7 @@
 import { APP_NAME } from "@instrument-org/shared";
 
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { adminAnswerText } from "./admin-command-model-text";
 import { systemNote } from "./system-note";
 import { WAIT_CARD_WORDS } from "../../lib/screen-words";
 
@@ -13,6 +14,9 @@ export function permissionAnswerModelNote(
 ): string {
   if (data.kind === "page") {
     return systemNote`${pageAnswer(data)}`;
+  }
+  if (data.kind === "admin") {
+    return systemNote`${adminAnswerText(data)}`;
   }
   const what = data.kind === "app" ? data.target : `the folder ${data.target}`;
   const said =

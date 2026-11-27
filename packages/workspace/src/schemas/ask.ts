@@ -111,9 +111,12 @@ export type Taken = z.output<typeof TakenSchema>;
  * own app may open, which the card says and offers no way into;
  * `windows-blocked`, Windows' ransomware protection keeping the app's
  * programs from changing the folder, where the card lets them through with
- * an administrator's yes or opens Windows Security.
+ * an administrator's yes or opens Windows Security; `admin-prompt`, the
+ * system's own password or administrator prompt for a command the person
+ * allowed to run as an administrator, which runs once they answer it.
  */
 export const SystemWaitSchema = z.enum([
+  "admin-prompt",
   "macos-asking",
   "macos-private",
   "macos-refused",
@@ -221,7 +224,7 @@ export const AskRecordSchema = z.discriminatedUnion("kind", [
      * by their paths, which the card's Allow lets through.
      */
     programs: z.array(z.string()).optional(),
-    /** The folder's absolute path, the app's name, or the page's tab id. */
+    /** The folder's absolute path, the app's name, the page's tab id, or the command as the agent wrote it. */
     target: z.string(),
   }),
   AskBaseSchema.extend({

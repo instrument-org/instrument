@@ -8,6 +8,7 @@ import { instrumentAgent } from "../agents/instrument";
 import { getSystemInfoText, getUserText } from "./context/context-message";
 import { STOPPED_TOOL_CALL_ERROR_TEXT } from "../constants";
 import * as agentBrowserGuide from "./guides/agent-browser-guide";
+import * as adminCommand from "./notes/admin-command-model-text";
 import * as appEvent from "./notes/app-event-model-text";
 import * as asks from "./notes/asks-model-text";
 import * as availableSkillsContext from "./context/available-skills-context";
@@ -187,6 +188,7 @@ function constantsOf(module: Record<string, unknown>) {
 }
 
 const MODULES = {
+  adminCommand,
   agentBrowserGuide,
   appCommand,
   appEvent,

@@ -109,6 +109,43 @@ describe("askStates", () => {
     ).toMatchObject({ decision: "declined", device: owner });
   });
 
+  it("takes a yes to an admin command only from its own computer, and nothing once it runs", () => {
+    const admin = (stage: AskRecord["stage"] = { is: "open" }): AskRecord => ({
+      askedAt: at(0),
+      askers: [{ at: at(1), sessionId: own }],
+      device: owner,
+      id: "pantry",
+      kind: "permission",
+      on: "admin",
+      stage,
+      target: "systemsetup -settimezone America/New_York",
+    });
+    const always: AskAnswer = {
+      ...yes(owner, 3),
+      given: { decision: "always", kind: "permission" },
+    };
+    const pendingOf = (ask: AskRecord, answers: AskAnswer[]) =>
+      askStates({ answers, asks: [ask], now: NOW })[0]?.pending;
+    // Another device's yes and an Always allow are passed over; its no is not.
+    expect(pendingOf(admin(), [yes(phone, 2), always])).toBeUndefined();
+    expect(pendingOf(admin(), [yes(phone, 2), no(phone, 4)])).toMatchObject({
+      decision: "declined",
+      device: phone,
+    });
+    expect(pendingOf(admin(), [yes(phone, 2), yes(owner, 5)])).toMatchObject({
+      decision: "allowed",
+      device: owner,
+    });
+    // Waiting on the system's prompt, not even its own computer's no is taken.
+    const waiting = admin({
+      allowed: "allowed",
+      answer: { at: at(5), device: owner },
+      is: "waiting",
+      on: "admin-prompt",
+    });
+    expect(pendingOf(waiting, [yes(owner, 5), no(owner, 6)])).toBeUndefined();
+  });
+
   it("takes stopped askers off, and an ask nobody is left on stops being live", () => {
     const stop = (sessionId: typeof own, minute: number): AskAnswer => ({
       ask: "pantry",

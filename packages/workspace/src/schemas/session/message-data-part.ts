@@ -1351,11 +1351,13 @@ export namespace SessionMessageDataPart {
   export type AppEventDataPart = z.output<typeof AppEventDataPartSchema>;
 
   /**
-   * What a permission card is about: a folder, a Mac app, or a page of the
+   * What a permission card is about: a folder, a Mac app, a page of the
    * chat's own the agent waits on the person to finish something in
-   * (`instrument window wait`), which Done hands back.
+   * (`instrument window wait`), which Done hands back, or a command the
+   * agent asked to run as an administrator (`bash` with `admin`), which
+   * only the computer that asked runs, behind the system's own prompt.
    */
-  export const PermissionOnSchema = z.enum(["app", "folder", "page"]);
+  export const PermissionOnSchema = z.enum(["admin", "app", "folder", "page"]);
 
   export type PermissionOn = z.output<typeof PermissionOnSchema>;
 
@@ -1372,7 +1374,24 @@ export namespace SessionMessageDataPart {
     kind: PermissionOnSchema,
     /** A waited-on page as it stood when answered. */
     page: z.object({ title: z.string(), url: z.string() }).optional(),
-    /** The folder's path, the app's name, or the page's tab id. */
+    /** How a command allowed to run as an administrator went. */
+    run: z
+      .discriminatedUnion("is", [
+        z.object({
+          exitCode: z.number().int(),
+          is: z.literal("ran"),
+          /** What it printed, stdout and stderr together, head and tail kept. */
+          output: z.string(),
+        }),
+        /** The person canceled the system's prompt: nothing ran. */
+        z.object({ is: z.literal("canceled") }),
+        /** The system could not run it. */
+        z.object({ is: z.literal("failed"), message: z.string() }),
+        /** The app closed while it waited on the system: it may have run. */
+        z.object({ is: z.literal("unknown") }),
+      ])
+      .optional(),
+    /** The folder's path, the app's name, the page's tab id, or the command. */
     target: z.string(),
     /**
      * Where the yes went when it was not to Instrument's own rules: Windows'

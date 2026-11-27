@@ -83,6 +83,7 @@ import {
   macAppsStandIn,
 } from "../src/test/helpers/mac-apps-launch";
 import { getWorkspaceConfig } from "../src/lib/workspace-config";
+import { setAdminRunner } from "../src/lib/permissions/run-as-admin";
 import { ActionLog, actionsDir } from "../src/lib/actions/log";
 import { type Action, type HistoryAction } from "../src/lib/actions/schema";
 import { type ActivityEntry } from "../src/lib/activity/schema";
@@ -603,6 +604,13 @@ export interface EvalCase {
   /** Every app the agent asks to use is answered as the user allowing it. */
   allowsApps?: boolean;
   /**
+   * How every card asking to run a command as an administrator is answered:
+   * `declined` as Don't allow, or `allowed`, which a stand-in for the
+   * system's prompt answers as run with exit 0 and nothing printed; left
+   * open otherwise. No run ever puts up the system's real prompt.
+   */
+  adminAnswer?: "allowed" | "declined";
+  /**
    * Every sign-in card the conversation's agent puts up (`connect_app` on an
    * app that signs in) ends this way once its turn settles, as the app's
    * callback would record it: the service refusing the account, a sign-in
@@ -994,6 +1002,9 @@ export async function runEvals(
     repeat?: number;
   },
 ): Promise<{ runs: CompletedRun[]; workspaceRootDir: string }> {
+  // A run never puts the system's password prompt in front of anyone, nor
+  // runs anything as an administrator.
+  setAdminRunner(() => Promise.resolve({ exitCode: 0, is: "ran", output: "" }));
   const workspaceRootDir = path.join(
     os.tmpdir(),
     `${APP_NAME_SLUG}-evals-${ulid()}`,
@@ -1538,6 +1549,20 @@ export async function runEvals(
                     call(
                       chatsRoute.answerQuestion,
                       { answer: picked, askId: ask.id, id },
+                      { context },
+                    );
+                } else if (ask.kind === "admin") {
+                  const decision = evalCase.adminAnswer;
+                  write(
+                    `${evalPrefix(label)}${c.cyan}asked${c.reset}${c.dim} to run as administrator: ${ask.target}${decision ? `; ${decision === "allowed" ? "allowing" : "declining"}` : ""}${c.reset}\n`,
+                  );
+                  if (decision === undefined) {
+                    continue;
+                  }
+                  answer = () =>
+                    call(
+                      permissionsRoute.answer,
+                      { askId: ask.id, decision, id },
                       { context },
                     );
                 } else {

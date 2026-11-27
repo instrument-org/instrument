@@ -40,13 +40,15 @@ const VARIABLE_FOLDERS = [
 ] as const satisfies [keyof Environment, string, string][];
 
 /**
- * A change to the computer only an administrator can make, which the sandbox
- * keeps from the agent, goes to the user as a link that opens its page of
- * the system's settings, which Studio opens for this platform's scheme
- * (`openExternal`). `example` is that link, written the way the reply writes it.
+ * A change to the computer only an administrator can make goes through a
+ * bash call with `admin`, which the user allows on a card and in the
+ * system's own prompt; after a no, the user gets a link that opens its page
+ * of the system's settings, which Studio opens for this platform's scheme
+ * (`openExternal`). `shell` is what runs an admin command here, and
+ * `example` that link, written the way the reply writes it.
  */
-function adminSettingsGuidance(example: string): string {
-  return `Your shell can't run anything as an administrator, so a setting only an administrator changes (the time zone, sharing, the firewall) is the user's to change: never try sudo or ask for their password. Give them a Markdown link in your reply that opens its page of the system's settings, and say what to change there: ${example}.`;
+function adminSettingsGuidance(shell: string, example: string): string {
+  return `A setting only an administrator changes (the time zone, sharing, the firewall) goes through a bash call with \`admin: true\`, which runs in ${shell}: never sudo, and never ask for the user's password. If they don't allow it, give them a Markdown link in your reply that opens its page of the system's settings, and say what to change there: ${example}.`;
 }
 
 /**
@@ -63,6 +65,7 @@ export function platformGuidance(platform: string): string | undefined {
       return [
         `The Mac's own ${MAC_APPS.map((app) => app.name).join(", ")} are apps like any other (${MAC_APPS.map((app) => `\`${app.server}\``).join(", ")}), set up from \`${APP_COMMAND.name} catalog\`.`,
         adminSettingsGuidance(
+          "the Mac's own bash, not your shell",
           "[Open Date & Time settings](x-apple.systempreferences:com.apple.Date-Time-Settings.extension), and a Privacy & Security pane by its anchor, `x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone`",
         ),
       ].join(" ");
@@ -71,6 +74,7 @@ export function platformGuidance(platform: string): string | undefined {
       return [
         "The shell spells a Windows path the POSIX way (`C:\\Users\\sam` is `/c/Users/sam`); when you name a path to the user, write it the Windows way. Paths you pass a program as arguments are converted, but paths written inside a script's own code are not: write those the Windows way. `/tmp` in the shell is the temp folder (`%TEMP%`); a script gets it from its language (`tempfile.gettempdir()`, `os.tmpdir()`, `$env:TEMP`) rather than writing `/tmp`. `tasklist` lists every process on the computer; a program you start (PowerShell's `Get-Process` included) may see only its own.",
         adminSettingsGuidance(
+          "Windows PowerShell",
           "[Open Date & time settings](ms-settings:dateandtime)",
         ),
       ].join(" ");

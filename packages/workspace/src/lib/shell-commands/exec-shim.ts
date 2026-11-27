@@ -460,6 +460,10 @@ const PROCESS_LISTERS: Record<string, string> = {
   top: "Run `top -l 1` as a shell command of its own, where it lists every process; a program or script can't start it.",
 };
 
+/** Where a command `sudo` was for goes instead. */
+const SUDO_INSTEAD =
+  "Run the command without sudo in a bash call with `admin: true`: the user allows it on a card and enters their password in the system's own prompt.";
+
 /**
  * The note for a program macOS kept from starting inside the sandbox because
  * it runs as another user (`ps`, `top`, `sudo`), in place of the note for a
@@ -477,7 +481,7 @@ export function setuidRefusalNote(
     return undefined;
   }
   const name = path.basename(file);
-  const instead = PROCESS_LISTERS[name];
+  const instead = name === "sudo" ? SUDO_INSTEAD : PROCESS_LISTERS[name];
   return `\`${name}\` can't run here: it runs as another user, which the sandbox refuses.${instead ? ` ${instead}` : ""}`;
 }
 

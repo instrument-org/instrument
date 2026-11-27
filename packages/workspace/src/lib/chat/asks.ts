@@ -79,6 +79,28 @@ export async function askRecords(
   };
 }
 
+/**
+ * Whether the person said no to running `command` as an administrator in
+ * this chat since they last wrote, from the card or the system's prompt.
+ */
+export async function adminRefusedSinceTyped(
+  chatId: ChatId,
+  command: string,
+): Promise<boolean> {
+  const records = await askRecords(chatId);
+  const since = records.movedPast?.typedAt?.getTime() ?? 0;
+  return askStates({ ...records, now: Date.now() }).some(
+    ({ ask }) =>
+      ask.kind === "permission" &&
+      ask.on === "admin" &&
+      ask.target === command &&
+      ask.askedAt.getTime() >= since &&
+      ask.stage.is === "closed" &&
+      ask.stage.outcome.kind === "permission" &&
+      ask.stage.outcome.data.answer === "declined",
+  );
+}
+
 /** Where each of the chat's asks stands now, every computer's, oldest first. */
 export async function chatAskStates(chatId: ChatId): Promise<AskState[]> {
   return askStates({ ...(await askRecords(chatId)), now: Date.now() });
@@ -663,6 +685,11 @@ export function cardLine(
   if (kind === "page") {
     const title = "askers" in card ? card.askers[0]?.title : undefined;
     return title ?? `Waiting for you on ${siteOf(card.page?.url) ?? "a page"}`;
+  }
+  if (kind === "admin") {
+    return status === "admin-prompt"
+      ? "Waiting for the administrator prompt"
+      : "Run as administrator?";
   }
   const name = askTargetName(kind, card.target);
   switch (status) {

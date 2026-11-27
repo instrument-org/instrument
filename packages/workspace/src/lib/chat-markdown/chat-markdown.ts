@@ -289,6 +289,13 @@ function visibleBlock(part: SessionMessagePart.Type): string | undefined {
           ? `You skipped what Instrument waited for on ${site}.`
           : `You finished on ${site}.`;
       }
+      if (kind === "admin") {
+        return answer === "declined" || part.data.run?.is === "canceled"
+          ? `Not allowed: ${target}`
+          : part.data.run?.is === "ran"
+            ? `Ran as administrator: ${target}`
+            : `Couldn't run as administrator: ${target}`;
+      }
       switch (answer) {
         case "allowed": {
           return `You allowed ${target}.`;

@@ -44,3 +44,60 @@ describe("permissionAnswerModelNote", () => {
     expect(permissionAnswerModelNote(data)).toContain(said);
   });
 });
+
+describe("permissionAnswerModelNote for a command run as administrator", () => {
+  const command = "systemsetup -settimezone America/New_York";
+  it.each([
+    [
+      {
+        answer: "allowed",
+        kind: "admin",
+        run: { exitCode: 0, is: "ran", output: "set time zone" },
+        target: command,
+      },
+      "Ran as administrator. Exit code 0.\nset time zone",
+    ],
+    [
+      {
+        answer: "allowed",
+        kind: "admin",
+        run: { exitCode: 3, is: "ran", output: "" },
+        target: command,
+      },
+      "Ran as administrator. Exit code 3.",
+    ],
+    [
+      { answer: "declined", kind: "admin", target: command },
+      "The user didn't allow this command, and nothing ran. Don't run it another way: give them a Markdown link that opens its page of the system's settings, as your system information shows, and say what to change there.",
+    ],
+    [
+      {
+        answer: "declined",
+        kind: "admin",
+        run: { is: "canceled" },
+        target: command,
+      },
+      "The user didn't allow this command, and nothing ran.",
+    ],
+    [
+      {
+        answer: "allowed",
+        kind: "admin",
+        run: { is: "failed", message: "Not an administrator" },
+        target: command,
+      },
+      "couldn't run it as an administrator: Not an administrator",
+    ],
+    [
+      {
+        answer: "allowed",
+        kind: "admin",
+        run: { is: "unknown" },
+        target: command,
+      },
+      "whether it ran is unknown",
+    ],
+  ] as const)("tells how it went: %o", (data, said) => {
+    expect(permissionAnswerModelNote(data)).toContain(said);
+  });
+});

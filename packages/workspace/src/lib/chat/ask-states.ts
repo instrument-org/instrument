@@ -211,12 +211,20 @@ function unusedAnswers(ask: AskRecord, answers: readonly AskAnswer[]): Taken[] {
       stage.answer.kind === "permission" &&
       stage.answer.decision !== "declined") ||
     stage.is === "waiting";
-  if (stage.is !== "open" && !yesUnderWay) {
+  const admin = ask.kind === "permission" && ask.on === "admin";
+  // A command run as an administrator can't be called back once its yes is
+  // under way, and only its own computer, where the system's prompt is, can
+  // say yes to it, and only for this once.
+  if ((stage.is !== "open" && !yesUnderWay) || (admin && yesUnderWay)) {
     return [];
   }
   return answers.flatMap(({ at, device, given }) =>
     given.kind === "stopped" ||
     given.kind !== ask.kind ||
+    (admin &&
+      given.kind === "permission" &&
+      given.decision !== "declined" &&
+      (device !== ask.device || given.decision !== "allowed")) ||
     used.some(
       (ref) => ref.device === device && ref.at.getTime() === at.getTime(),
     ) ||

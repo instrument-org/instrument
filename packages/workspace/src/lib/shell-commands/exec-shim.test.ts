@@ -252,6 +252,17 @@ describe.runIf(process.platform === "darwin")("setuidRefusalNote", () => {
     );
   });
 
+  it("sends sudo to a bash call with admin", () => {
+    expect(
+      setuidRefusalNote(
+        "/usr/bin/sudo",
+        "instrument-seatbelt: /usr/bin/sudo: Operation not permitted",
+      ),
+    ).toMatchInlineSnapshot(
+      `"\`sudo\` can't run here: it runs as another user, which the sandbox refuses. Run the command without sudo in a bash call with \`admin: true\`: the user allows it on a card and enters their password in the system's own prompt."`,
+    );
+  });
+
   it("leaves a program that runs as its caller to the path refusal", () => {
     expect(
       setuidRefusalNote(

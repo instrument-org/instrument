@@ -823,7 +823,7 @@ interface AskRecord {
   answer?: "allowed" | "always" | "declined";
   /** When the answer reached the agent, for ordering against tool calls. */
   answeredAt?: number;
-  kind: "app" | "folder" | "page";
+  kind: "admin" | "app" | "folder" | "page";
   target: string;
 }
 

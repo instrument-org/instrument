@@ -81,6 +81,21 @@ import {
   withHandOffs,
 } from "../lib/shell-commands/task-hand-off";
 import { withRaisedAsks } from "../lib/shell-commands/raised-asks";
+import { adminRefusedSinceTyped, recordAsk } from "../lib/chat/asks";
+import {
+  ADMIN_COMMAND_MAX_CHARS,
+  canRunAsAdmin,
+} from "../lib/permissions/run-as-admin";
+import {
+  ADMIN_ASKED,
+  ADMIN_NEEDS_REASON,
+  ADMIN_NO_CARD,
+  ADMIN_NO_SUDO,
+  ADMIN_REFUSED_AGAIN,
+  ADMIN_UNAVAILABLE,
+  adminTooLong,
+} from "../model-text/notes/admin-command-model-text";
+import { WINDOW_ID } from "../schemas/window-id";
 import { systemNote } from "../model-text/notes/system-note";
 import { sessionToolFs } from "../lib/tool-fs";
 import { truncateMiddle } from "../lib/truncate-buffer";
@@ -221,6 +236,11 @@ async function startedOrDone(handle: BackgroundRunHandle) {
 
 const bashOutputSchema = z.object({
   /**
+   * A call with `admin`: `asked` once its card is up, whose answer reaches
+   * the agent as a note, or `refused`, with why in `output`.
+   */
+  admin: z.enum(["asked", "refused"]).optional(),
+  /**
    * The apps whose guides the call's `app` commands handed the model whole,
    * each with a digest of the guide as it was (`guide-hand-off.ts`).
    */
@@ -326,8 +346,68 @@ async function watchChatFolders(chatId: ChatId, command: string) {
   });
 }
 
+/**
+ * Puts a command the agent marked `admin` on a card for the person, or says
+ * why it can't go up. Nothing runs here: the person's yes runs it on this
+ * computer, behind the system's own prompt (`drive-asks.ts`).
+ */
+async function askToRunAsAdmin({
+  chatId,
+  command,
+  partId,
+  reason,
+  sessionId,
+}: {
+  chatId: ChatId;
+  command: string;
+  partId: StoreId.Part;
+  reason: string | undefined;
+  sessionId: StoreId.Session;
+}): Promise<z.output<typeof bashOutputSchema>> {
+  const result = (
+    admin: "asked" | "refused",
+    output: string,
+    asks?: string[],
+  ) => ({
+    admin,
+    ...(asks && { asks }),
+    command,
+    commands: [],
+    durationMs: 0,
+    omittedBytes: 0,
+    output,
+  });
+  const refusal =
+    chatId === WINDOW_ID
+      ? ADMIN_NO_CARD
+      : !canRunAsAdmin()
+        ? ADMIN_UNAVAILABLE
+        : /(?:^|[\s;&|(`])sudo(?:\s|$)/u.test(command)
+          ? ADMIN_NO_SUDO
+          : reason === undefined
+            ? ADMIN_NEEDS_REASON
+            : command.length > ADMIN_COMMAND_MAX_CHARS
+              ? adminTooLong(command.length, ADMIN_COMMAND_MAX_CHARS)
+              : (await adminRefusedSinceTyped(chatId, command))
+                ? ADMIN_REFUSED_AGAIN
+                : undefined;
+  if (refusal !== undefined) {
+    return result("refused", refusal);
+  }
+  const askId = await recordAsk(
+    { chatId, partId, ...(reason && { reason }), sessionId },
+    "admin",
+    command,
+  );
+  return result("asked", "", [askId]);
+}
+
 const bashCapability = defineCapability({
   input: z.object({
+    admin: z.boolean().optional().meta({
+      description:
+        "Run the command as an administrator, outside the sandbox: only for a change only an administrator can make (the time zone, a system setting, installing for every user). The user sees the exact command on a card, allows it, then answers the system's own password prompt. Your turn ends with the call, and their answer wakes you. Never put sudo in the command or ask for a password.",
+    }),
     command: z.string().meta({ description: "The bash command to run" }),
     counts: z.string().optional().meta({
       description:
@@ -349,6 +429,10 @@ const bashCapability = defineCapability({
           "with a trailing `&`, which returns its id at once.",
         ].join(" "),
       }),
+    reason: z.string().trim().max(300).optional().meta({
+      description:
+        "With `admin`, one line to the user saying what the command changes, shown on the card: 'Changes the time zone to Eastern Time.'",
+    }),
   }),
   name: "shell.run",
   summary: "Runs a bash command in the chat's shell.",
@@ -364,6 +448,17 @@ const bashCapability = defineCapability({
         signal,
         chatId,
       }) {
+        if (input.admin === true) {
+          return ok(
+            await askToRunAsAdmin({
+              chatId,
+              command: input.command,
+              partId,
+              reason: input.reason?.trim() || undefined,
+              sessionId,
+            }),
+          );
+        }
         const ampersand = ampersandUse(input.command);
         if (ampersand === "refused") {
           return ok({
@@ -675,6 +770,14 @@ const bashCapability = defineCapability({
       readOnly: false,
       timeoutMs: ({ input }) => bashToolCallTimeoutMs(input.yieldMs),
       toModelOutput: ({ output }) => {
+        // What the card's answer brings arrives as a note, so this stays as
+        // it was when the call returned.
+        if (output.admin === "asked") {
+          return { type: "text", value: ADMIN_ASKED };
+        }
+        if (output.admin === "refused") {
+          return { type: "error-text", value: output.output };
+        }
         const text = bashOutputText(output);
         const images = [
           {

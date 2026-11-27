@@ -9,6 +9,7 @@ import { setChatModel } from "../../lib/chat-settings";
 import { publisher } from "../publisher";
 import { appRefusal } from "../../lib/permissions/apps";
 import {
+  adminRefusedSinceTyped,
   appendAnswer,
   changeAsk,
   closeAsksOf,
@@ -29,6 +30,10 @@ import { workspaceLayout } from "../../lib/workspace-layout";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { type PermissionDecision } from "../../schemas/ask";
 import { chatDenials } from "../../lib/permissions/denials";
+import {
+  type AdminRun,
+  setAdminRunner,
+} from "../../lib/permissions/run-as-admin";
 import {
   readPermissionSettings,
   updateChatPermissions,
@@ -792,6 +797,130 @@ describe("permissions.answer", () => {
           status: "open",
         }),
       ]);
+    });
+
+    describe("a command to run as administrator", () => {
+      const command = `systemsetup -settimezone "America/New_York"; echo 'done'`;
+      const ran: string[] = [];
+      let outcome: AdminRun = { exitCode: 0, is: "ran", output: "set" };
+      beforeEach(() => {
+        ran.length = 0;
+        outcome = { exitCode: 0, is: "ran", output: "set time zone" };
+        setAdminRunner((given) => {
+          ran.push(given);
+          return Promise.resolve(outcome);
+        });
+      });
+      afterEach(() => {
+        setAdminRunner(undefined);
+      });
+
+      /** The notes the askers were woken with since the `before`th event. */
+      const notesSince = (before: number) =>
+        sent
+          .slice(before)
+          .flatMap((event) =>
+            event.type === "addMessage"
+              ? (event.value.message?.parts ?? []).flatMap((part) =>
+                  part.type === "data-permissionAnswer" ? [part.data] : [],
+                )
+              : [],
+          );
+
+      async function asked() {
+        const ref = await chatWithTask();
+        chatIdNow = ref.chatId;
+        await computer("Studio Mac", owner().device);
+        await recordAsk(
+          {
+            chatId: ref.chatId,
+            reason: "Changes the time zone to Eastern Time.",
+            sessionId: ref.own,
+          },
+          "admin",
+          command,
+        );
+        const [card] = await openAsks(ref.chatId);
+        if (!card || card.kind !== "admin") {
+          throw new Error("expected the admin card");
+        }
+        return { ...ref, card };
+      }
+
+      it("runs the exact command on its own computer and wakes the asker with what it printed", async () => {
+        const { card, chatId, own } = await asked();
+        const sentBefore = sent.length;
+        await answer(chatId, card.id, "allowed");
+        expect(ran).toEqual([command]);
+        expect(notesSince(sentBefore)).toEqual([
+          {
+            answer: "allowed",
+            ask: card.id,
+            kind: "admin",
+            run: { exitCode: 0, is: "ran", output: "set time zone" },
+            target: command,
+          },
+        ]);
+        expect(wokenSince(sentBefore)).toEqual([
+          { answer: ["allowed"], sessionId: own },
+        ]);
+        expect(await openAsks(chatId)).toEqual([]);
+      });
+
+      it("takes another device's no, and refuses its yes or an Always allow", async () => {
+        const { card, chatId } = await asked();
+        const phone = await computer("Alex's iPhone");
+        await expect(
+          on(phone, () => answer(chatId, card.id, "allowed")),
+        ).rejects.toThrow(
+          "That command runs on Studio Mac. Open this chat there to run it.",
+        );
+        await expect(answer(chatId, card.id, "always")).rejects.toThrow(
+          "A command can only be allowed to run once.",
+        );
+        await on(phone, () => answer(chatId, card.id, "declined"));
+        const sentBefore = sent.length;
+        await owner().catchUp(chatId);
+        await driveAsks(chatId, context().workspaceRef);
+        expect(ran).toEqual([]);
+        expect(notesSince(sentBefore)).toEqual([
+          expect.objectContaining({ answer: "declined", kind: "admin" }),
+        ]);
+        expect(await adminRefusedSinceTyped(chatId, command)).toBe(true);
+        expect(await adminRefusedSinceTyped(chatId, "date")).toBe(false);
+      });
+
+      it("reads a canceled system prompt as a no", async () => {
+        const { card, chatId } = await asked();
+        outcome = { is: "canceled" };
+        const sentBefore = sent.length;
+        await answer(chatId, card.id, "allowed");
+        expect(notesSince(sentBefore)).toEqual([
+          expect.objectContaining({
+            answer: "declined",
+            run: { is: "canceled" },
+          }),
+        ]);
+        expect(await adminRefusedSinceTyped(chatId, command)).toBe(true);
+      });
+
+      it("closes a command a quit left waiting on the system's prompt as unknown", async () => {
+        const { card, chatId } = await asked();
+        await changeAsk(chatId, card.id, ({ ask }) => ({
+          ...ask,
+          stage: {
+            allowed: "allowed",
+            is: "waiting",
+            on: "admin-prompt",
+          },
+        }));
+        const sentBefore = sent.length;
+        await driveOwedAsks(context().workspaceRef);
+        expect(ran).toEqual([]);
+        expect(notesSince(sentBefore)).toEqual([
+          expect.objectContaining({ run: { is: "unknown" } }),
+        ]);
+      });
     });
 
     it("takes the first answer in log order, and the grant is the owner's", async () => {

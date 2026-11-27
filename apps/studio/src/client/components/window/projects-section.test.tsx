@@ -1,11 +1,12 @@
-// The projects over the inbox: the fold past four and the section's own
-// fold, which stay drawn while closed so they can animate shut.
+// The projects over the inbox: their columns, the fold past two rows and the
+// section's own fold, which stay drawn while closed so they can animate shut.
+// jsdom measures no width, so the section here is two columns across.
 import { renderWithProviders } from "@/tests/render";
 import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { type Project } from "./chats";
-import { ProjectsSection } from "./projects-section";
+import { projectColumns, ProjectsSection } from "./projects-section";
 
 const NAMES = ["Daily", "House", "Money", "Reading", "Taxes", "Travel"];
 
@@ -16,9 +17,10 @@ const PROJECTS: Project[] = NAMES.map((name, index) => ({
   name,
 }));
 
-/** Whether the project's row can be reached: drawn and not shut away inert. */
+/** Whether the project's tile can be reached: drawn and not shut away inert. */
 function isReachable(name: string) {
-  return screen.getByText(name).closest("[inert]") === null;
+  const tile = screen.queryByRole("button", { name });
+  return tile !== null && tile.closest("[inert]") === null;
 }
 
 function renderSection() {
@@ -38,21 +40,44 @@ function renderSection() {
   );
 }
 
+describe("projectColumns", () => {
+  it("takes columns from the width, and shares one row among fewer projects", () => {
+    const widths = [188, 248, 308, 428];
+    const rows = [1, 2, 3, 4, 5, 9].map(
+      (count) =>
+        `${count}: ${widths.map((width) => projectColumns(width, count)).join(" ")}`,
+    );
+    expect(rows).toMatchInlineSnapshot(`
+      [
+        "1: 1 1 1 1",
+        "2: 2 2 2 2",
+        "3: 2 2 3 3",
+        "4: 2 2 2 4",
+        "5: 2 2 3 4",
+        "9: 2 2 3 4",
+      ]
+    `);
+  });
+});
+
 describe("ProjectsSection", () => {
-  it("keeps the projects past four out of reach until More opens them", () => {
+  it("keeps the projects past two rows out of reach until More opens them", () => {
     renderSection();
-    expect(NAMES.map(isReachable)).toEqual([
-      true,
-      true,
-      true,
-      true,
-      false,
-      false,
-    ]);
-    fireEvent.click(screen.getByRole("button", { name: "2 more projects" }));
+    expect(NAMES.map(isReachable)).toMatchInlineSnapshot(`
+      [
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+      ]
+    `);
+    fireEvent.click(screen.getByRole("button", { name: "3 more" }));
     expect(NAMES.every(isReachable)).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Show less" }));
     expect(isReachable("Travel")).toBe(false);
+    expect(screen.getByRole("button", { name: "3 more" })).toBeTruthy();
   });
 
   it("shuts every project away while the section is folded", () => {

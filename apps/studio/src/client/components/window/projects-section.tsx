@@ -4,26 +4,43 @@ import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useAtom } from "jotai";
-import { type ReactNode, useState } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { byNewestChat, type Project } from "./chats";
 import { projectsOpenAtom } from "./chat-list-view";
+import { FadeTitle } from "./fade-title";
 import { projectColor } from "./project-colors";
 import { ProjectMark } from "./project-mark";
 import { ProjectActionsButton, ProjectContextMenu } from "./project-menu";
 import { projectTint } from "./project-tint";
 
-/** How many projects show before the rest fold under a More row. */
-const SHOWN_PROJECTS = 4;
+/**
+ * How many columns of tiles the projects take in a section this wide, in
+ * layout px: two under 260, three under 400, four past that. Fewer projects
+ * than that share one row, and four at three across go two by two, since
+ * three and one would leave a lone wide tile under three narrow ones.
+ */
+export function projectColumns(width: number, count: number) {
+  const most = width < 260 ? 2 : width < 400 ? 3 : 4;
+  if (count <= most) {
+    return Math.max(count, 1);
+  }
+  return count === 4 && most === 3 ? 2 : most;
+}
 
 /**
- * The projects at the top of the inbox, one row each in its tint: its mark
- * on a white tile, its name in its ink, and how many chats are filed under
- * it. The project with the newest chat comes first, and past four the rest
- * fold under a row that says how many more there are, which opens them all
- * with Show less at their foot; five show whole, since a More row for one
- * would take the room the fifth would. The heading's caret folds the whole
- * section, kept for every window on this computer, and its + makes a project.
+ * The projects at the top of the inbox, a tile each in its tint: its mark
+ * over its name in its ink. The project with the newest chat comes first,
+ * columns come from the section's width (`projectColumns`), and past two
+ * rows the last tile says how many more there are, which opens them all with
+ * Show less at their end. The heading's caret folds the whole section, kept
+ * for every window on this computer, and its + makes a project.
  */
 export function ProjectsSection({
   chats,
@@ -40,51 +57,67 @@ export function ProjectsSection({
 }) {
   const [isOpen, setOpen] = useAtom(projectsOpenAtom);
   const [isAllShown, setAllShown] = useState(false);
+  const sectionRef = useRef<HTMLElement>(null);
+  const width = useLayoutWidth(sectionRef);
   const ordered = byNewestChat(
     projects.filter((project) => !project.retired),
     chats,
   );
-  const isFolding = ordered.length > SHOWN_PROJECTS + 1;
-  const shown = isFolding ? ordered.slice(0, SHOWN_PROJECTS) : ordered;
-  const folded = isFolding ? ordered.slice(SHOWN_PROJECTS) : [];
-  const row = (project: Project) => (
+  const columns = projectColumns(width, ordered.length);
+  const room = columns * 2;
+  const isFolding = ordered.length > room;
+  // Past two rows, the last cell is the More tile while the rest are folded,
+  // and the first of the rest once they are open, so the two grids read as one.
+  const shown = isFolding ? ordered.slice(0, room - 1) : ordered;
+  const [firstFolded, ...folded] = isFolding ? ordered.slice(room - 1) : [];
+  const grid = cn(
+    "grid gap-1.5",
+    ["grid-cols-1", "grid-cols-2", "grid-cols-3", "grid-cols-4"][columns - 1],
+  );
+  const tile = (project: Project) => (
     <ProjectContextMenu
       key={project.id}
       onDetails={onDetails}
       project={project}
     >
       <div
-        className="group/project flex h-9 items-center rounded-lg bg-(--project-tint-surface)/45 project-tint hover:bg-(--project-tint-surface)/70 has-focus-visible:bg-(--project-tint-surface)/70 dark:bg-(--project-tint-surface)/20 dark:hover:bg-(--project-tint-surface)/35"
+        className="group/project relative h-14 min-w-0 rounded-[10px] bg-(--project-tint-surface)/45 project-tint hover:bg-(--project-tint-surface)/70 has-focus-visible:bg-(--project-tint-surface)/70 dark:bg-(--project-tint-surface)/20 dark:hover:bg-(--project-tint-surface)/35"
         style={projectTint(projectColor(project))}
       >
         <button
-          className="flex h-full min-w-0 flex-1 items-center gap-1.5 pl-1.5 text-left text-sm font-medium text-(--project-tint-ink) outline-hidden"
+          className="flex size-full min-w-0 flex-col justify-center gap-1 px-2.5 text-left text-(--project-tint-ink) outline-hidden"
           onClick={() => {
             onChoose(project);
           }}
           type="button"
         >
-          <span className="grid size-6 shrink-0 place-items-center rounded-md bg-background shadow-xs dark:bg-background/80">
-            <ProjectMark
-              className="size-4 text-[13px]"
-              plain
-              project={project}
-            />
-          </span>
-          <span className="truncate">{project.name}</span>
+          <ProjectMark className="size-4 text-[15px]" plain project={project} />
+          <FadeTitle className="block w-full text-xs leading-4 font-medium">
+            {project.name}
+          </FadeTitle>
         </button>
-        <span className="relative flex h-5 min-w-8 items-center justify-end pr-2.5">
-          <ProjectActionsButton
-            className="absolute right-1.5 group-hover/project:opacity-100"
-            onDetails={onDetails}
-            project={project}
-          />
-        </span>
+        <ProjectActionsButton
+          className="absolute top-1.5 right-1.5 bg-background/70 group-hover/project:opacity-100 dark:bg-foreground/10"
+          onDetails={onDetails}
+          project={project}
+        />
       </div>
     </ProjectContextMenu>
   );
+  const moreTile = (label: string) => (
+    <button
+      className="flex h-14 min-w-0 flex-col justify-center gap-1 rounded-[10px] bg-foreground/4 px-2.5 text-left text-xs leading-4 font-medium text-muted-foreground hover:bg-foreground/6 hover:text-foreground"
+      onClick={() => {
+        setAllShown(!isAllShown);
+      }}
+      type="button"
+    >
+      <DotsThreeIcon className="size-4" weight="bold" />
+      {label}
+    </button>
+  );
   return (
-    <section aria-label="Projects" className="pb-1">
+    <section aria-label="Projects" className="pb-1" ref={sectionRef}>
       <div
         className="group/heading flex h-8 items-center justify-between pr-1 pl-2.5"
         onContextMenu={(event) => {
@@ -126,38 +159,53 @@ export function ProjectsSection({
         </button>
       </div>
       <Unfold isOpen={isOpen}>
-        <div className="flex flex-col gap-1">
-          {shown.map(row)}
-          {folded.length > 0 && (
-            // Its own gap inside, so a closed fold adds none to the list.
-            <Unfold className="-mt-1" isOpen={isAllShown}>
-              <div className="flex flex-col gap-1 pt-1">{folded.map(row)}</div>
-            </Unfold>
-          )}
-          {isFolding && (
-            <button
-              className="flex h-9 items-center gap-1.5 rounded-lg bg-foreground/4 pl-1.5 text-left text-sm text-muted-foreground hover:bg-foreground/6 hover:text-foreground"
-              onClick={() => {
-                setAllShown(!isAllShown);
-              }}
-              type="button"
-            >
-              <span className="grid size-6 place-items-center">
-                <DotsThreeIcon className="size-4" weight="bold" />
-              </span>
-              {isAllShown
-                ? "Show less"
-                : `${ordered.length - SHOWN_PROJECTS} more projects`}
-            </button>
-          )}
+        <div className={grid}>
+          {shown.map(tile)}
+          {firstFolded &&
+            (isAllShown
+              ? tile(firstFolded)
+              : moreTile(`${ordered.length - shown.length} more`))}
         </div>
+        {isFolding && (
+          <Unfold isOpen={isAllShown}>
+            {/* Its own gap above, so a closed fold adds none to the grid. */}
+            <div className={cn(grid, "pt-1.5")}>
+              {folded.map(tile)}
+              {moreTile("Show less")}
+            </div>
+          </Unfold>
+        )}
       </Unfold>
     </section>
   );
 }
 
 /**
- * Rows that open and close by growing to their height and shrinking back,
+ * An element's width in layout px, which the window's zoom leaves alone, as
+ * it is laid out and whenever that changes; 0 until it is first measured.
+ */
+function useLayoutWidth(ref: RefObject<HTMLElement | null>) {
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) {
+      return;
+    }
+    // Its first call measures the element as it mounts, before the frame is
+    // painted.
+    const observer = new ResizeObserver(() => {
+      setWidth(element.clientWidth);
+    });
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, [ref]);
+  return width;
+}
+
+/**
+ * Tiles that open and close by growing to their height and shrinking back,
  * kept drawn while closed so the closing can play; closed, they are out of
  * reach of the pointer, the keyboard and a screen reader.
  */

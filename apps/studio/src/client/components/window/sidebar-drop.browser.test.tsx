@@ -242,6 +242,28 @@ describe("a whole group over the sidebar", () => {
     });
   });
 
+  it.each([
+    ["New's top half", 30, ":divider", { pinned: true }, 0],
+    [
+      "New's bottom half",
+      40,
+      "row:draft:b",
+      { before: "draft:b", pinned: false },
+      53,
+    ],
+  ])(
+    "with nothing pinned, over %s, lands in the room nearest New's middle",
+    (_, y, before, place, top) => {
+      // The main list draws the line with nothing pinned: the line 0-13, New
+      // 15-51, b 53-105.
+      document.querySelector("[data-drop-item='row:chat-a']")?.remove();
+      expect(sidebarDropAt(...at(y), GROUP)).toEqual({
+        drop: { before, gap: 54, kind: "between", place, top },
+        isOver: true,
+      });
+    },
+  );
+
   it("takes no measure of a lifted row", () => {
     document
       .querySelector("[data-drop-item='row:draft:c']")

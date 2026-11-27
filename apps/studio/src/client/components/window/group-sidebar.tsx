@@ -128,7 +128,7 @@ export function sidebarBounds(width: number): RailBounds {
 /**
  * The sidebar of tab groups down the window's left: the window's own row at
  * its top (past the traffic lights, the bell; the update pill at its end),
- * the projects, the pinned groups over a plain line, New, the
+ * the projects, the pinned groups, a plain line, New, the
  * rest under it, newest first; at its foot, the account, History and Help. Opening a project takes the list over,
  * under its banner. A row dragged within the list lands where it is let
  * go, pinned above the line or unpinned below it, and one dragged out goes
@@ -263,9 +263,12 @@ export function GroupSidebar({
 
   // What the list shows in order, for the room a drag opens in it: the
   // items from the one it opens in front of on move aside.
+  // The line sets the projects and the pinned rows apart from New, so the
+  // main list always draws it; one project's list, only under pinned rows.
+  const hasDivider = !project || pinned.length > 0;
   const items = [
     ...pinned.map((entry) => `row:${entry.group}`),
-    ...(pinned.length > 0 ? [":divider"] : []),
+    ...(hasDivider ? [":divider"] : []),
     ":new",
     ...rest.map((entry) => `row:${entry.group}`),
   ];
@@ -330,7 +333,7 @@ export function GroupSidebar({
       )}
       <AnimatePresence>
         {pinned.map((entry) => listItem(entry, "pinned"))}
-        {pinned.length > 0 && (
+        {hasDivider && (
           <ListItem isInstant key=":divider" {...place(":divider")}>
             <div className="mx-2.5 my-1.5 h-px bg-border" />
           </ListItem>

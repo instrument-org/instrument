@@ -13,14 +13,18 @@ import {
   type TranscriptMessage,
   transcriptMessage,
 } from "@instrument-org/workspace/client";
+import { useState } from "react";
 import { expect, it } from "vitest";
 
+import { MarkdownCodeBlock } from "../code-block";
 import {
   MessageScroller,
   MessageScrollerContent,
+  MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "../ui/message-scroller";
+import { KeptOpen, KeptOpenContext, KeptOpenTurn } from "./kept-open";
 import { type TranscriptSurface, TranscriptSurfaceContext } from "./surface";
 import { Transcript } from "./transcript";
 import { TranscriptRecordsContext } from "./transcript-data";
@@ -138,4 +142,74 @@ it("keeps a Worked row open through its turn being drawn as a box", async () => 
       `[data-turn-id="${turn}"] [data-transcript-row^="worked:"] button`,
     )?.ariaExpanded,
   ).toBe("true");
+});
+
+/** Turns of filler with a code block in the first, kept as the transcript keeps them. */
+function CodeTurns() {
+  const [kept] = useState(() => new KeptOpen());
+  return (
+    <KeptOpenContext value={kept}>
+      <MessageScrollerProvider autoScroll>
+        <MessageScroller style={{ height: 600, width: 640 }}>
+          <MessageScrollerViewport>
+            <MessageScrollerContent>
+              {Array.from({ length: 30 }, (_, index) => {
+                const id = `turn-${index.toString()}`;
+                return (
+                  <KeptOpenTurn key={id} value={id}>
+                    <MessageScrollerItem
+                      keepDrawn={index === 29}
+                      messageId={id}
+                      turnId={id}
+                    >
+                      {index === 0 ? (
+                        <MarkdownCodeBlock
+                          code={`const line = "${"a long line of code that runs past the block ".repeat(4)}";`}
+                          language="ts"
+                        />
+                      ) : (
+                        <div style={{ height: 400 }}>Turn {index}</div>
+                      )}
+                    </MessageScrollerItem>
+                  </KeptOpenTurn>
+                );
+              })}
+            </MessageScrollerContent>
+          </MessageScrollerViewport>
+        </MessageScroller>
+      </MessageScrollerProvider>
+    </KeptOpenContext>
+  );
+}
+
+it("keeps a code block's lines wrapped through its turn being drawn as a box", async () => {
+  await renderInBrowser(<CodeTurns />);
+  const wrap = () =>
+    document.querySelector<HTMLButtonElement>(
+      'button[aria-label="Wrap lines"]',
+    );
+  const isBox = () =>
+    document
+      .querySelector('[data-turn-id="turn-0"]')
+      ?.hasAttribute("data-placeholder");
+  await expect.poll(isBox).toBe(true);
+
+  scrollTo(0);
+  await expect.poll(wrap).not.toBeNull();
+  const before = wrap()?.getAttribute("aria-pressed");
+  wrap()?.click();
+  await expect
+    .poll(() => wrap()?.getAttribute("aria-pressed"))
+    .not.toBe(before);
+  const chosen = wrap()?.getAttribute("aria-pressed");
+  // Nothing in the turn holds the keyboard, which would keep it drawn.
+  wrap()?.blur();
+
+  scrollTo(viewport().scrollHeight);
+  await expect.poll(isBox).toBe(true);
+  expect(wrap()).toBeNull();
+
+  scrollTo(0);
+  await expect.poll(wrap).not.toBeNull();
+  expect(wrap()?.getAttribute("aria-pressed")).toBe(chosen);
 });

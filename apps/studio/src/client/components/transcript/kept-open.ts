@@ -7,10 +7,10 @@ import {
 } from "react";
 
 /**
- * What the reader opened or closed in a transcript's turns, one entry per
- * control, kept above the turns: a turn far from view is drawn as a box
- * (`FarRows`), which unmounts what it had, and drawn again opens as the
- * reader left it.
+ * What the reader opened or closed in a transcript's turns, or turned on or
+ * off (a code block's line wrapping), one entry per control, kept above the
+ * turns: a turn far from view is drawn as a box (`FarRows`), which unmounts
+ * what it had, and drawn again shows as the reader left it.
  */
 export class KeptOpen {
   private readonly open = new Map<string, boolean>();
@@ -53,9 +53,9 @@ export const KeptOpenContext = createContext<KeptOpen | null>(null);
 export const KeptOpenTurn = createContext("");
 
 /**
- * Whether a control in a turn is open, as the reader chose (`undefined` until
- * they do), kept by the transcript under `key` within its turn. Outside a
- * transcript it is the control's own state.
+ * Whether a control in a turn is open (or on), as the reader chose
+ * (`undefined` until they do), kept by the transcript under `key` within its
+ * turn. Outside a transcript it is the control's own state.
  */
 export function useKeptOpen(
   key: string,

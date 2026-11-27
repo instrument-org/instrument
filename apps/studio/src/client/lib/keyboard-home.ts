@@ -31,6 +31,10 @@ import {
   returnLentKeyboard,
   tellWindowKeyboardLeft,
 } from "@/client/lib/keyboard-loan";
+import {
+  isOnSideWithoutKeyboard,
+  keyboardSide,
+} from "@/client/lib/keyboard-place";
 
 /** How long a screen has to draw its home after it is asked for, in frames. */
 const HOME_WAIT_FRAMES = 30;
@@ -238,7 +242,7 @@ export function returnKeyboardFromAgent() {
  */
 export function returnKeyboardToWindow() {
   const was = lastPlace;
-  const side = sideWithKeyboard();
+  const side = keyboardSide();
   if (was?.isConnected && side && isOnSideWithoutKeyboard(was)) {
     focusHomeIn(side);
     return;
@@ -426,7 +430,7 @@ function focusQuietly(target: HTMLElement) {
  * none drawn: in a tab group, the part of the side with the keyboard.
  */
 function homeOnShow(): HTMLElement | null {
-  const side = sideWithKeyboard();
+  const side = keyboardSide();
   if (side) {
     return homeIn(side);
   }
@@ -453,7 +457,7 @@ function homeIn(root: HTMLElement): HTMLElement | null {
  * shows something else.
  */
 export function composerWithKeyboard(): HTMLElement | null {
-  const root = sideWithKeyboard() ?? document;
+  const root = keyboardSide() ?? document;
   return (
     [
       ...root.querySelectorAll<HTMLElement>(
@@ -469,16 +473,9 @@ export function composerWithKeyboard(): HTMLElement | null {
   );
 }
 
-/** The side of the tab group on screen that has the keyboard. */
-function sideWithKeyboard() {
-  return document.querySelector<HTMLElement>(
-    `${ACTIVE_TAB} [data-group-side][data-keyboard]`,
-  );
-}
-
 /** Notes the home the keyboard went into, for when its tab is come back to. */
 function rememberHome() {
-  const side = sideWithKeyboard();
+  const side = keyboardSide();
   const tab = side?.dataset.tabUp;
   if (!side || tab === undefined) {
     return;
@@ -530,12 +527,6 @@ function isInScreen(element: Element | null): element is HTMLElement {
     isShown(element) &&
     !isOnSideWithoutKeyboard(element)
   );
-}
-
-/** Whether an element is on the side of a tab group that does not have the keyboard. */
-function isOnSideWithoutKeyboard(element: Element) {
-  const side = element.closest("[data-group-side]");
-  return side !== null && !side.hasAttribute("data-keyboard");
 }
 
 function first(root: HTMLElement, selector: string) {

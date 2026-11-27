@@ -28,6 +28,12 @@ export function pageOfSide(side: Element): BrowserTargetId | null {
   return tab == null ? null : browserTargetOf(tab);
 }
 
+/** Whether an element is on the side of a tab group that does not have the keyboard. */
+export function isOnSideWithoutKeyboard(element: Element) {
+  const side = element.closest("[data-group-side]");
+  return side !== null && !side.hasAttribute("data-keyboard");
+}
+
 /**
  * Whether a page is up on a side of the tab group on screen that does not
  * have the keyboard, which the page may then not hold: the keyboard is in

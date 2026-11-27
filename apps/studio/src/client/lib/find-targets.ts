@@ -1,6 +1,6 @@
 import {
+  isOnSideWithoutKeyboard,
   keyboardPlace,
-  keyboardSide,
   listenForKeyboardPlace,
 } from "@/client/lib/keyboard-place";
 
@@ -76,13 +76,11 @@ export function findAgainForKeyboard(forward: boolean): boolean {
 
 function findTargetForKeyboard(): FindTarget | undefined {
   const place = insideViewer(keyboardPlace());
-  const side = keyboardSide();
   const chosen = chooseFindTarget(
     registered.flatMap(({ stamp, target }) => {
       const surface = surfaceOf(target);
       // Only the side with the keyboard is searched of a tab group's two.
-      const elsewhere = surface?.closest("[data-group-side]");
-      return surface && (side === null || !elsewhere || elsewhere === side)
+      return surface && !isOnSideWithoutKeyboard(surface)
         ? [
             {
               holdsKeyboard: target.holdsKeyboard?.() ?? false,

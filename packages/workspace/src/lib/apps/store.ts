@@ -37,8 +37,9 @@ import { isXApp } from "./x-site";
  *
  * The slug is the app's identity, since the credential store and the
  * connection record are keyed by it. Nothing writes an app but the
- * `instrument app` command, the Apps page and the launch that takes in the
- * folders earlier builds kept.
+ * `instrument app` command, the Apps page, the launch that takes in the
+ * folders earlier builds kept, and a Grok plan sign-in, which sets up X
+ * where no app is on its site (`grokPlanSignedInHere`).
  */
 
 /** The store's file name, before `.jsonl`. */

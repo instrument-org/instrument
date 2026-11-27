@@ -26,6 +26,30 @@ describe("the note an app event wakes the chat with", () => {
     `);
   });
 
+  it("sends a Grok plan sign-in for X to its tools", () => {
+    expect(
+      appEventModelNote({
+        apps: {},
+        events: [
+          {
+            event: "connected",
+            name: "X",
+            plan: "grok",
+            slug: "x",
+            web: "https://x.com",
+          },
+        ],
+      }),
+    ).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      An app changed:
+      - The user signed in to their Grok plan on this computer, which X (x) searches on: \`instrument app tools x\` lists its tools, \`instrument app call x search '{"query": "..."}'\` runs one. Signing in to https://x.com itself is separate, in Instrument's browser.
+      Nobody typed anything; this note is why you are awake. Tell the user in one line where things stand, and finish what they asked for if it was waiting on this.
+      </instrument-system-note>"
+    `);
+  });
+
   it("has a service's unnamed account asked for before the reply", () => {
     expect(
       appEventModelNote({

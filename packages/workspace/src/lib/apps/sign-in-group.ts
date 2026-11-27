@@ -1,12 +1,15 @@
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type AppConnection, readConnection } from "./connection";
 import { loadApp } from "./store";
+import { grokPlanSignedIn } from "./x-site";
 
 type SignInProgress = SessionMessageDataPart.SignInProgress;
 
 /** An app with a row on a sign-in card. */
 interface CardApp {
   name: string;
+  /** For an X app's row asking for the Grok plan its search runs on. */
+  plan?: "grok";
   slug: string;
 }
 
@@ -29,6 +32,20 @@ function standingOf(
 }
 
 /**
+ * A row asking for the Grok plan: answered once a plan is signed in on this
+ * computer, or once the user turned the row down; the app's own connection
+ * is its site's, which the row does not ask for.
+ */
+function planStanding(
+  connection: AppConnection | undefined,
+): SignInProgress[number]["standing"] {
+  if (grokPlanSignedIn()) {
+    return "connected";
+  }
+  return connection?.status === "declined" ? "declined" : "waiting";
+}
+
+/**
  * Every app on a card as its connection now stands, in the card's order. An
  * app or connection that is gone since the card asked has no row
  * left to answer, so it is left out; undefined when none is left.
@@ -37,12 +54,25 @@ export async function signInProgress(
   card: CardApp[],
 ): Promise<SignInProgress | undefined> {
   const rows = await Promise.all(
-    card.map(async ({ slug }) => {
+    card.map(async ({ plan, slug }) => {
       const [connection, loaded] = await Promise.all([
         readConnection(slug),
         loadApp(slug),
       ]);
-      if (connection === undefined || loaded.isErr()) {
+      if (loaded.isErr()) {
+        return [];
+      }
+      if (plan !== undefined) {
+        return [
+          {
+            name: loaded.value.name,
+            plan,
+            slug,
+            standing: planStanding(connection),
+          },
+        ];
+      }
+      if (connection === undefined) {
         return [];
       }
       const standing = standingOf(connection);

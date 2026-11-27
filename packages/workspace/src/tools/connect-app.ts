@@ -15,6 +15,7 @@ import { type LocalMcpAppManifest } from "../lib/apps/manifest";
 import { describeLocalLaunch } from "../lib/apps/mcp/local-server";
 import { onSameSite } from "../lib/apps/same-site";
 import { appSiteFor } from "../lib/apps/site";
+import { grokPlanSignedIn, isXApp } from "../lib/apps/x-site";
 import {
   guidePlaceholdersLeft,
   loadApp,
@@ -97,7 +98,11 @@ const connectAppCapability = defineCapability({
         );
         await recordSignIn(
           { chatId, messageId, partId, sessionId },
-          askedOnCard({ apps }).map(({ name, slug }) => ({ name, slug })),
+          askedOnCard({ apps }).map(({ name, plan, slug }) => ({
+            name,
+            ...(plan && { plan }),
+            slug,
+          })),
           failed.length === 0 ? undefined : failed,
         );
         return ok({ apps });
@@ -147,10 +152,13 @@ async function askFor(
     };
   }
   const { manifest, manifestHash, name, slug } = loaded.value;
+  // X's search runs on the Grok plan, so an X app asks for the plan first,
+  // whether or not its site is signed in.
+  const needsPlan = isXApp(manifest) && !grokPlanSignedIn();
   // Asking again would set a working connection back to waiting, for every
   // chat that uses it.
   const connection = await readConnection(slug);
-  if (isConnected(connection, manifestHash)) {
+  if (!needsPlan && isConnected(connection, manifestHash)) {
     return { name, slug, state: "connected" };
   }
   // The test that runs once the user has acted fails on an API app's
@@ -188,7 +196,24 @@ async function askFor(
       seenSignedIn: true,
       status: "connected",
     });
-    return { name, seen: true, slug, state: "connected" };
+    if (!needsPlan) {
+      return { name, seen: true, slug, state: "connected" };
+    }
+  }
+  if (needsPlan && manifest.type === "web") {
+    // The row stands by the plan; a site seen signed in stays so.
+    if ((await readConnection(slug))?.status !== "connected") {
+      await recordConnection(slug, { status: "needs-sign-in" });
+    }
+    return {
+      kind: "web",
+      name,
+      plan: "grok",
+      site: appSiteFor(slug, manifest),
+      slug,
+      state: "asked",
+      url: manifest.url,
+    };
   }
   const kind =
     manifest.type === "web"
@@ -290,7 +315,10 @@ function oneAppModelOutput(output: ConnectAppResult): ToolResultPart["output"] {
     case "web": {
       return {
         type: "text",
-        value: `A card asking the user to sign in to ${output.name} on the web is in the conversation: it opens the sign-in in the window's browser. Your turn ended on it: you will be woken with a note when they say they are signed in or decline, and the app is connected then. Do not poll, and do not test before the note.`,
+        value:
+          output.plan === undefined
+            ? `A card asking the user to sign in to ${output.name} on the web is in the conversation: it opens the sign-in in the window's browser. Your turn ended on it: you will be woken with a note when they say they are signed in or decline, and the app is connected then. Do not poll, and do not test before the note.`
+            : `A card asking the user to sign in to their Grok plan, which ${output.name}'s search runs on, is in the conversation: it opens the sign-in in the window's browser. Your turn ended on it: you will be woken with a note when they have signed in or declined, and \`${APP_COMMAND.name} call ${output.slug}\` searches then. Do not poll.`,
       };
     }
   }

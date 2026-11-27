@@ -41,6 +41,8 @@ export const publisher = new EventPublisher<{
     detail?: string;
     event: AppEvent;
     name: string;
+    /** For an X app, that what connected is the Grok plan its search runs on. */
+    plan?: "grok";
     /** For a sign-in of the app's own that did not connect: how it ended, and the site to sign in on instead. */
     signIn?: {
       ended: "failed" | SignInEnd;

@@ -112,6 +112,8 @@ export {
 export { findAppIcon } from "./lib/apps/icon";
 export { setUpFromDirectory } from "./lib/apps/set-up";
 export { listApps, loadApp, readAppGuide, removeApp } from "./lib/apps/store";
+export { grokPlanSignedInHere } from "./lib/apps/x-app";
+export { isXApp } from "./lib/apps/x-site";
 export { type AppTestReport, runAppTest } from "./lib/apps/test-app";
 export {
   appUpdate,

@@ -10,6 +10,12 @@ const ConnectAppResultSchema = z.discriminatedUnion("state", [
      */
     kind: z.enum(["key", "none", "run", "sign-in", "web"]),
     name: z.string(),
+    /**
+     * For an X app with no Grok plan signed in on this computer, that the row
+     * signs in to the plan its search runs on rather than to its site. A build
+     * that does not read it draws the site's sign-in.
+     */
+    plan: z.literal("grok").optional(),
     /** For a local app, what would run: the package, in words. */
     runs: z.string().optional(),
     /** The service's origin, for the card's icon. */

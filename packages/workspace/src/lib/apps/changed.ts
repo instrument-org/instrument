@@ -36,7 +36,9 @@ export async function appChanged(
   }
   const event = await appEventOf(slug, happened);
   publisher.publish("app.event", event);
-  const did = PERSON_DID[happened.event];
+  // The person signed in to a plan, not to the app.
+  const did =
+    happened.plan === undefined ? PERSON_DID[happened.event] : undefined;
   if (did) {
     recordAction({ did, kind: "app", name: event.name });
   }
@@ -57,6 +59,8 @@ type Happened = {
   /** For a failed sign-in, how it ended, when that was more than an error. */
   ended?: SignInEnd;
   event: AppEvent;
+  /** For an X app, that what connected is the Grok plan its search runs on, not its site. */
+  plan?: "grok";
 };
 
 /** What the chat is told of something the user did to an app, in the app's own name and account. */
@@ -81,6 +85,7 @@ export async function appEventOf(
     ...(happened.detail === undefined ? {} : { detail: happened.detail }),
     event: happened.event,
     name: app?.name ?? slug,
+    ...(happened.plan === undefined ? {} : { plan: happened.plan }),
     ...(signedInFrom === undefined ? {} : { signedInFrom }),
     ...(cookieSites.length === 0 ? {} : { signInCookieSites: cookieSites }),
     slug,

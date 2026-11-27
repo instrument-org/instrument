@@ -782,7 +782,7 @@ export async function refreshSignIn(
     ...(await Promise.all(
       others.map((app) =>
         app.standing === "connected"
-          ? connectedEvent(app.slug, ask.askedAt)
+          ? connectedEvent(app.slug, ask.askedAt, app.plan)
           : appEventOf(app.slug, { event: "declined" }),
       ),
     )),
@@ -827,15 +827,20 @@ type AppEventLine = SessionMessageDataPart.AppEventDataPart["events"][number];
 
 /**
  * An app's connection told as the event that made it, as `announceConnected`
- * tells it. The other sites its sign-in left cookies on go with it only when
- * that sign-in came after the card asked (`since`), as an app signed in
- * earlier on a card of several apps did, whose own event woke nothing; an
- * earlier sign-in's were told with that one.
+ * tells it; for a row asking for the Grok plan, the plan signing in. The
+ * other sites its sign-in left cookies on go with it only when that sign-in
+ * came after the card asked (`since`), as an app signed in earlier on a card
+ * of several apps did, whose own event woke nothing; an earlier sign-in's
+ * were told with that one.
  */
 async function connectedEvent(
   slug: string,
   since: Date,
+  plan: "grok" | undefined,
 ): Promise<AppEventLine> {
+  if (plan !== undefined) {
+    return appEventOf(slug, { event: "connected", plan });
+  }
   const connection = await readConnection(slug);
   const { signInCookieSites, ...told } = await appEventOf(slug, {
     ...(connection?.toolCount === undefined

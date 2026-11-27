@@ -317,7 +317,7 @@ export async function releaseQuestions(
  */
 export async function recordSignIn(
   asker: Asker & { messageId: StoreId.Message; partId: StoreId.Part },
-  apps: { name: string; slug: string }[],
+  apps: { name: string; plan?: "grok"; slug: string }[],
   notOnCard: SessionMessageDataPart.NotOnCard | undefined,
   { id = asker.partId, since }: { id?: string; since?: StoreId.Message } = {},
 ): Promise<void> {
@@ -355,7 +355,12 @@ export async function recordSignIn(
     }
     const at = getCurrentDate();
     await writer.ask(asker.chatId, asker.sessionId, {
-      apps: apps.map(({ name, slug }) => ({ name, slug, standing: "waiting" })),
+      apps: apps.map(({ name, plan, slug }) => ({
+        name,
+        ...(plan && { plan }),
+        slug,
+        standing: "waiting",
+      })),
       askedAt: at,
       askers: [{ at, partId: asker.partId, sessionId: asker.sessionId }],
       device: thisDevice(),
@@ -403,7 +408,7 @@ export async function waitInChat(slug: string, chatId: ChatId): Promise<void> {
       partId: asked.partId,
       sessionId: asker.sessionId,
     },
-    [{ name: app.name, slug }],
+    [{ name: app.name, ...(app.plan && { plan: app.plan }), slug }],
     undefined,
     // Waiting from now, past whatever the person wrote since the call.
     { id: ulid(), since: StoreId.newMessageId() },

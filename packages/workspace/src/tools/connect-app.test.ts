@@ -1,6 +1,8 @@
+import { AIProviderConfigIdSchema } from "@instrument-org/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { readConnection } from "../lib/apps/connection";
+import { signInProgress } from "../lib/apps/sign-in-group";
 import { type AppManifest } from "../lib/apps/manifest";
 import { createMemoryAppsConfig } from "../lib/apps/memory-config";
 import { loadApp, writeApp } from "../lib/apps/store";
@@ -341,5 +343,101 @@ describe("connect_app for a web app", () => {
     expect(await readConnection("amazon")).toMatchObject({
       status: "needs-sign-in",
     });
+  });
+});
+
+describe("connect_app for X", () => {
+  const plan = { signedIn: false };
+
+  beforeEach(async () => {
+    plan.signedIn = false;
+    const config = getWorkspaceConfig();
+    setWorkspaceConfig({
+      ...config,
+      getAIProviderConfigs: () =>
+        plan.signedIn
+          ? [
+              {
+                apiKey: "grok-token",
+                cacheIdentifier: "grok-account",
+                id: AIProviderConfigIdSchema.parse("grok-account-1"),
+                type: "grok-account",
+              },
+            ]
+          : [],
+    });
+    await writeApp({
+      guide: "",
+      manifest: { type: "web", url: "https://x.com" },
+      name: "X",
+      slug: AppSlugSchema.parse("x"),
+    });
+  });
+
+  it("asks for the Grok plan its search runs on, where none is signed in", async () => {
+    const lisbon = await chat();
+    await ChatWrites.sites(lisbon.chatId, lisbon.sessionId, ["x.com"]);
+    // Signed in on the site is not the plan, so the row still asks.
+    const output = await ask(lisbon, ["x"], undefined, ["x"]);
+
+    expect(output).toMatchObject({
+      apps: [{ kind: "web", plan: "grok", slug: "x", state: "asked" }],
+    });
+    expect(await openAsks(lisbon.chatId)).toEqual([
+      expect.objectContaining({
+        apps: [{ name: "X", plan: "grok", slug: "x", standing: "waiting" }],
+        kind: "sign-in",
+      }),
+    ]);
+    expect(ConnectApp.toModelOutput({ input: INPUT, output, toolCallId: "1" }))
+      .toMatchInlineSnapshot(`
+      {
+        "type": "text",
+        "value": "A card asking the user to sign in to their Grok plan, which X's search runs on, is in the conversation: it opens the sign-in in the window's browser. Your turn ended on it: you will be woken with a note when they have signed in or declined, and \`instrument app call x\` searches then. Do not poll.",
+      }
+    `);
+  });
+
+  it("answers the plan's row once a plan is signed in, whatever the site's sign-in", async () => {
+    const lisbon = await chat();
+    await ask(lisbon, ["x"]);
+    const row = [{ name: "X", plan: "grok" as const, slug: "x" }];
+    expect(await signInProgress(row)).toEqual([
+      { ...row[0], standing: "waiting" },
+    ]);
+
+    plan.signedIn = true;
+    expect(await signInProgress(row)).toEqual([
+      { ...row[0], standing: "connected" },
+    ]);
+  });
+
+  it("asks for the site's own sign-in once the plan is signed in", async () => {
+    plan.signedIn = true;
+    const lisbon = await chat();
+
+    expect(await ask(lisbon, ["x"])).toEqual({
+      apps: [
+        {
+          kind: "web",
+          name: "X",
+          site: "https://x.com",
+          slug: "x",
+          state: "asked",
+          url: "https://x.com",
+        },
+      ],
+    });
+  });
+
+  it("answers that X is connected once the plan and the site are", async () => {
+    plan.signedIn = true;
+    const lisbon = await chat();
+    await ChatWrites.sites(lisbon.chatId, lisbon.sessionId, ["x.com"]);
+
+    expect(await ask(lisbon, ["x"], undefined, ["x"])).toEqual({
+      apps: [{ name: "X", seen: true, slug: "x", state: "connected" }],
+    });
+    expect(await openAsks(lisbon.chatId)).toEqual([]);
   });
 });

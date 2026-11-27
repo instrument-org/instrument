@@ -1238,6 +1238,11 @@ export namespace SessionMessageDataPart {
       z.object({
         account: z.string().optional(),
         name: z.string(),
+        /**
+         * For an X app's row asking for the Grok plan its search runs on,
+         * which stands by that plan rather than by the app's connection.
+         */
+        plan: z.literal("grok").optional(),
         slug: z.string(),
         standing: z.enum(["connected", "declined", "failed", "waiting"]),
       }),
@@ -1294,6 +1299,11 @@ export namespace SessionMessageDataPart {
             "removed",
           ]),
           name: z.string(),
+          /**
+           * For an X app, that what connected is the Grok plan its search
+           * runs on, never its site.
+           */
+          plan: z.literal("grok").optional(),
           /**
            * For a sign-in of the app's own that connected, where its page was
            * opened: the window's own browser, or the user's.

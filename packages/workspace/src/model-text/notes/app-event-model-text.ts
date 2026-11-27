@@ -41,6 +41,9 @@ export function appEventModelNote(
         // What else the sign-in left in the browser is for the chat that
         // asked for it, never a note carried on a message about something else.
         const cookies = data.carried ? "" : cookieSitesLine(event);
+        if (event.plan !== undefined) {
+          return `- The user signed in to their Grok plan on this computer, which ${event.name} (${event.slug}) searches on: \`${APP_COMMAND.name} tools ${event.slug}\` lists its tools, \`${APP_COMMAND.name} call ${event.slug} search '{"query": "..."}'\` runs one. Signing in to ${event.web ?? "x.com"} itself is separate, in ${APP_NAME}'s browser.`;
+        }
         if (event.web !== undefined) {
           return `- The user says they are signed in to ${event.name} (${event.slug}) on the web, in ${APP_NAME}'s browser. It is connected. Work it there: open ${event.web} in a tab, where the sign-in holds, or use a tab already open there. No \`${APP_COMMAND.name}\` call reaches it.${nameIt(event)}${cookies}`;
         }

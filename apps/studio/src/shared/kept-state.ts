@@ -157,6 +157,21 @@ export function unlistedTabGroups(
 export const HOSTED_PAGE_GROUP_PREFIX = "page:";
 
 /**
+ * The group of the page a file tab draws in its viewer, by the tab's id: a
+ * group no strip lists, holding that one page.
+ */
+export function hostGroupOf(tabId: string) {
+  return `${HOSTED_PAGE_GROUP_PREFIX}${tabId}`;
+}
+
+/** The tab a hosted page's group was made for, for a group named by `hostGroupOf`. */
+export function ownerOfHostGroup(group: string | undefined) {
+  return group?.startsWith(HOSTED_PAGE_GROUP_PREFIX)
+    ? group.slice(HOSTED_PAGE_GROUP_PREFIX.length)
+    : undefined;
+}
+
+/**
  * Which file a group of window tabs is kept in. A tab group belongs to this
  * computer whichever window shows it. A page drawn inside a surface is that window's alone,
  * made when the surface comes and closed when it goes, so another window showing

@@ -1,3 +1,4 @@
+import { ownerOfHostGroup } from "@/shared/kept-state";
 import {
   addToAllBookmarks,
   bookmarkListing,
@@ -112,7 +113,7 @@ import { readWindowLook, windowDraws } from "./window-look";
 import { windowTabGroupsAtom } from "./open-groups";
 import { listedWith } from "./tab-groups";
 import { openLinkAddress, setLinkedShower } from "./open-link-address";
-import { agentPageOfTab, ownerOfHostGroup, pageFileOfTab } from "./hosted-page";
+import { agentPageOfTab, pageFileOfTab } from "./hosted-page";
 
 /**
  * How long an agent's ask holds back the ones after it, which otherwise are

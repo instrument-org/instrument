@@ -1,3 +1,4 @@
+import { hostGroupOf } from "@/shared/kept-state";
 import { type WindowTab } from "@/client/atoms/window";
 import { useIsAttached } from "@/client/hooks/use-browser-targets";
 import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
@@ -16,7 +17,6 @@ import { useAtomValue } from "jotai";
 import { appTabsAtom, groupOfHref, isSiteGroup } from "./app-tabs";
 import { groupReturnAtom, groupToStepBackTo } from "./group-return";
 import { windowTabGroupsAtom } from "./open-groups";
-import { hostGroupOf } from "./window-tabs";
 import {
   NOWHERE,
   type StepDirection,

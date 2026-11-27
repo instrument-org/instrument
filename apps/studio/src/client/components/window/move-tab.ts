@@ -1,3 +1,4 @@
+import { hostGroupOf } from "@/shared/kept-state";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { captureTabView, tabViewRoot } from "@/client/lib/tab-view-state";
@@ -16,7 +17,7 @@ import { getDefaultStore } from "jotai";
 
 import { appTabsAtom, groupOfHref, INBOX_HREF, siteGroupsOf } from "./app-tabs";
 import { showTabCarryView } from "./tab-carry-view";
-import { hostGroupOf, windowTabsAtom } from "./window-tabs";
+import { windowTabsAtom } from "./window-tabs";
 
 /** The groups whose tabs went to another window, whose pages are that window's to keep or let go, until a tab comes back. */
 const groupsMovedAway = new Set<string>();

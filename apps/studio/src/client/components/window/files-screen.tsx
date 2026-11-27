@@ -1,3 +1,4 @@
+import { hostGroupOf } from "@/shared/kept-state";
 import { type ChosenItem } from "@/shared/drafts";
 import { type FileTab, finderBesideWidthAtom } from "@/client/atoms/window";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -101,7 +102,7 @@ import { useFileInfo } from "./file-info";
 import { useQuickLook } from "./quick-look";
 import { useTabSurface } from "./tab-surface";
 import { useInstantUntilFitted } from "./use-instant-until-fitted";
-import { hostGroupOf, useWindowTabsChange } from "./window-tabs";
+import { useWindowTabsChange } from "./window-tabs";
 
 /** A viewer that is the whole of its tab: no card of its own inside the pane's. */
 const FULL_BLEED = "h-full rounded-none shadow-none";

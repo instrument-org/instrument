@@ -6,7 +6,7 @@ import {
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { omit } from "radashi";
-import { HOSTED_PAGE_GROUP_PREFIX } from "@/shared/kept-state";
+import { ownerOfHostGroup } from "@/shared/kept-state";
 
 import { computerTabOf } from "./file-tabs";
 import { historyOf, stepTabVisit, visitInTab } from "./tab-history";
@@ -1516,9 +1516,7 @@ export function markOpenedBy(
 ): WindowTabs {
   // A file tab's page, the id agents name the file tab by, marks the file tab.
   const group = state.tabs.find((tab) => tab.id === id)?.group;
-  const target = group?.startsWith(HOSTED_PAGE_GROUP_PREFIX)
-    ? group.slice(HOSTED_PAGE_GROUP_PREFIX.length)
-    : id;
+  const target = ownerOfHostGroup(group) ?? id;
   return state.tabs.some(
     (tab) => tab.id === target && tab.openedBy === undefined,
   )

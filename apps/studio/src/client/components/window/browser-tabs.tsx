@@ -24,7 +24,7 @@ import { fileUrlOf, hostPathOfFileUrl } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
-import { HOSTED_PAGE_GROUP_PREFIX } from "@/shared/kept-state";
+import { hostGroupOf, ownerOfHostGroup } from "@/shared/kept-state";
 import { isPageEditAddress } from "@instrument-org/shared";
 import { pageTextOf, READ_PAGE_TEXT } from "@instrument-org/shared/page-text";
 import {
@@ -73,7 +73,6 @@ import {
 } from "./tab-model";
 import {
   everyTabIdAtom,
-  hostGroupOf,
   newScreenId,
   useWindowTabs,
   useWindowTabsChange,
@@ -527,7 +526,7 @@ export function BrowserTabs({
         if (
           filePath !== undefined &&
           group !== undefined &&
-          !group.startsWith(HOSTED_PAGE_GROUP_PREFIX) &&
+          ownerOfHostGroup(group) === undefined &&
           getFileType({ filename: filePath }) === "html"
         ) {
           const fileTab = newScreenId();

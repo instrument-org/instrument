@@ -1,7 +1,4 @@
-import {
-  tabChatFiltersAtom,
-  type WindowTab,
-} from "@/client/atoms/window";
+import { tabChatFiltersAtom, type WindowTab } from "@/client/atoms/window";
 import {
   atom,
   type Atom,
@@ -18,11 +15,7 @@ import {
   keptMembersAtom,
   onTabsAnswered,
 } from "@/client/lib/kept-state";
-import {
-  fileOfTabGroup,
-  HOSTED_PAGE_GROUP_PREFIX,
-  WINDOW_TABS_KEY,
-} from "@/shared/kept-state";
+import { fileOfTabGroup, WINDOW_TABS_KEY } from "@/shared/kept-state";
 import { screenOfHref } from "@/shared/instrument-screens";
 import { workingTabOf } from "@/shared/working-tab";
 import { type ChatId, StoreId } from "@instrument-org/workspace/client";
@@ -174,14 +167,6 @@ const storedTabsAtom = atom<WindowTabs>((get) => ({
   ...get(shownTabsAtom),
   openers: get(openersAtom),
 }));
-
-/**
- * The group of the page a file tab draws in its viewer, by the tab's id: a
- * group no strip lists, holding that one page.
- */
-export function hostGroupOf(tabId: string) {
-  return `${HOSTED_PAGE_GROUP_PREFIX}${tabId}`;
-}
 
 /** The window's tabs, to read; every change goes through `useWindowTabs`. */
 export const windowTabsAtom = atom(

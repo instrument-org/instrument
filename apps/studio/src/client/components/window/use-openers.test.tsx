@@ -1,3 +1,4 @@
+import { hostGroupOf } from "@/shared/kept-state";
 import { TabIdSchema } from "@/shared/tabs";
 import {
   ChatIdSchema,
@@ -24,7 +25,6 @@ import { chatHref, groupHref } from "./window-href";
 import {
   useWindowTabs,
   useWindowTabsChange,
-  hostGroupOf,
   seedWindowTabsAtom,
   windowTabsAtom,
 } from "./window-tabs";

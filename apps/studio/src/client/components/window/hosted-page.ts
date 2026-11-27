@@ -1,3 +1,4 @@
+import { hostGroupOf, ownerOfHostGroup } from "@/shared/kept-state";
 import { type WindowTab } from "@/client/atoms/window";
 import { useGuest } from "@/client/hooks/use-browser-targets";
 import { getGuest, goGuest, onPageThumb } from "@/client/lib/browser-pool";
@@ -21,7 +22,7 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useWindow } from "./context";
 import { type PageHost, usePageHost } from "./page-hosts";
 import { matchScreen } from "./window-href";
-import { hostGroupOf, useWindowTabs, windowTabsAtom } from "./window-tabs";
+import { useWindowTabs, windowTabsAtom } from "./window-tabs";
 
 /**
  * What a page drawn in a file tab's viewer moving means for the
@@ -478,12 +479,6 @@ export function pageFileOfTab(tab: WindowTab | undefined) {
 export function keepsHostedPage(tabs: readonly WindowTab[], tabId: string) {
   const tab = tabs.find((each) => each.id === tabId);
   return tab?.group !== undefined && pageFileOfTab(tab) !== undefined;
-}
-
-/** The tab a hosted page's group was made for, for a group named by `hostGroupOf`. */
-export function ownerOfHostGroup(group: string | undefined) {
-  const prefix = hostGroupOf("");
-  return group?.startsWith(prefix) ? group.slice(prefix.length) : undefined;
 }
 
 /**

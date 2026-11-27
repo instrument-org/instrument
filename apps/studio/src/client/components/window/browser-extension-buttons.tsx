@@ -122,8 +122,9 @@ export function openExtensionPopup(extensionId: string): void {
  * With nothing installed the puzzle piece stands alone, so the menu that
  * leads to the store is in sight. Ad blocking's shield leads the group, as
  * the built-in extension it is, for the page in `targetId`, which every
- * button acts on. While that page's extension side panel shows, a button
- * after the puzzle piece closes it.
+ * button acts on; while ad blocking is off for every site the shield shows
+ * unpinned too, so blocking left off is in sight. While that page's
+ * extension side panel shows, a button after the puzzle piece closes it.
  */
 export function BrowserExtensionButtons({
   targetId,
@@ -135,7 +136,7 @@ export function BrowserExtensionButtons({
   const [shieldOpen, setShieldOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const opensShield = useRef(false);
-  const hasShield = adBlocking.pinned || shieldOpen;
+  const hasShield = adBlocking.pinned || !adBlocking.on || shieldOpen;
   const hasPinned = extensions.some((extension) => extension.pinned);
   const isPanelShown = useIsExtensionSidePanelShown(targetId);
   // The buttons show and act on the row's own page, as each window's row

@@ -80,8 +80,9 @@ export function useAdBlocking() {
  * Ad blocking's shield in the extensions' group: crossed out wherever ads
  * load on the tab's page, and on a press, the switch for the page's site,
  * the hosts refused on the page, and the way to its row on the Extensions
- * page. Drawn while pinned, and while open from the puzzle piece's menu
- * when not, the way Chrome shows an unpinned extension with its popup up.
+ * page. Drawn while pinned, while ad blocking is off for every site, so it
+ * is not left off unseen, and while open from the puzzle piece's menu when
+ * neither, the way Chrome shows an unpinned extension with its popup up.
  */
 export function AdBlockingButton({
   className,
@@ -103,7 +104,7 @@ export function AdBlockingButton({
   const page = blocking.pageOf(targetId);
   const siteOn = !page || !blocking.offSites.includes(page.site);
   const isBlocking = blocking.on && siteOn && !page?.agentOff;
-  if (!blocking.pinned && !open) {
+  if (!blocking.pinned && blocking.on && !open) {
     return null;
   }
   const Icon = isBlocking ? ShieldCheckIcon : ShieldSlashIcon;

@@ -8,14 +8,16 @@ import {
 import { CapturesGrid } from "@/client/components/captures/captures-grid";
 import { Popover, PopoverTrigger } from "@/client/components/ui/popover";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
-import { osConventions } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { SHORTCUTS } from "@/shared/shortcuts";
 import { CameraIcon } from "@phosphor-icons/react/Camera";
+import { ImagesIcon } from "@phosphor-icons/react/Images";
 
 import { useState } from "react";
 
 import { StripHeading, StripPopover } from "./strip-popover";
+import { STRIP_TIER } from "./strip-tiers";
 
 /** The capture button with its shortcut, and the count of captures that opens them. */
 export function StripCaptures({ cellClass }: { cellClass: string }) {
@@ -31,12 +33,14 @@ export function StripCaptures({ cellClass }: { cellClass: string }) {
           requestCapture();
         }}
         aria-label="Capture the window"
-        title="Capture the window"
+        title={`Capture the window (${shortcut})`}
         type="button"
       >
         <CameraIcon className="size-3.25" />
-        capture
-        <span className="text-white/45">{shortcut}</span>
+        <span className={STRIP_TIER.words}>capture</span>
+        <span className={cn("text-white/45", STRIP_TIER.shortcut)}>
+          {shortcut}
+        </span>
       </button>
       <Popover onOpenChange={setOpen} open={open}>
         <PopoverTrigger asChild>
@@ -45,7 +49,10 @@ export function StripCaptures({ cellClass }: { cellClass: string }) {
             className={cellClass}
             type="button"
           >
-            <span className="text-white/50">captures</span>
+            <ImagesIcon className={cn("size-3.25", STRIP_TIER.icon)} />
+            <span className={cn("text-white/50", STRIP_TIER.words)}>
+              captures
+            </span>
             {captures.length}
           </button>
         </PopoverTrigger>

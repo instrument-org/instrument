@@ -1,6 +1,10 @@
 import { chatNotesAtom } from "@/client/atoms/chat-notes";
 import { appTabsAtom } from "@/client/components/window/app-tabs";
+import { cn } from "@/client/lib/utils";
+import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { useAtom, useAtomValue } from "jotai";
+
+import { STRIP_TIER } from "./strip-tiers";
 
 /** Where a tab shows a transcript, its debug page among them. */
 const SHOWS_A_TRANSCRIPT =
@@ -19,6 +23,7 @@ export function ChatNotesToggle({ className }: { className: string }) {
   }
   return (
     <button
+      aria-label="Chat notes"
       aria-pressed={isOn}
       className={className}
       data-chat-notes
@@ -27,8 +32,15 @@ export function ChatNotesToggle({ className }: { className: string }) {
       }}
       type="button"
     >
-      <span className="text-white/50">chat notes</span>
-      <span>{isOn ? "on" : "off"}</span>
+      <NotePencilIcon
+        className={cn(
+          "size-3.25",
+          isOn ? "text-white" : "text-white/45",
+          STRIP_TIER.icon,
+        )}
+      />
+      <span className={cn("text-white/50", STRIP_TIER.words)}>chat notes</span>
+      <span className={STRIP_TIER.words}>{isOn ? "on" : "off"}</span>
     </button>
   );
 }

@@ -34,16 +34,15 @@ import { ChatNotesToggle } from "./chat-notes-toggle";
 import { DeveloperErrors } from "./developer-errors";
 import { StripCaptures } from "./strip-captures";
 import { StripHeading, StripPopover } from "./strip-popover";
+import { STRIP_TIER } from "./strip-tiers";
 
 type AppEnvironment = RPCOutput["debug"]["getAppEnvironment"];
 
 const FEATURE_NAMES: readonly FeatureName[] = FeatureNameSchema.options;
 
+/** A cell keeps its width: the build's name is what gives (`STRIP_TIER`). */
 const CELL_CLASS =
-  "flex h-full items-center gap-1.5 px-2.5 whitespace-nowrap hover:bg-white/8 aria-expanded:bg-white/10";
-
-/** Cells that give way first when the window is narrow. */
-const ROOMY_CLASS = "hidden @3xl:flex";
+  "flex h-full shrink-0 items-center gap-1.5 px-2.5 whitespace-nowrap hover:bg-white/8 aria-expanded:bg-white/10";
 
 /**
  * The band along the foot of the window in developer mode: which build this
@@ -97,13 +96,13 @@ export function DeveloperStrip({
 
   return (
     <div
-      className="@container flex h-6 shrink-0 items-stretch border-t border-white/8 bg-ink pr-4 font-mono text-[11px] leading-none text-white/90"
+      className="@container flex h-6 shrink-0 items-stretch overflow-hidden border-t border-white/8 bg-ink pr-4 font-mono text-[11px] leading-none text-white/90"
       data-developer-strip
     >
       <Popover>
         <PopoverTrigger asChild>
           <button
-            className="flex min-w-0 items-center gap-2 bg-white/12 pr-3 pl-4 hover:bg-white/16 aria-expanded:bg-white/20"
+            className="flex min-w-0 items-center gap-2 overflow-hidden bg-white/12 pr-3 pl-4 hover:bg-white/16 aria-expanded:bg-white/20"
             style={
               env === "preview"
                 ? {
@@ -113,7 +112,7 @@ export function DeveloperStrip({
             }
             type="button"
           >
-            <span className="font-medium whitespace-nowrap text-white">
+            <span className="shrink-0 font-medium whitespace-nowrap text-white">
               {env}
             </span>
             {environment?.driveColor !== undefined && (
@@ -123,10 +122,17 @@ export function DeveloperStrip({
               />
             )}
             {name ? (
-              <span className="truncate text-white/75">{name}</span>
+              <span className="min-w-0 truncate text-white/75">{name}</span>
             ) : null}
             {version !== undefined && (
-              <span className="whitespace-nowrap text-white/60">{version}</span>
+              <span
+                className={cn(
+                  "shrink-0 whitespace-nowrap text-white/60",
+                  STRIP_TIER.version,
+                )}
+              >
+                {version}
+              </span>
             )}
           </button>
         </PopoverTrigger>
@@ -147,7 +153,7 @@ export function DeveloperStrip({
         <StripButton onClick={skipSetup}>Skip setup</StripButton>
       )}
       <Fact
-        className={ROOMY_CLASS}
+        className={STRIP_TIER.api}
         label="api"
         onClick={
           isSetupUp
@@ -159,7 +165,7 @@ export function DeveloperStrip({
         value={server?.label?.toLowerCase() ?? "production"}
       />
       <Fact
-        className={ROOMY_CLASS}
+        className={STRIP_TIER.workspace}
         label="workspace"
         onClick={
           isSetupUp
@@ -174,7 +180,7 @@ export function DeveloperStrip({
       {!isSetupUp && <StripCaptures cellClass={CELL_CLASS} />}
       <ChatNotesToggle className={CELL_CLASS} />
       <Fact
-        className={ROOMY_CLASS}
+        className={STRIP_TIER.flags}
         label="flags"
         onClick={
           isSetupUp
@@ -186,12 +192,12 @@ export function DeveloperStrip({
         value={flagsOn.toString()}
       />
       {onOpenDebugPages && !isSetupUp && (
-        <StripButton className={ROOMY_CLASS} onClick={onOpenDebugPages}>
+        <StripButton className={STRIP_TIER.debug} onClick={onOpenDebugPages}>
           debug pages
         </StripButton>
       )}
       <StripButton
-        className={ROOMY_CLASS}
+        className={STRIP_TIER.debug}
         onClick={() => {
           toggleDevTools();
         }}
@@ -228,6 +234,7 @@ export function DeveloperStrip({
 function ThemeToggle() {
   const { resolvedTheme, setTheme, theme } = useTheme();
   const next = resolvedTheme === "dark" ? "light" : "dark";
+  const shortcut = formatAcceleratorText(SHORTCUTS.toggleTheme.accelerator);
   const ThemeIcon =
     theme === "system"
       ? MonitorIcon
@@ -247,12 +254,14 @@ function ThemeToggle() {
           type="button"
         >
           <ThemeIcon className="size-3.25" />
-          <span className="text-white/45">
-            {formatAcceleratorText(SHORTCUTS.toggleTheme.accelerator)}
+          <span className={cn("text-white/45", STRIP_TIER.shortcut)}>
+            {shortcut}
           </span>
         </button>
       </TooltipTrigger>
-      <TooltipContent side="top">Switch to {next}</TooltipContent>
+      <TooltipContent side="top">
+        Switch to {next} <span className="opacity-60">{shortcut}</span>
+      </TooltipContent>
     </Tooltip>
   );
 }
@@ -277,7 +286,7 @@ function Fact({
       type="button"
     >
       <span className="text-white/50">{label}</span>
-      <span>{value}</span>
+      <span className="max-w-32 truncate">{value}</span>
     </button>
   );
 }

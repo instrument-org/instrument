@@ -46,6 +46,7 @@ import {
   whereOf,
 } from "./developer-errors-model";
 import { StripHeading, StripPopover } from "./strip-popover";
+import { STRIP_TIER } from "./strip-tiers";
 
 /**
  * What the app has captured since it started or was last cleared, from any
@@ -81,13 +82,17 @@ export function DeveloperErrors() {
     <Popover onOpenChange={setOpen} open={open}>
       <PopoverTrigger asChild>
         <button
+          aria-label={label}
           className="flex shrink-0 items-center gap-1 border-l border-white/10 px-2.5 whitespace-nowrap text-ink-alert hover:bg-white/8 aria-expanded:bg-white/10"
           onFocus={readList}
           onPointerEnter={readList}
           type="button"
         >
           <WarningCircleIcon className="size-3.25" />
-          {label}
+          {total}
+          <span className={STRIP_TIER.words}>
+            {total === 1 ? "error" : "errors"}
+          </span>
         </button>
       </PopoverTrigger>
       <StripPopover

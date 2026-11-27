@@ -18,6 +18,7 @@ import {
   useFarRows,
   useMessageScroller,
 } from "@/client/components/ui/message-scroller";
+import { type FarRows } from "@/client/components/ui/scroll-owner/far-rows";
 import { useFindTarget } from "@/client/hooks/use-find-target";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -252,8 +253,12 @@ export function ChatFind({
     const drawAndLand = async (turn: string, pick: "first" | "last") => {
       // The turn stood on stays drawn too, until the find has moved off it.
       const standing = activeRange.current && turnOf(activeRange.current);
-      farRows.keep(FIND_KEEPS, new Set(standing ? [standing, turn] : [turn]));
-      await drawn(() => isTurnDrawn(content, turn));
+      await keepDrawn(
+        farRows,
+        content,
+        FIND_KEEPS,
+        new Set(standing ? [standing, turn] : [turn]),
+      );
       if (latestQuery.current !== words) {
         return;
       }
@@ -589,8 +594,22 @@ function pickInTurn(
   return after <= 0 ? ranges.length - 1 : after - 1;
 }
 
+/**
+ * Keeps `turns` drawn for `by`, in place of what it kept before, and waits
+ * until they are: how anything that lands on a turn reaches one drawn as a box.
+ */
+export async function keepDrawn(
+  farRows: FarRows,
+  content: Element,
+  by: string,
+  turns: ReadonlySet<string>,
+) {
+  farRows.keep(by, turns);
+  await drawn(() => [...turns].every((turn) => isTurnDrawn(content, turn)));
+}
+
 /** Whether the rows of the turn `id` are drawn rather than boxes. */
-function isTurnDrawn(content: HTMLElement, id: string) {
+function isTurnDrawn(content: Element, id: string) {
   return [...content.querySelectorAll(turnSelector(id))].every(
     (row) => !row.hasAttribute("data-placeholder"),
   );

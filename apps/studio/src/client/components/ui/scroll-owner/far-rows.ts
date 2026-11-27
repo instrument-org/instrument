@@ -34,6 +34,11 @@ export class FarRows {
   /** What else keeps a turn drawn, by who asked. */
   private readonly kept = new Map<string, ReadonlySet<string>>();
   private readonly boxed = new Set<string>();
+  /**
+   * What each boxed turn had drawn as it boxed, for finding a box by what is
+   * in it: its elements' ids and its words, whitespace aside.
+   */
+  private readonly boxedContent = new Map<string, BoxedContent>();
   private boxedView: ReadonlySet<string> = new Set();
   private readonly listeners = new Map<string, Set<() => void>>();
   private readonly boxListeners = new Set<() => void>();
@@ -220,6 +225,31 @@ export class FarRows {
     };
   }
 
+  /**
+   * The boxed turns, in the column's order, that had drawn an element named
+   * `id` or the words `words` (whitespace aside) as they boxed: where a link
+   * or a quote lands when nothing drawn has it.
+   */
+  boxesHaving(match: { id: string } | { words: string }): string[] {
+    const turns: { row: HTMLElement; turn: string }[] = [];
+    for (const [turn, content] of this.boxedContent) {
+      const has =
+        "id" in match
+          ? content.ids.has(match.id)
+          : content.words.includes(match.words.replaceAll(/\s/g, ""));
+      const row = this.turns.get(turn)?.values().next().value;
+      if (has && row) {
+        turns.push({ row, turn });
+      }
+    }
+    turns.sort((a, b) =>
+      a.row.compareDocumentPosition(b.row) & Node.DOCUMENT_POSITION_FOLLOWING
+        ? -1
+        : 1,
+    );
+    return turns.map(({ turn }) => turn);
+  }
+
   /** The turns drawn as boxes, a new set each time it changes. */
   getBoxed = (): ReadonlySet<string> => this.boxedView;
 
@@ -364,8 +394,22 @@ export class FarRows {
     }
     if (isBoxed) {
       this.boxed.add(turn);
+      // Read before anything is told, while the rows still have what they drew.
+      const rows = [...(this.turns.get(turn) ?? [])];
+      this.boxedContent.set(turn, {
+        ids: new Set(
+          rows.flatMap((row) =>
+            [...row.querySelectorAll("[id]")].map((element) => element.id),
+          ),
+        ),
+        words: rows
+          .map((row) => row.textContent)
+          .join("")
+          .replaceAll(/\s/g, ""),
+      });
     } else {
       this.boxed.delete(turn);
+      this.boxedContent.delete(turn);
     }
     this.boxedView = new Set(this.boxed);
     for (const listener of this.listeners.get(turn) ?? []) {
@@ -414,6 +458,11 @@ export class FarRows {
 const NEAR_SCREENS = 2;
 /** A box once further than this many. */
 const FAR_SCREENS = 3;
+
+interface BoxedContent {
+  ids: ReadonlySet<string>;
+  words: string;
+}
 
 interface RowState {
   /** Last measured, in layout px; none until it has been drawn and measured. */

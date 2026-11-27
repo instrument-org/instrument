@@ -1,12 +1,15 @@
 import { AskButton } from "@/client/components/document-viewers/ask-selection";
 import { type VirtualElement } from "@floating-ui/dom";
-import { useMessageScroller } from "@/client/components/ui/message-scroller";
-import { centeringJump } from "@/client/components/task/chat-find";
+import {
+  useMessageScroller,
+  useOptionalFarRows,
+} from "@/client/components/ui/message-scroller";
+import { centeringJump, keepDrawn } from "@/client/components/task/chat-find";
 import { useEffect, useId, useImperativeHandle, useState } from "react";
 
 export interface QuoteSelectionRef {
   /** Brings quoted words into view, where the transcript still has them. */
-  show: (words: string) => void;
+  show: (words: string) => Promise<void>;
 }
 
 /**
@@ -74,11 +77,22 @@ export function QuoteSelection({
   }, [rootRef]);
 
   const { releaseAutoScroll, scrollToMessage } = useMessageScroller();
+  const farRows = useOptionalFarRows();
   useImperativeHandle(ref, () => ({
-    show: (words) => {
+    show: async (words) => {
       const root = rootRef.current;
-      const range = root && findQuoted(root, words);
-      const viewport = root?.closest<HTMLElement>(
+      if (!root) {
+        return;
+      }
+      // Words in a turn drawn as a box are drawn first, the newest such turn.
+      const boxed = findQuoted(root, words)
+        ? undefined
+        : farRows?.boxesHaving({ words }).at(-1);
+      if (farRows && boxed) {
+        await keepDrawn(farRows, root, QUOTE_KEEPS, new Set([boxed]));
+      }
+      const range = findQuoted(root, words);
+      const viewport = root.closest<HTMLElement>(
         '[data-slot="message-scroller-viewport"]',
       );
       const jump = range && viewport && centeringJump(range, viewport);
@@ -149,6 +163,12 @@ export function QuoteSelection({
     </>
   );
 }
+
+/**
+ * Who keeps a turn drawn for the quote last shown (`FarRows.keep`), until
+ * another is.
+ */
+const QUOTE_KEEPS = "quote";
 
 /**
  * Where quoted words are in the newest reply that has them. Compared without

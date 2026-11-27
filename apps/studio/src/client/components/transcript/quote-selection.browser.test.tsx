@@ -11,6 +11,7 @@ import { QuoteSelection } from "./quote-selection";
 
 vi.mock("@/client/components/ui/message-scroller", () => ({
   useFarRows: () => undefined,
+  useOptionalFarRows: () => null,
   useMessageScroller: () => ({
     releaseAutoScroll: noop,
     scrollToMessage: noop,

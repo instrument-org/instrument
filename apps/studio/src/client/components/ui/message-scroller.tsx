@@ -28,6 +28,11 @@ function useFarRows(): FarRows {
   return farRows;
 }
 
+/** The transcript's turns far from view, where there is a transcript. */
+function useOptionalFarRows(): FarRows | null {
+  return React.use(FarRowsContext);
+}
+
 /** The commands a transcript's controls reach the scroller through. */
 function useMessageScroller(): {
   armSlide: () => void;
@@ -501,6 +506,7 @@ function assignRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
 export {
   MessageScroller,
   useFarRows,
+  useOptionalFarRows,
   useMessageScroller,
   ScrollPin,
   useMessageScrollerScrollable,

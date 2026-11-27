@@ -1067,7 +1067,7 @@ export function ChatConversation({
       onModelChange={setSelectedModelURI}
       onModelChoiceChange={setModelChoice}
       onShowQuote={(words) => {
-        quoteSelectionRef.current?.show(words);
+        void quoteSelectionRef.current?.show(words);
       }}
       onWordsChange={(words) => {
         setQuoted(JSON.stringify(splitLeadingQuotes(words).quotes));

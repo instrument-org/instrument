@@ -3,7 +3,9 @@ import { flashJumpTarget } from "@/client/lib/flash-jump-target";
 import { useAtomValue } from "jotai";
 import { useCallback } from "react";
 
+import { keepDrawn } from "../components/task/chat-find";
 import { useReleaseAutoScroll } from "../components/transcript-scroll-context";
+import { useOptionalFarRows } from "../components/ui/message-scroller";
 
 /**
  * The element a `#fragment` names, under either spelling it can carry.
@@ -18,23 +20,38 @@ import { useReleaseAutoScroll } from "../components/transcript-scroll-context";
  * of `window`. A link in that same document still points at the name its author
  * wrote, so both are tried.
  */
-const findFragmentTarget = (root: Document | Element, fragment: string) => {
+const fragmentNames = (fragment: string) => {
   let id = fragment;
   try {
     id = decodeURIComponent(fragment);
   } catch {
     // Keep the raw fragment when it isn't valid percent-encoding.
   }
-
-  const byId = (name: string) =>
-    root.querySelector(`[id="${name.replaceAll(/["\\]/g, String.raw`\$&`)}"]`);
-
-  return byId(id) ?? byId(`user-content-${id}`);
+  return [id, `user-content-${id}`];
 };
+
+const findFragmentTarget = (root: Document | Element, fragment: string) => {
+  for (const name of fragmentNames(fragment)) {
+    const element = root.querySelector(
+      `[id="${name.replaceAll(/["\\]/g, String.raw`\$&`)}"]`,
+    );
+    if (element) {
+      return element;
+    }
+  }
+  return null;
+};
+
+/**
+ * Who keeps a turn drawn for the link last followed into it
+ * (`FarRows.keep`), until another is.
+ */
+const LINK_KEEPS = "link";
 
 export const useHashLinkScroll = () => {
   const zoom = useAtomValue(zoomAtom);
   const releaseAutoScroll = useReleaseAutoScroll();
+  const farRows = useOptionalFarRows();
   const handleHashLinkClick = useCallback(
     (event: React.MouseEvent<HTMLAnchorElement>) => {
       event.preventDefault();
@@ -56,46 +73,66 @@ export const useHashLinkScroll = () => {
           searchRoot = document;
         }
 
-        const element = findFragmentTarget(searchRoot, href.slice(1));
-        if (element) {
-          flashJumpTarget(element);
-          // The smooth scroll below is programmatic, so the transcript's
-          // scroller never counts it as the reader taking over: left following
-          // the live end, the next content growth pulls the view back to the
-          // bottom instead of leaving it at the target.
-          releaseAutoScroll();
-          // Find the nearest scrollable ancestor by checking computed styles
-          let scrollContainer = element.parentElement;
-          while (scrollContainer && scrollContainer !== document.body) {
-            const style = window.getComputedStyle(scrollContainer);
-            const overflowY = style.overflowY;
-            // Check if element has overflow auto/scroll (even if not currently scrollable)
-            if (overflowY === "auto" || overflowY === "scroll") {
-              break;
+        const root = searchRoot;
+        const fragment = href.slice(1);
+        const land = () => {
+          const element = findFragmentTarget(root, fragment);
+          if (element) {
+            flashJumpTarget(element);
+            // The smooth scroll below is programmatic, so the transcript's
+            // scroller never counts it as the reader taking over: left following
+            // the live end, the next content growth pulls the view back to the
+            // bottom instead of leaving it at the target.
+            releaseAutoScroll();
+            // Find the nearest scrollable ancestor by checking computed styles
+            let scrollContainer = element.parentElement;
+            while (scrollContainer && scrollContainer !== document.body) {
+              const style = window.getComputedStyle(scrollContainer);
+              const overflowY = style.overflowY;
+              // Check if element has overflow auto/scroll (even if not currently scrollable)
+              if (overflowY === "auto" || overflowY === "scroll") {
+                break;
+              }
+              scrollContainer = scrollContainer.parentElement;
             }
-            scrollContainer = scrollContainer.parentElement;
-          }
 
-          if (scrollContainer && scrollContainer !== document.body) {
-            // Get element position relative to scroll container
-            const elementRect = element.getBoundingClientRect();
-            const containerRect = scrollContainer.getBoundingClientRect();
-            // The rect delta is on-screen px (scaled by the app zoom); scrollTop
-            // and scrollTo expect layout px, so divide the delta back.
-            const relativeTop = (elementRect.top - containerRect.top) / zoom;
-            const scrollOffset = scrollContainer.scrollTop;
+            if (scrollContainer && scrollContainer !== document.body) {
+              // Get element position relative to scroll container
+              const elementRect = element.getBoundingClientRect();
+              const containerRect = scrollContainer.getBoundingClientRect();
+              // The rect delta is on-screen px (scaled by the app zoom); scrollTop
+              // and scrollTo expect layout px, so divide the delta back.
+              const relativeTop = (elementRect.top - containerRect.top) / zoom;
+              const scrollOffset = scrollContainer.scrollTop;
 
-            scrollContainer.scrollTo({
-              behavior: "smooth",
-              top: scrollOffset + relativeTop,
-            });
-          } else {
-            element.scrollIntoView({ behavior: "smooth", block: "start" });
+              scrollContainer.scrollTo({
+                behavior: "smooth",
+                top: scrollOffset + relativeTop,
+              });
+            } else {
+              element.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
           }
+        };
+        // A target in a turn drawn as a box is drawn first.
+        const boxed =
+          farRows &&
+          root instanceof Element &&
+          !findFragmentTarget(root, fragment)
+            ? fragmentNames(fragment)
+                .flatMap((id) => farRows.boxesHaving({ id }))
+                .at(0)
+            : undefined;
+        if (farRows && boxed && root instanceof Element) {
+          void keepDrawn(farRows, root, LINK_KEEPS, new Set([boxed])).then(
+            land,
+          );
+        } else {
+          land();
         }
       }
     },
-    [releaseAutoScroll, zoom],
+    [farRows, releaseAutoScroll, zoom],
   );
 
   return handleHashLinkClick;

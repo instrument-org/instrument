@@ -1176,8 +1176,10 @@ export const PromptInput = ({
                 does the model's name truncate. Flex shares the squeeze in
                 proportion, so the factor is large enough that the model's
                 share rounds to nothing: a sliver of a pixel would cut even
-                "Auto" short. */}
-              <div className="flex shrink-1000000 items-center gap-1.5">
+                "Auto" short. `min-w-0` lets a chip beside the plus truncate
+                rather than push Send out of the box; in a narrow row the
+                chip is down to its icon, and the model gives way to it. */}
+              <div className="flex min-w-0 shrink-1000000 items-center gap-1.5 @max-sm/composer:min-w-auto">
                 {addMenu && (
                   <ComposerAddMenu
                     actions={actions}
@@ -1200,7 +1202,7 @@ export const PromptInput = ({
                 {besidePlus}
               </div>
 
-              <div className="flex min-w-0 flex-auto items-center justify-end gap-4">
+              <div className="flex min-w-0 flex-auto items-center justify-end gap-4 @max-[16rem]/composer:gap-2">
                 {!dictating &&
                   features.context_ring &&
                   id &&

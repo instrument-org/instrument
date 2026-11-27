@@ -46,7 +46,11 @@ export function ComposerFrame({
   overlay,
   ref,
 }: {
-  /** The button row along the bottom. Never pushed out of the box. */
+  /**
+   * The button row along the bottom. Never pushed out of the box. It is the
+   * `composer` container, so a control can trade its words for its icon when
+   * the row is narrow.
+   */
   actions: React.ReactNode;
   /**
    * An element of the host's the button row is drawn into instead, so a
@@ -71,7 +75,7 @@ export function ComposerFrame({
   const actionsRow =
     actionsInto === undefined ? (
       <div
-        className="row-start-3 flex items-end justify-between gap-2 pt-2"
+        className="@container/composer row-start-3 flex items-end justify-between gap-2 pt-2"
         data-slot="composer-actions"
       >
         {actions}
@@ -79,7 +83,7 @@ export function ComposerFrame({
     ) : actionsInto === null ? null : (
       createPortal(
         <div
-          className="flex min-w-0 flex-1 items-center gap-2"
+          className="@container/composer flex min-w-0 flex-1 items-center gap-2"
           data-slot="composer-actions"
         >
           {actions}

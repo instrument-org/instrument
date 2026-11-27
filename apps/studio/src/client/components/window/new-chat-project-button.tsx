@@ -26,7 +26,7 @@ import { projectTint } from "./project-tint";
  * The Project button beside a new chat's plus: a list of the workspace's
  * projects to type into, Return taking the first match. Once one is picked
  * the button wears that project's mark, name and tint, with an × that takes
- * it off.
+ * it off. In a narrow composer it is the mark alone, its name in the label.
  */
 export function NewChatProjectButton({
   isOpen,
@@ -56,7 +56,7 @@ export function NewChatProjectButton({
   return (
     <span
       className={cn(
-        "flex h-7 shrink-0 items-center rounded-full text-xs",
+        "flex h-7 min-w-0 items-center rounded-full text-xs @max-sm/composer:shrink-0",
         picked
           ? "bg-(--project-tint-surface) font-medium text-(--project-tint-ink) project-tint"
           : "text-muted-foreground ring-1 ring-foreground/10",
@@ -76,7 +76,10 @@ export function NewChatProjectButton({
             aria-label={picked ? `Project: ${picked.name}` : "Project"}
             className={cn(
               "flex h-full max-w-48 min-w-0 items-center gap-1.5 rounded-full pl-2.5",
-              picked ? "pr-1" : "pr-2.5 hover:text-foreground",
+              picked
+                ? "pr-1"
+                : "pr-2.5 hover:text-foreground",
+              "@max-sm/composer:w-7 @max-sm/composer:justify-center @max-sm/composer:px-0",
             )}
             type="button"
           >
@@ -85,10 +88,12 @@ export function NewChatProjectButton({
             ) : (
               <CardsThreeIcon className="size-3.5 shrink-0" />
             )}
-            <span className="min-w-0 truncate">
+            <span className="min-w-0 truncate @max-sm/composer:hidden">
               {picked ? picked.name : "Project"}
             </span>
-            {!picked && <CaretDownIcon className="size-2.5 shrink-0" />}
+            {!picked && (
+              <CaretDownIcon className="size-2.5 shrink-0 @max-sm/composer:hidden" />
+            )}
           </button>
         </PopoverTrigger>
         <PopoverContent

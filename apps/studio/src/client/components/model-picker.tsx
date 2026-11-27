@@ -240,7 +240,11 @@ export function ModelPicker({
                     </p>
                   </TooltipContent>
                 </Tooltip>
-                <span className="min-w-0 flex-1 truncate">{selectedName}</span>
+                {/* In a narrow composer the provider's mark stands for the
+                    model, since a name cut to a letter or two says less. */}
+                <span className="min-w-0 flex-1 truncate @max-[16rem]/composer:hidden">
+                  {selectedName}
+                </span>
               </span>
             ) : isEmpty ? (
               <span className="flex items-center gap-1.5 text-xs leading-4 font-medium">
@@ -258,7 +262,7 @@ export function ModelPicker({
                 {words}
               </span>
             )}
-            <CaretDownIcon className="size-3 shrink-0" />
+            <CaretDownIcon className="size-3 shrink-0 @max-[12rem]/composer:hidden" />
           </Button>
         </PopoverTrigger>
         {words && selectedModel && onChoiceChange && (

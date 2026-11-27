@@ -316,6 +316,11 @@ class OfficeRun {
       options.get("--out"),
       nodePath.posix.dirname(file.spelled),
     );
+    const pdfName = `${file.stem}.pdf`;
+    const pdfSpelled = nodePath.posix.join(outDir.spelled, pdfName);
+    // A PDF of the same name already there is replaced, and one LibreOffice
+    // left as it was is not this render's.
+    const before = (await this.modifiedTimes(outDir.spelled)).get(pdfName);
     const install = await this.office();
     const result = await this.soffice(install, [
       "--convert-to",
@@ -324,9 +329,14 @@ class OfficeRun {
       outDir.host,
       file.host,
     ]);
-    const pdfSpelled = nodePath.posix.join(outDir.spelled, `${file.stem}.pdf`);
-    if (result.exitCode !== 0 || !(await this.ctx.fs.exists(pdfSpelled))) {
+    const after = (await this.modifiedTimes(outDir.spelled)).get(pdfName);
+    if (result.exitCode !== 0 || after === undefined) {
       throw this.failed("render it", result);
+    }
+    if (after === before) {
+      throw new Error(
+        `LibreOffice wrote no new PDF; ${this.display(pdfSpelled)} is from before.`,
+      );
     }
     const pagesDir = nodePath.posix.join(outDir.spelled, `${file.stem}-pages`);
     const drawn = pages
@@ -338,7 +348,7 @@ class OfficeRun {
       : undefined;
     const count = drawn && "count" in drawn ? drawn.count : undefined;
     this.out.lines.push(
-      `✓ ${this.display(pdfSpelled)}${count === undefined ? "" : `  ${count} ${count === 1 ? "page" : "pages"}`}`,
+      `✓ ${this.display(pdfSpelled)}${count === undefined ? "" : `  ${count} ${count === 1 ? "page" : "pages"}`}${before === undefined ? "" : ` (replaced the ${pdfName} that was there)`}`,
     );
     if (drawn && "count" in drawn && pages) {
       const last = Math.min(pages[1], drawn.count);
@@ -420,8 +430,8 @@ class OfficeRun {
       new Set([...RENDERS, ".csv", ".html", ".txt"]),
     );
     const outDir = await this.outFolder(options.get("--out"), this.ctx.cwd);
-    // Each file's time before the call, so a sheet's CSV written over one
-    // of the same name counts as written and an older one does not.
+    // Each file's time before the call, so a file written over one of the
+    // same name counts as written and one left as it was does not.
     const before = await this.modifiedTimes(outDir.spelled);
     const install = await this.office();
     const result = await this.soffice(install, [
@@ -436,9 +446,8 @@ class OfficeRun {
       (name) =>
         name.toLowerCase().endsWith(`.${to}`) &&
         (name === `${file.stem}.${to}` ||
-          (to === "csv" &&
-            name.startsWith(`${file.stem}-`) &&
-            after.get(name) !== before.get(name))),
+          (to === "csv" && name.startsWith(`${file.stem}-`))) &&
+        after.get(name) !== before.get(name),
     );
     if (result.exitCode !== 0 || written.length === 0) {
       throw this.failed(`convert it to ${to}`, result);

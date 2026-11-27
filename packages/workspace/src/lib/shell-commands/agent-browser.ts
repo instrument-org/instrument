@@ -103,7 +103,9 @@ import {
   onlyTabToClose,
   opensNewTab,
   tabClosedOutput,
+  tabLetGoOutput,
   tabOutputOf,
+  tabToClose,
   windowTabIdArgIndex,
   withTabIds,
   listsTab,
@@ -1296,6 +1298,8 @@ export function createAgentBrowserCommand({
         ? undefined
         : windowTabIdArgIndex(resolvedArgs);
     const closesTab = drivesChatTabs && isTabClose(resolvedArgs);
+    // The window's id of the tab `tab close` closes, for its result to name.
+    let closing: string | undefined;
     if (tabIdIndex !== undefined || closesTab) {
       const listTabs = () =>
         runAgentBrowser({
@@ -1324,6 +1328,10 @@ export function createAgentBrowserCommand({
       const only =
         closesTab && listed.exitCode === 0
           ? onlyTabToClose(resolvedArgs, listed.stdout)
+          : undefined;
+      closing =
+        closesTab && listed.exitCode === 0
+          ? tabToClose(resolvedArgs, listed.stdout)
           : undefined;
       if (
         only !== undefined &&
@@ -1614,6 +1622,24 @@ export function createAgentBrowserCommand({
             ? withTabIds(stdout, listed.stdout)
             : `${stdout}${stdout === "" || stdout.endsWith("\n") ? "" : "\n"}${newTabLine(listed.stdout, earlierTab)}`;
       }
+    }
+
+    // agent-browser names the tab it closed by its own label, and its
+    // connection only lets go of a tab that is the user's, which the window
+    // still lists after.
+    if (
+      closing !== undefined &&
+      exitCode === 0 &&
+      !parseAgentBrowserArgs(resolvedArgs).globalFlags.some(
+        (flag) => flag.name === "--json" && flag.value !== "false",
+      )
+    ) {
+      const stays = (await chatPageTabs(chatId))?.some(
+        (tab) => tab.id === closing,
+      );
+      stdout = stays
+        ? tabLetGoOutput(closing)
+        : tabClosedOutput(resolvedArgs, closing);
     }
 
     // Who else acted in the tabs this command drove since this session's

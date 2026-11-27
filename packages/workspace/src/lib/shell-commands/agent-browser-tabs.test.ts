@@ -386,8 +386,26 @@ describe("a task's tab", () => {
       stop();
 
       expect(result.exitCode).toBe(0);
+      expect(result.stdout).toMatchInlineSnapshot(`
+        "✓ Tab [tab_01M84R8BVN46VBYRPX9NFMSWSM] closed
+        "
+      `);
       expect(closed).toEqual([]);
       expect(ran.slice(0, 2)).toEqual(["tab list --json", "tab close t1"]);
+    });
+
+    it("says a tab of several it only let go of, the user's, stays open", async () => {
+      const { stop } = connected([OWN, OTHER]);
+      // The window still lists it after the close.
+      live.add(browserTargetOf(OWN));
+
+      const { result } = await close(["tab", "close"], [OWN, OTHER]);
+      stop();
+
+      expect(result.stdout).toMatchInlineSnapshot(`
+        "Let go of tab tab_01M84R8BVN46VBYRPX9NFMSWSM; it is the user's and stays open.
+        "
+      `);
     });
   });
 

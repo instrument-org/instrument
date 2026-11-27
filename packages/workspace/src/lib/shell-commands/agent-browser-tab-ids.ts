@@ -160,6 +160,26 @@ export function isTabClose(args: readonly string[]): boolean {
 }
 
 /**
+ * The window's id of the tab a `tab close` would close: the one it names, by
+ * the window's id or agent-browser's label, or the active one when it names
+ * none, as `tab list --json` lists them.
+ */
+export function tabToClose(
+  args: readonly string[],
+  json: string,
+): string | undefined {
+  if (!isTabClose(args)) {
+    return undefined;
+  }
+  const ref = parseAgentBrowserArgs([...args]).subArgs[2]?.value;
+  return parseTabList(json)?.data.tabs.find((tab) =>
+    ref === undefined
+      ? tab.active
+      : ref === tab.targetId || ref === tab.tabId,
+  )?.targetId;
+}
+
+/**
  * The window's id of the tab a `tab close` would close when it is the only
  * tab agent-browser has, which agent-browser refuses to close ("Cannot close
  * the last tab"): the one tab `tab list --json` names, when the invocation
@@ -179,6 +199,14 @@ export function onlyTabToClose(
   return ref === undefined || ref === only.targetId || ref === only.tabId
     ? only.targetId
     : undefined;
+}
+
+/**
+ * What `tab close` prints for a tab it let go of and left open, the user's,
+ * which the agent's browser connection never closes.
+ */
+export function tabLetGoOutput(tabId: string): string {
+  return `Let go of tab ${tabId}; it is the user's and stays open.\n`;
 }
 
 /** What `tab close` prints for a tab it closed, named by the window's id, as text or as `--json`. */

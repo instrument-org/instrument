@@ -110,6 +110,9 @@ export function useSiteSignIn({
     isWaiting: started !== undefined,
     open: () => {
       if (started !== undefined && appWindow?.showTab?.(started.tab)) {
+        // The tab's mark outlives a relaunch and main's cookies read as the
+        // sign-in started do not: main reads them now if it has none.
+        start.mutate({ loadsSignIn: false, slug, tab: started.tab });
         return;
       }
       if (signInPage === undefined) {
@@ -217,6 +220,18 @@ export function SiteSignInBar({ tabId }: { tabId: string }) {
   const app = useApp(slug);
   const name = app?.name ?? "";
   const mark = useMarkSignedIn(name);
+  const { mutate: start } = useMutation(
+    rpcClient.apps.startWebSignIn.mutationOptions(),
+  );
+  const isWaiting = app !== undefined && app.status !== "connected";
+  // The tab's mark outlives a relaunch and main's cookies read as the
+  // sign-in started do not, so a sign-in shown here has main read them now
+  // if it has none, and Done finds the cookies set from then on.
+  useEffect(() => {
+    if (slug !== undefined && isWaiting) {
+      start({ loadsSignIn: false, slug, tab: tabId });
+    }
+  }, [isWaiting, slug, start, tabId]);
   if (slug === undefined || app === undefined) {
     return null;
   }

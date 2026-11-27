@@ -1064,8 +1064,9 @@ const allow = base
   });
 
 /**
- * A web app's site opened in a tab of the window's browser for its sign-in:
- * the browser's cookies are read now, so the sign-in's end can name the
+ * A web app's site opened in a tab of the window's browser for its sign-in,
+ * or that tab shown again: the browser's cookies are read now, unless the
+ * sign-in in that tab already read them, so the sign-in's end can name the
  * other sites it left cookies on.
  */
 const startWebSignIn = base

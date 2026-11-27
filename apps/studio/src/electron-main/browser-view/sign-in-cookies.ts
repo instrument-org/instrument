@@ -8,9 +8,10 @@ import { log } from "./log";
 /**
  * Which other sites a web app's sign-in in the window's browser left
  * cookies on, such as x.com after signing in to grok.com with X. The
- * browser's cookies are read when the sign-in's page opens and again when
- * it connects, and the two are compared; nothing listens to the cookie
- * store in between. Only sites whose pages the sign-in's tab, or a popup
+ * browser's cookies are read when the sign-in's page opens, or when its tab
+ * is shown with none read (after a relaunch, which memory does not
+ * outlive), and again when it connects, and the two are compared; nothing
+ * listens to the cookie store in between. Only sites whose pages the sign-in's tab, or a popup
  * it opened, loaded in its main frame count, each hop of a server redirect
  * included, so an ad or analytics site that set cookies from inside
  * another page is left out, and so are the app's own sites: those its
@@ -150,17 +151,28 @@ function underWay(): SignIn[] {
 }
 
 /**
- * A web app's sign-in opened its page in `tab`: the browser's cookies are
- * read now, for `finishSignInCookies` to compare with. `loadsSignIn` when
- * Studio is loading the sign-in page there, so where that load is
- * redirected before its first page is the app's own. A sign-in started
- * again starts over.
+ * A web app's sign-in opened its page in `tab`, or showed it again: the
+ * browser's cookies are read now, for `finishSignInCookies` to compare
+ * with. `loadsSignIn` when Studio is loading the sign-in page there, so
+ * where that load is redirected before its first page is the app's own. A
+ * sign-in already under way in `tab` goes on with the cookies it read
+ * first; one in another tab starts over.
  */
 export function startSignInCookies(
   slug: string,
   tab: string,
   { loadsSignIn }: { loadsSignIn: boolean },
 ): void {
+  underWay();
+  const current = signIns.get(slug);
+  if (current?.tabs.has(tab)) {
+    // The window says the tab is loading the sign-in page as it opens it,
+    // which may reach here after the tab's bar asked to go on.
+    if (loadsSignIn) {
+      current.firstLoad = tab;
+    }
+    return;
+  }
   const key = randomBytes(32);
   const hash = (value: string) =>
     createHmac("sha256", key).update(value).digest("base64");

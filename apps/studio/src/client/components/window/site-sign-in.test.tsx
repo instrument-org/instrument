@@ -109,6 +109,8 @@ beforeEach(() => {
   mocks.apps.mockReset();
   mocks.markWebSignedIn.mockReset();
   mocks.markWebSignedIn.mockResolvedValue(undefined);
+  mocks.startWebSignIn.mockReset();
+  mocks.startWebSignIn.mockResolvedValue(undefined);
 });
 
 describe("the bar over a sign-in page", () => {
@@ -126,6 +128,17 @@ describe("the bar over a sign-in page", () => {
         chatId: "chat-1",
         slug: "notes",
       });
+    });
+  });
+
+  it("has main read the cookies for the sign-in it is over, as when its tab comes back after a relaunch", async () => {
+    mocks.apps.mockResolvedValue(notes("needs-sign-in"));
+    renderBars();
+
+    await waitFor(() => {
+      expect(mocks.startWebSignIn.mock.calls.map(([input]) => input)).toEqual(
+        [{ loadsSignIn: false, slug: "notes", tab: "tab-1" }],
+      );
     });
   });
 
@@ -231,6 +244,27 @@ describe("opening a site's sign-in", () => {
         slug: "notes",
         tab: "tab-2",
       });
+    });
+  });
+
+  it("has main read the cookies when it shows the sign-in's tab again", async () => {
+    const { store } = renderWithProviders(
+      <Window url="https://www.notes.example.com/home" />,
+    );
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+      expect(showTab).toHaveBeenCalledWith("tab-2");
+    });
+    mocks.startWebSignIn.mockClear();
+    showTab.mockClear();
+    expect(marked(store).map((tab) => tab.id)).toEqual(["tab-2"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(showTab).toHaveBeenCalledWith("tab-2");
+    await waitFor(() => {
+      expect(mocks.startWebSignIn.mock.calls.map(([input]) => input)).toEqual(
+        [{ loadsSignIn: false, slug: "notes", tab: "tab-2" }],
+      );
     });
   });
 

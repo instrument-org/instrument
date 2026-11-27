@@ -334,6 +334,50 @@ describe("a sign-in's cookies, from its start to Done", () => {
     expect(mocks.cookies).toHaveBeenCalledTimes(2);
   });
 
+  it("goes on with the cookies read first when the sign-in's tab is shown again", async () => {
+    mocks.cookies.mockResolvedValueOnce(BEFORE);
+    startSignInCookies("grok", "tab-1", { loadsSignIn: true });
+    loadSignIn();
+    signInWithX("tab-1");
+
+    startSignInCookies("grok", "tab-1", { loadsSignIn: false });
+    expect(mocks.cookies).toHaveBeenCalledOnce();
+    mocks.cookies.mockResolvedValueOnce([...X_SIGNED_IN, ...GROK_SIGNED_IN]);
+    expect(await finishSignInCookies("grok", GROK)).toEqual([
+      { cookies: 7, site: "x.com" },
+    ]);
+  });
+
+  it("starts over for a sign-in opened again in another tab", async () => {
+    mocks.cookies.mockResolvedValueOnce(BEFORE);
+    startSignInCookies("grok", "tab-1", { loadsSignIn: true });
+    loadSignIn();
+    signInWithX("tab-1");
+
+    mocks.cookies.mockResolvedValueOnce([...BEFORE, ...X_SIGNED_IN]);
+    startSignInCookies("grok", "tab-2", { loadsSignIn: true });
+    expect(mocks.cookies).toHaveBeenCalledTimes(2);
+    mocks.cookies.mockResolvedValueOnce([
+      ...BEFORE,
+      ...X_SIGNED_IN,
+      ...GROK_SIGNED_IN,
+    ]);
+    expect(await finishSignInCookies("grok", GROK)).toEqual([]);
+  });
+
+  it("takes the window's word that the tab is loading the sign-in page when its bar asked first", async () => {
+    mocks.cookies.mockResolvedValueOnce(BEFORE);
+    startSignInCookies("grok", "tab-1", { loadsSignIn: false });
+    startSignInCookies("grok", "tab-1", { loadsSignIn: true });
+    loadSignIn();
+    signInWithX("tab-1");
+
+    mocks.cookies.mockResolvedValueOnce([...X_SIGNED_IN, ...GROK_SIGNED_IN]);
+    expect(await finishSignInCookies("grok", GROK)).toEqual([
+      { cookies: 7, site: "x.com" },
+    ]);
+  });
+
   it("names nothing for a sign-in that ended without connecting", async () => {
     mocks.cookies.mockResolvedValue(BEFORE);
     startSignInCookies("grok", "tab-1", { loadsSignIn: true });

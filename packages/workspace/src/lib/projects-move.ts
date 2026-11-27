@@ -27,7 +27,7 @@ import { readProjects, writeProject } from "./chat/projects";
 import { type FolderMoved, moveOutOfDataDir } from "./move-out-of-data-dir";
 import { readOldFile } from "./read-old-file";
 import { rewriteFileSync } from "./rewrite-file";
-import { isSystemClutter } from "./system-clutter";
+import { isSystemClutter, removeFolderLeftEmpty } from "./system-clutter";
 import { isRecord } from "./is-record";
 import { workspaceLayout } from "./workspace-layout";
 
@@ -227,8 +227,10 @@ export async function moveTopicsToProjects(
         );
       }
       if (moved.left.length === 0) {
-        // Nothing of the person's is left in it, only what the system put there.
-        await fs.rm(topics, { force: true, recursive: true });
+        // Gone once only the file manager's records are left; a hidden
+        // entry or a download in progress, which the move passes over, keeps
+        // it where it is.
+        removeFolderLeftEmpty(topics);
       }
     } else {
       await fs.rename(topics, projects);

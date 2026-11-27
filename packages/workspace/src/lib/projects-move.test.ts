@@ -369,6 +369,15 @@ describe("moveTopicsToProjects", () => {
     expect(await moveTopicsToProjects(root)).toEqual({ done: [], left: [] });
   });
 
+  it("keeps Topics while a hidden entry of the person's is in it", async () => {
+    await writeTopic("Kitchen", "---\nid: top_1\n---\n");
+    await fs.mkdir(path.join(root, "Topics", ".git"));
+    await fs.mkdir(folder(), { recursive: true });
+
+    await moveTopicsToProjects(root);
+    expect(await fs.readdir(path.join(root, "Topics"))).toEqual([".git"]);
+  });
+
   it("does nothing for a workspace with no Topics folder", async () => {
     expect(await moveTopicsToProjects(root)).toEqual({ done: [], left: [] });
   });

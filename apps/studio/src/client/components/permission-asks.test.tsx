@@ -4,14 +4,14 @@ import {
   DeviceIdSchema,
   StoreId,
 } from "@instrument-org/workspace/client";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { renderWithProviders } from "../../tests/render";
 import { installWindowStubs } from "../../tests/window-stubs";
 import { type WindowTab } from "@/client/atoms/window";
 
-import { PermissionAsksFoot } from "./permission-asks";
+import { PermissionAnswerNote, PermissionAsksFoot } from "./permission-asks";
 import { selectedTabIn } from "./window/tab-model";
 import { seedWindowTabsAtom, windowTabsAtom } from "./window/window-tabs";
 
@@ -26,9 +26,14 @@ function showAsks(
       answerable: boolean;
       answered?: { by: string; decision: "allowed"; taken: boolean };
     };
-    kind?: "app" | "folder";
+    kind?: "admin" | "app" | "folder";
     reason?: string;
-    status?: "macos-asking" | "macos-private" | "macos-refused" | "open";
+    status?:
+      | "admin-prompt"
+      | "macos-asking"
+      | "macos-private"
+      | "macos-refused"
+      | "open";
     target: string;
   }[],
 ) {
@@ -455,4 +460,94 @@ describe("the page wait card, clicked", () => {
       expect(selectedTabIn(store.get(windowTabsAtom), "g")?.id).toBe(named.id);
     },
   );
+});
+
+describe("an admin command's card", () => {
+  const command = `systemsetup -settimezone America/New_York; echo "it's done"`;
+
+  it("shows the reason and the exact command, with a copy of it", async () => {
+    showAsks([
+      {
+        kind: "admin",
+        reason: "Changes the time zone to Eastern Time.",
+        target: command,
+      },
+    ]);
+
+    expect(await screen.findByText("Run as administrator?")).toBeDefined();
+    expect(
+      screen.getByText("Changes the time zone to Eastern Time."),
+    ).toBeDefined();
+    expect(screen.getByText(command).tagName).toBe("PRE");
+    expect(screen.getByRole("button", { name: "Copy command" })).toBeDefined();
+    expect(
+      screen.getByRole("button", { name: "Run as administrator" }),
+    ).toBeDefined();
+    expect(screen.getByRole("button", { name: "Don’t allow" })).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Always allow" })).toBeNull();
+  });
+
+  it("offers only a no on another computer, and says where to run it", async () => {
+    showAsks([
+      { elsewhere: { answerable: true }, kind: "admin", target: command },
+    ]);
+
+    expect(
+      await screen.findByText("Run as administrator on Studio Mac?"),
+    ).toBeDefined();
+    expect(
+      screen.getByText("Open this chat on Studio Mac to run it."),
+    ).toBeDefined();
+    expect(
+      screen.queryByRole("button", { name: "Run as administrator" }),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: "Don’t allow" })).toBeDefined();
+  });
+
+  it("waits on the system's prompt with nothing to answer", async () => {
+    showAsks([{ kind: "admin", status: "admin-prompt", target: command }]);
+
+    expect(await screen.findByText(command)).toBeDefined();
+    expect(
+      screen.queryByRole("button", { name: /allow|administrator/ }),
+    ).toBeNull();
+  });
+});
+
+describe("an admin command's answer row", () => {
+  const command = "systemsetup -settimezone America/New_York";
+
+  it("names what ran and opens to the command and its output", () => {
+    render(
+      <PermissionAnswerNote
+        data={{
+          answer: "allowed",
+          ask: "ask-1",
+          kind: "admin",
+          run: { exitCode: 0, is: "ran", output: "set time zone" },
+          target: command,
+        }}
+      />,
+    );
+    const row = screen.getByRole("button", { expanded: false });
+    expect(row.textContent).toBe(`Ran as administrator: ${command}`);
+    fireEvent.click(row);
+    expect(screen.getByText("set time zone")).toBeDefined();
+  });
+
+  it.each([
+    [{ answer: "declined" }, "Not allowed"],
+    [{ answer: "declined", run: { is: "canceled" } }, "Not allowed"],
+    [
+      { answer: "allowed", run: { is: "failed", message: "No" } },
+      "Couldn’t run as administrator",
+    ],
+  ] as const)("reads %o as %s", (given, lead) => {
+    render(
+      <PermissionAnswerNote
+        data={{ ask: "ask-1", kind: "admin", target: command, ...given }}
+      />,
+    );
+    expect(screen.getByRole("button").textContent).toBe(`${lead}: ${command}`);
+  });
 });

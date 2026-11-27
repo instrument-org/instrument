@@ -12,18 +12,21 @@ import {
   WAIT_CARD_WORDS,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useEffectEvent, useState } from "react";
+import { type ReactNode, useEffect, useEffectEvent, useState } from "react";
 
 import { useOpenSettings } from "@/client/components/window/use-open-settings";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { privacyPaneForApp } from "@/client/lib/privacy-pane";
-import { cn } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { ShieldSlashIcon } from "@phosphor-icons/react/ShieldSlash";
 import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
 
+import { BashCommandPreview } from "./message-part/bash-command-section";
 import { ComposerDock } from "./composer-dock";
+import { CopyButton } from "./copy-button";
 import { Button } from "./ui/button";
 import { Delayed } from "./ui/delayed";
 import { Spinner } from "./ui/spinner";
@@ -199,6 +202,37 @@ function PermissionAskCard({
     pending: dismiss.isPending,
   };
 
+  // The count, and a no to every card, when more than this one is up.
+  const stackControls =
+    stack.length > 1 ? (
+      <div className="-mt-1 -mr-1 flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+        {`1 of ${stack.length}`}
+        {/* In words, since it answers every card in the stack. */}
+        <Button
+          className="-my-1.5 text-muted-foreground"
+          disabled={busy}
+          onClick={() => {
+            declineAll.mutate({ id: chatId });
+          }}
+          size="sm"
+          variant="ghost"
+        >
+          Don’t allow any
+        </Button>
+      </div>
+    ) : null;
+
+  if (ask.kind === "admin") {
+    return (
+      <AdminAskCard
+        allow={choice("allowed")}
+        ask={ask}
+        decline={choice("declined")}
+        stackControls={stackControls}
+      />
+    );
+  }
+
   if (ask.kind === "page") {
     return (
       <PageWaitCard
@@ -223,23 +257,7 @@ function PermissionAskCard({
     >
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm font-medium">{cardTitle(ask, name)}</p>
-        {stack.length > 1 ? (
-          <div className="-mt-1 -mr-1 flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
-            {`1 of ${stack.length}`}
-            {/* In words, since it answers every card in the stack. */}
-            <Button
-              className="-my-1.5 text-muted-foreground"
-              disabled={busy}
-              onClick={() => {
-                declineAll.mutate({ id: chatId });
-              }}
-              size="sm"
-              variant="ghost"
-            >
-              Don’t allow any
-            </Button>
-          </div>
-        ) : null}
+        {stackControls}
       </div>
       {elsewhere ? (
         <p className="mt-0.5 text-[13px] text-muted-foreground">{elsewhere}</p>
@@ -329,6 +347,95 @@ function PermissionAskCard({
             variant="ghost"
           >
             {isPrivate ? "OK" : "Don’t allow"}
+          </AnswerButton>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A command the agent asked to run as an administrator: the agent's line on
+ * what it changes, then the exact command, which is what runs, with a copy
+ * for running it by hand. Run as administrator hands off to the system's own
+ * prompt on the computer that asked, the only one that runs it; another
+ * computer can only say no, and says where to run it.
+ */
+function AdminAskCard({
+  allow,
+  ask,
+  decline,
+  stackControls,
+}: {
+  allow: Omit<Parameters<typeof AnswerButton>[0], "children">;
+  ask: Ask;
+  decline: Omit<Parameters<typeof AnswerButton>[0], "children">;
+  stackControls: ReactNode;
+}) {
+  const reason = ask.askers[0]?.reason;
+  const waiting = ask.status === "admin-prompt";
+  return (
+    <div
+      className="relative animate-in rounded-2xl border border-border bg-card p-3 shadow-xs duration-200 ease-out fade-in-0 fill-mode-both slide-in-from-bottom-2 motion-reduce:animate-none"
+      data-admin-ask={ask.id}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <p className="flex items-center gap-2 text-sm font-medium">
+          <ShieldCheckIcon className="size-4 shrink-0 text-muted-foreground" />
+          {ask.here
+            ? "Run as administrator?"
+            : `Run as administrator on ${ask.computer}?`}
+        </p>
+        {stackControls}
+      </div>
+      {reason ? (
+        <p className="mt-0.5 pl-6 text-[13px] text-muted-foreground">
+          {reason}
+        </p>
+      ) : null}
+      <div className="relative mt-2.5 rounded-xl bg-muted/50">
+        <pre className="max-h-40 scroll-fade-y overflow-auto py-2 pr-10 pl-3 font-mono text-[13px] leading-5 break-all whitespace-pre-wrap">
+          {ask.target}
+        </pre>
+        <CopyButton
+          className="absolute top-1 right-1 text-muted-foreground"
+          iconSize={14}
+          label="Copy command"
+          onCopy={async () => {
+            await navigator.clipboard.writeText(ask.target);
+          }}
+          tooltip="Copy command"
+        />
+      </div>
+      {waiting ? (
+        <p className="mt-3 flex min-h-8 items-center gap-2 text-[13px] text-muted-foreground">
+          <Spinner className="size-3.5" delay={0} />
+          {ask.here
+            ? osConventions().adminPromptWait
+            : `Waiting on ${ask.computer}`}
+        </p>
+      ) : ask.here ? (
+        <div className="mt-3 flex items-center gap-2 @max-xs/asks:flex-col @max-xs/asks:items-stretch @max-xs/asks:gap-1.5">
+          <AnswerButton {...allow}>Run as administrator</AnswerButton>
+          <AnswerButton
+            {...decline}
+            className="ml-auto text-muted-foreground @max-xs/asks:ml-0"
+            variant="ghost"
+          >
+            Don’t allow
+          </AnswerButton>
+        </div>
+      ) : (
+        <div className="mt-3 flex items-center gap-2">
+          <p className="mr-auto text-[13px] text-muted-foreground">
+            {`Open this chat on ${ask.computer} to run it.`}
+          </p>
+          <AnswerButton
+            {...decline}
+            className="text-muted-foreground"
+            variant="ghost"
+          >
+            Don’t allow
           </AnswerButton>
         </div>
       )}
@@ -705,6 +812,9 @@ export function PermissionAnswerNote({
   data: SessionMessageDataPart.PermissionAnswerDataPart;
 }) {
   const openSettings = useOpenSettings();
+  if (data.kind === "admin") {
+    return <AdminAnswerNote data={data} />;
+  }
   if (data.kind === "page") {
     const site = hostOf(data.page?.url) || "the page";
     return (
@@ -759,5 +869,79 @@ export function PermissionAnswerNote({
         </button>
       ) : null}
     </p>
+  );
+}
+
+/**
+ * How a command run as an administrator went, as the row the chat woke on:
+ * what happened and the command, opening to the command and what it
+ * printed.
+ */
+function AdminAnswerNote({
+  data,
+}: {
+  data: SessionMessageDataPart.PermissionAnswerDataPart;
+}) {
+  const [open, setOpen] = useState(false);
+  const { run } = data;
+  const notAllowed = data.answer === "declined" || run?.is === "canceled";
+  const lead = notAllowed
+    ? "Not allowed"
+    : run?.is === "ran"
+      ? "Ran as administrator"
+      : run?.is === "failed"
+        ? "Couldn’t run as administrator"
+        : "Interrupted while running as administrator";
+  const Icon = notAllowed
+    ? ShieldSlashIcon
+    : run?.is === "ran"
+      ? ShieldCheckIcon
+      : ShieldWarningIcon;
+  return (
+    <div className="min-w-0">
+      <button
+        aria-expanded={open}
+        className={cn(NOTE_ROW, "w-full text-left outline-none")}
+        data-admin-note={data.ask}
+        onClick={() => {
+          setOpen((was) => !was);
+        }}
+        type="button"
+      >
+        <span className={NOTE_MARK}>
+          <Icon className="size-3.5" />
+        </span>
+        <span className="min-w-0 truncate">
+          {`${lead}: `}
+          <span className="font-mono text-[13px]">{data.target}</span>
+        </span>
+        <CaretRightIcon
+          className={cn(
+            "size-3 shrink-0 transition-transform",
+            open && "rotate-90",
+          )}
+        />
+      </button>
+      {open ? (
+        <div className="mt-1 mb-2 ml-7 rounded-xl bg-muted/50 px-3 py-2">
+          <BashCommandPreview command={data.target} />
+          {run?.is === "ran" && run.output !== "" ? (
+            <pre className="mt-2 max-h-60 scroll-fade-y overflow-auto font-mono text-[12.5px] leading-5 break-all whitespace-pre-wrap text-foreground/80">
+              {run.output}
+            </pre>
+          ) : null}
+          {run?.is === "ran" && run.exitCode !== 0 ? (
+            <p className="mt-2 text-[13px] text-muted-foreground">
+              {`Exit code ${run.exitCode}`}
+            </p>
+          ) : null}
+          {run?.is === "failed" ? (
+            <p className="mt-2 text-[13px] text-muted-foreground">
+              {run.message}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }

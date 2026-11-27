@@ -33,6 +33,8 @@ type Modifier = "alt" | "command" | "control" | "shift";
 type CommandChord = { alt: boolean; key: string; shift: boolean };
 
 export interface OsConventions {
+  /** What a card says while the system's own prompt to run a command as an administrator is up. */
+  adminPromptWait: string;
   /**
    * The folders other apps keep their own files in, as the line under that
    * place in Settings.
@@ -120,6 +122,7 @@ export interface OsConventions {
 
 export const OS_CONVENTIONS = {
   linux: {
+    adminPromptWait: "Waiting for the system",
     appFiles: ".config and .local/share",
     commandKey: "ctrlKey",
     computer: "This Computer",
@@ -163,6 +166,7 @@ export const OS_CONVENTIONS = {
     trash: "Trash",
   },
   mac: {
+    adminPromptWait: "Waiting for your password in macOS",
     appFiles: "Library",
     commandKey: "metaKey",
     computer: "This Mac",
@@ -199,6 +203,7 @@ export const OS_CONVENTIONS = {
     trash: "Trash",
   },
   windows: {
+    adminPromptWait: "Waiting for Windows",
     appFiles: "AppData",
     commandKey: "ctrlKey",
     computer: "This PC",

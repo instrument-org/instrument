@@ -272,10 +272,18 @@ const DENSITIES: {
 
 /**
  * The view button at the search's end, wearing the density the rows are
- * drawn at: under it the three densities and the switch that puts a heading
- * over each day. Both are kept for every window on this computer.
+ * drawn at: under it the three densities and, for a list that has them, the
+ * switch that puts a heading over each day. Both are kept for every window
+ * on this computer.
  */
-function ViewButton() {
+export function ViewButton({
+  className,
+  hasDayHeadings = true,
+}: {
+  className?: string;
+  /** Whether the list it sets puts a heading over each day when asked. */
+  hasDayHeadings?: boolean;
+}) {
   const [density, setDensity] = useAtom(rowDensityAtom);
   const [groupByDay, setGroupByDay] = useAtom(groupByDayAtom);
   const Current =
@@ -285,7 +293,7 @@ function ViewButton() {
       <PopoverTrigger asChild>
         <button
           aria-label="View options"
-          className={HEAD_ICON_BUTTON}
+          className={cn(HEAD_ICON_BUTTON, className)}
           title="View options"
           type="button"
         >
@@ -326,11 +334,15 @@ function ViewButton() {
             );
           })}
         </div>
-        <div className="-mx-1.5 my-1.5 h-px bg-border" />
-        <label className="flex h-9 items-center justify-between px-2.5 text-sm">
-          Group by day
-          <Switch checked={groupByDay} onCheckedChange={setGroupByDay} />
-        </label>
+        {hasDayHeadings && (
+          <>
+            <div className="-mx-1.5 my-1.5 h-px bg-border" />
+            <label className="flex h-9 items-center justify-between px-2.5 text-sm">
+              Group by day
+              <Switch checked={groupByDay} onCheckedChange={setGroupByDay} />
+            </label>
+          </>
+        )}
       </PopoverContent>
     </Popover>
   );

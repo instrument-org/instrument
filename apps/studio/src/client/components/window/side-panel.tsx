@@ -20,9 +20,20 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
+import {
+  type RailBounds,
+  StudioSidebarRail,
+} from "@/client/components/studio-sidebar-rail";
 import { contextMenuComponents } from "@/client/components/ui/menu-components";
 import { useWindow } from "@/client/components/window/context";
+import {
+  SIDE_PANEL_WIDTH_DEFAULT,
+  SIDE_PANEL_WIDTH_MAX,
+  SIDE_PANEL_WIDTH_MIN,
+  sidePanelWidthAtom,
+} from "@/client/atoms/tab-groups";
 import { noteTypedPage } from "@/client/hooks/use-browser-history";
+import { useIsScrollable } from "@/client/hooks/use-is-scrollable";
 import { useWindowPlaces } from "@/client/hooks/use-open-target";
 import { cn, isMacOS } from "@/client/lib/utils";
 import {
@@ -69,6 +80,7 @@ import {
 } from "./bookmark-menu";
 import { bookmarkName } from "./bookmark-edits";
 import { chatListOptions } from "./chat-list-query";
+import { type RowDensity, rowDensityAtom } from "./chat-list-view";
 import { RecentChatRow } from "./chats-mark";
 import { byLastUserMessage, type Chat, hasWords } from "./chats";
 import { useShowChatGroup } from "./chat-group";
@@ -80,6 +92,8 @@ import {
   pressShortcut,
 } from "./drag/press-bookmark";
 import { DROP_TONE } from "./drag/tone";
+import { ViewButton } from "./filter-head";
+import { GROUP_WIDTH_MIN } from "./group-sidebar";
 import { useOutlineDrop, useOutlineTarget } from "./drag/use-bookmarks-drag";
 import { type Place, useFilesPlaces } from "./files-places";
 import { PlaceItems } from "./place-items";
@@ -97,24 +111,81 @@ const BOOKMARKS_SHOWN = 5;
 /** Where the group up draws its side panel: the window's column at its right edge (`SidePanelSlot`). */
 const sidePanelSlotAtom = atom<HTMLElement | null>(null);
 
+/** Dragged narrower than this, the side panel slides shut rather than stopping at its floor. */
+const SIDE_PANEL_COLLAPSE_THRESHOLD = 180;
+
+/**
+ * How wide the side panel may be in a window whose group and panel share
+ * `width`: the row less what the group keeps, within the panel's own floor
+ * and ceiling.
+ */
+function sidePanelBounds(width: number): RailBounds {
+  return {
+    collapse: SIDE_PANEL_COLLAPSE_THRESHOLD,
+    initial: SIDE_PANEL_WIDTH_DEFAULT,
+    max: Math.min(
+      SIDE_PANEL_WIDTH_MAX,
+      Math.max(SIDE_PANEL_WIDTH_MIN, width - GROUP_WIDTH_MIN),
+    ),
+    min: SIDE_PANEL_WIDTH_MIN,
+  };
+}
+
 /**
  * The window's column for the side panel, on its own ground at the right
- * edge as the sidebar is at the left, outside the card, inside the rail that
- * slides and sizes it. The tab with the keyboard in the group up draws the
- * panel into it (`SidePanelHere`), so a pick goes to that tab. It is there
- * while the panel is open or sliding shut.
+ * edge as the sidebar is at the left, outside the card: the sidebar's rail
+ * mirrored, so it slides in and out and is resized as the sidebar is. It
+ * shows the group up's panel and comes and goes at once as the group up
+ * changes, and is there while the panel is open or sliding shut. The tab
+ * with the keyboard in the group up draws the panel into it
+ * (`SidePanelHere`), so a pick goes to that tab. Its ground moves the
+ * window, as the sidebar's does, past what takes a click.
  */
-export function SidePanelSlot() {
+export function SidePanelRail({
+  group,
+  isOpen,
+  onCollapse,
+  width,
+}: {
+  group: string | undefined;
+  isOpen: boolean;
+  onCollapse: () => void;
+  /** The row the group and the panel share, in CSS px. */
+  width: number;
+}) {
   const setSlot = useSetAtom(sidePanelSlotAtom);
   return (
-    <aside
-      aria-label="Side Panel"
-      className="flex min-h-0 flex-1 flex-col pr-2 pb-2 pl-1"
-      ref={setSlot}
-      style={{ paddingTop: windowCardTop(isMacOS()) }}
-    />
+    <StudioSidebarRail
+      bounds={sidePanelBounds(width)}
+      contentKey={group}
+      isOpen={isOpen}
+      label="Resize the side panel"
+      onCollapse={onCollapse}
+      panelClassName="border-l-0 bg-transparent"
+      side="right"
+      unmountsWhenClosed
+      widthAtom={sidePanelWidthAtom}
+    >
+      <aside
+        aria-label="Side Panel"
+        className={cn(
+          "flex min-h-0 flex-1 flex-col pr-2 pb-2 pl-1",
+          WINDOW_DRAG,
+        )}
+        ref={setSlot}
+        style={{ paddingTop: windowCardTop(isMacOS()) }}
+      />
+    </StudioSidebarRail>
   );
 }
+
+/**
+ * Ground that moves the window, as the sidebar's does; from a press until a
+ * drag lets go it is the page's alone, so nothing carried onto it can be
+ * taken for moving the window.
+ */
+const WINDOW_DRAG =
+  "[-webkit-app-region:drag] in-data-pressing:[-webkit-app-region:no-drag] in-data-tab-held:[-webkit-app-region:no-drag]";
 
 /** The corner's button that opens the side panel, shown only while it is closed. */
 export function ShowSidePanelControl({ onClick }: { onClick: () => void }) {
@@ -204,56 +275,107 @@ function SidePanel({
   const home = () => {
     setView("home");
   };
-  // Gray until the pointer or the keyboard is on it, or a menu of its own
-  // is open, so its icons draw no eye away from the page.
+  // Gray and a little faint until the pointer or the keyboard is on it, or
+  // a menu of its own is open, so its icons draw no eye away from the page.
   return (
-    <div className="flex min-h-0 flex-1 flex-col grayscale transition-[filter] duration-200 hover:grayscale-0 has-focus-visible:grayscale-0 has-data-[state=open]:grayscale-0">
-      <div className="flex h-10 shrink-0 items-center gap-1 pl-1">
-        {view !== "home" && (
-          <button
-            className="flex h-7 items-center gap-0.5 rounded-lg pr-2 pl-1 text-[13px] text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
-            onClick={home}
-            type="button"
-          >
-            <CaretLeftIcon className="size-3.5" />
-            Back
-          </button>
-        )}
-        <span className="flex-1" />
+    <div className="flex min-h-0 flex-1 flex-col opacity-85 grayscale transition-[filter,opacity] duration-200 hover:opacity-100 hover:grayscale-0 has-focus-visible:opacity-100 has-focus-visible:grayscale-0 has-data-[state=open]:opacity-100 has-data-[state=open]:grayscale-0">
+      <PanelHead
+        onClose={() => {
+          setOpen(false);
+        }}
+        {...(view !== "home" && {
+          onBack: home,
+          title: view === "chats" ? "Chats" : "Bookmarks",
+        })}
+      />
+      {view === "home" && (
+        <PanelScroll>
+          <AppsSection open={open} openScreen={openScreen} />
+          <ChatsSection
+            count={RECENT_CHATS_SHOWN}
+            group={group}
+            open={openScreen}
+            onAll={() => {
+              setView("chats");
+            }}
+          />
+          <FilesSection group={group} open={openScreen} />
+          <BookmarksSection
+            onAll={() => {
+              setView("bookmarks");
+            }}
+            open={open}
+          />
+        </PanelScroll>
+      )}
+      {view === "chats" && <AllChats group={group} open={openScreen} />}
+      {view === "bookmarks" && (
+        <PanelScroll>
+          <BookmarkTree isBarOpenAtFirst open={open} />
+        </PanelScroll>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The panel's top row: the close button at its end, and in a whole list,
+ * Back and the list's name ahead of it.
+ */
+function PanelHead({
+  onBack,
+  onClose,
+  title,
+}: {
+  onBack?: () => void;
+  onClose: () => void;
+  title?: string;
+}) {
+  return (
+    <div className="flex h-10 shrink-0 items-center gap-0.5 pl-0.5 [&_button]:[-webkit-app-region:no-drag]">
+      {onBack && (
         <TabRowControl
-          chord="toggleSidePanel"
           disabled={false}
-          icon={<XIcon className="size-4" />}
-          label="Close Side Panel"
-          onClick={() => {
-            setOpen(false);
-          }}
+          icon={<CaretLeftIcon className="size-4" />}
+          label="Back"
+          onClick={onBack}
         />
-      </div>
-      <div className="-mt-1 flex min-h-0 flex-1 flex-col overflow-y-auto pb-2">
-        {view === "home" && (
-          <>
-            <AppsSection open={open} openScreen={openScreen} />
-            <ChatsSection
-              count={RECENT_CHATS_SHOWN}
-              group={group}
-              open={openScreen}
-              onAll={() => {
-                setView("chats");
-              }}
-            />
-            <FilesSection group={group} open={openScreen} />
-            <BookmarksSection
-              onAll={() => {
-                setView("bookmarks");
-              }}
-              open={open}
-            />
-          </>
-        )}
-        {view === "chats" && <AllChats group={group} open={openScreen} />}
-        {view === "bookmarks" && <AllBookmarks open={open} />}
-      </div>
+      )}
+      {title === undefined ? (
+        <span className="flex-1" />
+      ) : (
+        <h2 className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
+          {title}
+        </h2>
+      )}
+      <TabRowControl
+        chord="toggleSidePanel"
+        disabled={false}
+        icon={<XIcon className="size-4" />}
+        label="Close Side Panel"
+        onClick={onClose}
+      />
+    </div>
+  );
+}
+
+/**
+ * What scrolls in the panel, fading out at an end with more past it. The
+ * room under the last row moves the window, as the ground around it does.
+ */
+function PanelScroll({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const isScrollable = useIsScrollable(ref);
+  return (
+    <div
+      className={cn(
+        "flex min-h-0 flex-1 flex-col overflow-y-auto pb-2 [-webkit-app-region:no-drag]",
+        isScrollable && "scroll-fade-y",
+      )}
+      ref={ref}
+    >
+      {children}
+      <div className={cn("min-h-2 flex-1", WINDOW_DRAG)} />
     </div>
   );
 }
@@ -356,10 +478,12 @@ function useOpenChat(group: string, open: OpenAddress) {
 
 function ChatRows({
   chats,
+  density,
   group,
   open,
 }: {
   chats: Chat[];
+  density?: RowDensity;
   group: string;
   open: OpenAddress;
 }) {
@@ -370,6 +494,7 @@ function ChatRows({
       {chats.map((chat) => (
         <RecentChatRow
           chat={chat}
+          {...(density && { density })}
           key={chat.id}
           onDelete={() => {
             setDeleting(chat);
@@ -435,32 +560,37 @@ function ChatsSection({
 /** Every chat not archived, newest first, narrowed by what is typed above them. */
 function AllChats({ group, open }: { group: string; open: OpenAddress }) {
   const [search, setSearch] = useState("");
+  const density = useAtomValue(rowDensityAtom);
   const chats = useListedChats().filter((chat) =>
     hasWords(search, [chat.title]),
   );
   return (
     <>
-      <Heading>Chats</Heading>
-      <label className="mx-1 mb-1 flex h-8 shrink-0 items-center gap-2 rounded-lg bg-foreground/5 px-2.5 text-[13px] focus-within:bg-card focus-within:ring-1 focus-within:ring-foreground/20">
-        <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
-        <input
-          autoFocus
-          className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
-          onChange={(event) => {
-            setSearch(event.target.value);
-          }}
-          placeholder="Search chats"
-          type="search"
-          value={search}
-        />
-      </label>
-      {chats.length === 0 ? (
-        <p className="px-2 py-1.5 text-[13px] text-muted-foreground">
-          No chats match.
-        </p>
-      ) : (
-        <ChatRows chats={chats} group={group} open={open} />
-      )}
+      <div className="mb-1 flex shrink-0 items-center gap-1 pl-1 [&_button]:[-webkit-app-region:no-drag]">
+        <label className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg bg-foreground/5 px-2.5 text-[13px] [-webkit-app-region:no-drag] focus-within:bg-card focus-within:ring-1 focus-within:ring-foreground/20">
+          <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          <input
+            autoFocus
+            className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
+            onChange={(event) => {
+              setSearch(event.target.value);
+            }}
+            placeholder="Search chats"
+            type="search"
+            value={search}
+          />
+        </label>
+        <ViewButton className="size-8" hasDayHeadings={false} />
+      </div>
+      <PanelScroll>
+        {chats.length === 0 ? (
+          <p className="px-2 py-1.5 text-[13px] text-muted-foreground">
+            No chats match.
+          </p>
+        ) : (
+          <ChatRows chats={chats} density={density} group={group} open={open} />
+        )}
+      </PanelScroll>
     </>
   );
 }
@@ -557,16 +687,6 @@ function BookmarksSection({
   );
 }
 
-/** Every bookmark: the bar's, open, then those kept off it. */
-function AllBookmarks({ open }: { open: OpenAddress }) {
-  return (
-    <>
-      <Heading>Bookmarks</Heading>
-      <BookmarkTree isBarOpenAtFirst open={open} />
-    </>
-  );
-}
-
 /** The bookmarks bar's row in the panel, which opens in place over the bar's items. */
 const BAR_ROW = ":bar";
 
@@ -589,7 +709,12 @@ function panelRows(
     items.flatMap((item): PanelRow[] => {
       if (item.kind === "bookmark") {
         return [
-          { bookmark: item.bookmark, depth, id: item.bookmark.id, kind: "bookmark" },
+          {
+            bookmark: item.bookmark,
+            depth,
+            id: item.bookmark.id,
+            kind: "bookmark",
+          },
         ];
       }
       const { folder, items: within } = item;
@@ -615,12 +740,7 @@ function panelRows(
     kind: "bar",
   };
   return [
-    ...(bar.length > 0
-      ? [
-          barRow,
-          ...(isBarOpen ? rowsIn(bar, 1) : []),
-        ]
-      : []),
+    ...(bar.length > 0 ? [barRow, ...(isBarOpen ? rowsIn(bar, 1) : [])] : []),
     ...rowsIn(rootItems(state, OTHER_ROOT).slice(0, othersShown), 0),
   ];
 }
@@ -645,7 +765,8 @@ function panelTargetAt(
       kind: "between",
       line: { after: BAR_ROW },
       place: {
-        before: siblingsIn(state, undefined).find((each) => !held.has(each.id))?.id,
+        before: siblingsIn(state, undefined).find((each) => !held.has(each.id))
+          ?.id,
       },
     };
   }
@@ -725,7 +846,9 @@ function BookmarkTree({
                   >
                     <DropLine at={line} />
                     <BookmarksSimpleIcon className="size-4 shrink-0 text-foreground/70" />
-                    <span className="min-w-0 flex-1 truncate">Bookmarks bar</span>
+                    <span className="min-w-0 flex-1 truncate">
+                      Bookmarks bar
+                    </span>
                     <Count count={row.count} />
                   </button>
                 </ContextMenuTrigger>
@@ -785,7 +908,9 @@ function BookmarkTree({
                 >
                   <DropLine at={line} />
                   <BookmarkFolderIcon isOpen={row.isOpen} />
-                  <span className="min-w-0 flex-1 truncate">{folder.title}</span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {folder.title}
+                  </span>
                   <Count count={row.count} />
                 </button>
               </FolderContextMenu>
@@ -816,7 +941,9 @@ function BookmarkTree({
                 <span className="flex size-4 shrink-0 items-center justify-center">
                   <AddressMark address={bookmark.url} />
                 </span>
-                <span className="min-w-0 truncate">{bookmarkName(bookmark)}</span>
+                <span className="min-w-0 truncate">
+                  {bookmarkName(bookmark)}
+                </span>
               </button>
             </BookmarkContextMenu>
           );

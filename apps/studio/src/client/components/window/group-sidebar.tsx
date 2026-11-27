@@ -14,6 +14,7 @@ import {
   AvatarImage,
 } from "@/client/components/ui/avatar";
 import { UpdateStatusIndicator } from "@/client/components/update-status-indicator";
+import { useIsScrollable } from "@/client/hooks/use-is-scrollable";
 import { useLiveUser } from "@/client/hooks/use-live-user";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { getInitials } from "@/client/lib/get-initials";
@@ -44,7 +45,6 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -99,8 +99,8 @@ import { isOnEmptySpace, WindowSpaceMenu } from "./window-space-menu";
 
 /** Dragged narrower than this, the sidebar slides shut rather than stopping at its floor. */
 const SIDEBAR_COLLAPSE_THRESHOLD = 140;
-/** The least the group beside the sidebar keeps while the sidebar is dragged wider. */
-const GROUP_WIDTH_MIN = 560;
+/** The least the group beside the sidebar or the side panel keeps while either is dragged wider. */
+export const GROUP_WIDTH_MIN = 560;
 
 /**
  * How wide the sidebar may be in a window whose sidebar and group share
@@ -695,42 +695,6 @@ function GroupList({ children }: { children: ReactNode }) {
       {children}
     </div>
   );
-}
-
-/**
- * Whether a list runs past its own height, measured whenever it or any
- * row in it changes size, and as rows come and go. The fade has to be
- * taken off a list that stops scrolling, since its scroll timeline holds
- * the last fade it drew once the list fits.
- */
-function useIsScrollable(ref: React.RefObject<HTMLDivElement | null>) {
-  const [isScrollable, setScrollable] = useState(false);
-  useLayoutEffect(() => {
-    const element = ref.current;
-    if (!element) {
-      return;
-    }
-    const measure = () => {
-      setScrollable(element.scrollHeight > element.clientHeight);
-    };
-    const sizes = new ResizeObserver(measure);
-    const watch = () => {
-      sizes.disconnect();
-      sizes.observe(element);
-      for (const child of element.children) {
-        sizes.observe(child);
-      }
-      measure();
-    };
-    const rows = new MutationObserver(watch);
-    rows.observe(element, { childList: true });
-    watch();
-    return () => {
-      rows.disconnect();
-      sizes.disconnect();
-    };
-  }, [ref]);
-  return isScrollable;
 }
 
 /**

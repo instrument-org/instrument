@@ -14,6 +14,7 @@ import { useState } from "react";
 import { useAppsBySlug } from "./apps-by-slug";
 import { type OpenAddress, bookmarkClicks } from "./bookmark-menu";
 import { useChatActionsFor } from "./chat-actions";
+import { type RowDensity } from "./chat-list-view";
 import { chatListOptions } from "./chat-list-query";
 import { chatDotOf, ChatMarkIcon, isAsking } from "./chat-mark";
 import { ChatRow } from "./chat-row";
@@ -125,11 +126,14 @@ export function ChatsMark({ open }: { open: OpenAddress }) {
 /** One chat of the menu: the chat list's row at one line, with no controls, led by the chat's mark. */
 export function RecentChatRow({
   chat,
+  density = "one",
   onDelete,
   onOpen,
   onPress,
 }: {
   chat: Chat;
+  /** How much of the chat the row shows: see `RowDensity`. */
+  density?: RowDensity;
   onDelete: () => void;
   onOpen: () => void;
   onPress: (event: React.PointerEvent<HTMLElement>) => void;
@@ -146,7 +150,7 @@ export function RecentChatRow({
       actions={actionsFor(chat)}
       appsBySlug={appsBySlug}
       chat={chat}
-      density="one"
+      density={density}
       isOpen={false}
       isPlain
       mark={

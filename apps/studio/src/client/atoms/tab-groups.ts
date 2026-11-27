@@ -31,3 +31,24 @@ export const sidebarWidthAtom = atom(
     set(storedSidebarWidthAtom, width);
   },
 );
+
+/** The side panel's narrowest, in CSS px. */
+export const SIDE_PANEL_WIDTH_MIN = 240;
+/** The side panel's width until a drag sets one, in CSS px. */
+export const SIDE_PANEL_WIDTH_DEFAULT = 288;
+/** The side panel's widest: past this the room goes to the group beside it. */
+export const SIDE_PANEL_WIDTH_MAX = 440;
+
+const storedSidePanelWidthAtom = keptAtom<number>(
+  "view",
+  "side-panel-width.v1",
+  SIDE_PANEL_WIDTH_DEFAULT,
+);
+
+/** The side panel's width in CSS px, dragged by its left edge, the same in every window and group. */
+export const sidePanelWidthAtom = atom(
+  (get) => Math.min(get(storedSidePanelWidthAtom), SIDE_PANEL_WIDTH_MAX),
+  (_get, set, width: number) => {
+    set(storedSidePanelWidthAtom, width);
+  },
+);

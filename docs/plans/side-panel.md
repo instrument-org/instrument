@@ -6,10 +6,11 @@ A tab group's corner had one control that split it: unnamed on a new tab or a ch
 
 ## The panel
 
-- 288pt wide until dragged by its left edge (240 to 420, kept across launches; dragged under 180 it slides shut), on the window's ground at the right edge, outside the card (`WindowFrame`'s `aside`, `SidePanelSlot`). It opens and closes on the left sidebar's slide (`StudioSidebarRail` with `side="right"`), keeping its contents until the slide ends; a switch to another group's panel lands at once. Its top row has only an X.
+- On the window's ground at the right edge, outside the card (`WindowFrame`'s `aside`, `SidePanelRail`): the sidebar's rail mirrored (`StudioSidebarRail` with `side="right"`), so it slides in and out on the sidebar's motion, keeping its contents until the slide ends, and is resized by its left edge, 288pt until dragged (`side-panel-width.v1`; dragged under 180 it slides shut). It comes and goes at once as the group up changes. Its top row has only an X; in All chats or All bookmarks, Back and the list's name before it. Its ground moves the window, past the rows and buttons.
+- All chats has the chat list's view button, with its one, two and three line rows (`chat-row-density.v1`, shared with the list). Its lists fade at an end with more past it.
 - Apps (icons only, no tiles), Chats (four recent, then All chats, a searchable list in the panel), Files (the project folder and the Files sidebar's places), Bookmarks (the bar as a folder, the bookmarks kept off it, then All bookmarks).
 - The tab up on the keyboard side draws it (`SidePanelHere`, portaled into the slot), so a pick uses that tab's own way in: it replaces the tab as a bookmark does, Back returns, and Cmd-click, right-click and drag work as they do on the bar. It never opens a new tab by itself. Its bookmarks are an outline as the Bookmarks page's is: what is held lands among the rows, folders drag and have the bar's folder menu, and a Files row drags as a shortcut does, so it opens as a tab at a page's edge or in a strip.
-- It is gray until the pointer or the keyboard is on it, or one of its menus is open, so its icons draw no eye from the page.
+- It is gray and a little faint until the pointer or the keyboard is on it, or one of its menus is open, so its icons draw no eye from the page.
 - A chat already open in another group brings that group up and opens the panel there.
 
 ## Open and closed

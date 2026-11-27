@@ -211,6 +211,7 @@ import {
   sidebarOpenAtom,
   sidebarProjectAtom,
   sidebarWidthAtom,
+  sidePanelWidthAtom,
 } from "@/client/atoms/tab-groups";
 import { StudioSidebarRail } from "@/client/components/studio-sidebar-rail";
 import {
@@ -234,13 +235,8 @@ import { forgetMovedAway, hasMovedAway, receiveTab } from "./move-tab";
 import { sitesLeaving, sitesNoLongerHere, sitesPutAway } from "./site-let-go";
 import { useBootMarks } from "./boot-marks";
 import { setStudioDriveOpenPage } from "@/client/lib/studio-drive";
-import { SidePanelSlot } from "./side-panel";
-import {
-  sidePanelBounds,
-  sidePanelWidthAtom,
-  useSidePanel,
-  useSidePanelUpkeep,
-} from "./side-panel-state";
+import { SidePanelRail } from "./side-panel";
+import { useSidePanel, useSidePanelUpkeep } from "./side-panel-state";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
@@ -2076,23 +2072,14 @@ function WindowShell({
         <PageOpenContext value={ways.openPage}>
           <WindowFrame
             aside={
-              <StudioSidebarRail
-                bounds={sidePanelBounds(
-                  rowWidth + (sidePanel.isOpen ? sidePanelWidth : 0),
-                )}
-                contentKey={groupUp}
+              <SidePanelRail
+                group={groupUp}
                 isOpen={sidePanel.isOpen}
-                label="Resize the side panel"
                 onCollapse={() => {
                   sidePanel.setOpen(false);
                 }}
-                panelClassName="border-l-0 bg-transparent"
-                side="right"
-                unmountsWhenClosed
-                widthAtom={sidePanelWidthAtom}
-              >
-                <SidePanelSlot />
-              </StudioSidebarRail>
+                width={rowWidth + (sidePanel.isOpen ? sidePanelWidth : 0)}
+              />
             }
             corner={<WindowCorner />}
             hasBar={false}

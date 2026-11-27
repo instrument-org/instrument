@@ -4,6 +4,7 @@ import {
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 
 import { appChanged } from "../../src/lib/apps/changed";
+import { type SignInCookieSite } from "../../src/schemas/session/message-data-part";
 import {
   recordConnection,
   type SignInEnd,
@@ -72,7 +73,14 @@ export async function endSignIn(
 export async function answerSignIn(
   slug: string,
   answer: "connected" | "declined",
-  { account }: { account?: string } = {},
+  {
+    account,
+    cookieSites,
+  }: {
+    account?: string;
+    /** The other sites that set cookies while the user signed in. */
+    cookieSites?: SignInCookieSite[];
+  } = {},
 ): Promise<void> {
   if (answer === "declined") {
     await recordConnection(slug, { status: "declined" });
@@ -94,6 +102,7 @@ export async function answerSignIn(
   }
   await recordConnection(slug, {
     ...(account === undefined ? {} : { account }),
+    ...(cookieSites === undefined ? {} : { signInCookieSites: cookieSites }),
     connectedAt: Date.now(),
     manifestHash: loaded.value.manifestHash,
     status: "connected",

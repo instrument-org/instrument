@@ -205,7 +205,13 @@ export function setSharedChrome(chrome: SharedChrome | undefined): void {
   current = chrome;
 }
 
-export async function launchSharedChrome(): Promise<SharedChrome> {
+/**
+ * `args` go to Chrome before the first page: the host rules that send a
+ * site the case stands in for to its loopback server (`site-stand-ins.ts`).
+ */
+export async function launchSharedChrome(
+  args: readonly string[] = [],
+): Promise<SharedChrome> {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), "shared-chrome-"));
   const child = spawn(
     chromePath(),
@@ -215,6 +221,7 @@ export async function launchSharedChrome(): Promise<SharedChrome> {
       "--no-first-run",
       "--no-default-browser-check",
       "--window-size=1280,900",
+      ...args,
       "about:blank",
     ],
     { stdio: ["ignore", "ignore", "pipe"] },

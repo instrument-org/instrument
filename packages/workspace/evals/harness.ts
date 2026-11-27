@@ -98,6 +98,8 @@ import {
   type SharedChrome,
   setSharedChrome,
 } from "./lib/shared-chrome";
+import { serveSiteStandIns, type SitePage } from "./lib/site-stand-ins";
+import { type SignInCookieSite } from "../src/schemas/session/message-data-part";
 import {
   createStandInWindow,
   type ListedBookmark,
@@ -607,6 +609,12 @@ export interface EvalCase {
    * app-event path, so whatever the answers wake is what the run scores.
    */
   signInsAnswerAs?: Record<string, "connected" | "declined">;
+  /**
+   * The other sites a connected answer records as setting cookies in the
+   * window's browser while the user signed in, as the app records them, so
+   * the wake carries them.
+   */
+  signInCookieSites?: SignInCookieSite[];
   files?: FileUpload.Type[];
   /**
    * How many folder cards the user allows in this chat, in the order they
@@ -768,6 +776,14 @@ export interface EvalCase {
    * own. Follow-ups carry `viewing` too, as every message in the app does.
    */
   sharedBrowser?: boolean;
+  /**
+   * Real sites the shared Chrome reaches on loopback in place of the real
+   * ones, by host, each with its page (`lib/site-stand-ins.ts`): one that
+   * loads signed in, which no real site does for a run. A page given for
+   * before and after shows the second once a sign-in on the card is
+   * answered connected. Needs `sharedBrowser`.
+   */
+  sites?: Record<string, SitePage>;
   /**
    * A picture of the window, a PNG captured from the app with what the chat
    * may not read already blanked, which `instrument window look` gives. The
@@ -1014,8 +1030,18 @@ export async function runEvals(
       ? { oauth: cardOnlySignIns() }
       : {}),
   };
+  const sites: Record<string, SitePage> = {};
+  for (const evalCase of evals) {
+    if (evalCase.sharedBrowser) {
+      Object.assign(sites, evalCase.sites);
+    }
+  }
+  const siteStandIns =
+    Object.keys(sites).length === 0
+      ? undefined
+      : await serveSiteStandIns(sites);
   const sharedChrome = evals.some((evalCase) => evalCase.sharedBrowser)
-    ? await launchSharedChrome()
+    ? await launchSharedChrome(siteStandIns?.chromeArgs)
     : undefined;
   setSharedChrome(sharedChrome);
   // Closed however the run ends, so a throw leaves no Chrome running.
@@ -1655,7 +1681,8 @@ export async function runEvals(
                 part.state === "output-available"
               ) {
                 for (const row of askedOnCard(part.output)) {
-                  if (row.kind === "sign-in") {
+                  // A web app's row is a sign-in too, on its site.
+                  if (row.kind === "sign-in" || row.kind === "web") {
                     signInCards.add(row.slug);
                   }
                 }
@@ -1790,11 +1817,15 @@ export async function runEvals(
             const served = evalCase.apps?.some(
               (app) => app.slug === slug && app.viewer !== undefined,
             );
-            await answerSignIn(
-              slug,
-              answer,
-              served ? {} : { account: "you@example.com" },
-            );
+            if (answer === "connected") {
+              siteStandIns?.signedIn();
+            }
+            await answerSignIn(slug, answer, {
+              ...(served ? {} : { account: "you@example.com" }),
+              ...(evalCase.signInCookieSites && {
+                cookieSites: evalCase.signInCookieSites,
+              }),
+            });
           }
           signInCards.clear();
         }
@@ -2116,6 +2147,7 @@ export async function runEvals(
   } finally {
     sharedChrome?.close();
     setSharedChrome(undefined);
+    await siteStandIns?.close();
   }
 }
 

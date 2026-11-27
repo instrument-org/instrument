@@ -404,7 +404,7 @@ function FileLine({
     <button
       className={cn(
         "flex h-8 w-full items-center gap-2 rounded-md border border-border bg-card px-2 text-left text-xs",
-        isMissing ? "opacity-60" : "hover:bg-accent/50",
+        isMissing ? "text-muted-foreground" : "hover:bg-accent/50",
       )}
       disabled={isMissing}
       onAuxClick={onAuxClick}
@@ -413,7 +413,10 @@ function FileLine({
       ref={ref}
       type="button"
     >
-      <FileTypeIcon className="size-4" fileName={filename} />
+      <FileTypeIcon
+        className={cn("size-4", isMissing && "opacity-50")}
+        fileName={filename}
+      />
       <span className="flex min-w-0 flex-1">
         <MiddleTruncate extension text={filename} />
       </span>

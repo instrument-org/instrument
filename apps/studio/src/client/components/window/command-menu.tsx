@@ -1552,7 +1552,7 @@ function ChatEnding({
           holds={chat.holds}
         />
       </span>
-      <span className="min-w-10 shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums">
+      <span className="min-w-10 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums">
         {activityLabel(new Date(chat.lastUserMessageAt), now)}
       </span>
     </>

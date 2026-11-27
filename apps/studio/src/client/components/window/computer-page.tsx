@@ -4735,7 +4735,7 @@ function PlaceList({
   return (
     <div>
       {label === undefined ? null : (
-        <p className="px-2 pb-1 text-xs font-medium text-muted-foreground/70">
+        <p className="px-2 pb-1 text-xs font-medium text-muted-foreground">
           {label}
         </p>
       )}

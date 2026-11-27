@@ -307,15 +307,15 @@ export function UnreachableFileRowCard({
   const name = nameOfPath(path);
   return (
     <div
-      className="flex items-center gap-3 overflow-hidden rounded-2xl bg-card px-3 py-3 opacity-60 shadow-xs select-none dark:border dark:border-black/5"
+      className="flex items-center gap-3 overflow-hidden rounded-2xl bg-card px-3 py-3 shadow-xs select-none dark:border dark:border-black/5"
       data-slot="unreachable-file"
     >
       <span className="grid h-11.5 w-9 shrink-0 place-items-center">
-        <FileTypeIcon className="size-7" fileName={name} />
+        <FileTypeIcon className="size-7 opacity-50" fileName={name} />
       </span>
       <div className="flex min-w-0 flex-1 flex-col justify-center text-left">
         <span
-          className="truncate text-sm leading-5 text-foreground"
+          className="truncate text-sm leading-5 text-muted-foreground"
           title={displayPath(path)}
         >
           {name}

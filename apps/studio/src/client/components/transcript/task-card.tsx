@@ -206,7 +206,7 @@ function TaskCardFace({
           "group/task flex items-center gap-2.5 rounded-2xl border px-3.5 py-2.5",
           isWorking
             ? "border-brand-600/40 bg-brand-500/10"
-            : "border-transparent bg-muted/60",
+            : "border-transparent bg-foreground/5 dark:bg-muted/60",
         )}
       >
         <button

@@ -81,7 +81,9 @@ export function CommandCard({
     <div
       className={cn(
         "flex max-w-130 items-center gap-3 rounded-2xl border p-3",
-        hasEnded ? "border-transparent bg-muted/60" : "border-border bg-card",
+        hasEnded
+          ? "border-transparent bg-foreground/5 dark:bg-muted/60"
+          : "border-border bg-card",
       )}
     >
       <CommandMark />

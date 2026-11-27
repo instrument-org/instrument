@@ -265,7 +265,7 @@ export function ChatRow({
   const time = (
     <span
       className={cn(
-        "shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums",
+        "shrink-0 text-right text-[11px] text-muted-foreground tabular-nums",
         isUnseen && "font-semibold",
       )}
       title={formatAbsoluteTime(new Date(chat.lastUserMessageAt))}

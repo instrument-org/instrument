@@ -5,7 +5,7 @@ import { groupSites, indexedDbOrigin, localStorageOrigin } from "./group-sites";
 const at = (hour: number) => Date.UTC(2026, 10, 27, hour);
 
 describe("groupSites", () => {
-  it("groups cookies, visits, site data and apps by registrable domain", () => {
+  it("groups cookies, visits, site data and apps by registrable domain, last used by the user's visits alone", () => {
     expect(
       groupSites({
         apps: [
@@ -15,9 +15,9 @@ describe("groupSites", () => {
           { slug: "elsewhere", url: "https://api.elsewhere.example" },
         ],
         cookies: [
-          { count: 3, host: ".tasky.example", usedAt: at(9) },
-          { count: 2, host: "app.tasky.example", usedAt: at(11) },
-          { count: 4, host: ".ads.example", usedAt: at(12) },
+          { count: 3, host: ".tasky.example" },
+          { count: 2, host: "app.tasky.example" },
+          { count: 4, host: ".ads.example" },
           { count: 1, host: "localhost" },
           { count: 1, host: "." },
         ],
@@ -35,9 +35,15 @@ describe("groupSites", () => {
           },
           {
             actor: "agent",
-            at: at(8),
+            at: at(14),
             count: 2,
             url: "https://tasky.example/",
+          },
+          {
+            actor: "agent",
+            at: at(15),
+            count: 1,
+            url: "https://research.example/paper",
           },
           {
             actor: "user",
@@ -70,7 +76,7 @@ describe("groupSites", () => {
             "IndexedDB",
             "Local Storage",
           ],
-          "usedAt": 1795777200000,
+          "usedAt": 1795773600000,
           "visits": {
             "agent": 2,
             "user": 10,
@@ -82,7 +88,6 @@ describe("groupSites", () => {
           "setUpAs": [],
           "site": "ads.example",
           "siteData": [],
-          "usedAt": 1795780800000,
           "visits": {
             "agent": 0,
             "user": 0,
@@ -96,6 +101,19 @@ describe("groupSites", () => {
           "siteData": [],
           "visits": {
             "agent": 0,
+            "user": 0,
+          },
+        },
+        {
+          "cookies": 0,
+          "hosts": [
+            "research.example",
+          ],
+          "setUpAs": [],
+          "site": "research.example",
+          "siteData": [],
+          "visits": {
+            "agent": 1,
             "user": 0,
           },
         },

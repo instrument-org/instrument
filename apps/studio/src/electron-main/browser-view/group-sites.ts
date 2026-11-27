@@ -8,8 +8,8 @@ type SiteDataKind = BrowserSite["siteData"][number];
 export interface SiteReads {
   /** The workspace's own apps, by the address each reaches. */
   apps: { slug: string; url: string }[];
-  /** Cookies by the host they were set for, a domain cookie's with its leading dot, and when one was last sent. */
-  cookies: { count: number; host: string; usedAt?: number }[];
+  /** Cookies by the host they were set for, a domain cookie's with its leading dot. */
+  cookies: { count: number; host: string }[];
   /** Origins keeping site data, and where. */
   siteData: { kind: SiteDataKind; origin: string }[];
   /** Pages visited, by address and who visited them: how often and when last. */
@@ -54,10 +54,12 @@ export function localStorageOrigin(key: string): string | undefined {
 }
 
 /**
- * The reads grouped by site: each site's cookies and when they were last
- * sent, its visits by the user and by agents, the data it keeps, its hosts
+ * The reads grouped by site: each site's cookies, its visits by the user and
+ * by agents and when the user last visited it, the data it keeps, its hosts
  * visited or keeping data, and the workspace's apps whose own address is on
- * it. A site with only an app on it has no row.
+ * it. A site with only an app on it has no row. When a cookie was last sent
+ * is no sign the user used its site, since it goes with every page that
+ * embeds the site.
  */
 export function groupSites(reads: SiteReads): BrowserSite[] {
   const rows = new Map<
@@ -82,18 +84,11 @@ export function groupSites(reads: SiteReads): BrowserSite[] {
     }
     return row;
   };
-  const used = (row: BrowserSite, at: number | undefined) => {
-    if (at !== undefined && (row.usedAt === undefined || at > row.usedAt)) {
-      row.usedAt = at;
-    }
-  };
-  for (const { count, host, usedAt } of reads.cookies) {
+  for (const { count, host } of reads.cookies) {
     if (host.replace(/^\./, "") === "") {
       continue;
     }
-    const row = rowOf(host);
-    row.cookies += count;
-    used(row, usedAt);
+    rowOf(host).cookies += count;
   }
   for (const { actor, at, count, url } of reads.visits) {
     const host = URL.parse(url)?.hostname;
@@ -103,7 +98,9 @@ export function groupSites(reads: SiteReads): BrowserSite[] {
     const row = rowOf(host);
     row.visits[actor] += count;
     row.hostSet.add(host);
-    used(row, at);
+    if (actor === "user" && (row.usedAt === undefined || at > row.usedAt)) {
+      row.usedAt = at;
+    }
   }
   for (const { kind, origin } of reads.siteData) {
     const host = URL.parse(origin)?.hostname;

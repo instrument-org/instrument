@@ -20,7 +20,7 @@ export const BrowserSiteSchema = z.object({
   site: z.string(),
   /** Where the site keeps data besides cookies. */
   siteData: z.array(z.enum(SITE_DATA_KINDS)),
-  /** When the site was last used, epoch ms: a cookie of it sent or a page on it visited, whichever was later. */
+  /** When the user last visited a page on the site, epoch ms; none where they never did. */
   usedAt: z.number().optional(),
   /** Pages visited on the site, by the user and by agents. */
   visits: z.object({ agent: z.number().int(), user: z.number().int() }),

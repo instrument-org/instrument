@@ -31,11 +31,10 @@ const COOKIE_DATABASES = [path.join("Network", "Cookies"), "Cookies"];
 
 /**
  * The browser's cookies counted by the host each was set for, expired ones
- * left out, with when one of them was last sent: read from the profile's
- * cookie database once the session has written out what it holds, and
- * never a cookie's name or value. Where the database can't be found or
- * opened (another process holding it locked), the session's own list, which
- * says nothing of when.
+ * left out: read from the profile's cookie database once the session has
+ * written out what it holds, and never a cookie's name or value. Where the
+ * database can't be found or opened (another process holding it locked),
+ * the session's own list.
  */
 async function cookieCounts(profileDir: string): Promise<SiteReads["cookies"]> {
   const session = configureGuestSession(profileDir);
@@ -53,17 +52,10 @@ async function cookieCounts(profileDir: string): Promise<SiteReads["cookies"]> {
       // holds exactly, so the query makes them milliseconds.
       return database
         .prepare(
-          "SELECT host_key AS host, count(*) AS count, max(last_access_utc) / 1000 AS used FROM cookies WHERE has_expires = 0 OR expires_utc / 1000 > ? GROUP BY host_key",
+          "SELECT host_key AS host, count(*) AS count FROM cookies WHERE has_expires = 0 OR expires_utc / 1000 > ? GROUP BY host_key",
         )
         .all(Date.now() + CHROMIUM_EPOCH_MS)
-        .map((row) => {
-          const used = Number(row.used);
-          return {
-            count: Number(row.count),
-            host: String(row.host),
-            ...(used > 0 ? { usedAt: used - CHROMIUM_EPOCH_MS } : {}),
-          };
-        });
+        .map((row) => ({ count: Number(row.count), host: String(row.host) }));
     } finally {
       database.close();
     }

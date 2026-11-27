@@ -376,9 +376,7 @@ describe("connect_app for X", () => {
 
   it("asks for the Grok plan its search runs on, where none is signed in", async () => {
     const lisbon = await chat();
-    await ChatWrites.sites(lisbon.chatId, lisbon.sessionId, ["x.com"]);
-    // Signed in on the site is not the plan, so the row still asks.
-    const output = await ask(lisbon, ["x"], undefined, ["x"]);
+    const output = await ask(lisbon, ["x"]);
 
     expect(output).toMatchObject({
       apps: [{ kind: "web", plan: "grok", slug: "x", state: "asked" }],
@@ -396,6 +394,25 @@ describe("connect_app for X", () => {
         "value": "A card asking the user to sign in to their Grok plan, which X's search runs on, is in the conversation: it opens the sign-in in the window's browser. Your turn ended on it: you will be woken with a note when they have signed in or declined, and \`instrument app call x\` searches then. Do not poll.",
       }
     `);
+  });
+
+  it("records X's site seen signed in with no row, where no plan is signed in", async () => {
+    const lisbon = await chat();
+    await ChatWrites.sites(lisbon.chatId, lisbon.sessionId, ["x.com"]);
+
+    expect(await ask(lisbon, ["x"], undefined, ["x"])).toEqual({
+      apps: [{ name: "X", seen: true, slug: "x", state: "connected" }],
+    });
+    expect(await openAsks(lisbon.chatId)).toEqual([]);
+    expect(await readConnection("x")).toMatchObject({
+      seenSignedIn: true,
+      status: "connected",
+    });
+    // A later ask names the plan, since the site is connected already.
+    expect(await ask(lisbon, ["x"])).toMatchObject({
+      apps: [{ kind: "web", plan: "grok", slug: "x", state: "asked" }],
+    });
+    expect(await readConnection("x")).toMatchObject({ status: "connected" });
   });
 
   it("answers the plan's row once a plan is signed in, whatever the site's sign-in", async () => {

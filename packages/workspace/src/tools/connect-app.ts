@@ -152,9 +152,10 @@ async function askFor(
     };
   }
   const { manifest, manifestHash, name, slug } = loaded.value;
-  // X's search runs on the Grok plan, so an X app asks for the plan first,
-  // whether or not its site is signed in.
-  const needsPlan = isXApp(manifest) && !grokPlanSignedIn();
+  // X's search runs on the Grok plan, so an X app asked for asks for the
+  // plan. One the agent saw signed in records its site alone, and the plan
+  // is asked for when a search needs it.
+  const needsPlan = !seenSignedIn && isXApp(manifest) && !grokPlanSignedIn();
   // Asking again would set a working connection back to waiting, for every
   // chat that uses it.
   const connection = await readConnection(slug);
@@ -196,13 +197,11 @@ async function askFor(
       seenSignedIn: true,
       status: "connected",
     });
-    if (!needsPlan) {
-      return { name, seen: true, slug, state: "connected" };
-    }
+    return { name, seen: true, slug, state: "connected" };
   }
   if (needsPlan && manifest.type === "web") {
     // The row stands by the plan; a site seen signed in stays so.
-    if ((await readConnection(slug))?.status !== "connected") {
+    if (connection?.status !== "connected") {
       await recordConnection(slug, { status: "needs-sign-in" });
     }
     return {

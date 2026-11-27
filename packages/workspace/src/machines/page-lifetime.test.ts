@@ -12,6 +12,7 @@ import {
   type PageState,
   pagesToClose,
   SEEN_TAB_DISCARD_MS,
+  MEMORY_PROTECTION_MS,
   SLEEP_AFTER_MS,
   SLEEP_RECHECK_MS,
   UNSEEN_TAB_DISCARD_MS,
@@ -34,12 +35,12 @@ const tick = (facts: Partial<PageFacts> = {}): PageEvent => ({
   facts: { ...quiet, ...facts },
   type: "tick",
 });
-/** A memory reading for a page out of sight a minute, unless `facts` say otherwise. */
+/** A memory reading for a page out of sight 20 minutes, unless `facts` say otherwise. */
 const memory = (
   level: MemoryLevel,
   facts: Partial<PageFacts> = {},
 ): PageEvent => ({
-  facts: { ...quiet, hiddenForMs: ms("1 minute"), ...facts },
+  facts: { ...quiet, hiddenForMs: ms("20 minutes"), ...facts },
   level,
   type: "memory",
 });
@@ -85,12 +86,11 @@ describe("nextPageState", () => {
 
     // Memory.
     ["normal memory closes nothing", "asleep", memory("normal"), "asleep"],
-    ["low memory closes a sleeping page", "asleep", memory("low"), "closed"],
-    ["low memory leaves a hidden page that is awake", "hidden", memory("low"), "hidden"],
+    ["low memory closes nothing", "asleep", memory("low"), "asleep"],
     ["critical memory closes a hidden page that is awake", "hidden", memory("critical"), "closed"],
     ["critical memory closes a sleeping page", "asleep", memory("critical"), "closed"],
     ["memory never closes a drawn page", "drawn", memory("critical"), "drawn"],
-    ["memory never closes a page left less than 5 s ago", "hidden", memory("critical", { hiddenForMs: SLEEP_AFTER_MS - 1 }), "hidden"],
+    ["memory never closes a page out of sight less than 10 min", "hidden", memory("critical", { hiddenForMs: MEMORY_PROTECTION_MS - 1 }), "hidden"],
     ["memory never closes a page an agent sent a command in the last 10 min", "asleep", memory("critical", { agentQuietForMs: AGENT_PROTECTION_MS - 1 }), "asleep"],
     ["memory never closes a page a working agent drives", "hidden", memory("critical", { drivenByWorkingAgent: true }), "hidden"],
     ["memory never closes a busy page", "asleep", memory("critical", { busy: true }), "asleep"],
@@ -121,15 +121,11 @@ describe("pagesToClose", () => {
 
   it.each<{ level: MemoryLevel; order: string[]; rule: string }>([
     { level: "normal", order: [], rule: "normal memory closes nothing" },
-    {
-      level: "low",
-      order: ["asleep 10 min", "asleep 2 min"],
-      rule: "low memory closes sleeping pages, the one hidden longest first",
-    },
+    { level: "low", order: [], rule: "low memory closes nothing" },
     {
       level: "critical",
-      order: ["awake 20 min", "asleep 10 min", "asleep 2 min"],
-      rule: "critical memory closes hidden pages awake or asleep, the one hidden longest first",
+      order: ["awake 20 min", "asleep 10 min"],
+      rule: "critical memory closes pages out of sight 10 min or more, awake or asleep, the one hidden longest first",
     },
   ])("$rule", ({ level, order }) => {
     expect(pagesToClose(pages, level).map(({ name }) => name)).toEqual(order);

@@ -36,7 +36,7 @@ export {
  */
 export const DISCARD_CHECK_MS = ms("1 minute");
 
-/** How often the memory level is read while it is low or critical, closing one page each time. */
+/** How often the memory level is read while it is not normal; each critical reading closes one page. */
 export const MEMORY_RECHECK_MS = ms("5 seconds");
 
 /** What the running window browser knows of a tab's page: whether it is drawn, and how long it has left. */
@@ -103,7 +103,7 @@ interface Guest {
  * every few seconds while something no event announces keeps it as it is.
  * Where main can read the system's memory level (`BrowserConfig.memoryLevel`),
  * it is read each minute, and every few seconds while it is not normal, and
- * each reading under pressure closes the first page `pagesToClose` names.
+ * each critical reading closes the first page `pagesToClose` names.
  *
  * Opening and closing tabs is not this actor's: a guest is made when a tab
  * is opened or shown and destroyed when its tab closes, and this only follows

@@ -20,6 +20,13 @@ export const AGENT_PROTECTION_MS = ms("10 minutes");
  */
 export const SLEEP_AFTER_MS = ms("5 seconds");
 
+/**
+ * How long a page is off screen before critical memory may close it, the
+ * time Chromium's desktop builds keep a hidden tab through urgent discarding
+ * (`kNonVisiblePagesUrgentProtectionTime`).
+ */
+export const MEMORY_PROTECTION_MS = ms("10 minutes");
+
 /** How long a working agent that drives a tab leaves it without a command before it sleeps all the same. */
 export const DRIVEN_SLEEP_AFTER_MS = ms("2 minutes");
 
@@ -127,21 +134,17 @@ export function nextPageState(state: PageState, event: PageEvent): PageState {
       return state;
     }
     case "memory": {
-      // A page left less than a sleep's wait ago is likely to be shown
-      // again; one still awake past it is one main would not put to sleep.
+      // As Chromium on desktop: only critical memory closes a page, and only
+      // one left long enough ago that it is unlikely to be shown again soon.
       if (
+        event.level !== "critical" ||
+        (state !== "hidden" && state !== "asleep") ||
         isProtected(event.facts) ||
-        event.facts.hiddenForMs < SLEEP_AFTER_MS
+        event.facts.hiddenForMs < MEMORY_PROTECTION_MS
       ) {
         return state;
       }
-      if (state === "asleep" && event.level !== "normal") {
-        return "closed";
-      }
-      if (state === "hidden" && event.level === "critical") {
-        return "closed";
-      }
-      return state;
+      return "closed";
     }
   }
 }

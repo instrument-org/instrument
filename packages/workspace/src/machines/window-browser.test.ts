@@ -10,7 +10,7 @@ import {
   type BrowserTargetId,
   browserTargetOf,
 } from "../types";
-import { type MemoryLevel } from "./page-lifetime";
+import { MEMORY_PROTECTION_MS, type MemoryLevel } from "./page-lifetime";
 import {
   AGENT_PROTECTION_MS,
   DISCARD_CHECK_MS,
@@ -503,10 +503,15 @@ describe("memory pressure", () => {
     await pass(ms("5 minutes"));
     expect(closedNames()).toEqual([]);
 
-    // Low: sleeping pages, one each reading, until none is left that
-    // nothing keeps.
+    // Low closes nothing, as in Chromium.
     level = "low";
-    await pass(DISCARD_CHECK_MS);
+    await pass(DISCARD_CHECK_MS + MEMORY_RECHECK_MS * 3);
+    expect(closedNames()).toEqual([]);
+
+    // Critical: one page out of sight 10 min or more each reading, awake or
+    // asleep, until none is left that nothing keeps.
+    level = "critical";
+    await pass(MEMORY_RECHECK_MS);
     expect(closedNames()).toEqual(["oldest"]);
     await pass(MEMORY_RECHECK_MS);
     expect(closedNames()).toEqual(["oldest", "older"]);
@@ -517,11 +522,9 @@ describe("memory pressure", () => {
     send("acquireVisible", oldest);
     send("registerTarget", oldest);
 
-    // Critical: hidden pages still awake too.
-    level = "critical";
-    await pass(MEMORY_RECHECK_MS);
+    // The page still awake goes once it has been out of sight 10 min.
+    await pass(ms("4 minutes"));
     expect(closedNames()).toEqual(["oldest", "older", "awake"]);
-    await pass(MEMORY_RECHECK_MS * 3);
 
     level = "normal";
     await pass(MEMORY_RECHECK_MS + DISCARD_CHECK_MS * 3);
@@ -534,10 +537,10 @@ describe("memory pressure", () => {
     ).toMatchInlineSnapshot(`
       [
         "memory pressure normal -> low",
-        "page closed for memory page=oldest level=low state=asleep hiddenFor=1560s",
-        "page closed for memory page=older level=low state=asleep hiddenFor=965s",
         "memory pressure low -> critical",
-        "page closed for memory page=awake level=critical state=hidden hiddenFor=385s",
+        "page closed for memory page=oldest level=critical state=asleep hiddenFor=1580s",
+        "page closed for memory page=older level=critical state=asleep hiddenFor=985s",
+        "page closed for memory page=awake level=critical state=hidden hiddenFor=640s",
         "memory pressure critical -> normal",
       ]
     `);
@@ -547,7 +550,12 @@ describe("memory pressure", () => {
   it("keeps the last level through a reading that fails", async () => {
     vi.spyOn(console, "info").mockImplementation(noop);
     vi.spyOn(console, "warn").mockImplementation(noop);
-    const readings: (MemoryLevel | Error)[] = ["low", new Error("no sysctl")];
+    // One reading a minute while normal, so the critical one comes at 10 min.
+    const readings: (MemoryLevel | Error)[] = [
+      ...Array.from({ length: 9 }, (): MemoryLevel => "normal"),
+      "critical",
+      new Error("no sysctl"),
+    ];
     const { browser, closed } = makeBrowser();
     browser.memoryLevel = () => {
       const next = readings.shift() ?? "normal";
@@ -563,9 +571,9 @@ describe("memory pressure", () => {
     const first = tab();
     const second = tab();
     actor.send({ type: "registerTarget", value: { targetId: first } });
-    await pass(ms("1 minute") - SLEEP_AFTER_MS);
+    await pass(ms("1 second"));
     actor.send({ type: "registerTarget", value: { targetId: second } });
-    await pass(SLEEP_AFTER_MS);
+    await pass(MEMORY_PROTECTION_MS - ms("1 second"));
     expect(closed).toEqual([first]);
 
     await pass(MEMORY_RECHECK_MS);

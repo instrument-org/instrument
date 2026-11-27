@@ -37,6 +37,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -87,6 +88,7 @@ import {
   createFileTreeIconResolver,
   getBuiltInSpriteSheet,
 } from "@pierre/trees";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import {
@@ -486,14 +488,19 @@ export type FileSystemProps = {
   /**
    * Everything under the folder the browser lists from, which a search
    * matches against, as items with paths the way `items` has them:
-   * `truncated` when that is not all of it, and `notSearched` the names of
+   * `truncated` when that is not all of it, and `notSearched` the folders
    * the folders left unread. Left out, a search matches what is listed.
    */
   searchResults?: {
     items: readonly FileSystemItem[];
-    notSearched: readonly string[];
+    notSearched: ReadonlyArray<{ name: string; path: string }>;
     truncated: boolean;
   };
+  /**
+   * Called to search again inside a folder the search stepped over, by its
+   * path the way `items` has them. Left out, the status bar only names them.
+   */
+  onSearchInFolder?: (folderPath: string) => void;
   /**
    * Whether `searchResults` is still being read, which an empty search shows
    * as loading and the status bar as searching. Left out with
@@ -2068,6 +2075,7 @@ export function FileSystem({
   searchResults,
   searchResultsPending,
   onSearchKindsChange,
+  onSearchInFolder,
   selectedPath: selectedPathProp,
   showHiddenFiles: showHiddenFilesProp,
   sort: sortProp,
@@ -3981,6 +3989,16 @@ export function FileSystem({
                 ).length
           }
           partialFolder={partialFolder}
+          {...(onSearchInFolder
+            ? {
+                // The search goes on from the folder picked, in the columns
+                // too, whose first column moves there as a walk moves it.
+                onSearchInFolder: (folder: string) => {
+                  setColumnsFrom(normalizeFolderPath(folder));
+                  onSearchInFolder(folder);
+                },
+              }
+            : {})}
           {...(isSearching &&
           (searchResults !== undefined || searchResultsPending !== undefined)
             ? {
@@ -4715,11 +4733,13 @@ function useSlowLoads(loading: ReadonlySet<string>, ms = LOADER_DELAY_MS) {
  */
 function FileSystemStatusBar({
   count,
+  onSearchInFolder,
   partialFolder,
   search,
   selected,
 }: {
   count: number;
+  onSearchInFolder?: FileSystemProps["onSearchInFolder"];
   partialFolder: FileSystemProps["partialFolder"];
   /**
    * A search of everything under the folder: `pending` while that is read,
@@ -4773,12 +4793,31 @@ function FileSystemStatusBar({
               : `${counted} ${count === 1 ? "item" : "items"}`}
       </span>
       {notSearched.length > 0 ? (
-        <span className="truncate">
-          {new Intl.ListFormat(displayLocale, { type: "conjunction" }).format(
-            notSearched,
-          )}{" "}
-          not searched
-        </span>
+        onSearchInFolder ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="flex min-w-0 items-center gap-0.5 text-foreground hover:underline"
+                type="button"
+              >
+                <span className="truncate">{notSearchedLine(notSearched)}</span>
+                <CaretDownIcon className="size-3 shrink-0" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center" side="top">
+              {notSearched.map((folder) => (
+                <DropdownMenuItem
+                  key={folder.path}
+                  onSelect={() => onSearchInFolder(folder.path)}
+                >
+                  Search in {folder.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <span className="truncate">{notSearchedLine(notSearched)}</span>
+        )
       ) : null}
       {partialFolder ? (
         <button
@@ -4791,6 +4830,20 @@ function FileSystemStatusBar({
       ) : null}
     </div>
   );
+}
+/**
+ * The folders a search stepped over, as the status bar names them: three by
+ * name and a count of the rest, so the line fits beside a chat.
+ */
+function notSearchedLine(
+  notSearched: NonNullable<FileSystemProps["searchResults"]>["notSearched"],
+) {
+  const names = notSearched.map((folder) => folder.name);
+  const shown =
+    names.length > 3
+      ? [...names.slice(0, 3), `${names.length - 3} more`]
+      : names;
+  return `${new Intl.ListFormat(displayLocale, { type: "conjunction" }).format(shown)} not searched`;
 }
 function FileSystemEmptyState({
   action,

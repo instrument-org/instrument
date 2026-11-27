@@ -539,11 +539,12 @@ export function ComputerPage({
   // read for search opened with nothing typed or picked in it.
   const [searchKinds, setSearchKinds] = useState<readonly string[]>([]);
   const isSearching = (query ?? "").trim() !== "" || searchKinds.length > 0;
+  const walkedFrom = expandHomePath(hostPathOf(current), homePath);
   const folderWalk = useQuery(
     rpcClient.files.walkFolder.queryOptions({
       input:
         isSearching && !isFolderless
-          ? { path: expandHomePath(hostPathOf(current), homePath) }
+          ? { path: walkedFrom }
           : skipToken,
       refetchOnWindowFocus: false,
       retry: false,
@@ -2808,7 +2809,16 @@ export function ComputerPage({
                     ? {
                         searchResults: {
                           items: searchItems,
-                          notSearched: folderWalk.data.notSearched.map(nameOf),
+                          notSearched: folderWalk.data.notSearched.map(
+                            (folder) => ({
+                              name: nameOf(folder),
+                              path: `${current}${folder
+                                .slice(
+                                  walkedFrom.replace(/[\\/]+$/, "").length + 1,
+                                )
+                                .replaceAll("\\", "/")}/`,
+                            }),
+                          ),
                           truncated: folderWalk.data.truncated,
                         },
                       }
@@ -2817,6 +2827,10 @@ export function ComputerPage({
                     isSearching && !isFolderless && folderWalk.isPending
                   }
                   onSearchKindsChange={setSearchKinds}
+                  onSearchInFolder={(folder) => {
+                    setSelectedPaths([]);
+                    go({ path: folder, query: query ?? "", type: "walk" });
+                  }}
                   onSearchChange={(next) => {
                     go({ query: next, type: "search" });
                   }}

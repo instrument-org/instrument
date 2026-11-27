@@ -33,6 +33,17 @@ export function isProvidedSource(source: SkillSource) {
 }
 
 /**
+ * Where a skill comes in a list to pick from: the person's own first, then
+ * the ones other agents keep, then the ones Instrument ships.
+ */
+export function skillPickRank(source: SkillSource) {
+  if (source === "workspace") {
+    return 0;
+  }
+  return isProvidedSource(source) ? 2 : 1;
+}
+
+/**
  * Where a skill sits, for a surface with room for one line of it: the folder
  * on disk, or the app itself for the ones we ship, whose location is an
  * internal detail nobody can act on.

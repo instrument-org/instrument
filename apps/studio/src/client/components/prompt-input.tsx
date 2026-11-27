@@ -1,6 +1,7 @@
 import { displayLocale } from "@/client/lib/display-locale";
 import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import { NEW_SKILL_ASK } from "@/client/lib/new-skill-ask";
+import { skillPickRank } from "@/client/lib/skill-source";
 import { lookAtAtom, lookTargetOf } from "@/client/components/window/look-at";
 import { dismissedModelOffersAtom } from "@/client/atoms/dismissed-model-offers";
 import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
@@ -455,7 +456,14 @@ export const PromptInput = ({
       staleTime: SKILL_LIST_STALE_TIME_MS,
     }),
   );
-  const userInvocableSkills = skills.filter((skill) => skill.userInvocable);
+  // The person's own first, which a bare slash also lists in this order.
+  const userInvocableSkills = skills
+    .filter((skill) => skill.userInvocable)
+    .toSorted(
+      (a, b) =>
+        skillPickRank(a.source) - skillPickRank(b.source) ||
+        a.name.localeCompare(b.name),
+    );
   // The apps the workspace has, for a slash to name: any standing, since a
   // message can be about an app before it is connected.
   const { data: appList } = useQuery(

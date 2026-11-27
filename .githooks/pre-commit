@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Formats what the commit records with oxfmt (scripts/format-staged.sh).
+script="$(git rev-parse --show-toplevel)/scripts/format-staged.sh"
+# A checkout of a branch from before this script has none to run.
+[[ -x "$script" ]] || exit 0
+exec "$script" --hook

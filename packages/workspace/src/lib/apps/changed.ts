@@ -59,7 +59,7 @@ type Happened = {
   /** For a failed sign-in, how it ended, when that was more than an error. */
   ended?: SignInEnd;
   event: AppEvent;
-  /** For an X app, that what connected is the Grok plan its search runs on, not its site. */
+  /** For an X app, that what connected or was turned down is the Grok plan its search runs on, not its site. */
   plan?: "grok";
 };
 

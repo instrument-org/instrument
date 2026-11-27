@@ -71,6 +71,7 @@ export function ToolConnectApp({ part }: { part: ConnectAppPart }) {
   if (rows.length > 0 || asked !== undefined) {
     return (
       <ConnectAppCard
+        {...(signIn.data && { asked: signIn.data.apps })}
         reason={part.input.reason}
         rows={rows.length > 0 || asked === undefined ? rows : [asked]}
       />

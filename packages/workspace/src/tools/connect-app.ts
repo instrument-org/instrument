@@ -219,10 +219,8 @@ async function askFor(
     return { name, seen: true, slug, state: "connected" };
   }
   if (needsPlan && manifest.type === "web") {
-    // The row stands by the plan; a site seen signed in stays so.
-    if (connection?.status !== "connected") {
-      await recordConnection(slug, { status: "needs-sign-in" });
-    }
+    // The row stands by the plan alone, and the site's connection stays as
+    // it is (`signInProgress`).
     return {
       kind: "web",
       name,

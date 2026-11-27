@@ -23,7 +23,7 @@ export function signInProgressLine(progress: SignInProgress): string {
       const named = apps
         .map(
           (app) =>
-            `${app.name} (${app.slug})${app.account === undefined ? "" : ` as ${app.account}`}`,
+            `${app.plan === undefined ? "" : "the Grok plan for "}${app.name} (${app.slug})${app.account === undefined ? "" : ` as ${app.account}`}`,
         )
         .join(", ");
       return `${HEADINGS[standing]}: ${named}`;

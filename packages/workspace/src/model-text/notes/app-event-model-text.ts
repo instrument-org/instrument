@@ -50,6 +50,9 @@ export function appEventModelNote(
         return `- The user signed in to ${event.name} (${event.slug})${signedInWhere(event.signedInFrom)}. It is connected${detail ? `: ${detail}` : ""}. Use it now: \`${APP_COMMAND.name} tools ${event.slug}\`, then \`${APP_COMMAND.name} call\`.${nameIt(event)}${cookies}`;
       }
       case "declined": {
+        if (event.plan !== undefined) {
+          return `- The user declined to sign in to their Grok plan, which ${event.name} (${event.slug}) searches on. Do not ask again unless they bring it up; say in a line that searching X needs it, and carry on with what you can.`;
+        }
         return `- The user declined to connect ${event.name} (${event.slug}). Do not ask again unless they bring it up; say what you cannot do without it, in a line, and carry on with what you can.`;
       }
       case "disconnected": {

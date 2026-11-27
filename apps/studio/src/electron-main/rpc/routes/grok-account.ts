@@ -1,8 +1,8 @@
 import {
+  appChanged,
   grokPlanSignedInHere,
   liveRead,
 } from "@instrument-org/workspace/electron";
-import { settleConnection } from "@/electron-main/lib/app-connection";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import {
   cancelGrokSignIn,
@@ -35,7 +35,8 @@ const live = {
  * adding it when it is new. Answers how it ended, with what went wrong when
  * it failed. A plan signed in is what X's search runs on, so X hears of it
  * (`grokPlanSignedInHere`); one turned down on xAI's page turns down the
- * row of the app that asked for it, if one did.
+ * plan row of the app that asked for it, if one did, and leaves that app's
+ * own connection, which is its site's.
  */
 const signIn = base
   .input(
@@ -65,7 +66,7 @@ const signIn = base
           });
         }
         if (result.outcome === "declined" && forApp !== undefined) {
-          await settleConnection(forApp, { status: "declined" });
+          await appChanged(forApp, { event: "declined", plan: "grok" });
         }
         return result;
       } catch (error) {

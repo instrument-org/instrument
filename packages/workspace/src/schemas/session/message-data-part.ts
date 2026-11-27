@@ -1300,8 +1300,8 @@ export namespace SessionMessageDataPart {
           ]),
           name: z.string(),
           /**
-           * For an X app, that what connected is the Grok plan its search
-           * runs on, never its site.
+           * For an X app, that what connected or was turned down is the
+           * Grok plan its search runs on, never its site.
            */
           plan: z.literal("grok").optional(),
           /**

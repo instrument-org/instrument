@@ -11,6 +11,8 @@ interface CardApp {
   /** For an X app's row asking for the Grok plan its search runs on. */
   plan?: "grok";
   slug: string;
+  /** Where the row stood when the card was last written, which a plan row's decline is kept in. */
+  standing?: SignInProgress[number]["standing"];
 }
 
 /** How an app's connection reads on its card's row. */
@@ -33,20 +35,22 @@ function standingOf(
 
 /**
  * A row asking for the Grok plan: answered once a plan is signed in on this
- * computer, or once the user turned the row down; the app's own connection
- * is its site's, which the row does not ask for.
+ * computer, or once the user turned the row down, which the card itself
+ * keeps. The app's own connection is its site's, which the row neither
+ * asks for nor writes.
  */
 function planStanding(
-  connection: AppConnection | undefined,
+  row: CardApp,
 ): SignInProgress[number]["standing"] {
   if (grokPlanSignedIn()) {
     return "connected";
   }
-  return connection?.status === "declined" ? "declined" : "waiting";
+  return row.standing === "declined" ? "declined" : "waiting";
 }
 
 /**
- * Every app on a card as its connection now stands, in the card's order. An
+ * Every app on a card as its connection now stands (a plan row, as the plan
+ * does), in the card's order. An
  * app or connection that is gone since the card asked has no row
  * left to answer, so it is left out; undefined when none is left.
  */
@@ -54,7 +58,8 @@ export async function signInProgress(
   card: CardApp[],
 ): Promise<SignInProgress | undefined> {
   const rows = await Promise.all(
-    card.map(async ({ plan, slug }) => {
+    card.map(async (row) => {
+      const { plan, slug } = row;
       const [connection, loaded] = await Promise.all([
         readConnection(slug),
         loadApp(slug),
@@ -68,7 +73,7 @@ export async function signInProgress(
             name: loaded.value.name,
             plan,
             slug,
-            standing: planStanding(connection),
+            standing: planStanding(row),
           },
         ];
       }

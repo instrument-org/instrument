@@ -618,3 +618,99 @@ describe("a launch after a sign-in finished as the app quit", () => {
     ]);
   });
 });
+
+describe("a card's row asking for X's Grok plan", () => {
+  const made: ChatRecords[] = [];
+  afterEach(async () => {
+    await Promise.all(made.splice(0).map((records) => records.dispose()));
+  });
+
+  /** A chat whose card asks for the Grok plan X searches on, with X's site seen signed in. */
+  async function chatAskingForPlan() {
+    const { chatId, sessionId } = await chatWithCard({
+      apps: [["linear", "Linear"]],
+    });
+    await writeApp({
+      guide: "",
+      manifest: { type: "web", url: "https://x.com" },
+      name: "X",
+      slug: AppSlugSchema.parse("x"),
+    });
+    await setStatus("x", "connected");
+    await recordSignIn(
+      {
+        chatId,
+        messageId: StoreId.newMessageId(),
+        partId: StoreId.newPartId(),
+        sessionId,
+      },
+      [{ name: "X", plan: "grok", slug: "x" }],
+      undefined,
+    );
+    // Only the plan's card is left waiting.
+    await answerRow("linear", "connected");
+    woken.mockClear();
+    return { chatId, sessionId };
+  }
+
+  /** What the chat was woken with about X. */
+  const xEvents = (chatId: ChatId) =>
+    woken.mock.calls
+      .filter(([, , woke]) => woke === chatId)
+      .flatMap(([events]) =>
+        (events as { event: string; plan?: string; slug: string }[]).filter(
+          (event) => event.slug === "x",
+        ),
+      )
+      .map(({ event, plan, slug }) => ({ event, plan, slug }));
+
+  it("turns the plan down on the card, and leaves X's site as it was", async () => {
+    const { chatId } = await chatAskingForPlan();
+
+    publisher.publish("app.event", {
+      event: "declined",
+      name: "X",
+      plan: "grok",
+      slug: "x",
+    });
+    await vi.waitFor(async () => {
+      expect(await openAsks(chatId)).toEqual([]);
+    });
+
+    expect((await readConnection("x"))?.status).toBe("connected");
+    expect(xEvents(chatId)).toEqual([
+      { event: "declined", plan: "grok", slug: "x" },
+    ]);
+  });
+
+  it("takes Not now from another computer as the plan turned down, and leaves X's site", async () => {
+    const { chatId, sessionId } = await chatAskingForPlan();
+    const phone = new ChatRecords({
+      app: "0.0.0-test",
+      device: newDeviceId(),
+      dirOf: chatDir,
+      fsync: false,
+    });
+    made.push(phone);
+    const owner = writingChatRecords();
+    if (!owner) {
+      throw new Error("expected the test's records in place");
+    }
+    await phone.catchUp(chatId);
+    const [card] = await openAsks(chatId);
+    await phone.answer(chatId, sessionId, {
+      ask: card?.id ?? "",
+      given: { decision: "declined", kind: "sign-in" },
+    });
+
+    await owner.catchUp(chatId);
+    await driveAsks(chatId, {} as WorkspaceActorRef);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    expect((await readConnection("x"))?.status).toBe("connected");
+    expect(await openAsks(chatId)).toEqual([]);
+    expect(xEvents(chatId)).toEqual([
+      { event: "declined", plan: "grok", slug: "x" },
+    ]);
+  });
+});

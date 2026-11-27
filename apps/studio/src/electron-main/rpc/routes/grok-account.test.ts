@@ -5,8 +5,8 @@ import { type InitialRPCContext } from "../context";
 import { grokAccount } from "./grok-account";
 
 const mocks = vi.hoisted(() => ({
+  appChanged: vi.fn(() => Promise.resolve()),
   grokPlanSignedInHere: vi.fn(() => Promise.resolve(undefined)),
-  settleConnection: vi.fn(() => Promise.resolve()),
   signInWithGrok: vi.fn(),
 }));
 
@@ -20,9 +20,6 @@ vi.mock("@/electron-main/lib/grok-account", () => ({
   signInWithGrok: mocks.signInWithGrok,
   signOutOfGrok: vi.fn(),
 }));
-vi.mock("@/electron-main/lib/app-connection", () => ({
-  settleConnection: mocks.settleConnection,
-}));
 vi.mock("@/electron-main/stores/workspace/provider-configs", () => ({
   setProviderConfigEnabled: vi.fn(),
 }));
@@ -30,6 +27,7 @@ vi.mock(
   import("@instrument-org/workspace/electron"),
   async (importOriginal) => ({
     ...(await importOriginal()),
+    appChanged: mocks.appChanged,
     grokPlanSignedInHere: mocks.grokPlanSignedInHere,
   }),
 );
@@ -69,16 +67,18 @@ describe("grokAccount.signIn", () => {
     await call(grokAccount.signIn, { forApp: "x", opensIn: "app" }, options);
 
     expect(mocks.grokPlanSignedInHere).not.toHaveBeenCalled();
-    expect(mocks.settleConnection).not.toHaveBeenCalled();
+    expect(mocks.appChanged).not.toHaveBeenCalled();
   });
 
-  it("turns down the row that asked when the sign-in is turned down on xAI's page", async () => {
+  it("turns down the plan row that asked when the sign-in is turned down on xAI's page", async () => {
     mocks.signInWithGrok.mockResolvedValue({ outcome: "declined" });
 
     await call(grokAccount.signIn, { forApp: "x", opensIn: "app" }, options);
 
-    expect(mocks.settleConnection).toHaveBeenCalledWith("x", {
-      status: "declined",
+    // The plan's, never the site's connection.
+    expect(mocks.appChanged).toHaveBeenCalledWith("x", {
+      event: "declined",
+      plan: "grok",
     });
   });
 
@@ -88,6 +88,6 @@ describe("grokAccount.signIn", () => {
     mocks.signInWithGrok.mockResolvedValue({ outcome: "canceled" });
     await call(grokAccount.signIn, { forApp: "x", opensIn: "app" }, options);
 
-    expect(mocks.settleConnection).not.toHaveBeenCalled();
+    expect(mocks.appChanged).not.toHaveBeenCalled();
   });
 });

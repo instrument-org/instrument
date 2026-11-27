@@ -212,11 +212,17 @@ async function step(
   ) {
     // Not now from another device: this computer turns down every app on
     // the card not connected or turned down already, as read now, as its
-    // own Not now does, and the card settles.
+    // own Not now does, and the card settles. A Grok plan row is turned
+    // down on the card alone (`refreshSignIn`), never on X's connection.
     for (const app of (await signInProgress(ask.apps)) ?? []) {
       if (app.standing !== "connected" && app.standing !== "declined") {
-        await recordConnection(app.slug, { status: "declined" });
-        await appChanged(app.slug, { event: "declined" });
+        if (app.plan === undefined) {
+          await recordConnection(app.slug, { status: "declined" });
+        }
+        await appChanged(app.slug, {
+          event: "declined",
+          ...(app.plan && { plan: app.plan }),
+        });
       }
     }
     return refreshSignIn(chatId, ask.id, undefined, workspaceRef);
@@ -745,7 +751,19 @@ export async function refreshSignIn(
   }
   const { ask } = state;
   const taken = ask.stage.is === "taken" ? ask.stage.answer : undefined;
-  const progress = await signInProgress(ask.apps);
+  // A Grok plan row's decline is kept on the card, never on X's own
+  // connection, which is its site's: Not now from any device (the ask
+  // taken) turns it down, and so does the event of the plan turned down.
+  const asked = ask.apps.map((app) =>
+    app.plan !== undefined &&
+    (taken !== undefined ||
+      (event?.event === "declined" &&
+        event.plan === app.plan &&
+        event.slug === app.slug))
+      ? { ...app, standing: "declined" as const }
+      : app,
+  );
+  const progress = await signInProgress(asked);
   // Every app on it is gone since it asked: nothing left to answer.
   if (progress === undefined) {
     return close(
@@ -783,7 +801,10 @@ export async function refreshSignIn(
       others.map((app) =>
         app.standing === "connected"
           ? connectedEvent(app.slug, ask.askedAt, app.plan)
-          : appEventOf(app.slug, { event: "declined" }),
+          : appEventOf(app.slug, {
+              event: "declined",
+              ...(app.plan && { plan: app.plan }),
+            }),
       ),
     )),
   ];

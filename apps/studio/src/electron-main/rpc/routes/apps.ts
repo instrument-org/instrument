@@ -1174,10 +1174,24 @@ const setAccount = base
     await appChanged(input.slug);
   });
 
-/** "Not now" on the card. */
+/**
+ * "Not now" on the card. A row asking for X's Grok plan turns the plan down
+ * on the cards waiting on it, and leaves the app's own connection, which
+ * is its site's.
+ */
 const dismiss = base
-  .input(z.object({ slug: AppSlugSchema }))
+  .input(
+    z.object({
+      /** For a row asking for the Grok plan the app's search runs on. */
+      plan: z.literal("grok").optional(),
+      slug: AppSlugSchema,
+    }),
+  )
   .handler(async ({ input }) => {
+    if (input.plan !== undefined) {
+      await appChanged(input.slug, { event: "declined", plan: input.plan });
+      return;
+    }
     await settleConnection(input.slug, { status: "declined" });
   });
 

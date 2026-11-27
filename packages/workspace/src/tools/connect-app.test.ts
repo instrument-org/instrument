@@ -2,7 +2,7 @@ import { AIProviderConfigIdSchema } from "@instrument-org/shared";
 import ms from "ms";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { readConnection } from "../lib/apps/connection";
+import { readConnection, recordConnection } from "../lib/apps/connection";
 import { signInProgress } from "../lib/apps/sign-in-group";
 import { type AppManifest } from "../lib/apps/manifest";
 import { createMemoryAppsConfig } from "../lib/apps/memory-config";
@@ -411,6 +411,8 @@ describe("connect_app for X", () => {
         kind: "sign-in",
       }),
     ]);
+    // The row asks for the plan alone, and writes nothing on X's site.
+    expect(await readConnection("x")).toBeUndefined();
     expect(ConnectApp.toModelOutput({ input: INPUT, output, toolCallId: "1" }))
       .toMatchInlineSnapshot(`
       {
@@ -460,17 +462,20 @@ describe("connect_app for X", () => {
     expect(await readConnection("x")).toMatchObject({ status: "connected" });
   });
 
-  it("answers the plan's row once a plan is signed in, whatever the site's sign-in", async () => {
-    const lisbon = await chat();
-    await ask(lisbon, ["x"]);
-    const row = [{ name: "X", plan: "grok" as const, slug: "x" }];
-    expect(await signInProgress(row)).toEqual([
-      { ...row[0], standing: "waiting" },
+  it("answers the plan's row by the plan and the card, whatever the site's sign-in", async () => {
+    await recordConnection("x", { status: "declined" });
+    const row = { name: "X", plan: "grok" as const, slug: "x" };
+    expect(await signInProgress([row])).toEqual([
+      { ...row, standing: "waiting" },
+    ]);
+    // Turned down on the card, which keeps it.
+    expect(await signInProgress([{ ...row, standing: "declined" }])).toEqual([
+      { ...row, standing: "declined" },
     ]);
 
     plan.signedIn = true;
-    expect(await signInProgress(row)).toEqual([
-      { ...row[0], standing: "connected" },
+    expect(await signInProgress([{ ...row, standing: "declined" }])).toEqual([
+      { ...row, standing: "connected" },
     ]);
   });
 

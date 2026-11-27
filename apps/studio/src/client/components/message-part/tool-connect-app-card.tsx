@@ -19,7 +19,10 @@ import { connectLine } from "@/client/lib/connect-copy";
 import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { type ConnectAppResult } from "@instrument-org/workspace/client";
+import {
+  type ConnectAppResult,
+  type SignInAsk,
+} from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
@@ -55,9 +58,15 @@ const LIST = new Intl.ListFormat("en", { type: "conjunction" });
  * the user skipped.
  */
 export function ConnectAppCard({
+  asked,
   reason,
   rows,
 }: {
+  /**
+   * The rows as this computer last wrote them on the chat's sign-in, which
+   * keep a Grok plan row's decline: the plan is not the app's connection.
+   */
+  asked?: SignInAsk["apps"];
   reason: string;
   rows: Row[];
 }) {
@@ -66,6 +75,13 @@ export function ConnectAppCard({
   const signInsWaiting = useAtomValue(signInsWaitingAtom);
   const siteSignIns = useSiteSignIns();
   const plan = useGrokPlanRow(rows.some((row) => row.plan !== undefined));
+  const planDeclined = (slug: string) =>
+    asked?.some(
+      (app) =>
+        app.slug === slug &&
+        app.plan !== undefined &&
+        app.standing === "declined",
+    ) ?? false;
   // The row the user pressed, up for as long as it has anything to press.
   const [picked, setPicked] = useState<string>();
   const dismiss = useMutation(rpcClient.apps.dismiss.mutationOptions());
@@ -81,7 +97,7 @@ export function ConnectAppCard({
       return "removed";
     }
     if (row.plan !== undefined) {
-      return plan.status(app.status);
+      return plan.status(planDeclined(row.slug));
     }
     // Another try at a failed sign-in waits like any other.
     if (signInsWaiting.has(row.slug) && app.status !== "connected") {
@@ -137,7 +153,12 @@ export function ConnectAppCard({
 
   const skipTheRest = () => {
     Promise.all(
-      left.map((row) => dismiss.mutateAsync({ slug: row.slug })),
+      left.map((row) =>
+        dismiss.mutateAsync({
+          slug: row.slug,
+          ...(row.plan && { plan: row.plan }),
+        }),
+      ),
     ).catch((error: unknown) => {
       toast.error("Couldn't skip the rest", { cause: error });
     });
@@ -473,8 +494,9 @@ function ConnectRow({
 
 /**
  * A row asking for the Grok plan X's search runs on: it stands by the plan
- * on this computer, connected once any account of it can be used, and its
- * button is the plan's own sign-in, the one Settings and X's page start.
+ * on this computer, connected once any account of it can be used, or by
+ * the card, which keeps its decline; its button is the plan's own sign-in,
+ * the one Settings and X's page start.
  */
 function useGrokPlanRow(enabled: boolean) {
   const { data } = useQuery({
@@ -504,10 +526,10 @@ function useGrokPlanRow(enabled: boolean) {
         }
       }
     },
-    status: (appStatus: ListedApp["status"]): RowStatus =>
+    status: (declined: boolean): RowStatus =>
       data?.accounts.some((account) => account.state === "signed-in")
         ? "connected"
-        : appStatus === "declined"
+        : declined
           ? "declined"
           : isBusy
             ? "waiting"

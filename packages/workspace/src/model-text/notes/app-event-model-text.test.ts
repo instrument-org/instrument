@@ -50,6 +50,35 @@ describe("the note an app event wakes the chat with", () => {
     `);
   });
 
+  it("tells a Grok plan turned down for X as the plan's", () => {
+    expect(
+      appEventModelNote({
+        apps: {},
+        events: [
+          {
+            event: "declined",
+            name: "X",
+            plan: "grok",
+            slug: "x",
+            web: "https://x.com",
+          },
+        ],
+        signIns: [
+          { name: "X", plan: "grok", slug: "x", standing: "declined" },
+          { name: "Linear", slug: "linear", standing: "connected" },
+        ],
+      }),
+    ).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      An app changed:
+      - The user declined to sign in to their Grok plan, which X (x) searches on. Do not ask again unless they bring it up; say in a line that searching X needs it, and carry on with what you can.
+      Every app on your sign-in card is answered, and this is the one note it sends: connected: Linear (linear); skipped by the user: the Grok plan for X (x). Answer it in one message: which apps are connected, as which account where it is named, and which the user skipped.
+      Nobody typed anything; this note is why you are awake. Tell the user in one line where things stand, and finish what they asked for if it was waiting on this.
+      </instrument-system-note>"
+    `);
+  });
+
   it("has a service's unnamed account asked for before the reply", () => {
     expect(
       appEventModelNote({

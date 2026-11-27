@@ -20,7 +20,8 @@ const { mocks, mutation, query } = vi.hoisted(() => ({
     signIn: vi.fn<() => Promise<unknown>>(),
     declineSignIn:
       vi.fn<(input: { askId: string; id: string }) => Promise<unknown>>(),
-    dismiss: vi.fn<(input: { slug: string }) => Promise<unknown>>(),
+    dismiss:
+      vi.fn<(input: { plan?: string; slug: string }) => Promise<unknown>>(),
     markWebSignedIn:
       vi.fn<(input: { chatId?: string; slug: string }) => Promise<unknown>>(),
     setCredential: vi.fn<(input: object) => Promise<unknown>>(),
@@ -939,8 +940,8 @@ describe("X's row asking for the Grok plan", () => {
       },
     ],
   });
-  const show = () => {
-    renderCard(undefined, {
+  const show = (chatId?: string) => {
+    renderCard(chatId, {
       apps: [
         {
           kind: "web",
@@ -954,6 +955,21 @@ describe("X's row asking for the Grok plan", () => {
       ],
     });
   };
+  /** This computer's sign-in for the call, its plan row standing so. */
+  const asked = (standing: "declined" | "waiting") => ({
+    answerable: true,
+    apps: [{ name: "X", plan: "grok", slug: "x", standing }],
+    askedAt: new Date(1),
+    askers: [],
+    computer: "Studio Mac",
+    device: "dev_0WNER000",
+    here: true,
+    id: "ask-1",
+    kind: "sign-in",
+    live: standing === "waiting",
+    messageId: StoreId.newMessageId(),
+    partId: PART_ID,
+  });
 
   it("asks for the plan, whatever the site's sign-in", async () => {
     mocks.apps.mockResolvedValue(x("connected"));
@@ -973,5 +989,29 @@ describe("X's row asking for the Grok plan", () => {
     show();
 
     expect(await screen.findByText("X connected")).toBeTruthy();
+  });
+
+  it("turns down the plan alone on Not now", async () => {
+    mocks.apps.mockResolvedValue(x("connected"));
+    mocks.signIn.mockResolvedValue(asked("waiting"));
+    mocks.dismiss.mockResolvedValue(undefined);
+    show("2026-11-27-x");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Not now" }));
+
+    await waitFor(() => {
+      expect(mocks.dismiss).toHaveBeenCalledWith(
+        { plan: "grok", slug: "x" },
+        expect.anything(),
+      );
+    });
+  });
+
+  it("reads the plan turned down from the card, whatever the site's sign-in", async () => {
+    mocks.apps.mockResolvedValue(x("connected"));
+    mocks.signIn.mockResolvedValue(asked("declined"));
+    show("2026-11-27-x");
+
+    expect(await screen.findByText("You skipped X.")).toBeTruthy();
   });
 });

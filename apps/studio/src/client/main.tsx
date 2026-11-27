@@ -9,6 +9,7 @@ import { initBeforeLeaving } from "./lib/before-leaving";
 import { initBrowserNavigationNotices } from "./lib/browser-navigation-notices";
 import { initBrowserPool } from "./lib/browser-pool";
 import { initExceptionCapture } from "./lib/capture-exception";
+import { firstAnswers } from "./lib/first-answers";
 import { initNetworkStatusForwarding } from "./lib/network-status-forwarding";
 import { reportClosedRPCPort } from "./lib/report-closed-rpc-port";
 import { initDebugRpcBridge } from "./lib/debug-rpc-bridge";
@@ -64,4 +65,9 @@ function start() {
   }
 }
 
-start();
+// An app window draws once what its layout needs is in (`firstAnswers`).
+if (window.api.windowType === "app") {
+  void firstAnswers().then(start);
+} else {
+  start();
+}

@@ -1,5 +1,5 @@
 diff --git a/dist/chrome-extension-api.preload.js b/dist/chrome-extension-api.preload.js
-index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..9cb78674e860d6615de8a57121dcbc185d33961d 100644
+index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..28744774bafee446743b0c2e2266c2d1f685a562 100644
 --- a/dist/chrome-extension-api.preload.js	
 +++ b/dist/chrome-extension-api.preload.js	
 @@ -114,6 +114,34 @@
@@ -75,7 +75,26 @@ index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..9cb78674e860d6615de8a57121dcbc18
                onChanged: new ExtensionEvent("downloads.onChanged"),
                onCreated: new ExtensionEvent("downloads.onCreated"),
                onDeterminingFilename: new ExtensionEvent("downloads.onDeterminingFilename"),
-@@ -442,6 +471,9 @@
+@@ -361,6 +390,18 @@
+             };
+           }
+         },
++        // Answered by the app: the web sign-in flow alone, since the
++        // browser has no Google account for getAuthToken to hand out.
++        identity: {
++          shouldInject: () => manifest.permissions?.includes("identity"),
++          factory: (base) => {
++            return {
++              ...base,
++              getRedirectURL: (path = "") => `https://${extensionId}.chromiumapp.org/${String(path).replace(/^\//, "")}`,
++              launchWebAuthFlow: invokeExtension2("identity.launchWebAuthFlow")
++            };
++          }
++        },
+         i18n: {
+           shouldInject: () => manifest.manifest_version === 3,
+           factory: (base) => {
+@@ -442,6 +483,9 @@
                  electron.connectNative(extensionId, application, receive, disconnect, callback);
                  return port;
                },
@@ -85,7 +104,7 @@ index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..9cb78674e860d6615de8a57121dcbc18
                openOptionsPage: invokeExtension2("runtime.openOptionsPage"),
                sendNativeMessage: invokeExtension2("runtime.sendNativeMessage")
              };
-@@ -568,6 +600,14 @@
+@@ -568,6 +612,14 @@
        });
        delete globalThis.electron;
        Object.freeze(chrome);

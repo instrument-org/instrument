@@ -61,6 +61,7 @@ import {
   reportedCommand,
 } from "./extension-commands";
 import { answerDownloadCalls } from "./extension-download-calls";
+import { answerIdentityCalls } from "./extension-identity";
 import { unsupportedFeatures } from "./extension-support";
 import {
   addVersion,
@@ -283,6 +284,14 @@ export function enableBrowserExtensions(
       .map((command) => reportedCommand(command, OS)),
   );
   answerDownloadCalls(extensions, guestSession);
+  answerIdentityCalls(extensions, guestSession, () => {
+    const host =
+      currentTab && !currentTab.isDestroyed() ? currentTab.hostWebContents : null;
+    return (
+      (host && !host.isDestroyed() ? BrowserWindow.fromWebContents(host) : null) ??
+      BrowserWindow.getFocusedWindow()
+    );
+  });
   installChromeWebStore({
     autoUpdate: false,
     beforeInstall: confirmInstall,

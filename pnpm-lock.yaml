@@ -78,7 +78,7 @@ patchedDependencies:
   '@extend-ai/react-docx@0.15.0': e7a6a5a08d4a4e777d68fa74bd5f232beb75c8aa3e10a0acf1c51abcf4c9d04d
   '@milkdown/plugin-block@7.22.3': b9318632951eb16125b92ecbd278cb0ec78cb55b6d3470261e4d68edb9b61a4c
   conf@14.0.0: 56254a98f20461a96d6b30db95d31a459ca15443a73844e166da79dcb6392d02
-  electron-chrome-extensions@4.10.0: 1a6206f27d617d1ab7005403af3e8eddcb7fca4b1e18ed8bf900faed726703b6
+  electron-chrome-extensions@4.10.0: 957fc1b6200ac4a827390932d3ba95995cb9bd50bdabd1a396314256f7b2ed62
   just-bash@3.6.0: f0787821917675ca1a7027d15aee8d5e93548d77cfdfe71a04c16bdc02ab7e6c
   sonner@2.0.7: 818c476ad2cc99c02030f98fa6a5bfe80737406b81613aeb90e545efb7e4ecdf
 
@@ -193,7 +193,7 @@ importers:
         version: 3.3.2
       electron-chrome-extensions:
         specifier: 4.10.0
-        version: 4.10.0(patch_hash=1a6206f27d617d1ab7005403af3e8eddcb7fca4b1e18ed8bf900faed726703b6)(supports-color@10.1.0)
+        version: 4.10.0(patch_hash=957fc1b6200ac4a827390932d3ba95995cb9bd50bdabd1a396314256f7b2ed62)(supports-color@10.1.0)
       electron-chrome-web-store:
         specifier: 0.13.0
         version: 0.13.0(supports-color@10.1.0)
@@ -15345,7 +15345,7 @@ snapshots:
       - electron-builder-squirrel-windows
       - supports-color
 
-  electron-chrome-extensions@4.10.0(patch_hash=1a6206f27d617d1ab7005403af3e8eddcb7fca4b1e18ed8bf900faed726703b6)(supports-color@10.1.0):
+  electron-chrome-extensions@4.10.0(patch_hash=957fc1b6200ac4a827390932d3ba95995cb9bd50bdabd1a396314256f7b2ed62)(supports-color@10.1.0):
     dependencies:
       debug: 4.4.3(supports-color@10.1.0)
     transitivePeerDependencies:

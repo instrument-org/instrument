@@ -69,7 +69,6 @@ describe("unsupportedFeatures", () => {
         ],
         "Grammarly": [
           "Side panel",
-          "Signing in through the browser",
         ],
         "JSON Formatter": [],
         "Momentum": [

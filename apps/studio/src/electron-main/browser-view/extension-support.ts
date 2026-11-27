@@ -29,7 +29,8 @@ const FEATURES: [feature: string, permissions: string[]][] = [
   ["Blocking content on pages", BLOCKING_PERMISSIONS],
   ["Seeing what pages load", ["webRequest"]],
   ["Side panel", ["sidePanel"]],
-  ["Signing in through the browser", ["identity"]],
+  // `getAuthToken`, which reads `oauth2`; `launchWebAuthFlow` works.
+  ["Signing in through the browser", []],
   ["User scripts", ["userScripts"]],
   ["Tab groups", ["tabGroups"]],
   ["Recording tabs or the screen", ["tabCapture", "desktopCapture"]],

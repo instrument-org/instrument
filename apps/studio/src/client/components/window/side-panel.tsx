@@ -26,6 +26,11 @@ import {
   StudioSidebarRail,
 } from "@/client/components/studio-sidebar-rail";
 import { contextMenuComponents } from "@/client/components/ui/menu-components";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { useWindow } from "@/client/components/window/context";
 import { APPS_HREF } from "@/client/atoms/window";
 import {
@@ -61,6 +66,7 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { CloudIcon } from "@phosphor-icons/react/Cloud";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
+import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
@@ -72,6 +78,7 @@ import { useQuery } from "@tanstack/react-query";
 import { atom, useAtomValue, useSetAtom, useStore } from "jotai";
 import {
   type ComponentProps,
+  type ReactElement,
   type ReactNode,
   type RefObject,
   useEffect,
@@ -566,22 +573,28 @@ function AppsSection({
       <Heading opens={{ onClick: onAll }}>Apps</Heading>
       <div className="flex flex-wrap gap-0.5 px-0.5">
         {apps.map((app) => (
-          <button
-            aria-label={app.name}
-            className="grid size-8 cursor-default place-items-center rounded-lg hover:bg-foreground/6 data-[state=open]:bg-foreground/6"
-            key={app.slug}
-            {...appClicks(app, open, openScreen)}
-            title={app.name}
-            type="button"
-          >
-            <AppIcon
-              className="size-5"
-              icon={app.icon}
-              name={app.name}
-              site={app.site}
-              size="sm"
-            />
-          </button>
+          // Below the icon, clear of the window's top edge the row sits by.
+          <Tooltip key={app.slug}>
+            <AppMenu app={app} open={open} openScreen={openScreen}>
+              <TooltipTrigger asChild>
+                <button
+                  aria-label={app.name}
+                  className="grid size-8 cursor-default place-items-center rounded-lg hover:bg-foreground/6 data-[state=open]:bg-foreground/6"
+                  {...appClicks(app, open, openScreen)}
+                  type="button"
+                >
+                  <AppIcon
+                    className="size-5"
+                    icon={app.icon}
+                    name={app.name}
+                    site={app.site}
+                    size="sm"
+                  />
+                </button>
+              </TooltipTrigger>
+            </AppMenu>
+            <TooltipContent side="bottom">{app.name}</TooltipContent>
+          </Tooltip>
         ))}
       </div>
     </>
@@ -608,6 +621,66 @@ function appClicks(app: OwnApp, open: OpenAddress, openScreen: OpenAddress) {
   };
 }
 
+/**
+ * The menu over one of the panel's apps: opening it here or in a place of
+ * the window's own, as over a bookmark, then Manage, its page in Instrument,
+ * where a press goes to its site instead.
+ */
+function AppMenu({
+  app,
+  children,
+  open,
+  openScreen,
+}: {
+  app: OwnApp;
+  children: ReactElement;
+  open: OpenAddress;
+  openScreen: OpenAddress;
+}) {
+  const placesOf = useWindowPlaces();
+  const page = `/apps/${app.slug}`;
+  const { opensAt } = app;
+  const go = (options?: Parameters<OpenAddress>[1]) => {
+    if (opensAt === undefined) {
+      openScreen(page, options);
+    } else {
+      open(opensAt, options);
+    }
+  };
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuContent className="min-w-52">
+        <ContextMenuItem
+          onClick={() => {
+            go();
+          }}
+        >
+          <ArrowSquareInIcon className="size-4" />
+          <span>Open</span>
+        </ContextMenuItem>
+        <PlaceItems
+          components={contextMenuComponents}
+          destinations={placesOf(go)}
+        />
+        {opensAt !== undefined && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              onClick={() => {
+                openScreen(page);
+              }}
+            >
+              <GearSixIcon className="size-4" />
+              <span>Manage</span>
+            </ContextMenuItem>
+          </>
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
 /** Every app of the person's by name, then the way to the Apps page, where another is added. */
 function AllApps({
   open,
@@ -620,21 +693,22 @@ function AllApps({
   return (
     <PanelScroll>
       {apps.map((app) => (
-        <button
-          className={ROW}
-          key={app.slug}
-          {...appClicks(app, open, openScreen)}
-          type="button"
-        >
-          <AppIcon
-            className="size-4 shrink-0"
-            icon={app.icon}
-            name={app.name}
-            site={app.site}
-            size="sm"
-          />
-          <span className="min-w-0 truncate">{app.name}</span>
-        </button>
+        <AppMenu app={app} key={app.slug} open={open} openScreen={openScreen}>
+          <button
+            className={ROW}
+            {...appClicks(app, open, openScreen)}
+            type="button"
+          >
+            <AppIcon
+              className="size-4 shrink-0"
+              icon={app.icon}
+              name={app.name}
+              site={app.site}
+              size="sm"
+            />
+            <span className="min-w-0 truncate">{app.name}</span>
+          </button>
+        </AppMenu>
       ))}
       <AddAppRow openScreen={openScreen} />
     </PanelScroll>
@@ -945,7 +1019,6 @@ function PlaceRow({ open, place }: { open: OpenAddress; place: Place }) {
           onPointerDown={(event) => {
             pressPlace(event, { ...place, shortcut: true });
           }}
-          title={place.path}
           type="button"
         >
           <span className="flex size-4 shrink-0 items-center justify-center">
@@ -1315,7 +1388,6 @@ function BookmarkTree({
                     );
                   }}
                   style={indent(row.depth)}
-                  title={folder.title}
                   type="button"
                 >
                   <DropLine at={line} />
@@ -1346,7 +1418,7 @@ function BookmarkTree({
                   pressBookmark(event, bookmark);
                 }}
                 style={indent(row.depth)}
-                title={`${bookmarkName(bookmark)}\n${bookmark.url}`}
+                title={bookmark.url}
                 type="button"
               >
                 <DropLine at={line} />

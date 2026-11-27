@@ -349,10 +349,22 @@ export class FarRows {
       if (state.height === undefined) {
         touched.add(state.turn);
       }
+      // Heights taken at other widths are of what it had then.
+      if (state.width === width && state.inner !== inner) {
+        state.innerAt.clear();
+      }
       state.height = entry.borderBoxSize[0]?.blockSize ?? 0;
       state.inner = inner;
       state.width = width;
+      state.innerAt.delete(width);
       state.innerAt.set(width, inner);
+      // The last few widths: a zoom and back, not every step of a drag.
+      for (const old of state.innerAt.keys()) {
+        if (state.innerAt.size <= KEPT_WIDTHS) {
+          break;
+        }
+        state.innerAt.delete(old);
+      }
     }
     for (const turn of touched) {
       this.update(turn);
@@ -485,6 +497,9 @@ const NEAR_SCREENS = 2;
 /** A box once further than this many. */
 const FAR_SCREENS = 3;
 
+/** How many widths a row keeps the height it measured at. */
+const KEPT_WIDTHS = 4;
+
 interface BoxedContent {
   ids: ReadonlySet<string>;
   words: string;
@@ -501,7 +516,10 @@ interface RowState {
   inner: number | undefined;
   /** Its content box's width, in whole layout px, that `inner` is for. */
   width: number | undefined;
-  /** Its content box's height as measured at each width it was drawn at. */
+  /**
+   * Its content box's height as measured at the last few widths it was drawn
+   * at, since its content last changed.
+   */
   innerAt: Map<number, number>;
   /** Within the band: came within `NEAR_SCREENS` and has not gone past `FAR_SCREENS`. */
   isNear: boolean;

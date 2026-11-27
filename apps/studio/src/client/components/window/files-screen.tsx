@@ -1305,7 +1305,14 @@ export function FilesScreen({
                                   )}
                               </>
                             ) : (
-                              <div className="relative size-full">
+                              <div
+                                className={cn(
+                                  "relative size-full",
+                                  // Square at the bottom left against the folder.
+                                  isFolderShown &&
+                                    "[--guest-bottom-radius:0_var(--pane-bottom-right-radius,18px)]",
+                                )}
+                              >
                                 <div className="contents" inert={isVersionOver}>
                                   {refusedView ?? (
                                     <FileViewer

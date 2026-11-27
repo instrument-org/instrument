@@ -2,6 +2,7 @@ import { FieldKeys } from "@/client/components/field-keys";
 import { displayLocale } from "@/client/lib/display-locale";
 import { useFindTarget } from "@/client/hooks/use-find-target";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import { guestBottomCorners } from "@/client/lib/guest-bottom-radius";
 import { logger } from "@/client/lib/logger";
 import { cn, commandKeyHeld } from "@/client/lib/utils";
 import { type ReferenceElement } from "@floating-ui/dom";
@@ -776,6 +777,18 @@ export function DataGrid({
               // answers with the range, what the reader can see highlighted is
               // not what lands on their clipboard.
               className="min-h-0 flex-1 overflow-auto outline-none select-none scroll-fade-none focus-visible:outline-[2px] focus-visible:-outline-offset-2 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]"
+              // Its ring is drawn inside its edges, so it takes the bottom
+              // corners of the pane it fills, which would otherwise clip it.
+              onFocus={(event) => {
+                if (event.target !== event.currentTarget) {
+                  return;
+                }
+                const { bottomLeft, bottomRight } = guestBottomCorners(
+                  event.currentTarget,
+                );
+                event.currentTarget.style.borderBottomLeftRadius = bottomLeft;
+                event.currentTarget.style.borderBottomRightRadius = bottomRight;
+              }}
               onKeyDown={moveSelection}
               onPaste={(event) => {
                 if (edit && !editing) {

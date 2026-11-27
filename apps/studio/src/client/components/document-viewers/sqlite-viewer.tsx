@@ -72,11 +72,19 @@ export function SqliteViewer({ url }: { url: string }) {
           grid rather than inheriting the sort, filter and hidden columns the
           reader set up for the last one, all of which are held by column
           position and would land on unrelated data. */}
-      <TableContents
-        db={database.db}
-        key={`${url}:${active.name}`}
-        table={active}
-      />
+      {/* With the tabs below it, the grid's bottom corners are square. */}
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col",
+          database.tables.length > 1 && "[--guest-bottom-radius:0px]",
+        )}
+      >
+        <TableContents
+          db={database.db}
+          key={`${url}:${active.name}`}
+          table={active}
+        />
+      </div>
 
       {database.tables.length > 1 && (
         <div className="shrink-0 border-t border-border/60">

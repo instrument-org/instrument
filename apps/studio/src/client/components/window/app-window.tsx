@@ -808,7 +808,7 @@ function WindowShell({
     if (read) {
       setSidesFit(read.fits);
     }
-  }, [rowElement, groupUpSides, sidePanelWidth, sidebarWidth]);
+  }, [rowElement, groupUpSides, setSidesFit, sidePanelWidth, sidebarWidth]);
   // Every screen a group's tab stands on is walked by a router of its own.
   useGroupTabRouters(windowTabs.allTabs, windowTabs.screenMoved);
 

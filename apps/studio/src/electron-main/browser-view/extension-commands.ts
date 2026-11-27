@@ -169,7 +169,7 @@ export function assignCommands(
 }
 
 /** Whether two chords are pressed the same way. */
-export function isSameChord(a: Chord, b: Chord): boolean {
+function isSameChord(a: Chord, b: Chord): boolean {
   return (
     a.alt === b.alt &&
     a.control === b.control &&

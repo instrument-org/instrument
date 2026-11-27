@@ -62,6 +62,7 @@ import {
 } from "./extension-commands";
 import { answerDownloadCalls } from "./extension-download-calls";
 import { answerIdentityCalls } from "./extension-identity";
+import { answerSidePanelCalls } from "./extension-side-panels";
 import { unsupportedFeatures } from "./extension-support";
 import {
   addVersion,
@@ -292,6 +293,7 @@ export function enableBrowserExtensions(
       BrowserWindow.getFocusedWindow()
     );
   });
+  answerSidePanelCalls(extensions, guestSession, () => currentTab);
   installChromeWebStore({
     autoUpdate: false,
     beforeInstall: confirmInstall,

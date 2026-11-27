@@ -7,6 +7,7 @@ import { createKeptHistories } from "@/electron-main/browser-view/kept-histories
 import { publisher } from "@/electron-main/rpc/publisher";
 import { keptOpenerOfTab } from "@/electron-main/stores/workspace/kept-state";
 import { keepsHistory } from "@/electron-main/stores/workspace/preferences";
+import { targetIdFromSidePanelPartition } from "@/shared/browser-extensions";
 import {
   type BrowserGuestTarget,
   type GuestLastLoad,
@@ -48,6 +49,7 @@ import {
   registerPopupTab,
   selectExtensionTab,
 } from "./extensions";
+import { isExtensionSidePanelAt } from "./extension-side-panels";
 import {
   advanceEntry,
   type BrowserEntry,
@@ -1060,13 +1062,39 @@ function createBrowserViewManager(): BrowserViewManager {
     // guest it hands over carries nothing naming its target. The entry rather
     // than its id, so a target removed and created again in between is not
     // bound to the guest mounted for the one before it.
-    const pendingAttachQueue: BrowserEntry[] = [];
+    // An extension's side panel takes its turn in the queue as null.
+    const pendingAttachQueue: (BrowserEntry | null)[] = [];
     host.on("will-attach-webview", (event, webPreferences, params) => {
+      const panelOf = targetIdFromSidePanelPartition(params.partition);
+      if (panelOf) {
+        const tab = entries.get(panelOf);
+        if (!tab || !isExtensionSidePanelAt(panelOf, params.src)) {
+          log.warn(
+            `rejected extension side panel attach targetId=${panelOf}`,
+          );
+          event.preventDefault();
+          return;
+        }
+        // The tab's session, where the extension runs, hardened as a tab's
+        // guest is below, with no preload but the extensions' own.
+        webPreferences.session = configureGuestSession(tab.partitionDir);
+        webPreferences.contextIsolation = true;
+        webPreferences.nodeIntegration = false;
+        webPreferences.sandbox = true;
+        webPreferences.allowRunningInsecureContent = false;
+        webPreferences.experimentalFeatures = false;
+        webPreferences.webSecurity = true;
+        webPreferences.transparent = false;
+        delete webPreferences.preload;
+        pendingAttachQueue.push(null);
+        return;
+      }
       const targetId = targetIdFromPartition(params.partition);
       if (!targetId) {
-        // Every `<webview>` the app mounts carries a target partition, so one
-        // without it came from elsewhere and would attach with whatever
-        // webPreferences its attributes asked for. Reject it.
+        // Every `<webview>` the app mounts carries a target or side panel
+        // partition, so one without either came from elsewhere and would
+        // attach with whatever webPreferences its attributes asked for.
+        // Reject it.
         log.warn(
           `rejected webview attach (foreign partition) partition=${params.partition ?? "none"}`,
         );

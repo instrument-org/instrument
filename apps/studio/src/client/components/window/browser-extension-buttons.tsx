@@ -19,6 +19,7 @@ import {
 } from "@/client/components/ui/popover";
 import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
 import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
+import { useGuest } from "@/client/hooks/use-browser-targets";
 import { useIsTaskPageVisible } from "@/client/hooks/use-task-page-visible";
 import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
@@ -31,6 +32,7 @@ import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
 import { PowerIcon } from "@phosphor-icons/react/Power";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
+import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { SlidersHorizontalIcon } from "@phosphor-icons/react/SlidersHorizontal";
 import { StorefrontIcon } from "@phosphor-icons/react/Storefront";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
@@ -46,6 +48,10 @@ import {
   useBrowserExtensions,
   useExtensionActions,
 } from "./browser-extensions";
+import {
+  closeExtensionSidePanel,
+  useIsExtensionSidePanelShown,
+} from "./extension-side-panel";
 
 /**
  * What a tab row too narrow for its address hides of the group: the pinned
@@ -115,7 +121,9 @@ export function openExtensionPopup(extensionId: string): void {
  * this browser gets an amber dot and, once, a popover with the steps.
  * With nothing installed the puzzle piece stands alone, so the menu that
  * leads to the store is in sight. Ad blocking's shield leads the group, as
- * the built-in extension it is, for the page in `targetId`.
+ * the built-in extension it is, for the page in `targetId`, which every
+ * button acts on. While that page's extension side panel shows, a button
+ * after the puzzle piece closes it.
  */
 export function BrowserExtensionButtons({
   targetId,
@@ -129,7 +137,11 @@ export function BrowserExtensionButtons({
   const opensShield = useRef(false);
   const hasShield = adBlocking.pinned || shieldOpen;
   const hasPinned = extensions.some((extension) => extension.pinned);
-  const isGrouped = hasPinned || hasShield;
+  const isPanelShown = useIsExtensionSidePanelShown(targetId);
+  // The buttons show and act on the row's own page, as each window's row
+  // does in Chrome; a split has a row per side.
+  const tabId = useGuest(targetId)?.webContentsId;
+  const isGrouped = hasPinned || hasShield || isPanelShown;
   const shown = useIsTaskPageVisible();
   const listRef = useRef<HTMLElement>(null);
   const [buttonMenu, setButtonMenu] = useState<null | {
@@ -258,6 +270,7 @@ export function BrowserExtensionButtons({
             className={cn(!hasPinned && "hidden", NARROW_ROW_HIDDEN)}
             partition={BROWSER_EXTENSIONS_SESSION}
             ref={listRef}
+            {...(tabId === undefined ? {} : { tab: tabId })}
           />
           <DropdownMenu
             modal={false}
@@ -318,6 +331,20 @@ export function BrowserExtensionButtons({
               <ManageItems />
             </DropdownMenuContent>
           </DropdownMenu>
+          {isPanelShown && targetId && (
+            <ToolbarTooltip label="Close Side Panel">
+              <button
+                aria-label="Close Side Panel"
+                className="grid size-7 shrink-0 place-items-center rounded-[calc(var(--radius-xl)-2px)] text-foreground/60 hover:bg-foreground/8 hover:text-foreground"
+                onClick={() => {
+                  closeExtensionSidePanel(targetId);
+                }}
+                type="button"
+              >
+                <SidebarSimpleIcon className="size-4 -scale-x-100" />
+              </button>
+            </ToolbarTooltip>
+          )}
           <DropdownMenu
             modal={false}
             onOpenChange={(open) => {

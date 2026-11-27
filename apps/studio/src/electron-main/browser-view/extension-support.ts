@@ -28,7 +28,6 @@ const BLOCKING_PERMISSIONS = [
 const FEATURES: [feature: string, permissions: string[]][] = [
   ["Blocking content on pages", BLOCKING_PERMISSIONS],
   ["Seeing what pages load", ["webRequest"]],
-  ["Side panel", ["sidePanel"]],
   // `getAuthToken`, which reads `oauth2`; `launchWebAuthFlow` works.
   ["Signing in through the browser", []],
   ["User scripts", ["userScripts"]],
@@ -65,7 +64,6 @@ const SupportManifestSchema = z.object({
       items.filter((item): item is string => typeof item === "string"),
     )
     .catch([]),
-  side_panel: z.unknown().optional(),
 });
 
 /** The features of an extension that will not work in the in-app browser, most noticeable first; empty when all of it should. */
@@ -81,7 +79,6 @@ export function unsupportedFeatures(manifest: unknown): string[] {
     "Default search engine": parsed.chrome_settings_overrides !== undefined,
     "New tab page": overrides.includes("newtab"),
     "Replacing browser pages": overrides.some((page) => page !== "newtab"),
-    "Side panel": parsed.side_panel !== undefined,
     "Signing in through the browser": parsed.oauth2 !== undefined,
   };
   const blocks = BLOCKING_PERMISSIONS.some((permission) =>

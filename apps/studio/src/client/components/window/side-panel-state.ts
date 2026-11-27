@@ -1,6 +1,11 @@
+import { browserTargetOf } from "@instrument-org/workspace/client";
 import { atom, useAtom, useAtomValue } from "jotai";
 import { useEffect, useEffectEvent, useRef } from "react";
 
+import {
+  closeExtensionSidePanel,
+  useExtensionSidePanelOf,
+} from "./extension-side-panel";
 import { type GroupLayout, type GroupOwn, isNewChatTab } from "./tab-model";
 import { useWindowTabs } from "./window-tabs";
 
@@ -55,7 +60,10 @@ const pickingIn = new Set<string>();
 /**
  * A group's side panel, shown or not, and the way to open or close it there.
  * One open in a window without room for it is not shown, and opening it
- * there shows it anyway until the room changes.
+ * there shows it anyway until the room changes. An extension's panel open
+ * in the tab up on the side with the keyboard shows in it whatever the
+ * group left it at, as Chrome shows one, and closing the panel closes that
+ * too.
  */
 export function useSidePanel(group: string | undefined) {
   const windowTabs = useWindowTabs();
@@ -63,14 +71,25 @@ export function useSidePanel(group: string | undefined) {
   const sidesFit = useAtomValue(sidesFitAtom);
   const [isShownWithoutRoom, setShownWithoutRoom] =
     useAtom(shownWithoutRoomAtom);
+  const layout = group === undefined ? undefined : windowTabs.layoutOf(group);
+  const side = layout?.sides[layout.focused];
+  const up = side?.tabs.find((tab) => tab.id === side.up);
+  const extensionPanel = useExtensionSidePanelOf(
+    up?.kind === "page" ? browserTargetOf(up.id) : undefined,
+  );
   const isOpen =
     group !== undefined &&
-    isSidePanelOpen(windowTabs.groupOwn[group], windowTabs.layoutOf(group)) &&
-    sidesFit &&
-    (hasRoom || isShownWithoutRoom);
+    layout !== undefined &&
+    (extensionPanel !== undefined ||
+      (isSidePanelOpen(windowTabs.groupOwn[group], layout) &&
+        sidesFit &&
+        (hasRoom || isShownWithoutRoom)));
   return {
     isOpen,
     setOpen: (open: boolean) => {
+      if (!open && extensionPanel) {
+        closeExtensionSidePanel(extensionPanel.targetId);
+      }
       if (group !== undefined) {
         setShownWithoutRoom(open && !hasRoom);
         windowTabs.setGroupOwn(group, { sidePanel: open });

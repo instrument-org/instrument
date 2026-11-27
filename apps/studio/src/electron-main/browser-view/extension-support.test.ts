@@ -67,9 +67,7 @@ describe("unsupportedFeatures", () => {
         "Google Keep": [
           "Signing in through the browser",
         ],
-        "Grammarly": [
-          "Side panel",
-        ],
+        "Grammarly": [],
         "JSON Formatter": [],
         "Momentum": [
           "New tab page",

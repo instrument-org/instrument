@@ -29,6 +29,17 @@ const ExtensionRecordSchema = z.object({
   optional: AccessSchema.catch(NONE),
   /** What its manifest may ask for: what the person agreed to as it was added, and since. */
   required: AccessSchema.catch(NONE),
+  /**
+   * What it set of its side panel for every tab: `chrome.sidePanel.setOptions`
+   * without a tab, and `setPanelBehavior`.
+   */
+  sidePanel: z
+    .object({
+      enabled: z.boolean().optional(),
+      openOnActionClick: z.boolean().optional(),
+      path: z.string().optional(),
+    })
+    .catch({}),
   /** The version that last ran. */
   version: z.string().nullable().catch(null),
 });

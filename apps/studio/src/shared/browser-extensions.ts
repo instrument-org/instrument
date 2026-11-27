@@ -1,4 +1,8 @@
 import { APP_NAME } from "@instrument-org/shared";
+import {
+  type BrowserTargetId,
+  BrowserTargetIdSchema,
+} from "@instrument-org/workspace/client";
 import { z } from "zod";
 
 /** An extension the in-app browser runs, as main lists it and the window draws it. */
@@ -25,6 +29,42 @@ export const BrowserExtensionSchema = z.object({
   version: z.string(),
 });
 export type BrowserExtension = z.output<typeof BrowserExtensionSchema>;
+
+/** An extension's page open in a tab's side panel (`chrome.sidePanel`), as main lists them for the windows. */
+export const ExtensionSidePanelSchema = z.object({
+  extensionId: z.string(),
+  name: z.string(),
+  targetId: BrowserTargetIdSchema,
+  url: z.string(),
+});
+export type ExtensionSidePanel = z.output<typeof ExtensionSidePanelSchema>;
+
+/**
+ * The `<webview>` partition a tab's extension side panel mounts with,
+ * naming the tab it belongs to: `will-attach-webview` reads it to give the
+ * panel the browser's session, as `browserPartition` does for a tab.
+ */
+const SIDE_PANEL_PARTITION_PREFIX = "persist:extension-side-panel:";
+
+export function sidePanelPartition(targetId: BrowserTargetId): string {
+  return `${SIDE_PANEL_PARTITION_PREFIX}${encodeURIComponent(targetId)}`;
+}
+
+export function targetIdFromSidePanelPartition(
+  partition: string | undefined,
+): BrowserTargetId | null {
+  if (!partition?.startsWith(SIDE_PANEL_PARTITION_PREFIX)) {
+    return null;
+  }
+  try {
+    const result = BrowserTargetIdSchema.safeParse(
+      decodeURIComponent(partition.slice(SIDE_PANEL_PARTITION_PREFIX.length)),
+    );
+    return result.success ? result.data : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * What the window's extension buttons name the in-app browser's session by;

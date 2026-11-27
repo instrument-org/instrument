@@ -45,6 +45,8 @@ interface PublisherEvents {
   // The browser's extensions changed: one was added, removed, turned on or
   // off, or has an update waiting on the person.
   "browser.extensions-changed": null;
+  // An extension's side panel opened, closed or moved to another page in a tab.
+  "browser.extension-side-panels-changed": null;
   // The Chrome Web Store's install button was pressed, or an extension asked
   // to be allowed more: the window asks, and answers by the ask's id.
   "browser.extension-install-asked": {

@@ -453,7 +453,12 @@ export function GroupItem({
   // keyboard, so a pick in it goes to this tab as a bookmark's does.
   const sidePanel =
     isShown && hasKeyboard ? (
-      <SidePanelHere group={group} onOpen={openHere} onVisit={takeOver} />
+      <SidePanelHere
+        group={group}
+        onOpen={openHere}
+        onVisit={takeOver}
+        targetId={targetId}
+      />
     ) : null;
 
   if (up.kind === "page") {

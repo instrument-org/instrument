@@ -58,7 +58,10 @@ import {
 } from "@/shared/bookmarks";
 import { folderHref } from "@/shared/computer-href";
 import { WINDOW_CARD_GAP, windowCardTop } from "@/shared/constants";
-import { type ChatId } from "@instrument-org/workspace/client";
+import {
+  type BrowserTargetId,
+  type ChatId,
+} from "@instrument-org/workspace/client";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ArrowSquareInIcon } from "@phosphor-icons/react/ArrowSquareIn";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
@@ -89,6 +92,11 @@ import { createPortal } from "react-dom";
 import { AddressMark } from "./app-chip";
 import { AppIcon } from "./app-icon";
 import { FolderEditor } from "./bookmark-editor";
+import {
+  ExtensionSidePanelView,
+  useExtensionSidePanelOf,
+  useExtensionSidePanelPages,
+} from "./extension-side-panel";
 import { FolderMark } from "./folder-mark";
 import { BookmarkNameDialog, FolderContextMenu } from "./bookmark-folders";
 import {
@@ -208,7 +216,9 @@ export function sidesFitBesidePanel(
  * changes, and is there while the panel is open or sliding shut. The tab
  * with the keyboard in the group up draws the panel into it
  * (`SidePanelHere`), so a pick goes to that tab. Its ground moves the
- * window, as the sidebar's does, past what takes a click.
+ * window, as the sidebar's does, past what takes a click. It keeps the
+ * pages of the extension side panels open in this window's tabs, whether
+ * shown or not.
  */
 export function SidePanelRail({
   group,
@@ -223,6 +233,7 @@ export function SidePanelRail({
   width: number;
 }) {
   const setSlot = useSetAtom(sidePanelSlotAtom);
+  useExtensionSidePanelPages();
   return (
     <StudioSidebarRail
       bounds={sidePanelBounds(width)}
@@ -279,17 +290,25 @@ export function SidePanelHere({
   group,
   onOpen,
   onVisit,
+  targetId,
 }: {
   group: string;
   onOpen: (url: string) => void;
   onVisit: (href: string) => void;
+  /** The page this tab shows, whose extension side panel, when it has one open, shows in place of the panel's own contents. */
+  targetId: BrowserTargetId | undefined;
 }) {
   const slot = useAtomValue(sidePanelSlotAtom);
+  const extensionPanel = useExtensionSidePanelOf(targetId);
   if (!slot) {
     return null;
   }
   return createPortal(
-    <SidePanel group={group} onOpen={onOpen} onVisit={onVisit} />,
+    extensionPanel ? (
+      <ExtensionSidePanelView key={targetId} panel={extensionPanel} />
+    ) : (
+      <SidePanel group={group} onOpen={onOpen} onVisit={onVisit} />
+    ),
     slot,
   );
 }

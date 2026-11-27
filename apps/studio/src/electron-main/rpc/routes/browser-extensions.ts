@@ -8,10 +8,20 @@ import {
   setBrowserExtensionEnabled,
   setBrowserExtensionPinned,
 } from "@/electron-main/browser-view/extensions";
+import {
+  closeExtensionSidePanel,
+  listExtensionSidePanels,
+} from "@/electron-main/browser-view/extension-side-panels";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import { focusAppWindow } from "@/electron-main/windows/foreground";
-import { BrowserExtensionSchema } from "@/shared/browser-extensions";
-import { liveRead } from "@instrument-org/workspace/electron";
+import {
+  BrowserExtensionSchema,
+  ExtensionSidePanelSchema,
+} from "@/shared/browser-extensions";
+import {
+  BrowserTargetIdSchema,
+  liveRead,
+} from "@instrument-org/workspace/electron";
 import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
@@ -35,6 +45,19 @@ const live = {
           publisher.subscribe("browser.extensions-changed", { signal }),
         ],
         read: listBrowserExtensions,
+      });
+    }),
+  /** The extension side panels open in tabs, each with the page it shows. */
+  sidePanels: base
+    .output(eventIterator(z.array(ExtensionSidePanelSchema)))
+    .handler(async function* ({ signal }) {
+      yield* liveRead({
+        changes: [
+          publisher.subscribe("browser.extension-side-panels-changed", {
+            signal,
+          }),
+        ],
+        read: listExtensionSidePanels,
       });
     }),
 };
@@ -62,6 +85,13 @@ const answerInstall = base
   .input(z.object({ allow: z.boolean(), askId: z.string() }))
   .handler(({ input }) => {
     answerExtensionInstall(input.askId, input.allow);
+  });
+
+/** Closes the extension side panel open in a tab, for its Close Side Panel button. */
+const closeSidePanel = base
+  .input(z.object({ targetId: BrowserTargetIdSchema }))
+  .handler(({ input }) => {
+    closeExtensionSidePanel(input.targetId);
   });
 
 const openDesktopApp = base
@@ -106,6 +136,7 @@ const setPinned = base
 export const browserExtensions = {
   acceptUpdate,
   answerInstall,
+  closeSidePanel,
   events,
   live,
   openDesktopApp,

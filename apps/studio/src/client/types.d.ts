@@ -21,7 +21,7 @@ declare module "react" {
       "browser-action-list": DetailedHTMLProps<
         HTMLAttributes<HTMLElement>,
         HTMLElement
-      > & { alignment?: string; partition?: string };
+      > & { alignment?: string; partition?: string; tab?: number };
     }
   }
 }

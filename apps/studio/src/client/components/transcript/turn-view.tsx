@@ -347,7 +347,7 @@ function ReplyFoot({
 > & {
   isLast: boolean;
 }) {
-  const hasNextSteps = useHasNextSteps() && isLast;
+  const hasNextSteps = useHasNextSteps(isLast);
   return (
     <>
       <AssistantMessagesFooter

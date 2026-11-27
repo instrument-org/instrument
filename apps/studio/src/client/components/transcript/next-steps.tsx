@@ -22,9 +22,13 @@ export interface NextSteps {
 /** Given by a chat around its own transcript; a transcript without one suggests nothing. */
 export const NextStepsContext = createContext<NextSteps | undefined>(undefined);
 
-/** Whether the chat has next steps to draw under its last reply. */
-export function useHasNextSteps(): boolean {
-  return (use(NextStepsContext)?.lines.length ?? 0) > 0;
+/**
+ * Whether the chat has next steps to draw under this reply. Only the last
+ * reply reads them, so typing into an empty box redraws one footer and not
+ * every turn's.
+ */
+export function useHasNextSteps(isLast: boolean): boolean {
+  return isLast && (use(NextStepsContext)?.lines.length ?? 0) > 0;
 }
 
 /**

@@ -212,8 +212,8 @@ function showsSourcePaths(source: Skill["source"]) {
 }
 
 /**
- * One skill: its name the way it is invoked, what it is, and how much it
- * brings with it. The row opens the skill's folder unless the app ships the
+ * One skill: its title, the `/slash` form it is invoked by (which is the
+ * title too when the two match), what it is, and how much it brings with it. The row opens the skill's folder unless the app ships the
  * skill, and `menu` sits at its end.
  *
  * Two lines rather than columns, because the pane this stands in is narrow:
@@ -239,14 +239,26 @@ function SkillRow({
     <>
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="truncate text-sm font-medium">
-            {skill.userInvocable ? "/" : null}
-            <FuzzyHighlight
-              matchClassName={SKILL_NAME_MATCH_CLASS_NAME}
-              ranges={ranges?.nameRanges ?? null}
-              text={skill.name}
-            />
-          </span>
+          {skill.title === skill.name ? null : (
+            <span className="truncate text-sm font-medium">{skill.title}</span>
+          )}
+          {skill.userInvocable || skill.title === skill.name ? (
+            <span
+              className={cn(
+                "truncate text-sm",
+                skill.title === skill.name
+                  ? "font-medium"
+                  : "text-muted-foreground",
+              )}
+            >
+              {skill.userInvocable ? "/" : null}
+              <FuzzyHighlight
+                matchClassName={SKILL_NAME_MATCH_CLASS_NAME}
+                ranges={ranges?.nameRanges ?? null}
+                text={skill.name}
+              />
+            </span>
+          ) : null}
           <SkillBadges
             className="flex shrink-0 flex-wrap gap-1"
             skill={skill}

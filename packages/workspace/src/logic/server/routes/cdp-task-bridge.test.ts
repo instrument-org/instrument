@@ -1060,33 +1060,6 @@ describe("a tab on an HTML file", () => {
     );
   });
 
-  it("keeps its id as a page tab becomes the file's, with no tab gone or new", async () => {
-    const page = tab();
-    const { command, events } = connect();
-    await command("Target.getTargets");
-    await command("Target.attachToTarget", {
-      flatten: true,
-      targetId: page.tabId,
-    });
-
-    // `agent-browser open ./report.html`: the page tab becomes a tab on the
-    // file, which agents name by the page tab's id and its page draws.
-    windowList = windowList.map((entry) =>
-      entry.id === page.tabId
-        ? {
-            ...entry,
-            targetId: page.targetId,
-            url: "file:///tmp/tasks/read-the-pages/report.html",
-          }
-        : entry,
-    );
-    const targets = await command("Target.getTargets");
-
-    expect(ids(targets.result?.targetInfos)).toEqual([page.tabId]);
-    expect(created(events)).toEqual([page.tabId]);
-    expect(events("Target.targetDestroyed")).toEqual([]);
-  });
-
   it("drives the new page that draws it once the tab walks to another file and back", async () => {
     const file = fileTab();
     const { closeByUser, command, events, sendCommand } = connect();

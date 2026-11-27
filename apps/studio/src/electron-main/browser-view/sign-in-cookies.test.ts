@@ -5,9 +5,10 @@ import {
   cookieSnapshot,
   dropSignInCookies,
   finishSignInCookies,
+  isSignInTab,
   noteSignInCommit,
   noteSignInPage,
-  noteSignInPopup,
+  noteSignInOpened,
   signInCookieSites,
   startSignInCookies,
 } from "./sign-in-cookies";
@@ -305,7 +306,7 @@ describe("a sign-in's cookies, from its start to Done", () => {
     expect(mocks.cookies).toHaveBeenCalledOnce();
 
     loadSignIn();
-    noteSignInPopup(
+    noteSignInOpened(
       "tab-1",
       "tab-9",
       "https://accounts.google.com/o/oauth2/v2/auth?client_id=1",
@@ -332,6 +333,24 @@ describe("a sign-in's cookies, from its start to Done", () => {
     // The snapshot went with the sign-in.
     expect(await finishSignInCookies("grok", GROK)).toEqual([]);
     expect(mocks.cookies).toHaveBeenCalledTimes(2);
+  });
+
+  it("names the sites a tab the sign-in's page opened loaded, as an X login opening in a tab of its own", async () => {
+    mocks.cookies.mockResolvedValueOnce(BEFORE);
+    startSignInCookies("grok", "tab-1", { loadsSignIn: true });
+    loadSignIn();
+
+    expect(isSignInTab("tab-1")).toBe(true);
+    expect(isSignInTab("tab-2")).toBe(false);
+    noteSignInOpened("tab-1", "tab-7", THROUGH_X[2] ?? "");
+    expect(isSignInTab("tab-7")).toBe(true);
+    noteSignInPage("tab-7", THROUGH_X[3] ?? "");
+    noteSignInCommit("tab-7", THROUGH_X[3] ?? "");
+
+    mocks.cookies.mockResolvedValueOnce([...X_SIGNED_IN, ...GROK_SIGNED_IN]);
+    expect(await finishSignInCookies("grok", GROK)).toEqual([
+      { cookies: 7, site: "x.com" },
+    ]);
   });
 
   it("goes on with the cookies read first when the sign-in's tab is shown again", async () => {

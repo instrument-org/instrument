@@ -123,9 +123,10 @@ import { forwardPopupEvents, placePopupView, popupState } from "./popup-tabs";
 import { createPutAwaySound } from "./put-away-sound";
 import { stopScreencast } from "./screencast";
 import {
+  isSignInTab,
   noteSignInCommit,
+  noteSignInOpened,
   noteSignInPage,
-  noteSignInPopup,
 } from "./sign-in-cookies";
 import {
   guestWindowOpenHandler,
@@ -581,6 +582,17 @@ function createBrowserViewManager(): BrowserViewManager {
         };
       }
       const response: WindowOpenHandlerResponse = { action: "deny" };
+      // A tab a web app's sign-in opens is part of the sign-in, as its
+      // popups are (`sign-in-cookies.ts`), so it opens under an id named
+      // here, which its pages are noted by from its first.
+      const signInTab = (url: string): { tabId?: StoreId.Tab } => {
+        if (!isSignInTab(targetId)) {
+          return {};
+        }
+        const tabId = StoreId.newTabId();
+        noteSignInOpened(targetId, tabId, url);
+        return { tabId };
+      };
       // A tab-open gets a tab of its own, as a browser does, while a person
       // rather than an agent is driving the page.
       const newTab = focusGuard.isGuarded(targetId)
@@ -589,6 +601,7 @@ function createBrowserViewManager(): BrowserViewManager {
       if (newTab && mayOpenFromPage(newTab.url)) {
         publisher.publish("browser.open-in-new-tab", {
           ...newTab,
+          ...signInTab(newTab.url),
           targetId,
         });
         return response;
@@ -600,6 +613,7 @@ function createBrowserViewManager(): BrowserViewManager {
         publisher.publish("browser.open-in-new-tab", {
           background: false,
           newWindow: true,
+          ...signInTab(newWindow.url),
           targetId,
           url: newWindow.url,
         });
@@ -998,7 +1012,7 @@ function createBrowserViewManager(): BrowserViewManager {
     advanceEntry(entry, "willAttach");
     advanceEntry(entry, "didAttach");
     // Before its events are heard, since its page may already be on its way.
-    noteSignInPopup(opener.targetId, targetId, url);
+    noteSignInOpened(opener.targetId, targetId, url);
     bindGuest(entry, popup, { adopted: true });
     forwardPopupEvents(targetId, popup);
     popup.once("destroyed", () => {

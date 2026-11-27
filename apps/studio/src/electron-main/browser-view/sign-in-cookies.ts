@@ -11,9 +11,9 @@ import { log } from "./log";
  * browser's cookies are read when the sign-in's page opens, or when its tab
  * is shown with none read (after a relaunch, which memory does not
  * outlive), and again when it connects, and the two are compared; nothing
- * listens to the cookie store in between. Only sites whose pages the sign-in's tab, or a popup
- * it opened, loaded in its main frame count, each hop of a server redirect
- * included, so an ad or analytics site that set cookies from inside
+ * listens to the cookie store in between. Only sites whose pages the
+ * sign-in's tab, or a popup or tab it opened, loaded in its main frame
+ * count, each hop of a server redirect included, so an ad or analytics site that set cookies from inside
  * another page is left out, and so are the app's own sites: those its
  * setup and the directory name, and those the load Studio started in a tab
  * opened for the sign-in was redirected to before its first page (grok.com
@@ -118,7 +118,7 @@ interface SignIn {
   hash: (value: string) => string;
   /** The origins of the pages its tabs loaded. */
   pages: Set<string>;
-  /** The sign-in's tab and the popups opened from it, by target id. */
+  /** The sign-in's tab and the popups and tabs opened from it, by target id. */
   tabs: Set<string>;
   until: number;
 }
@@ -226,18 +226,26 @@ export function noteSignInCommit(tab: string, url: string): void {
   }
 }
 
-/** A page in `opener` opened a popup at `url`, which counts as the sign-in's when its opener does. */
-export function noteSignInPopup(
+/** Whether `tab` is a sign-in's, so a tab its page opens is too. */
+export function isSignInTab(tab: string): boolean {
+  return underWay().some((signIn) => signIn.tabs.has(tab));
+}
+
+/**
+ * A page in `opener` opened `opened` at `url`, a popup or a tab of its
+ * own, which counts as the sign-in's when its opener does.
+ */
+export function noteSignInOpened(
   opener: string,
-  popup: string,
+  opened: string,
   url: string,
 ): void {
   for (const signIn of underWay()) {
     if (signIn.tabs.has(opener)) {
-      signIn.tabs.add(popup);
+      signIn.tabs.add(opened);
     }
   }
-  noteSignInPage(popup, url);
+  noteSignInPage(opened, url);
 }
 
 /**

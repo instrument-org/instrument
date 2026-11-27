@@ -88,7 +88,7 @@ interface PublisherEvents {
     newWindow?: boolean;
     /** The page is open already, a popup's, so the tab takes it as it is. */
     isLoaded?: boolean;
-    /** The id the tab opens under, which an agent's result names: a popup's, or a tab an extension asked for. */
+    /** The id the tab opens under, which an agent's result names: a popup's, or a tab an extension asked for; or one a sign-in's page opened, which the sign-in notes by it. */
     tabId?: StoreId.Tab;
     targetId: BrowserTargetId;
     url: string;

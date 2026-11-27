@@ -77,7 +77,7 @@ const connectAppCapability = defineCapability({
   surfaces: {
     tool: {
       description: dedent`
-    Ask the user to connect apps you have set up with \`${APP_COMMAND.name} new\`. One card appears in the conversation with a row for each app: sign-in buttons for an OAuth app, a secure field for a key, for an app whose server runs on this machine, what would run and a button to allow it, and for a web app, a ${SITE_SIGN_IN_WORDS.signIn} button that opens its sign-in in the window's browser, where the user presses ${SITE_SIGN_IN_WORDS.done} once signed in. A web app is asked for only once its site has been opened in a tab of this chat: one that loaded signed in goes in \`signedIn\`, and gets no row. Name every app the work needs in one call: several calls make several cards. Your turn ends on a call that puts up a card, so do what does not depend on the connection first. You are woken once, with a note, when the user has answered every row: signed in, saved a key, or declined. Never ask for a key in prose instead.
+    Ask the user to connect apps you have set up with \`${APP_COMMAND.name} new\`. One card appears in the conversation with a row for each app: sign-in buttons for an OAuth app, a secure field for a key, for an app whose server runs on this machine, what would run and a button to allow it, and for a web app, a ${SITE_SIGN_IN_WORDS.signIn} button that opens its sign-in in the window's browser, where the user presses ${SITE_SIGN_IN_WORDS.done} once signed in. A web app may already be signed in on this computer, and a row for it asks for a sign-in the user has done: open its site in a tab first, and put one that loads signed in in \`signedIn\`, which gets no row. Name every app the work needs in one call: several calls make several cards. Your turn ends on a call that puts up a card, so do what does not depend on the connection first. You are woken once, with a note, when the user has answered every row: signed in, saved a key, or declined. Never ask for a key in prose instead.
   `,
       execute: async ({ input, messageId, partId, sessionId, chatId }) => {
         const signedIn = new Set(input.signedIn);
@@ -171,27 +171,24 @@ async function askFor(
       state: "failure",
     };
   }
-  if (manifest.type === "web") {
-    // Nothing sees a session in the browser, so the site is looked at
-    // before the user is asked: a card for a site already signed in is a
-    // sign-in they have already done.
+  if (manifest.type === "web" && seenSignedIn) {
+    // A sign-in the agent says it saw is recorded as the user's, so it has
+    // to be one this chat's browser has been on.
     const sites = [manifest.url, ...(manifest.signIn ? [manifest.signIn] : [])];
     if (!visited.some((host) => sites.some((url) => onSameSite(host, url)))) {
       return {
-        message: `Open ${manifest.url} in a tab first and look. If it loads signed in, call ${TOOL_NAMES.connectApp} with "${slug}" in \`signedIn\`, which records that and shows no card; if it loads signed out, ask again.`,
+        message: `This chat hasn't opened ${manifest.url}, so "${slug}" can't go in \`signedIn\`. Open it in a tab and look: if it loads signed in, call ${TOOL_NAMES.connectApp} again with it in \`signedIn\`; if it loads signed out, ask for it in \`slugs\` alone.`,
         slug,
         state: "failure",
       };
     }
-    if (seenSignedIn) {
-      await recordConnection(slug, {
-        connectedAt: Date.now(),
-        manifestHash,
-        seenSignedIn: true,
-        status: "connected",
-      });
-      return { name, seen: true, slug, state: "connected" };
-    }
+    await recordConnection(slug, {
+      connectedAt: Date.now(),
+      manifestHash,
+      seenSignedIn: true,
+      status: "connected",
+    });
+    return { name, seen: true, slug, state: "connected" };
   }
   const kind =
     manifest.type === "web"

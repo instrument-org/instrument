@@ -263,15 +263,23 @@ describe("connect_app for a web app", () => {
     });
   });
 
-  it("asks for nothing until the chat has opened the site", async () => {
+  it("puts the card up for a site the chat has not opened", async () => {
     const lisbon = await chat();
-    const output = await ask(lisbon, ["amazon"]);
+
+    expect(await ask(lisbon, ["amazon"])).toMatchObject({
+      apps: [{ kind: "web", slug: "amazon", state: "asked" }],
+    });
+  });
+
+  it("records no sign-in the agent says it saw on a site the chat never opened", async () => {
+    const lisbon = await chat();
+    const output = await ask(lisbon, ["amazon"], undefined, ["amazon"]);
 
     expect(output).toMatchInlineSnapshot(`
       {
         "apps": [
           {
-            "message": "Open https://www.amazon.com in a tab first and look. If it loads signed in, call connect_app with "amazon" in \`signedIn\`, which records that and shows no card; if it loads signed out, ask again.",
+            "message": "This chat hasn't opened https://www.amazon.com, so "amazon" can't go in \`signedIn\`. Open it in a tab and look: if it loads signed in, call connect_app again with it in \`signedIn\`; if it loads signed out, ask for it in \`slugs\` alone.",
             "slug": "amazon",
             "state": "failure",
           },

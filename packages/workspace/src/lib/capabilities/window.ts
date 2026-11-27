@@ -588,9 +588,9 @@ export const windowShow = defineCapability({
 
 /**
  * Each web page shown is one the session has been on, as a page an
- * agent-browser command reaches is: `connect_app` puts a web app's card up
- * only once its site was looked at, and a page shown here is read with
- * `read`.
+ * agent-browser command reaches is: `connect_app` records a web app the
+ * agent saw signed in only on a site the chat has been on, and a page shown
+ * here is read with `read`.
  */
 async function noteShownPages(
   outcomes: Outcome[],

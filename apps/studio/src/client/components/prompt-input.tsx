@@ -1262,6 +1262,7 @@ export const PromptInput = ({
                   <DictationControls
                     dictation={dictation}
                     disabled={isLoading}
+                    waveClassName="@max-sm/composer:w-12"
                   />
                   {!dictating && onStop && !canSubmit && !isLoading && (
                     <Tooltip>

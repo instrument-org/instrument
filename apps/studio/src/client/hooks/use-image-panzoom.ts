@@ -169,8 +169,8 @@ export function useImagePanzoom({
       zoom: zoomStep,
       // About the pane's center, as the steps zoom; a drag on a slider moves
       // with the pointer rather than easing after it.
-      zoomTo: (scale, moving) => {
-        const next = zoomedAt(view, scale, { x: 0, y: 0 }, boxNow());
+      zoomTo: (toScale, moving) => {
+        const next = zoomedAt(view, toScale, { x: 0, y: 0 }, boxNow());
         if (moving) {
           showMoving(next);
         } else {
@@ -498,9 +498,9 @@ export function useImagePanzoom({
     zoomOut: () => {
       controlsRef.current?.zoom("out");
     },
-    /** To `scale` times its fit size; `moving` while a drag is still under way. */
-    zoomTo: (scale: number, moving = false) => {
-      controlsRef.current?.zoomTo(scale, moving);
+    /** To `toScale` times its fit size; `moving` while a drag is still under way. */
+    zoomTo: (toScale: number, moving = false) => {
+      controlsRef.current?.zoomTo(toScale, moving);
     },
   };
 }

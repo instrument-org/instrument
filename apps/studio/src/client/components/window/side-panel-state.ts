@@ -24,26 +24,23 @@ function isSidePanelOpen(
 
 /**
  * Whether the window has room for the side panel beside the group up, which
- * the window decides as it is resized (`sidePanelRoomOf`). Without room an
- * open panel steps out of the way and comes back once there is room again.
+ * the window decides as a resize or a zoom crosses the line
+ * (`sidePanelRoomOf`). Without room an open panel steps out of the way and
+ * comes back once there is room again.
  */
 const sidePanelRoomAtom = atom(true);
 
-/** A panel the person showed while the window had no room for it, shown until the window is resized. */
+/** A panel the person showed while the window had no room for it, shown until the room changes. */
 const shownWithoutRoomAtom = atom(false);
 
-/** Sets whether the window has room for the side panel. */
-export const setSidePanelRoomAtom = atom(
+/** The window's room for the side panel changed: a panel shown without room for it follows the room again. */
+export const sidePanelRoomChangedAtom = atom(
   null,
   (_get, set, hasRoom: boolean) => {
     set(sidePanelRoomAtom, hasRoom);
+    set(shownWithoutRoomAtom, false);
   },
 );
-
-/** A resize of the window: a panel shown without room for it follows the room again. */
-export const sidePanelWindowResizedAtom = atom(null, (_get, set) => {
-  set(shownWithoutRoomAtom, false);
-});
 
 /** Groups whose up tab is changing to a pick from their side panel. */
 const pickingIn = new Set<string>();
@@ -51,7 +48,7 @@ const pickingIn = new Set<string>();
 /**
  * A group's side panel, shown or not, and the way to open or close it there.
  * One open in a window without room for it is not shown, and opening it
- * there shows it anyway until the window is resized.
+ * there shows it anyway until the room changes.
  */
 export function useSidePanel(group: string | undefined) {
   const windowTabs = useWindowTabs();

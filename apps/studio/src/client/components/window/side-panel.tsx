@@ -74,6 +74,7 @@ import {
   type ComponentProps,
   type ReactNode,
   type RefObject,
+  useEffect,
   useRef,
   useState,
 } from "react";
@@ -355,10 +356,17 @@ function SidePanel({
   const home = () => {
     setView("home");
   };
+  const columnRef = useRef<HTMLDivElement>(null);
+  const pointer = usePointerInColumn(columnRef);
   // Gray and a little faint until the pointer or the keyboard is on it, or
   // a menu of its own is open, so its icons draw no eye away from the page.
   return (
-    <div className="@container flex min-h-0 flex-1 flex-col opacity-85 grayscale transition-[filter,opacity] duration-200 hover:opacity-100 hover:grayscale-0 has-focus-visible:opacity-100 has-focus-visible:grayscale-0 has-data-[state=open]:opacity-100 has-data-[state=open]:grayscale-0">
+    <div
+      className="@container flex min-h-0 flex-1 flex-col opacity-85 grayscale transition-[filter,opacity] duration-200 has-focus-visible:opacity-100 has-focus-visible:grayscale-0 has-data-[state=open]:opacity-100 has-data-[state=open]:grayscale-0 data-pointer-in:opacity-100 data-pointer-in:grayscale-0"
+      data-pointer-in={pointer.isIn || undefined}
+      onPointerEnter={pointer.onPointerEnter}
+      ref={columnRef}
+    >
       <PanelHead
         onClose={() => {
           setOpen(false);
@@ -748,6 +756,48 @@ function ChatsSection({
   );
 }
 
+/**
+ * Whether the pointer is over the panel's column. The column's ground moves
+ * the window, and over it the page gets no pointer events, so `:hover` would
+ * end in every gap between rows. The pointer counts as in from the moment it
+ * enters until it moves somewhere outside the column, or out of the window.
+ */
+function usePointerInColumn(ref: RefObject<HTMLElement | null>) {
+  const [isIn, setIn] = useState(false);
+  useEffect(() => {
+    if (!isIn) {
+      return;
+    }
+    const moved = (event: PointerEvent) => {
+      const column = ref.current?.closest("aside")?.getBoundingClientRect();
+      if (
+        !column ||
+        event.clientX < column.left ||
+        event.clientX > column.right ||
+        event.clientY < column.top ||
+        event.clientY > column.bottom
+      ) {
+        setIn(false);
+      }
+    };
+    const left = () => {
+      setIn(false);
+    };
+    document.addEventListener("pointermove", moved);
+    document.documentElement.addEventListener("pointerleave", left);
+    return () => {
+      document.removeEventListener("pointermove", moved);
+      document.documentElement.removeEventListener("pointerleave", left);
+    };
+  }, [isIn, ref]);
+  return {
+    isIn,
+    onPointerEnter: () => {
+      setIn(true);
+    },
+  };
+}
+
 /** What each list the panel opens over the rest is called in its head. */
 const VIEW_TITLES = {
   apps: "Apps",
@@ -1074,6 +1124,24 @@ function panelRows(
   ];
 }
 
+/** The rows inside the folder or bar `id`, at any depth, as they stand under it. */
+function rowsUnder(rows: PanelRow[], id: string | undefined): Set<string> {
+  const under = new Set<string>();
+  const at = rows.findIndex((row) => row.id === id);
+  const head = rows[at];
+  if (!head) {
+    return under;
+  }
+  const depthOf = (row: PanelRow) => (row.kind === "bar" ? 0 : row.depth);
+  for (const row of rows.slice(at + 1)) {
+    if (depthOf(row) <= depthOf(head)) {
+      break;
+    }
+    under.add(row.id);
+  }
+  return under;
+}
+
 /**
  * Where something held over a row of the panel's bookmarks lands: the
  * bar's row takes it at the bar's end, or first in the bar from its lower
@@ -1130,8 +1198,11 @@ function BookmarkTree({
     | { after?: string; kind: "folder" }
     | { folder: BookmarkFolder; kind: "rename" }
   >();
+  // The folder just opened, whose rows grow in.
+  const [opened, setOpened] = useState<string>();
   const list = useRef<HTMLDivElement>(null);
   const rows = panelRows(state, isOpen, othersShown);
+  const growing = rowsUnder(rows, opened);
   useOutlineTarget({
     isOff: false,
     list: () => list.current,
@@ -1143,18 +1214,30 @@ function BookmarkTree({
     const next = new Set(isOpen);
     if (!next.delete(id)) {
       next.add(id);
+      setOpened(id);
     }
     setOpen(next);
   };
   return (
     <>
-      <div className="flex flex-col" ref={list}>
+      <div
+        className="flex flex-col"
+        // Grown in, the rows stop clipping, so a drop's line shows past them.
+        onAnimationEnd={(event) => {
+          if (event.animationName === "row-open") {
+            setOpened(undefined);
+          }
+        }}
+        ref={list}
+      >
         {rows.map((row) => {
           const at = drop.row?.id === row.id ? drop.row.at : undefined;
           const marks = {
             className: cn(
               ROW,
               "relative",
+              growing.has(row.id) &&
+                "animate-[row-open_160ms_ease-out_backwards] overflow-hidden motion-reduce:animate-none",
               at === "into" && DROP_TONE,
               drop.held.has(row.id) && "opacity-40",
             ),

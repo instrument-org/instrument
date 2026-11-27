@@ -1133,6 +1133,15 @@ body {
   initial-value: 0px;
 }
 
+/* A row a folder's opening shows grows from nothing to its height, so the
+   rows past it slide down as the folder opens. */
+@keyframes row-open {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+}
+
 @keyframes scroll-fade-reveal-top {
   from {
     --scroll-fade-top: 0px;

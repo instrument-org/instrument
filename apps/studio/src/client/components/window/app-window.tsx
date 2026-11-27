@@ -33,6 +33,7 @@ import {
   type WindowTab,
 } from "@/client/atoms/window";
 import { openBuiltInPage } from "@/client/atoms/page-requests";
+import { zoomAtom } from "@/client/atoms/zoom";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { WithDeveloperStrip } from "@/client/components/developer-strip/developer-strip-slot";
@@ -237,8 +238,7 @@ import { useBootMarks } from "./boot-marks";
 import { setStudioDriveOpenPage } from "@/client/lib/studio-drive";
 import { SidePanelRail, sidePanelRoomOf } from "./side-panel";
 import {
-  setSidePanelRoomAtom,
-  sidePanelWindowResizedAtom,
+  sidePanelRoomChangedAtom,
   useSidePanel,
   useSidePanelUpkeep,
 } from "./side-panel-state";
@@ -727,40 +727,59 @@ function WindowShell({
       observer.disconnect();
     };
   }, [rowElement]);
+  const [browser, setBrowser] = useState<BrowserTabsHandle | null>(null);
+  const windowTabs = useWindowTabs();
   // The side panel steps out of the way in a window too narrow for it beside
-  // the group, and comes back as the window widens again. Asked as the
-  // window opens and as it is resized, never as something in it moves, so
-  // the sidebar's slide never sends the panel off or back, nor does opening
-  // or closing a split. The room is all
-  // the window has past the card's left edge, which the panel's own slide
-  // does not move, so a resize during it reads the same.
+  // the group, and comes back as the window widens again. Only a resize or
+  // a zoom moves it, and a resize only when it crosses the line: opening the
+  // sidebar or a split in a narrow window leaves the panel be, and nudging
+  // the window after does too. The room is all the window has past the
+  // card's left edge, in the app's own px, which the panel's own slide does
+  // not move, so a resize during it reads the same.
   const sidePanelRow = rowWidth + (sidePanel.isOpen ? sidePanelWidth : 0);
-  const setSidePanelRoom = useSetAtom(setSidePanelRoomAtom);
-  const sidePanelWindowResized = useSetAtom(sidePanelWindowResizedAtom);
-  const measureSidePanelRoom = useEffectEvent(() => {
-    if (rowElement) {
-      const room =
-        window.innerWidth -
-        rowElement.getBoundingClientRect().left -
-        Number.parseFloat(getComputedStyle(rowElement).marginRight);
-      const sides =
-        groupUp === undefined ? 1 : windowTabs.layoutOf(groupUp).sides.length;
-      setSidePanelRoom(sidePanelRoomOf(room, sidePanelWidth, sides));
+  const sidePanelRoomChanged = useSetAtom(sidePanelRoomChangedAtom);
+  const zoom = useAtomValue(zoomAtom);
+  const groupUpSides =
+    groupUp === undefined ? 1 : windowTabs.layoutOf(groupUp).sides.length;
+  // The room as last read, by a resize or as the layout settled.
+  const sidePanelRoomRead = useRef<boolean>(undefined);
+  const readSidePanelRoom = useEffectEvent(() => {
+    if (!rowElement) {
+      return undefined;
     }
+    const room =
+      (window.innerWidth - rowElement.getBoundingClientRect().left) / zoom -
+      Number.parseFloat(getComputedStyle(rowElement).marginRight);
+    return sidePanelRoomOf(room, sidePanelWidth, groupUpSides);
   });
+  const decideSidePanelRoom = useEffectEvent((isResize: boolean) => {
+    const hasRoom = readSidePanelRoom();
+    if (hasRoom === undefined) {
+      return;
+    }
+    if (!isResize || hasRoom !== sidePanelRoomRead.current) {
+      sidePanelRoomChanged(hasRoom);
+    }
+    sidePanelRoomRead.current = hasRoom;
+  });
+  // As the window opens and as the app zooms, the room decides outright.
   useEffect(() => {
-    measureSidePanelRoom();
+    decideSidePanelRoom(false);
+  }, [rowElement, zoom]);
+  useEffect(() => {
     const resized = () => {
-      sidePanelWindowResized();
-      measureSidePanelRoom();
+      decideSidePanelRoom(true);
     };
     window.addEventListener("resize", resized);
     return () => {
       window.removeEventListener("resize", resized);
     };
-  }, [rowElement, sidePanelWindowResized]);
-  const [browser, setBrowser] = useState<BrowserTabsHandle | null>(null);
-  const windowTabs = useWindowTabs();
+  }, []);
+  // Anything else that moves the line is read without acting on it, so the
+  // next resize acts only where it crosses.
+  useEffect(() => {
+    sidePanelRoomRead.current = readSidePanelRoom();
+  }, [rowWidth, groupUpSides, sidePanelWidth]);
   // Every screen a group's tab stands on is walked by a router of its own.
   useGroupTabRouters(windowTabs.allTabs, windowTabs.screenMoved);
 

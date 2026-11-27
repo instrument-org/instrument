@@ -212,7 +212,11 @@ export const MarkdownCodeBlock = ({
   language?: string;
 }) => {
   const [wrapLines, setWrapLines] = useState(use(CodeBlockWrapContext));
-  const [isExpanded = false, setIsExpanded] = useKeptOpen(`code:${code}`);
+  // Named by its first line, which is whole by the time there are lines
+  // enough to fold, and stays put while the rest is still arriving.
+  const [isExpanded = false, setIsExpanded] = useKeptOpen(
+    `code:${language ?? ""}:${code.split("\n", 1)[0] ?? ""}`,
+  );
   const releaseAutoScroll = useReleaseAutoScroll();
 
   const lineCount = code.split("\n").length;

@@ -146,7 +146,12 @@ function seedChat(id: ChatId, turns: number) {
     sharedQueryClient.setQueryData(
       feedKey,
       (current: TranscriptFeed | undefined) =>
-        applyFeedEvent(current, { hasOlder: false, kind: "reset", messages }),
+        applyFeedEvent(current, {
+          hasOlder: false,
+          kind: "reset",
+          messages,
+          olderTurns: 0,
+        }),
     );
   };
   // From the frame the reply first shows in.

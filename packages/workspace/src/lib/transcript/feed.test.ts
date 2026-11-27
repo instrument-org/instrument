@@ -196,6 +196,7 @@ describe("TranscriptProjection", () => {
     };
     const held = {
       hasOlder: false,
+      olderTurns: 0,
       messages: [
         { id: messageId, metadata: {}, parts: [step, tool], role: "assistant" },
       ],
@@ -315,6 +316,7 @@ describe("paging", () => {
   it("gives the last turns whole, and says more are above them", () => {
     const feed = lastTurnsOf(session, { turns: 2 });
     expect(feed.hasOlder).toBe(true);
+    expect(feed.olderTurns).toBe(3);
     expect(feed.messages).toHaveLength(4);
     expect(feed.messages[0]?.id).toBe(session[6]?.id);
   });
@@ -329,6 +331,7 @@ describe("paging", () => {
     expect(both.messages[0]?.id).toBe(session[2]?.id);
     expect(both.messages).toHaveLength(8);
     expect(both.hasOlder).toBe(true);
+    expect(both.olderTurns).toBe(1);
   });
 
   it("adds nothing twice when a page arrives a second time", () => {
@@ -352,9 +355,25 @@ describe("paging", () => {
     );
   });
 
+  it("counts only the session's own turns above, not those a task has from its chat", () => {
+    const task = StoreId.newSessionId();
+    const own = Array.from({ length: 3 }, (_, turn) => {
+      const message = typed(`Task turn ${turn.toString()}`);
+      message.metadata.sessionId = task;
+      return message;
+    });
+    const feed = lastTurnsOf([...session, ...own], {
+      sessionId: task,
+      turns: 2,
+    });
+    expect(feed.hasOlder).toBe(true);
+    expect(feed.olderTurns).toBe(1);
+  });
+
   it("gives the whole of a short session and says nothing is above it", () => {
     const feed = lastTurnsOf(session);
     expect(feed.hasOlder).toBe(false);
+    expect(feed.olderTurns).toBe(0);
     expect(feed.messages).toHaveLength(session.length);
   });
 });

@@ -15,6 +15,12 @@ export interface TranscriptFeed {
   /** There are earlier turns than these, read by asking for them. */
   hasOlder: boolean;
   messages: TranscriptMessage[];
+  /**
+   * How many of the session's own turns are above these, counted by the
+   * messages that open one. A task's turns from its chat fold into one line,
+   * so none of them counts.
+   */
+  olderTurns: number;
 }
 
 /** One part that moved: its whole self, or just the words added to it. */
@@ -49,16 +55,19 @@ const TURNS_PER_PAGE = 20;
 
 /**
  * The messages of the last `turns` turns of `messages` (a session, oldest
- * first), up to `before` when it is given, and whether any are left above them.
+ * first), up to `before` when it is given, and how many are left above them.
  */
 export function lastTurnsOf(
   messages: readonly SessionMessage.WithParts[],
   {
     before,
+    sessionId,
     turns = TURNS_PER_PAGE,
     writtenOn,
   }: {
     before?: StoreId.Message;
+    /** The session read, whose own turns `olderTurns` counts; every turn without it. */
+    sessionId?: StoreId.Session;
     turns?: number;
     writtenOn?: WrittenOnByMessage;
   } = {},
@@ -77,12 +86,22 @@ export function lastTurnsOf(
       opened++;
     }
   }
+  let olderTurns = 0;
+  for (const message of messages.slice(0, start)) {
+    if (
+      opensTurn(message) &&
+      (sessionId === undefined || message.metadata.sessionId === sessionId)
+    ) {
+      olderTurns++;
+    }
+  }
   return {
     hasOlder: start > 0,
     messages: messages.slice(start, upTo).flatMap((message) => {
       const light = transcriptMessage(message, writtenOn?.get(message.id));
       return light ? [light] : [];
     }),
+    olderTurns,
   };
 }
 
@@ -94,12 +113,18 @@ export function lastTurnsOf(
 export class TranscriptProjection {
   private readonly sent = new Map<StoreId.Message, TranscriptMessage>();
 
+  /** `sessionId` is the session read, whose own turns the first page counts above it. */
+  constructor(private readonly sessionId?: StoreId.Session) {}
+
   /** The first thing a reader is sent. */
   reset(
     messages: readonly SessionMessage.WithParts[],
     writtenOn?: WrittenOnByMessage,
   ): TranscriptFeedEvent {
-    const feed = lastTurnsOf(messages, { writtenOn });
+    const feed = lastTurnsOf(messages, {
+      sessionId: this.sessionId,
+      writtenOn,
+    });
     this.sent.clear();
     for (const message of feed.messages) {
       this.sent.set(message.id, message);
@@ -217,6 +242,7 @@ export function applyFeedEvent(
         const before = held.get(message.id);
         return before && isEqual(before, message) ? before : message;
       }),
+      olderTurns: event.olderTurns,
     };
   }
   const removed = new Set(event.removed);
@@ -255,7 +281,11 @@ export function applyFeedEvent(
       messages.splice(at, 0, message);
     }
   }
-  return { hasOlder: current?.hasOlder ?? false, messages };
+  return {
+    hasOlder: current?.hasOlder ?? false,
+    messages,
+    olderTurns: current?.olderTurns ?? 0,
+  };
 }
 
 /**
@@ -273,6 +303,7 @@ export function applyOlder(
       ...older.messages.filter((message) => !held.has(message.id)),
       ...(current?.messages ?? []),
     ],
+    olderTurns: older.olderTurns,
   };
 }
 

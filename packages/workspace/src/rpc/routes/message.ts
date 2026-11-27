@@ -371,7 +371,7 @@ const liveFeed = base
         })
           .map(withCopiesHere)
           .map((messages) => withVersionNumbers(input.id, messages));
-      const projection = new TranscriptProjection();
+      const projection = new TranscriptProjection(input.sessionId);
       const initial = await read();
       if (initial.isErr()) {
         throw toORPCError(initial.error, errors);

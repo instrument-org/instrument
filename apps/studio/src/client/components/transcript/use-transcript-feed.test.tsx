@@ -68,6 +68,7 @@ it("asks once for a page two loads want, and stays loading until both end", asyn
   client.setQueryData(transcriptFeedOptions(input).queryKey, {
     hasOlder: true,
     messages: messages.slice(4),
+    olderTurns: 2,
   });
   const [above, top] = [page(), page()];
   older
@@ -98,7 +99,11 @@ it("asks once for a page two loads want, and stays loading until both end", asyn
 
   // The sentinel's load ends with the first page, and the find's goes on.
   await act(async () => {
-    above.answer({ hasOlder: true, messages: messages.slice(2, 4) });
+    above.answer({
+      hasOlder: true,
+      messages: messages.slice(2, 4),
+      olderTurns: 1,
+    });
     await above.request;
   });
   await vi.waitFor(() => {
@@ -114,7 +119,11 @@ it("asks once for a page two loads want, and stays loading until both end", asyn
   ]);
 
   await act(async () => {
-    top.answer({ hasOlder: false, messages: messages.slice(0, 2) });
+    top.answer({
+      hasOlder: false,
+      messages: messages.slice(0, 2),
+      olderTurns: 0,
+    });
     await found;
   });
   await expect(found).resolves.toBe(true);

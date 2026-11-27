@@ -112,6 +112,7 @@ export { VERSIONS_FOLDERS } from "./lib/chat/versions-folder";
 export {
   applyFeedEvent,
   applyOlder,
+  lastTurnsOf,
   type TranscriptFeed,
   type TranscriptFeedEvent,
 } from "./lib/transcript/feed";

@@ -1313,6 +1313,7 @@ export function ChatConversation({
                                   shownMessages.length > messages.length)
                               }
                               messages={transcriptMessages}
+                              olderTurns={messagesQuery.data?.olderTurns}
                               onBranch={handleBranch}
                               // An archived chat has no reply box, so no picker.
                               onChooseModel={

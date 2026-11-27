@@ -470,7 +470,12 @@ export class ScrollOwner {
     }
   }
 
-  /** Notes the first message row's place while the view is at the very top. */
+  /**
+   * Notes the first message row's place while the view is at the very top
+   * and the row is in it. One below the view, past the room left for turns
+   * not loaded yet, is nothing the reader sees: the top is what they asked
+   * for, and the view stays there as the pages come in.
+   */
   private noteTop() {
     const viewport = this.viewport;
     const row =
@@ -479,8 +484,11 @@ export class ScrollOwner {
             ":scope > [data-message-scroller-item]",
           )
         : null;
+    const top = viewport && row ? scrollTopOf(row, viewport) : undefined;
     this.atTop =
-      viewport && row ? { row, top: scrollTopOf(row, viewport) } : null;
+      row && viewport && top !== undefined && top < viewport.clientHeight
+        ? { row, top }
+        : null;
   }
 
   private onResize = () => {

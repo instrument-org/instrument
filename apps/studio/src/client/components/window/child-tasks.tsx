@@ -83,6 +83,7 @@ export function ChildTranscript({
                       isLoadingOlder={feed.isLoadingOlder}
                       isRunning={isWorking}
                       messages={feed.data.messages}
+                      olderTurns={feed.data.olderTurns}
                       onLoadOlder={feed.loadOlder}
                       onRetry={noop}
                       sessionId={sessionId}

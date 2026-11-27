@@ -76,6 +76,7 @@ export function Transcript({
   isLoadingOlder = false,
   isRunning,
   messages,
+  olderTurns,
   onBranch,
   onChooseModel,
   onContinue,
@@ -94,6 +95,8 @@ export function Transcript({
   /** The session is at work on its last turn, or about to be. */
   isRunning: boolean;
   messages: readonly TranscriptMessage[];
+  /** How many turns are above these, room for which is left above them. */
+  olderTurns?: number;
   /** Starts a new chat up to a reply; given only for a chat's own conversation. */
   onBranch?: (upTo: StoreId.Message) => Promise<void>;
   /** Opens the chat's model picker; failed replies offer no Change model without it. */
@@ -190,7 +193,12 @@ export function Transcript({
     <KeptOpenContext value={keptOpen}>
       <TranscriptActionsContext value={actions}>
         {hasOlder && onLoadOlder && (
-          <OlderTurns isLoading={isLoadingOlder} onNear={onLoadOlder} />
+          <OlderTurns
+            count={olderTurns}
+            held={own.filter((turn) => turn.opener).length}
+            isLoading={isLoadingOlder}
+            onNear={onLoadOlder}
+          />
         )}
         {earlier.length > 0 && (
           <EarlierInTheChat count={messagesIn(earlier)}>
@@ -269,46 +277,118 @@ function EarlierInTheChat({
   );
 }
 
+/** The loader's own height, which the room above the turns held never goes under. */
+const OLDER_TURNS_MIN_PX = 24;
+
 /**
- * Stands above the first turn held and asks for the page before it as the
- * reader nears the top. The scroller keeps what is on screen in place as turns
- * arrive above it.
+ * Stands above the first turn held for the turns not loaded yet: as tall as
+ * their count times the average height of the turns held, so the scrollbar
+ * is about the whole chat's length from the start. The height is taken again
+ * only when the count changes (a page arrived, or the feed started over),
+ * never as a turn streams or a message is sent.
+ *
+ * It asks for the page before as the reader nears it, and again after each
+ * page that added turns while they are still near, so a reader who reached
+ * it (a fling, the scrollbar's thumb taken to the top) is not left looking at
+ * nothing; a page that failed or added nothing is asked for again only when
+ * the reader comes near anew. The browser never anchors the reader's place
+ * on it, so the turns on screen stay put as a page takes its share of it; at
+ * a scroll position of 0, where the browser anchors nothing, the scroll owner
+ * keeps the place.
  */
 function OlderTurns({
+  count,
+  held,
   isLoading,
   onNear,
 }: {
+  /** How many turns are above the first one held; unknown leaves only the loader. */
+  count: number | undefined;
+  /** How many turns are held, by the messages that open one. */
+  held: number;
   isLoading: boolean;
   onNear: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const latest = useRef(onNear);
+  const latest = useRef({ held, onNear });
   useLayoutEffect(() => {
-    latest.current = onNear;
+    latest.current = { held, onNear };
   });
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (element) {
+      element.style.height = `${roomFor(element, count, latest.current.held).toString()}px`;
+    }
+  }, [count]);
+  // How many turns were held when it last asked.
+  const askedAt = useRef<number | undefined>(undefined);
   useEffect(() => {
     const element = ref.current;
-    if (!element) {
+    if (!element || isLoading) {
       return;
     }
+    // A new observer says at once whether it is near. That asks only when a
+    // page added turns since the last ask; any later word is the reader
+    // coming near.
+    let isFirst = true;
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry?.isIntersecting) {
-          latest.current();
+        const asks = !isFirst || askedAt.current !== held;
+        isFirst = false;
+        if (entry?.isIntersecting && asks) {
+          askedAt.current = held;
+          latest.current.onNear();
         }
       },
-      { rootMargin: "600px 0px 0px 0px" },
+      {
+        root: element.closest("[data-slot=message-scroller-viewport]"),
+        rootMargin: "600px 0px 0px 0px",
+      },
     );
     observer.observe(element);
     return () => {
       observer.disconnect();
     };
-  }, []);
+  }, [held, isLoading]);
   return (
-    <div className="flex h-6 items-center justify-center" ref={ref}>
-      {isLoading && <Spinner className="size-3.5 text-muted-foreground" />}
+    <div
+      className="flex min-h-6 flex-col justify-end [overflow-anchor:none]"
+      data-older-turns=""
+      ref={ref}
+    >
+      {isLoading && (
+        // Mid-view while the room covers it, at its foot otherwise.
+        <div className="sticky bottom-1/2 flex h-6 items-center justify-center">
+          <Spinner className="size-3.5 text-muted-foreground" />
+        </div>
+      )}
     </div>
   );
+}
+
+/**
+ * How tall the room above the turns held is for `count` more turns: from its
+ * foot to the last turn's, over the `held` turns there, times `count`. Layout
+ * px, as the window's zoom leaves offsets.
+ */
+function roomFor(
+  element: HTMLElement,
+  count: number | undefined,
+  held: number,
+): number {
+  const rows = element.parentElement?.children ?? [];
+  const last = [...rows].findLast(
+    (row): row is HTMLElement =>
+      row instanceof HTMLElement && row.dataset.turnId !== undefined,
+  );
+  if (count === undefined || held === 0 || !last) {
+    return OLDER_TURNS_MIN_PX;
+  }
+  const span =
+    last.offsetTop +
+    last.offsetHeight -
+    (element.offsetTop + element.offsetHeight);
+  return Math.max(OLDER_TURNS_MIN_PX, Math.round((count * span) / held));
 }
 
 /** The actions as one object that never changes, calling the latest render's. */

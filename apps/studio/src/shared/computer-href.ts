@@ -106,7 +106,7 @@ export function movedFilesAddress(
  * written: one ending in a separator does, and so does one whose last name
  * has no extension, the way folders are named. Anything else names a file.
  */
-export function namesFolder(written: string): boolean {
+function namesFolder(written: string): boolean {
   if (/[\\/]$/.test(written)) {
     return true;
   }

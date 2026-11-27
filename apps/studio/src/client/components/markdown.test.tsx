@@ -681,11 +681,35 @@ describe("Markdown streaming words", () => {
     ]);
   });
 
-  it("leaves code alone, since the components under it read a string", () => {
-    expect(streamingWords("Run `pnpm test run` first")).toEqual([
-      "Run",
-      "first",
-    ]);
+  it("wraps the words of a code span and leaves a fence whole", () => {
+    expect(
+      streamingWords("Run `pnpm fix` first\n\n```ts\nconst x = 1;\n```\n"),
+    ).toEqual(["Run", "pnpm", "fix", "first"]);
+  });
+
+  it("holds a code span's opening backtick back until its code arrives", () => {
+    expect(streamingWords("Then run `")).toEqual(["Then", "run"]);
+    expect(streamingWords("Then run `pnpm")).toEqual(["Then", "run", "pnpm"]);
+  });
+
+  it("holds a bold's opening marker back until its words arrive", () => {
+    expect(streamingWords("Then a **")).toEqual(["Then", "a"]);
+    expect(streamingWords("Then a **bold")).toEqual(["Then", "a", "bold"]);
+  });
+
+  it("fades a code block in only while its message is arriving", () => {
+    const fence = "One.\n\n```ts\nconst x = 1;\n";
+    const arriving = renderWithProviders(
+      <Markdown isStreaming markdown={fence} chatId={TASK_ID} />,
+    );
+    expect(
+      arriving.container.querySelectorAll("[data-stream-block]"),
+    ).toHaveLength(1);
+
+    const settled = renderMarkdown(fence);
+    expect(
+      settled.container.querySelectorAll("[data-stream-block]"),
+    ).toHaveLength(0);
   });
 
   it("wraps nothing once the text has settled", () => {

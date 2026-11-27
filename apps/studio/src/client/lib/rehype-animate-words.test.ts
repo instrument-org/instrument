@@ -72,12 +72,21 @@ describe("rehypeAnimateWords", () => {
     );
   });
 
-  it.each([
-    { tagName: "code" },
-    { tagName: "pre" },
-    { tagName: "math" },
-    { tagName: "svg" },
-  ])(
+  it("wraps the words of a code span", () => {
+    expect(
+      animate(
+        root(element("p", text("Run "), element("code", text("pnpm fix")))),
+      ),
+    ).toMatchInlineSnapshot(`"<p>[Run] <code>[pnpm] [fix]</code></p>"`);
+  });
+
+  it("leaves the code of a fence whole", () => {
+    expect(
+      animate(root(element("pre", element("code", text("const x = 1"))))),
+    ).toMatchInlineSnapshot(`"<pre><code>const x = 1</code></pre>"`);
+  });
+
+  it.each([{ tagName: "pre" }, { tagName: "math" }, { tagName: "svg" }])(
     "leaves the text inside $tagName whole, since something downstream reads it",
     ({ tagName }) => {
       expect(animate(root(element(tagName, text("const x = 1"))))).toBe(

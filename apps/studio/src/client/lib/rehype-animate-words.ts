@@ -20,11 +20,12 @@
  */
 
 // Text inside these is either not prose or is about to be parsed by something
-// that needs it whole: `code` and `pre` reach components that read their
-// children as a string, and the math elements are what KaTeX consumes.
+// that needs it whole: `pre` reaches a component that reads its code as a
+// string, and the math elements are what KaTeX consumes. A `code` outside a
+// `pre` is a code span, plain inline markup, and its words are wrapped like any
+// others; the stylesheet fades its frame in with them.
 const OPAQUE_TAGS = new Set([
   "annotation",
-  "code",
   "math",
   "pre",
   "script",

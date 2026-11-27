@@ -57,6 +57,11 @@ const EVENTS: [string, SettledStep, FilesIntent][] = [
   ],
   ["double-click a folder", DOCS, { path: "Documents/Old/", type: "walk" }],
   [
+    "a search carried into a folder it stepped over",
+    { ...DOCS, query: "plan" },
+    { path: "Documents/Old/", query: "plan", type: "walk" },
+  ],
+  [
     "a drag resting on a folder",
     DOCS,
     { path: "Documents/Old/", type: "spring" },
@@ -224,6 +229,7 @@ describe("the step a change leads to", () => {
         "a place: push path= root=/Users/sam/Downloads view=columns",
         "a place with a folder under it: push path=Music/ root=~ view=table",
         "double-click a folder: push path=Documents/Old/ root=~ view=icons",
+        "a search carried into a folder it stepped over: push path=Documents/Old/ query=plan root=~ view=icons",
         "a drag resting on a folder: replace path=Documents/Old/ root=~ view=icons",
         "a drag resting on a folder in the columns: replace path=Documents/Old/ query=report root=~ select=Documents/Old/ view=columns",
         "a folder selected in the columns: push path=Documents/Old/ query=report root=~ select=Documents/Old/ view=columns",

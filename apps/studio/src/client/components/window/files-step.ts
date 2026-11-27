@@ -98,6 +98,8 @@ export type FilesIntent =
    */
   | {
       path: string;
+      /** A search to carry on with in the folder walked to. */
+      query?: string | undefined;
       root?: string;
       select?: string | undefined;
       type: "walk";
@@ -243,7 +245,7 @@ function applied(
             inColumns && intent.select !== undefined
               ? columnsFolderOf(intent.select)
               : intent.path,
-          query: undefined,
+          query: intent.query || undefined,
           root: intent.root ?? step.root,
           select: intent.select,
         },

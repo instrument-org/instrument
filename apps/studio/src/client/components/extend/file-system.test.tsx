@@ -963,7 +963,10 @@ describe("FileSystem", () => {
               { kind: "file", path: "deep/down/plan.md" },
               { kind: "file", path: "deep/plan.txt" },
             ],
-            notSearched: ["Desktop", "Documents", "Downloads"],
+            notSearched: ["Desktop", "Documents", "Downloads"].map((name) => ({
+              name,
+              path: `${name}/`,
+            })),
             truncated: true,
           }}
         />,
@@ -982,6 +985,43 @@ describe("FileSystem", () => {
       });
       expect(screen.getByText("Nothing here matches “zebra”.")).toBeTruthy();
       expect(screen.queryByText(/Search everywhere/)).toBeNull();
+    });
+
+    it("names three folders it stepped over and offers to search in each", () => {
+      const onSearchInFolder = vi.fn();
+      renderWithProviders(
+        <FileSystem
+          defaultSearch="plan"
+          items={FOLDERS}
+          onSearchInFolder={onSearchInFolder}
+          searchResults={{
+            items: [{ kind: "file", path: "deep/plan.txt" }],
+            notSearched: ["Desktop", "Documents", "Downloads", "Library", "Music"].map(
+              (name) => ({ name, path: `${name}/` }),
+            ),
+            truncated: false,
+          }}
+          searchResultsPending={false}
+        />,
+      );
+      const line = screen.getByRole("button", { name: /not searched/ });
+
+      expect(line.textContent).toMatchInlineSnapshot(`"Desktop, Documents, Downloads, and 2 more not searched"`);
+      fireEvent.pointerDown(line, { button: 0, ctrlKey: false });
+      expect(
+        screen.getAllByRole("menuitem").map((item) => item.textContent),
+      ).toMatchInlineSnapshot(`
+        [
+          "Search in Desktop",
+          "Search in Documents",
+          "Search in Downloads",
+          "Search in Library",
+          "Search in Music",
+        ]
+      `);
+      fireEvent.click(screen.getByRole("menuitem", { name: "Search in Library" }));
+
+      expect(onSearchInFolder.mock.calls).toEqual([["Library/"]]);
     });
 
     it("says how many it found under the folder once it is read", () => {

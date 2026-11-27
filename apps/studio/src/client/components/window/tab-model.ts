@@ -9,7 +9,7 @@ import { omit } from "radashi";
 import { ownerOfHostGroup } from "@/shared/kept-state";
 
 import { computerTabOf } from "./file-tabs";
-import { historyOf, stepTabVisit, visitInTab } from "./tab-history";
+import { agentIdOf, historyOf, stepTabVisit, visitInTab } from "./tab-history";
 import {
   addressOfTab,
   forgetOpeners,
@@ -899,9 +899,17 @@ export function isTabNamed(tab: WindowTab, id: string): boolean {
   return tab.id === id || tab.reopenedFrom?.includes(id) === true;
 }
 
-/** A closed tab as it comes back: under an id of its own, remembering the ones it had. */
+/**
+ * A closed tab as it comes back: under an id of its own, remembering the
+ * ones it had, and still under the id agents named it by.
+ */
 export function reopenedTab<T extends WindowTab>(tab: T, id: string): T {
-  return { ...tab, id, reopenedFrom: [...(tab.reopenedFrom ?? []), tab.id] };
+  return {
+    ...tab,
+    agentId: agentIdOf(tab),
+    id,
+    reopenedFrom: [...(tab.reopenedFrom ?? []), tab.id],
+  };
 }
 
 /** Every tab a closed entry brings back: a group's, a side's, or the lone tab; none for an entry holding no group's tabs. */
@@ -1662,7 +1670,13 @@ export function pageBecomesFile(
   if (page?.kind !== "page" || page.group === undefined) {
     return state;
   }
-  const { future: _future, past, stripKey, ...hosted } = page;
+  const {
+    agentId: _agentId,
+    future: _future,
+    past,
+    stripKey,
+    ...hosted
+  } = page;
   const { group: _group, ...visit } = hosted;
   const behind = [
     ...(past ?? []),
@@ -1682,6 +1696,8 @@ export function pageBecomesFile(
     href: file.href,
     id: file.id,
     kind: "screen",
+    // The same tab going on, under the id agents already know it by.
+    agentId: agentIdOf(page),
     // The same page going on, so the tab keeps the chat whose agent opened it.
     ...(page.openedBy === undefined ? {} : { openedBy: page.openedBy }),
     ...(behind.length === 0 ? {} : { past: behind }),

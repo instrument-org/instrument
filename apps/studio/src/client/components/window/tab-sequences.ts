@@ -11,7 +11,7 @@ import {
   withSideClosed,
   withTabClosed,
 } from "./closed-tabs";
-import { historyOf } from "./tab-history";
+import { agentIdOf, historyOf } from "./tab-history";
 import {
   backToOpenerOf,
   everyTabId,
@@ -39,6 +39,7 @@ const CHAT_HREF = `/chats/${CHAT}`;
 
 /** The rules a sequence is checked against, by name. */
 export const RULES = {
+  agentId: "A tab keeps the id agents name it by through every change",
   backThenForward: "Back then Forward leaves a tab where it was",
   behindMovesNothing: "Opening behind leaves what is up alone",
   bystanders: "An action in one group leaves the other groups alone",
@@ -232,6 +233,11 @@ export class Window {
   /** One action, checked. Answers what it broke. */
   do(action: Action): Violation[] {
     const before = this.see();
+    // By strip key, which a tab keeps whatever it turns into; only the
+    // tabs a strip lists, not the pages drawn inside them.
+    const agentIds = new Map(
+      this.listed().map((tab) => [openerKeyOf(tab), agentIdOf(tab)]),
+    );
     this.violations = [];
     let label: string | undefined;
     let touched: readonly string[] | "all" = "all";
@@ -248,6 +254,15 @@ export class Window {
     }
     const after = this.see();
     this.always();
+    for (const tab of this.listed()) {
+      const was = agentIds.get(openerKeyOf(tab));
+      if (was !== undefined && was !== agentIdOf(tab)) {
+        this.fail(
+          "agentId",
+          `${this.tag(tab)} went from ${was} to ${agentIdOf(tab)}`,
+        );
+      }
+    }
     if (touched !== "all") {
       for (const [group, seen] of Object.entries(before)) {
         if (!touched.includes(group)) {

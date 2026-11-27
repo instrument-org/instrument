@@ -117,6 +117,14 @@ export type WindowTab = TabHistory & TabVisit;
  * future retain visits across the boundary between screens and pages.
  */
 interface TabHistory {
+  /**
+   * The id agents name the tab by, where it is not the tab's own: the id it
+   * had when it first opened, kept through every visit that gave it another
+   * (a page becoming its file's tab, a file's page leaving for a site, a
+   * step to a visit of the other kind), so an agent holds one id for the
+   * tab's whole life. Absent means `id` (`agentIdOf`).
+   */
+  agentId?: string;
   future?: TabVisit[];
   /**
    * The tab group it is in, by the group's own id (`newGroupKey`), which

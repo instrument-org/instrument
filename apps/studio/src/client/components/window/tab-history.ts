@@ -17,6 +17,25 @@ export function historyOf(tab: Extract<WindowTab, { kind: "screen" }>): {
   return tab.history ?? { entries: [tab.href], index: 0 };
 }
 
+/** The id agents name a tab by: the one it opened with, kept through every visit since (`agentId`). */
+export function agentIdOf(tab: Pick<WindowTab, "agentId" | "id">): string {
+  return tab.agentId ?? tab.id;
+}
+
+/** The agent id `current` hands on to a visit with the id `id` in its place. */
+function agentIdFor(current: WindowTab, id: string) {
+  const agentId = agentIdOf(current);
+  return agentId === id ? {} : { agentId };
+}
+
+/** A visit as the tab takes it up, with no agent id of its own: the tab's goes with it. */
+function withoutAgentId({
+  agentId: _agentId,
+  ...visit
+}: TabVisit & { agentId?: string }): TabVisit {
+  return visit;
+}
+
 /**
  * Restore a visit while retaining its browser session or screen trail. A page
  * with nothing behind it has a new tab behind it: back from its start is the
@@ -35,7 +54,8 @@ export function stepTabVisit(
   const visit = from?.at(-1);
   if (!visit || !from) return undefined;
   return {
-    ...visit,
+    ...withoutAgentId(visit),
+    ...agentIdFor(current, visit.id),
     future:
       direction === 1
         ? from.slice(0, -1)
@@ -55,7 +75,8 @@ export function stepTabVisit(
 export function visitInTab(current: WindowTab, visit: TabVisit): WindowTab {
   const previous = leftBehind(current, visit);
   return {
-    ...visit,
+    ...withoutAgentId(visit),
+    ...agentIdFor(current, visit.id),
     future: [],
     // The tab stays in its group and on its side whatever it visits.
     group: current.group,
@@ -121,6 +142,7 @@ function newTabVisit(): TabVisit {
 
 function visitOf(tab: WindowTab): TabVisit {
   const {
+    agentId: _agentId,
     future: _future,
     past: _past,
     side: _side,

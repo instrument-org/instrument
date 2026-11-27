@@ -584,7 +584,12 @@ export function TabStrip({
           <>
             <motion.div
               className={cn(
-                "-m-1 flex min-w-0 [scrollbar-width:none] overflow-x-auto p-1",
+                // The `strip` container: a tab here is never wider than what
+                // the row shows of it. A container takes no width from what
+                // it holds, so it takes the row's, which its tabs overfill.
+                // `relative` makes it the tabs' offset parent, which
+                // `showTab` measures against.
+                "@container/strip relative -m-1 flex min-w-0 flex-1 [scrollbar-width:none] overflow-x-auto p-1",
                 EDGE_FADE,
               )}
               layoutScroll
@@ -700,7 +705,14 @@ function showTab(
   const room = SCROLL_ROOM + EDGE_FADE_WIDTH;
   const left = tab.offsetLeft - room;
   const right = tab.offsetLeft + tab.offsetWidth + room;
-  if (left < list.scrollLeft) {
+  // A row too narrow for the tab and its room on both sides centers it, so
+  // its start and its close both stay in view.
+  if (right - left > list.clientWidth) {
+    list.scrollTo({
+      behavior,
+      left: tab.offsetLeft - (list.clientWidth - tab.offsetWidth) / 2,
+    });
+  } else if (left < list.scrollLeft) {
     list.scrollTo({ behavior, left });
   } else if (right > list.scrollLeft + list.clientWidth) {
     list.scrollTo({ behavior, left: right - list.clientWidth });
@@ -871,10 +883,11 @@ function Tab({
       ? cn("shrink-0", density !== "full" && "w-8")
       : isScrolled
         ? // A cap and floor to match the width, which the arriving motion
-          // opens from nothing.
+          // opens from nothing. A named tab is cut to the row's own width in
+          // a narrow pane, so the one up shows its start and its close.
           density === "icon"
           ? "w-8 max-w-8 min-w-0 shrink-0"
-          : "w-40 max-w-40 min-w-0 shrink-0"
+          : "w-40 max-w-[min(10rem,100cqw)] min-w-0 shrink-0"
         : cn(
             "max-w-60 flex-1",
             { compact: "min-w-15", full: "min-w-20", icon: "min-w-8" }[density],

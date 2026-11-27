@@ -7,6 +7,7 @@ import {
   projectColorName,
   suggestProjectIcons,
 } from "@instrument-org/shared/project-marks";
+import path from "node:path";
 import { z } from "zod";
 
 import {
@@ -20,9 +21,11 @@ import {
   type Project,
   type ProjectChange,
   projectName,
+  projectsDir,
   updateProject,
 } from "../chat/projects";
 import { recordProjectChange } from "../setup-changes";
+import { shellPath } from "../shell-path";
 import { defineCapability } from "./define";
 
 const NAME = PROJECTS_COMMAND.name;
@@ -173,7 +176,15 @@ function recordedChange(project: Project, after: Project): string {
     { after: lookOf(after), before: lookOf(project), id: after.id },
     fields,
   );
-  return `Changed ${after.name}: ${fields.map(saidChange).join(", ")}.`;
+  const said = `Changed ${after.name}: ${fields.map(saidChange).join(", ")}.`;
+  return after.name === project.name
+    ? said
+    : `${said} Its folder moved to ${projectFolder(after)}; writing to ${projectFolder(project)} would make a new project.`;
+}
+
+/** A project's folder as the shell names it. */
+function projectFolder(project: Project): string {
+  return `${shellPath(path.join(projectsDir(), project.name))}/`;
 }
 
 /** What a project's mark is drawn from, as the changes card draws it. */

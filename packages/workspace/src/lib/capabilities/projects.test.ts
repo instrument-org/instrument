@@ -157,9 +157,18 @@ describe("instrument projects set", () => {
 
   it("follows a rename, recording it under the new name", async () => {
     const { id } = await createProject({ name: "Old Habit" });
-    const { changes } = await turn(
+    const { changes, results } = await turn(
       'instrument projects set "Old Habit" --name Habits --icon bank',
     );
+    expect(
+      results[0]?.stdout.replaceAll(
+        getWorkspaceConfig().rootDir,
+        "<workspace>",
+      ),
+    ).toMatchInlineSnapshot(`
+      "Changed Habits: renamed from Old Habit, icon none → bank. Its folder moved to <workspace>/Projects/Habits/; writing to <workspace>/Projects/Old Habit/ would make a new project.
+      "
+    `);
     expect(changes).toEqual([
       {
         change: "changed",

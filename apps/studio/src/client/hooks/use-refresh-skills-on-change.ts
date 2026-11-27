@@ -1,5 +1,10 @@
 import { rpcClient } from "@/client/rpc/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  hashKey,
+  type QueryClient,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useEffect } from "react";
 
 /**
@@ -28,9 +33,24 @@ export function useRefreshSkillsOnChange() {
     if (revision === undefined) {
       return;
     }
-    // The router's own key, so this covers every skill read.
-    void queryClient.invalidateQueries({
-      queryKey: rpcClient.workspace.skill.key(),
-    });
+    void refreshSkills(queryClient);
   }, [revision, queryClient]);
+}
+
+/**
+ * Reads every skill read again, and returns once they are read. Under the
+ * router's own key, so it covers each one, but for `events.changed` itself:
+ * reading that again restarts its stream, which loses a change said while it
+ * is down, and its fresh revision 0 matches the last one's, so nothing reads
+ * again for it. Its refetch also lasts as long as the stream, so awaiting it
+ * never returns.
+ */
+export function refreshSkills(queryClient: QueryClient) {
+  const changes = hashKey(
+    rpcClient.workspace.skill.events.changed.experimental_liveKey(),
+  );
+  return queryClient.invalidateQueries({
+    predicate: (query) => query.queryHash !== changes,
+    queryKey: rpcClient.workspace.skill.key(),
+  });
 }

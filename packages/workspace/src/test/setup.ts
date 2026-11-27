@@ -102,7 +102,8 @@ setWorkspaceConfig({
   chatsDir: AbsolutePathSchema.parse(layout.chatsDir),
   legacyTasksDir: WorkspaceDirSchema.parse(tasksDir),
   tempFolders: [],
-  trashItem: () => Promise.resolve(),
+  // Gone from where it was, as the Trash leaves it.
+  trashItem: (target) => fs.promises.rm(target, { force: true, recursive: true }),
   uvBinPath: AbsolutePathSchema.parse("/usr/bin/uv"),
   webSearch: unavailableWebSearchClient,
   workFoldersDir: AbsolutePathSchema.parse(path.join(machineDir, "work")),

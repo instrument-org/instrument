@@ -3,6 +3,7 @@ import {
   type AISDKImageModelResult,
   type AISDKWebSearchModelResult,
 } from "@instrument-org/ai-gateway";
+import fs from "node:fs/promises";
 import { noopModelCache } from "@instrument-org/ai-gateway/model-cache";
 // The values come from the subpaths rather than the package root, which every
 // test file using this helper would otherwise pay a second of module
@@ -149,7 +150,8 @@ export function createMockChatConfig(
     systemSkillsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.systemSkills),
     legacyTasksDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.chats),
     tempFolders: [],
-    trashItem: () => Promise.resolve(),
+    // Gone from where it was, as the Trash leaves it.
+    trashItem: (target) => fs.rm(target, { force: true, recursive: true }),
     uvBinPath: AbsolutePathSchema.parse(path.resolve("/tmp/uv")),
     webSearch: options.webSearch ?? unavailableWebSearchClient,
     workFoldersDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.work),

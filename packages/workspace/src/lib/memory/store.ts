@@ -72,8 +72,8 @@ export const MemorySchema = z.object({
 export type Memory = z.output<typeof MemorySchema>;
 
 /**
- * Deletes the named memories' files and hands back what they held. Names with
- * no file are simply absent from the answer.
+ * Moves the named memories' files to the Trash and hands back what they
+ * held. Names with no file are simply absent from the answer.
  *
  * Several at once rather than one at a time, because forgetting a dozen is
  * one decision a person made once: a call each would publish a change each,
@@ -88,8 +88,9 @@ export async function forgetMemories(
   if (memories.length === 0) {
     return [];
   }
+  const { trashItem } = getWorkspaceConfig();
   await Promise.all(
-    memories.map((memory) => fs.rm(memory.path, { force: true })),
+    memories.map((memory) => trashItem(AbsolutePathSchema.parse(memory.path))),
   );
   await writeMemoryRecords(
     dir,
@@ -102,7 +103,7 @@ export async function forgetMemories(
   return memories;
 }
 
-/** Deletes one memory's file. Returns what it held, or nothing when there was none. */
+/** Moves one memory's file to the Trash. Returns what it held, or nothing when there was none. */
 export async function forgetMemory(
   dir: AbsolutePath,
   name: string,

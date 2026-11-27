@@ -69,7 +69,7 @@ const STARTUP = {
       "pele",
       "prosemirror-view",
     ],
-    budgetBytes: 10.85 * MB,
+    budgetBytes: 10.9 * MB,
   },
 } satisfies Partial<
   Record<

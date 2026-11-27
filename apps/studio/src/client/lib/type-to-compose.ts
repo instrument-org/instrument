@@ -1,6 +1,5 @@
-import { windowHoldsAtom } from "@/client/atoms/tab-navigation-block";
+import { isWindowHeld } from "@/client/atoms/tab-navigation-block";
 import { composerWithKeyboard } from "@/client/lib/keyboard-home";
-import { getDefaultStore } from "jotai";
 
 import { isTypingInto } from "./is-typing-into";
 
@@ -46,7 +45,7 @@ function composerFor(target: EventTarget | null) {
     document.activeElement?.tagName === "WEBVIEW" ||
     // A menu, popover or dialog is up, whatever has the keyboard.
     document.querySelector("[data-radix-focus-guard]") !== null ||
-    getDefaultStore().get(windowHoldsAtom).length > 0
+    isWindowHeld()
   ) {
     return null;
   }

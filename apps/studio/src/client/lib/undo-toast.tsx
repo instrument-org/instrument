@@ -1,5 +1,8 @@
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
-import { windowHoldsAtom } from "@/client/atoms/tab-navigation-block";
+import {
+  isWindowHeld,
+  windowHoldsAtom,
+} from "@/client/atoms/tab-navigation-block";
 import { commandKeyHeld } from "@/client/lib/utils";
 import { isTypingInto } from "@/client/lib/is-typing-into";
 import { getDefaultStore } from "jotai";
@@ -28,7 +31,7 @@ function isUndoKeyFree() {
     held?.tagName !== "WEBVIEW" &&
     held?.closest('[role="dialog"]') == null &&
     document.querySelector("[data-radix-focus-guard]") === null &&
-    getDefaultStore().get(windowHoldsAtom).length === 0
+    !isWindowHeld()
   );
 }
 

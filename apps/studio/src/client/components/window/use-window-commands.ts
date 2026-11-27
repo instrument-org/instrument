@@ -12,6 +12,7 @@ import { requestCapture } from "@/client/components/captures/capture-store";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { helpMenuReport } from "@/client/lib/problem-reports";
 import {
+  isWindowHeld,
   modalBackStackAtom,
   windowHoldsAtom,
 } from "@/client/atoms/tab-navigation-block";
@@ -221,7 +222,7 @@ export function useWindowCommands(
         event.key.toLowerCase() === "l" &&
         // Under a hold (a dialog, setup) the field is behind it; the key is
         // left to what is on top, which may have a search of its own.
-        getDefaultStore().get(windowHoldsAtom).length === 0
+        !isWindowHeld()
       ) {
         event.preventDefault();
         latest.current.search();
@@ -255,7 +256,7 @@ export function useWindowCommands(
         !event.defaultPrevented &&
         event.target instanceof Element &&
         event.target.closest("[data-file-system-listing]") &&
-        getDefaultStore().get(windowHoldsAtom).length === 0
+        !isWindowHeld()
       ) {
         event.preventDefault();
         latest.current.back();
@@ -474,7 +475,7 @@ export function useWindowCommands(
               command.type === "selectGroup"
             ) {
               // A tab or group by its place is a tab chord too, held under a dialog.
-              if (getDefaultStore().get(windowHoldsAtom).length === 0) {
+              if (!isWindowHeld()) {
                 if (command.type === "selectTab") {
                   latest.current.selectTab(command.index);
                 } else {
@@ -596,10 +597,7 @@ export function useWindowCommands(
  */
 function openOrCloseCommandMenu() {
   const store = getDefaultStore();
-  if (
-    store.get(commandMenuOpenAtom) ||
-    store.get(windowHoldsAtom).length === 0
-  ) {
+  if (store.get(commandMenuOpenAtom) || !isWindowHeld(store)) {
     toggleCommandMenu();
   }
 }
@@ -667,7 +665,7 @@ function heldByModal(
   pressed: Element | null = null,
 ) {
   const store = getDefaultStore();
-  if (store.get(windowHoldsAtom).length === 0) {
+  if (!isWindowHeld(store)) {
     return false;
   }
   const stepped =

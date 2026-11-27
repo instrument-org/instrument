@@ -1,4 +1,4 @@
-import { atom } from "jotai";
+import { atom, getDefaultStore } from "jotai";
 
 /**
  * What holds the window over the tab behind it (a dialog, a draft or a chat
@@ -15,6 +15,11 @@ export const windowHoldsAtom = atom<
     ancestors?: readonly object[];
   }[]
 >([]);
+
+/** Whether anything holds the window over the tab behind it (`windowHoldsAtom`). */
+export function isWindowHeld(store = getDefaultStore()) {
+  return store.get(windowHoldsAtom).length > 0;
+}
 
 /**
  * What back does while something is holding the window, innermost last: a

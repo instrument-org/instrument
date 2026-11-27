@@ -27,6 +27,7 @@ import {
 } from "@/client/components/studio-sidebar-rail";
 import { contextMenuComponents } from "@/client/components/ui/menu-components";
 import { useWindow } from "@/client/components/window/context";
+import { APPS_HREF } from "@/client/atoms/window";
 import {
   SIDE_PANEL_WIDTH_DEFAULT,
   SIDE_PANEL_WIDTH_MAX,
@@ -55,15 +56,23 @@ import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ArrowSquareInIcon } from "@phosphor-icons/react/ArrowSquareIn";
 import { BookmarksSimpleIcon } from "@phosphor-icons/react/BookmarksSimple";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { atom, useAtomValue, useSetAtom, useStore } from "jotai";
-import { type ReactNode, type RefObject, useRef, useState } from "react";
+import {
+  type ComponentProps,
+  type ReactNode,
+  type RefObject,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 
 import { AddressMark } from "./app-chip";
@@ -83,7 +92,12 @@ import { bookmarkName } from "./bookmark-edits";
 import { chatListOptions } from "./chat-list-query";
 import { type RowDensity, rowDensityAtom } from "./chat-list-view";
 import { RecentChatRow } from "./chats-mark";
-import { byLastUserMessage, type Chat, hasWords } from "./chats";
+import {
+  byLastUserMessage,
+  type Chat,
+  hasWords,
+  shortActivityLabel,
+} from "./chats";
 import { useShowChatGroup } from "./chat-group";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import {
@@ -436,16 +450,40 @@ function PanelScroll({ children }: { children: ReactNode }) {
   );
 }
 
-function Heading({ children }: { children: ReactNode }) {
+/**
+ * A section's name over its rows. Given `opens`, the clicks of the place
+ * that shows all of the section, it is a button there with a caret after it.
+ */
+function Heading({
+  children,
+  opens,
+}: {
+  children: ReactNode;
+  opens?: Pick<
+    ComponentProps<"button">,
+    "onAuxClick" | "onClick" | "onContextMenu"
+  >;
+}) {
   return (
-    <h3 className="px-2 pt-3 pb-1 text-xs font-medium text-muted-foreground first:pt-0">
-      {children}
+    <h3 className="flex h-6 items-center text-xs font-medium text-muted-foreground not-first:mt-2">
+      {opens ? (
+        <button
+          className="group/heading flex h-6 cursor-default items-center gap-0.5 rounded-md px-2 hover:bg-foreground/6 hover:text-foreground"
+          type="button"
+          {...opens}
+        >
+          {children}
+          <CaretRightIcon className="size-3 opacity-60 group-hover/heading:opacity-100" />
+        </button>
+      ) : (
+        <span className="px-2">{children}</span>
+      )}
     </h3>
   );
 }
 
 const ROW =
-  "flex h-7.5 w-full shrink-0 cursor-default items-center gap-2 rounded-lg px-2 text-left text-[13px] text-foreground/85 hover:bg-foreground/6 hover:text-foreground data-[state=open]:bg-foreground/6";
+  "flex h-7 w-full shrink-0 cursor-default items-center gap-2 rounded-lg px-2 text-left text-[13px] text-foreground/85 hover:bg-foreground/6 hover:text-foreground data-[state=open]:bg-foreground/6";
 
 /** A row that shows more of a section in the panel. */
 function MoreRow({
@@ -469,7 +507,7 @@ function MoreRow({
   );
 }
 
-/** The person's own apps as a row of icons; a pick goes to its site where it is signed in, else its page in Instrument. */
+/** The person's own apps as a row of icons, then one for the Apps page to add another; a pick goes to its site where it is signed in, else its page in Instrument. */
 function AppsSection({
   open,
   openScreen,
@@ -478,12 +516,9 @@ function AppsSection({
   openScreen: OpenAddress;
 }) {
   const apps = useOwnApps().toSorted((a, b) => a.name.localeCompare(b.name));
-  if (apps.length === 0) {
-    return null;
-  }
   return (
     <>
-      <Heading>Apps</Heading>
+      <Heading opens={bookmarkClicks(APPS_HREF, openScreen)}>Apps</Heading>
       <div className="flex flex-wrap gap-0.5 px-0.5">
         {apps.map((app) => {
           const page = `/apps/${app.slug}`;
@@ -516,6 +551,15 @@ function AppsSection({
             </button>
           );
         })}
+        <button
+          aria-label="Add an app"
+          className="grid size-8 cursor-default place-items-center rounded-lg text-muted-foreground hover:bg-foreground/6 hover:text-foreground"
+          title="Add an app"
+          type="button"
+          {...bookmarkClicks(APPS_HREF, openScreen)}
+        >
+          <PlusIcon className="size-4" />
+        </button>
       </div>
     </>
   );
@@ -572,6 +616,7 @@ function ChatRows({
               title: chat.title,
             });
           }}
+          timeLabel={shortActivityLabel}
         />
       ))}
       {deleting && (
@@ -614,7 +659,7 @@ function ChatsSection({
   }
   return (
     <>
-      <Heading>Chats</Heading>
+      <Heading opens={{ onClick: onAll }}>Chats</Heading>
       <ChatRows chats={chats.slice(0, count)} group={group} open={open} />
       {chats.length > count && <MoreRow label="All chats" onClick={onAll} />}
     </>
@@ -736,7 +781,7 @@ function BookmarksSection({
     barItems(state).length === 0 && rootItems(state, OTHER_ROOT).length === 0;
   return (
     <>
-      <Heading>Bookmarks</Heading>
+      <Heading opens={{ onClick: onAll }}>Bookmarks</Heading>
       {isEmpty ? (
         <AllBookmarksDrop>
           {(className) => (

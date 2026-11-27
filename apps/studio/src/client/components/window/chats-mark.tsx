@@ -130,6 +130,7 @@ export function RecentChatRow({
   onDelete,
   onOpen,
   onPress,
+  timeLabel,
 }: {
   chat: Chat;
   /** How much of the chat the row shows: see `RowDensity`. */
@@ -137,6 +138,8 @@ export function RecentChatRow({
   onDelete: () => void;
   onOpen: () => void;
   onPress: (event: React.PointerEvent<HTMLElement>) => void;
+  /** How the row's time reads (`ChatRow`). */
+  timeLabel?: (date: Date, now: Date) => string;
 }) {
   const shell = useShell();
   const appsBySlug = useAppsBySlug();
@@ -183,6 +186,7 @@ export function RecentChatRow({
         setChatProject(chat.id, next);
       }}
       projects={projects}
+      {...(timeLabel && { timeLabel })}
     />
   );
 }

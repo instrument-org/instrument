@@ -35,7 +35,7 @@ export const sidebarWidthAtom = atom(
 /** The side panel's narrowest, in CSS px. */
 export const SIDE_PANEL_WIDTH_MIN = 240;
 /** The side panel's width until a drag sets one, in CSS px. */
-export const SIDE_PANEL_WIDTH_DEFAULT = 288;
+export const SIDE_PANEL_WIDTH_DEFAULT = 264;
 /** The side panel's widest: past this the room goes to the group beside it. */
 export const SIDE_PANEL_WIDTH_MAX = 440;
 

@@ -289,6 +289,29 @@ export function activityLabel(date: Date, now: Date): string {
   return format(date, isSameYear(date, now) ? "MMM d" : "MMM d, yyyy");
 }
 
+/**
+ * When something last happened in a chat, as short as a narrow list can
+ * show it: minutes or hours ago within the day, the weekday within the
+ * week, and the date past that.
+ */
+export function shortActivityLabel(date: Date, now: Date): string {
+  const minutes = Math.floor((now.getTime() - date.getTime()) / 60_000);
+  const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+  if (minutes < 1) {
+    return "now";
+  }
+  if (minutes < 60) {
+    return `${minutes.toString()}m`;
+  }
+  if (date.getTime() >= startOfToday) {
+    return `${Math.floor(minutes / 60).toString()}h`;
+  }
+  if (date.getTime() >= startOfToday - 6 * DAY_MS) {
+    return format(date, "EEE");
+  }
+  return format(date, isSameYear(date, now) ? "MMM d" : "M/d/yy");
+}
+
 /** Items by when something last happened in each, newest first. */
 export function byActivity<T extends { updatedAt: number }>(chats: T[]): T[] {
   return [...chats].sort((a, b) => b.updatedAt - a.updatedAt);

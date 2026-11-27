@@ -8,6 +8,7 @@ import {
   type Bookmarks,
   keyOfPlace,
   orderAfter,
+  OTHER_ROOT,
   placeOf,
   placeOfKey,
   siblingsIn,
@@ -117,18 +118,19 @@ export const NEW_FOLDER_NAME = "New folder";
 /**
  * Where the address bar's star keeps a bookmark made now: last in the place
  * picked last (`lastBookmarkFolderAtom`, by its key) while that is there,
- * and last on the bar otherwise.
+ * and last in All Bookmarks otherwise.
  */
 export function newBookmarkPlace(
   state: Bookmarks,
   lastFolder: string | null,
 ): BookmarkPlace & { order: number } {
   const picked = placeOfKey(lastFolder ?? undefined);
-  const place =
+  const place: BookmarkPlace =
+    lastFolder === null ||
     picked.root !== undefined ||
     state.folders.some((each) => each.id === picked.folder)
       ? picked
-      : {};
+      : { root: OTHER_ROOT };
   return {
     order: orderAfter(siblingsIn(state, place.folder, place.root)),
     ...place,

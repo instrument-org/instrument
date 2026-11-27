@@ -153,9 +153,12 @@ describe("bookmarkEditOps", () => {
 });
 
 describe("newBookmarkPlace", () => {
-  it("files a new bookmark last in the folder picked last while it is there, and on the bar otherwise", () => {
+  it("files a new bookmark last in the place picked last while it is there, and in All Bookmarks otherwise", () => {
     expect(newBookmarkPlace(state, "f")).toEqual({ folder: "f", order: 2 });
-    expect(newBookmarkPlace(state, "gone")).toEqual({ order: 2 });
+    expect(newBookmarkPlace(state, "gone")).toEqual({
+      order: 0,
+      root: OTHER_ROOT,
+    });
     expect(newBookmarkPlace(state, null)).toEqual({ order: 2 });
     expect(newBookmarkPlace(state, OTHER_ROOT)).toEqual({
       order: 0,

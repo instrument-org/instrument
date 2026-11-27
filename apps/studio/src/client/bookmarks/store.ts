@@ -6,6 +6,7 @@ import {
   type BookmarkOp,
   type BookmarksBridge,
   type BookmarksSnapshot,
+  OTHER_ROOT,
 } from "@/shared/bookmarks";
 import { atom, type useStore } from "jotai";
 
@@ -110,12 +111,14 @@ export function bookmarksRead(
 
 /**
  * Where the address bar's star files a new bookmark, by the place's key
- * (`placeOfKey`): the folder or All Bookmarks last picked for a bookmark,
- * as a browser's star remembers it, or the bar (`null`) until one is. A
- * folder removed since leaves the bar.
+ * (`placeOfKey`): the place last picked for a bookmark, as a browser's star
+ * remembers it, the bar as `null`, and All Bookmarks until one is picked. A
+ * folder removed since leaves All Bookmarks.
  */
 export const lastBookmarkFolderAtom = keptAtom<string | null>(
   "layout",
   "bookmark-folder.v1",
-  null,
+  OTHER_ROOT,
+  (value, initial) =>
+    value === null || typeof value === "string" ? value : initial,
 );

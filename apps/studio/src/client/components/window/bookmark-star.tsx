@@ -242,8 +242,8 @@ const BAR = "bar";
 const CHOOSE = "choose";
 
 /**
- * The star's card, the way a browser's is: the page's mark beside its name,
- * the folder it is filed in, and Remove or Done. The folder list has the bar
+ * The star's card, the way a browser's is: the page's mark beside its title,
+ * the name and the folder it is filed in, and Remove or Done. The folder list has the bar
  * and its folders, All Bookmarks and its folders, and Choose another
  * folder… for the editor, where the address can change and a folder be
  * made. What is typed and picked is kept as the card goes away, by Done,
@@ -319,24 +319,24 @@ function BookmarkCard({
           onClose();
         }}
       >
-        <p className="text-sm font-semibold">{title}</p>
+        <p className="flex items-center gap-2 text-sm font-semibold">
+          <span className="grid size-4 shrink-0 place-items-center">
+            <AddressMark address={address} />
+          </span>
+          {title}
+        </p>
         <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-[13px]">
           <label className="text-muted-foreground" htmlFor={`${ids}-name`}>
             Name
           </label>
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="grid size-5 shrink-0 place-items-center">
-              <AddressMark address={address} />
-            </span>
-            <Input
-              className="h-8"
-              id={`${ids}-name`}
-              onChange={(event) => {
-                setTyped(event.currentTarget.value);
-              }}
-              value={typed}
-            />
-          </div>
+          <Input
+            className="h-8"
+            id={`${ids}-name`}
+            onChange={(event) => {
+              setTyped(event.currentTarget.value);
+            }}
+            value={typed}
+          />
           <label className="text-muted-foreground" htmlFor={`${ids}-folder`}>
             Folder
           </label>

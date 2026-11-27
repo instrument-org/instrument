@@ -109,6 +109,7 @@ export function ChatRow({
   onSetProject,
   search = "",
   projects,
+  timeLabel = activityLabel,
 }: {
   /** The chat's actions, answered by the list for every row through one set of mutations. */
   actions: RowAction[];
@@ -134,6 +135,8 @@ export function ChatRow({
   mark?: ReactNode;
   /** The moment the row's time is read against. */
   now: Date;
+  /** How the row's time reads, given when the user last messaged the chat and `now`. */
+  timeLabel?: (date: Date, now: Date) => string;
   /** Asks before the chat goes to the trash, through the caller's dialog. */
   onDelete: () => void;
   /** Opens the new-project dialog for this chat, with the name typed in the picker when anything was. */
@@ -270,7 +273,7 @@ export function ChatRow({
       )}
       title={formatAbsoluteTime(new Date(chat.lastUserMessageAt))}
     >
-      {activityLabel(new Date(chat.lastUserMessageAt), now)}
+      {timeLabel(new Date(chat.lastUserMessageAt), now)}
     </span>
   );
   // A starred chat's star, past its time in the row's corner and a mark
@@ -310,7 +313,7 @@ export function ChatRow({
         <div
           className={cn(
             isPlain
-              ? "group/row relative flex cursor-default items-start gap-1.5 rounded-lg px-2.5 py-1.5 select-none hover:bg-foreground/[0.04] focus-visible:outline-hidden data-[state=open]:bg-foreground/[0.04]"
+              ? "group/row relative flex cursor-default items-start gap-1.5 rounded-lg px-2 py-1 select-none hover:bg-foreground/[0.04] focus-visible:outline-hidden data-[state=open]:bg-foreground/[0.04]"
               : rowClassName(isOpen),
             // The chat just started from a draft slides into its place;
             // nothing else that lands in the list does this.

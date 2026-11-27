@@ -27,6 +27,8 @@ import {
 import { newBookmarkPlace } from "./edit";
 import {
   applyBookmarkOpsAtom,
+  BOOKMARKS_LOADING,
+  bookmarksLoadedAtom,
   bookmarksStateAtom,
   lastBookmarkFolderAtom,
 } from "./store";
@@ -115,11 +117,19 @@ export function addToAllBookmarks(
  * surface that draws many: the bookmarks are read at the press rather than
  * followed, so a change to them redraws none of the links. An address not
  * kept yet goes into All Bookmarks (`addToAllBookmarks`), and one kept
- * already stays where it is; the toast says which.
+ * already stays where it is; the toast says which. Until the bookmarks are
+ * read nothing is kept, since the address may be kept already.
  */
 export function useAddBookmark() {
   const store = useStore();
+  // Followed, unlike the bookmarks: it changes once, and read without being
+  // followed it can answer with an older snapshot's.
+  const isLoaded = useAtomValue(bookmarksLoadedAtom);
   return ({ title, url }: { title: string; url: string }) => {
+    if (!isLoaded) {
+      toast(BOOKMARKS_LOADING, { description: title || url });
+      return;
+    }
     const { bookmark, isNew } = addToAllBookmarks(store, { title, url });
     if (!isNew) {
       toast("Already in Bookmarks", { description: bookmark.title || url });

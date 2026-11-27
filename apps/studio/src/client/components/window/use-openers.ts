@@ -6,7 +6,7 @@ import {
   useAddBookmark,
 } from "@/client/bookmarks/actions";
 import { bookmarkChangesBetween } from "@/client/bookmarks/agent-changes";
-import { bookmarksStateAtom } from "@/client/bookmarks/store";
+import { bookmarksRead, bookmarksStateAtom } from "@/client/bookmarks/store";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
@@ -15,6 +15,8 @@ import { keepListening } from "@/client/lib/keep-listening";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import {
+  BOOKMARKS_NOT_READ,
+  BOOKMARKS_READ_WAIT_MS,
   type ChatId,
   browserTargetOf,
   isFolderPath,
@@ -1472,6 +1474,16 @@ export function useOpeners({
     }
     if (action.kind === "history") {
       return { history: await historyRows(action) };
+    }
+    if (
+      (action.kind === "bookmarks" ||
+        action.kind === "addBookmark" ||
+        action.kind === "changeBookmarks") &&
+      !(await bookmarksRead(store, BOOKMARKS_READ_WAIT_MS))
+    ) {
+      // What the window shows before then is none, which a list would
+      // report and a change would be made from.
+      return { error: BOOKMARKS_NOT_READ };
     }
     if (action.kind === "bookmarks") {
       return { bookmarks: bookmarkListing(store.get(bookmarksStateAtom)) };

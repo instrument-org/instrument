@@ -217,6 +217,10 @@ export {
   type BookmarkChange,
   type BookmarkSide,
 } from "./schemas/bookmark-change";
+export {
+  BOOKMARKS_NOT_READ,
+  BOOKMARKS_READ_WAIT_MS,
+} from "./model-text/commands/bookmarks-command";
 export { type SessionMessageDataPart } from "./schemas/session/message-data-part";
 export {
   setupChangeSentence,

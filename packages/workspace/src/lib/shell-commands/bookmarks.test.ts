@@ -21,6 +21,7 @@ import {
   type BookmarkSide,
 } from "../../schemas/bookmark-change";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
+import { BOOKMARKS_NOT_READ } from "../../model-text/commands/bookmarks-command";
 import { createBookmarksCommand } from "./bookmarks";
 
 const chatId = ChatIdSchema.parse("bookmarks-command-chat");
@@ -41,6 +42,17 @@ vi.mock(import("../chat/window-tab"), async (importOriginal) => ({
     return windowTimeoutMs;
   },
 }));
+// How long a window waits for the app to have read the bookmarks.
+let readWaitMs = 0;
+vi.mock(
+  import("../../model-text/commands/bookmarks-command"),
+  async (importOriginal) => ({
+    ...(await importOriginal()),
+    get BOOKMARKS_READ_WAIT_MS() {
+      return readWaitMs;
+    },
+  }),
+);
 
 /** The bookmarks as the window lists them: the bar's, then All Bookmarks'. */
 const LISTED: NonNullable<WindowTabAnswer["bookmarks"]> = [
@@ -196,6 +208,7 @@ async function inTurn(...commands: string[][]) {
 beforeEach(() => {
   asked = [];
   windowTimeoutMs = 2000;
+  readWaitMs = 0;
   stopAnswering = answeringWindow();
 });
 
@@ -275,6 +288,52 @@ describe("bookmarks list", () => {
       "instrument bookmarks: the window did not answer, so no bookmark was read.
       "
     `);
+  });
+});
+
+describe("bookmarks the app has not read yet", () => {
+  it("waits for the window while it waits for them", async () => {
+    stopAnswering();
+    windowTimeoutMs = 20;
+    readWaitMs = 500;
+    const stop = publisher.subscribe("window.tab", (ask) => {
+      setTimeout(() => {
+        publisher.publish("window.tabDone", {
+          bookmarks: LISTED,
+          id: ask.id,
+          requestId: ask.requestId,
+        });
+      }, 100);
+    });
+    const result = await run({}, "list", "zendesk");
+    stop();
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Zendesk pricing");
+  });
+
+  it("changes nothing, and says why, once the window gives up on them", async () => {
+    stopAnswering();
+    const stop = publisher.subscribe("window.tab", (ask) => {
+      publisher.publish("window.tabDone", {
+        error: BOOKMARKS_NOT_READ,
+        id: ask.id,
+        requestId: ask.requestId,
+      });
+    });
+    const { changes, results } = await inTurn(
+      ["remove", "11111111"],
+      ["add", "https://acme.example/"],
+    );
+    stop();
+
+    expect(results.map((each) => each.exitCode)).toEqual([1, 1]);
+    expect(results[0]?.stderr).toMatchInlineSnapshot(`
+      "instrument bookmarks: the app is still reading the bookmarks from the workspace folder, so nothing was read or changed. Try again in a minute.
+      "
+    `);
+    expect(results[1]?.stderr).toBe(results[0]?.stderr);
+    expect(changes).toEqual([]);
   });
 });
 

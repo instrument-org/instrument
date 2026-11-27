@@ -29,6 +29,7 @@ const NO_BOOKMARKS: BookmarksSnapshot = {
   acks: {},
   bookmarks: [],
   folders: [],
+  loading: true,
 };
 
 /**

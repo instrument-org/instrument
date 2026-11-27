@@ -121,6 +121,12 @@ export type BookmarkOp =
 export interface BookmarksSnapshot extends Bookmarks {
   /** By window: the `seq` of the last batch main applied from it. */
   acks: Record<string, number>;
+  /**
+   * Set while main has not yet read the bookmarks, when `bookmarks` and
+   * `folders` say nothing of what is kept: before the workspace opens, and
+   * while its first read is under way.
+   */
+  loading?: true;
 }
 
 /** A batch of ops from one window, numbered so main can say which it has applied. */

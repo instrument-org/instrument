@@ -192,7 +192,8 @@ function loadBookmarks(): BookmarksSnapshot {
   } catch {
     // Starts with none, as below.
   }
-  return { acks: {}, bookmarks: [], folders: [] };
+  // Not read, as far as this window knows, so nothing is made from none.
+  return { acks: {}, bookmarks: [], folders: [], loading: true };
 }
 
 /** The bookmarks as the preload first read them. */

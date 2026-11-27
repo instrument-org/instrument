@@ -2,6 +2,7 @@ import { useBookmarkActions } from "@/client/bookmarks/actions";
 import { sameAddress } from "@/client/bookmarks/address";
 import { useBookmarkFolders } from "@/client/bookmarks/folders";
 import {
+  bookmarksLoadedAtom,
   bookmarksStateAtom,
   lastBookmarkFolderAtom,
 } from "@/client/bookmarks/store";
@@ -87,7 +88,9 @@ function isFixedOnBar(address: string) {
  * renamed, filed or removed; pressed again, the card opens on the bookmark
  * kept. ⌘D does the same. Hollow, it is out of sight on a page the bar
  * always has (`isFixedOnBar`), and stays laid out there so that ⌘D still
- * means that page and not one beside it.
+ * means that page and not one beside it. Until the bookmarks are read it
+ * is dimmed and does nothing, since whether the address is kept is not yet
+ * known.
  */
 export function BookmarkStar({
   address,
@@ -99,6 +102,7 @@ export function BookmarkStar({
   title: string;
 }) {
   const actions = useBookmarkActions();
+  const isLoaded = useAtomValue(bookmarksLoadedAtom);
   const kept = actions.bookmarkOf(address);
   const isOutOfSight = kept === undefined && isFixedOnBar(address);
   const state = useAtomValue(bookmarksStateAtom);
@@ -113,6 +117,9 @@ export function BookmarkStar({
   const button = useRef<HTMLButtonElement>(null);
 
   const press = () => {
+    if (!isLoaded) {
+      return;
+    }
     // Pressed again while its card is up, the star puts the card away.
     if (card !== undefined) {
       setCard(undefined);
@@ -172,9 +179,14 @@ export function BookmarkStar({
                 kept
                   ? "text-warning-500"
                   : "text-foreground/45 hover:text-foreground",
+                !isLoaded &&
+                  "text-foreground/20 hover:bg-transparent hover:text-foreground/20",
                 isOutOfSight && "pointer-events-none opacity-0",
               )}
-              data-bookmark-star={kept ? "kept" : ""}
+              data-bookmark-star={
+                isLoaded ? (kept ? "kept" : "") : "loading"
+              }
+              disabled={!isLoaded}
               onClick={press}
               ref={button}
               type="button"

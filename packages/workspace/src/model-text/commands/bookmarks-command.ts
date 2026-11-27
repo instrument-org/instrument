@@ -20,3 +20,14 @@ export const BOOKMARKS_ARE_THE_CHATS =
 /** Why a change made outside a reply, by a program still running after one, does nothing: no card would show it. */
 export const BOOKMARKS_NEED_A_TURN =
   "bookmarks change only while you are working on a reply, whose card shows the change with Undo. Nothing changed. Run it again in this turn.";
+
+/**
+ * How long a window asked about the bookmarks waits for the app to have read
+ * them, which right after a restart can take most of a minute on a synced
+ * folder, before it answers `BOOKMARKS_NOT_READ`.
+ */
+export const BOOKMARKS_READ_WAIT_MS: number = 10_000;
+
+/** Why a bookmarks command did nothing: the app had not read them yet, so what it holds says nothing of what is kept. */
+export const BOOKMARKS_NOT_READ =
+  "the app is still reading the bookmarks from the workspace folder, so nothing was read or changed. Try again in a minute.";

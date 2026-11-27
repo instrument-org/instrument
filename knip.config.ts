@@ -67,6 +67,7 @@ const config: KnipConfig = {
         "xdg-open",
         "dbus-send", // Linux session bus tool (src/electron-main/lib/setup-dbus-env.ts)
         "reg", // Windows registry tool (src/electron-main/lib/capture-in-use.ts)
+        "mkfifo", // Holds a read open in a test (src/electron-main/bookmarks/serve-bookmarks.test.ts)
       ],
       ignoreDependencies: [
         "node-api-headers", // Resolved by path in scripts/build-mac-helper.ts

@@ -10,6 +10,7 @@ import {
   BOOKMARKS_ARE_THE_CHATS,
   BOOKMARKS_COMMAND,
   BOOKMARKS_NEED_A_TURN,
+  BOOKMARKS_READ_WAIT_MS,
 } from "../../model-text/commands/bookmarks-command";
 import {
   type BookmarkChange,
@@ -46,12 +47,17 @@ const Listed = ListedBookmarkSchema.omit({ url: true }).extend({
 });
 type Listed = z.output<typeof Listed>;
 
+/**
+ * Asks the window, which answers once the app has read the bookmarks or
+ * `BOOKMARKS_READ_WAIT_MS` has passed, so the wait for its answer covers
+ * that.
+ */
 function ask(action: WindowTabAction, ctx: CapabilityContext) {
   return askWindow({
     action,
     askedBy: ctx.chatId,
     group: ctx.chatId,
-    timeoutMs: WINDOW_TAB_TIMEOUT_MS,
+    timeoutMs: BOOKMARKS_READ_WAIT_MS + WINDOW_TAB_TIMEOUT_MS,
   });
 }
 

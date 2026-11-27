@@ -6,6 +6,7 @@ import {
   outlineRecord,
   outlineSessionLog,
 } from "./report-outline";
+import { readWebSearchResults } from "./web-search-results";
 
 /** Planted in every field of every kind; the outline sends it only where the table says words go as written. */
 const SECRET = "CANARY-5f1e";
@@ -72,6 +73,37 @@ const PLANTED = [
     type: "tool-web_search",
     input: { query: "weather" },
     output: { results: [{ url: `https://a.com/${SECRET}`, text: SECRET }] },
+  }),
+  part({
+    type: "tool-web_search",
+    input: { query: "weather" },
+    output: {
+      results: {
+        kind: "excerpts",
+        sources: [
+          { url: `https://a.com/${SECRET}`, text: SECRET, title: SECRET },
+        ],
+      },
+      state: "success",
+    },
+  }),
+  part({
+    type: "tool-web_search",
+    input: { query: "weather" },
+    output: {
+      results: { kind: "summary", sources: [], text: SECRET },
+      state: "success",
+    },
+  }),
+  part({
+    type: "tool-web_search",
+    input: { query: "weather" },
+    output: {
+      errorMessage: SECRET,
+      errorType: "api-call",
+      responseBody: SECRET,
+      state: "failure",
+    },
   }),
   part({
     type: "tool-read_file",
@@ -185,6 +217,29 @@ describe("outlineSessionLog", () => {
       part: {
         data: { kind: "budget", status: "exhausted", text: "<11 chars>" },
       },
+    });
+  });
+
+  it("keeps a search's outcome and kind, so it reads back as results", () => {
+    const outlined = outlineRecord(
+      part({
+        type: "tool-web_search",
+        input: { query: "weather" },
+        output: {
+          results: {
+            kind: "excerpts",
+            sources: [{ url: `https://a.com/${SECRET}`, text: SECRET }],
+          },
+          state: "success",
+        },
+      }),
+      emptySources(),
+    );
+    const output = (outlined as { part: { output: unknown } }).part.output;
+    expect(output).toMatchObject({ state: "success" });
+    expect(readWebSearchResults(output)).toEqual({
+      kind: "excerpts",
+      sources: [{ text: "<11 chars>", url: "https://a.com/<11 chars>" }],
     });
   });
 

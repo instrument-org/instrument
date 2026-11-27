@@ -602,6 +602,41 @@ const TOOLS: Record<string, ToolRule> = {
   },
 };
 
+/**
+ * A search's output with its outcome, the kind of results and who wrote a
+ * summary as written, and each source as its host, so a report's transcript
+ * reads as the search it was. Results recorded as a list are a build's from
+ * before results had a kind.
+ */
+function webSearchOutput(output: unknown): unknown {
+  if (!isObj(output)) {
+    return size(output);
+  }
+  const { results } = output;
+  if (Array.isArray(results)) {
+    return {
+      results: results.map((result) =>
+        isObj(result) ? hostOnly(result.url) : size(result),
+      ),
+    };
+  }
+  const kept = fields(output, ["state", "errorType"]);
+  if (!isObj(results)) {
+    return kept;
+  }
+  return {
+    ...kept,
+    results: {
+      ...fields(results, ["kind", "modelId", "modelIdServed", "provider"]),
+      ...(Array.isArray(results.sources) && {
+        sources: results.sources.map((source) =>
+          isObj(source) ? fields(source, [], ["url"]) : size(source),
+        ),
+      }),
+    },
+  };
+}
+
 function toolPart(part: Obj, sources: OutlineSources): Obj {
   const type = String(part.type);
   const { callProviderMetadata: _dropped, ...rest } = part;
@@ -609,15 +644,11 @@ function toolPart(part: Obj, sources: OutlineSources): Obj {
   if (type === "tool-bash") {
     next = toolBash(rest, sources);
   } else if (type === "tool-web_search") {
-    next = { ...envelope(rest), input: pick(rest.input, [...SAID, "query"]) };
-    const results = isObj(rest.output) ? rest.output.results : undefined;
-    next.output = Array.isArray(results)
-      ? {
-          results: results.map((result) =>
-            isObj(result) ? hostOnly(result.url) : size(result),
-          ),
-        }
-      : size(rest.output);
+    next = {
+      ...envelope(rest),
+      input: pick(rest.input, [...SAID, "query"]),
+      output: webSearchOutput(rest.output),
+    };
   } else {
     const rule = TOOLS[type];
     if (rule?.file) {

@@ -36,6 +36,8 @@ The digest itself has no dependencies and reads only the Markdown, so it works o
 
 Anything that needs reading. A tool that reported success but did nothing (a click that returns `✓ Done` without the page changing), a wrong answer, a misread instruction, a model reasoning in circles: none of these trip a flag. The digest says where to look and how long things took; the judgment about what happened still comes from reading those ranges.
 
+A transcript made from a problem report's records has every string the agent read replaced by its length (`<1524 chars>`, `report-outline.ts`), so whatever the export works out from such a string describes the placeholder: a fetch "cut off after 13 characters" was cut off at the length its placeholder names, and a `Persisted Data` block invalid over a `prt_` or `dev_` id is the redaction. Neither is a failure.
+
 It trusts the export's own timestamps. `activeDurationMs` and per-step timings come from the app; a step whose metadata is missing shows `?`.
 
 ## Format notes

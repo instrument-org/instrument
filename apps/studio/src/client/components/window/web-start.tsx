@@ -95,28 +95,28 @@ export function WebStart({
                 >
                   <LinkDrag title={page.title} url={page.url}>
                     {(dragProps) => (
-                  <button
-                    className="group flex min-w-0 flex-col items-start gap-3 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/50 data-[state=open]:bg-accent/50"
-                    {...clicksFor(page.url, openShortcut)}
-                    {...dragProps}
-                    title={`${page.title || hostOf(page.url)}\n${page.url}`}
-                    type="button"
-                  >
-                    <PageFavicon
-                      className="size-7"
-                      favicon={page.favicon}
-                      hasTooltip={false}
-                      url={page.url}
-                    />
-                    <span className="w-full min-w-0">
-                      <span className="block truncate text-[13px] font-medium">
-                        {hostOf(page.url)}
-                      </span>
-                      <span className="mt-1 block truncate text-xs text-muted-foreground">
-                        {page.title || hostOf(page.url)}
-                      </span>
-                    </span>
-                  </button>
+                      <button
+                        className="group flex min-w-0 flex-col items-start gap-3 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/50 data-[state=open]:bg-accent/50"
+                        {...clicksFor(page.url, openShortcut)}
+                        {...dragProps}
+                        title={`${page.title || hostOf(page.url)}\n${page.url}`}
+                        type="button"
+                      >
+                        <PageFavicon
+                          className="size-7"
+                          favicon={page.favicon}
+                          hasTooltip={false}
+                          url={page.url}
+                        />
+                        <span className="w-full min-w-0">
+                          <span className="block truncate text-[13px] font-medium">
+                            {hostOf(page.url)}
+                          </span>
+                          <span className="mt-1 block truncate text-xs text-muted-foreground">
+                            {page.title || hostOf(page.url)}
+                          </span>
+                        </span>
+                      </button>
                     )}
                   </LinkDrag>
                 </PageContextMenu>

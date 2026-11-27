@@ -1691,13 +1691,17 @@ export function useOpeners({
    */
   const openFromPage = ({
     background,
+    byAgent = false,
     into,
+    isLoaded = false,
     tabId,
     targetId,
     url,
   }: {
     background: boolean;
+    byAgent?: boolean;
     into?: "group" | "split" | "window";
+    isLoaded?: boolean;
     newWindow?: boolean;
     tabId?: StoreId.Tab;
     targetId: string;
@@ -1713,12 +1717,15 @@ export function useOpeners({
       });
       return;
     }
-    // A popup's page is open already, under the id its tab takes, which the
-    // workspace names to the session that worked in the page. An agent's
-    // popup never makes a group: from a page with no tab it opens nothing.
-    const popup =
-      tabId === undefined ? {} : { id: tabId, isLoaded: true as const };
-    const isAgent = tabId !== undefined && background;
+    // A tab the workspace names to the session that worked in the page
+    // opens under that id: a popup, whose page is open already, or a tab an
+    // extension asked for. An agent's popup never makes a group: from a page
+    // with no tab it opens nothing.
+    const popup = {
+      ...(tabId === undefined ? {} : { id: tabId }),
+      ...(isLoaded ? { isLoaded } : {}),
+    };
+    const isAgent = byAgent;
     const place = pageOpenPlaceOf(asking, { isAgent });
     if (place.kind === "free") {
       if (tabId === undefined) {

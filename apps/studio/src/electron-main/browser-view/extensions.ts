@@ -12,7 +12,13 @@ import {
   CHROME_WEB_STORE_URL,
 } from "@/shared/browser-extensions";
 import {
-  type BaseWindow,
+  type BrowserTargetId,
+  BrowserTargetIdSchema,
+  notePageOpenedTab,
+  StoreId,
+} from "@instrument-org/workspace/electron";
+import {
+  BaseWindow,
   BrowserWindow,
   type Extension,
   ipcMain,
@@ -104,8 +110,26 @@ function asApp(act: () => void): void {
   }
 }
 
-/** Tabs extensions asked for and are waiting on, each taking the next guest registered. */
-const tabsAsked: ((tab: WebContents, window: BaseWindow) => void)[] = [];
+/**
+ * Tabs extensions asked for and are waiting on, by the target the tab opens
+ * under, each with the window the extensions count it in: an extension's own
+ * window (`openWindowAsked`), or the window that hosts it.
+ */
+const tabsAsked = new Map<
+  BrowserTargetId,
+  { into?: BaseWindow; take: (tab: WebContents, window: BaseWindow) => void }
+>();
+
+/**
+ * The windows extensions opened (`chrome.windows.create`), each a hidden
+ * window of its own that is never shown, standing for a set of tabs in the
+ * group the extension's page was in: what it counts as that window's tabs,
+ * by tab guest, with the tab each opened beside.
+ */
+const extensionWindows = new Map<
+  BaseWindow,
+  Map<WebContents, { besideId: BrowserTargetId; targetId: BrowserTargetId }>
+>();
 
 /** What each extension's desktop app last said of this browser, by extension id. */
 const connections = new Map<string, ExtensionConnection | null>();
@@ -170,7 +194,8 @@ export function enableBrowserExtensions(
       : session.fromPartition(name),
   );
   extensions = new ElectronChromeExtensions({
-    createTab: openTabAsked,
+    createTab: (details) => openTabAsked(details),
+    createWindow: openWindowAsked,
     grantedPermissions: ({ id }) => extensionRecord(id)?.optional,
     // Neither is carried out: the tab stays as the person left it.
     removeTab: (tab) => {
@@ -183,6 +208,7 @@ export function enableBrowserExtensions(
         log.info(`an extension asked to select a tab guest=${tab.id}`);
       }
     },
+    removeWindow: closeWindowAsked,
     requestPermissions: confirmPermissions,
     session: guestSession,
     takeInstalled: ({ id }) => {
@@ -897,23 +923,72 @@ async function clearExtensionStorage(
  * and hands it to an extension waiting on a tab it asked for. Returns what
  * takes the tab away again, which runs while the guest is alive.
  */
-export function registerExtensionTab(guest: WebContents): () => void {
+export function registerExtensionTab(
+  guest: WebContents,
+  targetId: BrowserTargetId,
+): () => void {
   if (!extensions) {
     return noop;
   }
   const host = guest.hostWebContents;
-  const window =
+  const hostWindow =
     (host && BrowserWindow.fromWebContents(host)) ??
     BrowserWindow.getFocusedWindow();
+  const asked = tabsAsked.get(targetId);
+  tabsAsked.delete(targetId);
+  const window = asked?.into ?? hostWindow;
   if (!window) {
     log.warn(`no window to register guest=${guest.id} with the extensions`);
     return noop;
   }
   asApp(() => extensions?.addTab(guest, window));
-  tabsAsked.shift()?.(guest, window);
+  asked?.take(guest, window);
+  const tabs = extensionWindows.get(window);
+  // A page in an extension's window may close itself, as its window could in
+  // Chrome. Electron emits `close` for `window.close()` without typing it on
+  // WebContents, hence the plain emitter.
+  const closeSelf = () => {
+    const tab = tabs?.get(guest);
+    if (tab) {
+      publisher.publish("browser.popup-closed", {
+        openerId: tab.besideId,
+        targetId: tab.targetId,
+      });
+    }
+  };
+  if (tabs) {
+    (guest as NodeJS.EventEmitter).once("close", closeSelf);
+  }
   return () => {
+    (guest as NodeJS.EventEmitter).off("close", closeSelf);
     if (!guest.isDestroyed()) {
       asApp(() => extensions?.removeTab(guest));
+    }
+    // An extension's window goes with its last tab, as a window in Chrome does.
+    tabs?.delete(guest);
+    if (tabs?.size === 0 && !window.isDestroyed()) {
+      extensionWindows.delete(window);
+      window.destroy();
+    }
+  };
+}
+
+/**
+ * Makes a page's popup, adopted as a tab of the window it is drawn in
+ * (`adoptPopup` in manager.ts), a tab the extensions see in that window.
+ * Returns what takes it away again.
+ */
+export function registerPopupTab(
+  popup: WebContents,
+  window: BaseWindow,
+): () => void {
+  if (!extensions) {
+    return noop;
+  }
+  asApp(() => extensions?.addTab(popup, window));
+  return () => {
+    if (!popup.isDestroyed()) {
+      asApp(() => extensions?.removeTab(popup));
     }
   };
 }
@@ -959,12 +1034,14 @@ export function activateExtensionTab(guest: WebContents): void {
 /**
  * A tab an extension asked for (`chrome.tabs.create`) opens the way a page's
  * own new-tab link does, beside the tab a person is looking at, and resolves
- * with the guest the window mounts for it.
+ * with the guest the window mounts for it. The agent working in that page
+ * hears of it as of a popup (`notePageOpenedTab`). Given an extension's
+ * window, the tab counts as that window's.
  */
-function openTabAsked(details: {
-  active?: boolean;
-  url?: string;
-}): Promise<[WebContents, BaseWindow]> {
+function openTabAsked(
+  details: { active?: boolean; url?: string },
+  into?: BaseWindow,
+): Promise<[WebContents, BaseWindow]> {
   const opener =
     currentTab && !currentTab.isDestroyed()
       ? guests.get(currentTab.id)?.entry
@@ -972,23 +1049,100 @@ function openTabAsked(details: {
   if (!opener) {
     return Promise.reject(new Error("no tab is shown to open one beside"));
   }
-  publisher.publish("browser.open-in-new-tab", {
-    background: details.active === false,
-    targetId: opener.targetId,
-    url: details.url ?? "about:blank",
-  });
-  return new Promise((resolve, reject) => {
-    const take = (tab: WebContents, window: BaseWindow) => {
-      clearTimeout(timer);
-      resolve([tab, window]);
-    };
+  const url = details.url ?? "about:blank";
+  const tabId = StoreId.newTabId();
+  const targetId = BrowserTargetIdSchema.parse(tabId);
+  const opened = new Promise<[WebContents, BaseWindow]>((resolve, reject) => {
     const timer = setTimeout(() => {
-      const at = tabsAsked.indexOf(take);
-      if (at !== -1) {
-        tabsAsked.splice(at, 1);
-      }
+      tabsAsked.delete(targetId);
       reject(new Error("the tab an extension asked for did not open"));
     }, TAB_OPEN_TIMEOUT_MS);
-    tabsAsked.push(take);
+    tabsAsked.set(targetId, {
+      ...(into === undefined ? {} : { into }),
+      take: (tab, window) => {
+        clearTimeout(timer);
+        if (into) {
+          extensionWindows
+            .get(into)
+            ?.set(tab, { besideId: opener.targetId, targetId });
+        }
+        resolve([tab, window]);
+      },
+    });
   });
+  publisher.publish("browser.open-in-new-tab", {
+    background: details.active === false,
+    tabId,
+    targetId: opener.targetId,
+    url,
+  });
+  notePageOpenedTab(opener.targetId, { tabId, url });
+  return opened;
+}
+
+/**
+ * A window an extension asked for (`chrome.windows.create`, a password
+ * manager's or a wallet's own window) opens its pages as tabs beside the tab
+ * a person is looking at, in front unless it asked not to be focused, so it
+ * never takes the person's focus or lands outside the group. The extension
+ * gets a hidden window of its own that is never shown, which its tabs count
+ * as theirs, so closing that window closes just them.
+ */
+async function openWindowAsked(
+  details: chrome.windows.CreateData,
+): Promise<BaseWindow> {
+  const urls =
+    details.url === undefined
+      ? ["about:blank"]
+      : Array.isArray(details.url)
+        ? details.url
+        : [details.url];
+  const window = new BaseWindow({
+    height: details.height ?? 600,
+    show: false,
+    width: details.width ?? 800,
+  });
+  // Never on screen, whatever the extension asks of it later.
+  window.on("show", () => {
+    window.hide();
+  });
+  extensionWindows.set(window, new Map());
+  try {
+    for (const [index, url] of urls.entries()) {
+      await openTabAsked(
+        { active: details.focused !== false && index === 0, url },
+        window,
+      );
+    }
+    // The library describes a window once, when its first tab arrives, and
+    // answers `windows.create` from that; a bounds change is what has it
+    // describe the window again, with every tab in it.
+    window.emit("resized");
+  } catch (error) {
+    extensionWindows.delete(window);
+    window.destroy();
+    throw error;
+  }
+  return window;
+}
+
+/**
+ * Closes a window an extension asked to close (`chrome.windows.remove`):
+ * one it opened takes its tabs with it, each closing as a popup that closed
+ * itself does. An app window is the person's, so it stays open.
+ */
+function closeWindowAsked(window: BaseWindow): void {
+  if (window.isDestroyed()) {
+    return;
+  }
+  const tabs = extensionWindows.get(window);
+  if (!tabs) {
+    log.info(`an extension asked to close an app window id=${window.id}`);
+    return;
+  }
+  extensionWindows.delete(window);
+  for (const { besideId, targetId } of tabs.values()) {
+    publisher.publish("browser.popup-closed", { openerId: besideId, targetId });
+  }
+  window.destroy();
 }

@@ -15,6 +15,15 @@ The popup's page is Chromium's own, so everything the web expects of a popup hol
 
 If a popup in a view ever behaves differently from Chromium's own popup in a way a site depends on, popups go back to being windows (made as children of the app's window and shown without focus) rather than ship a popup that breaks.
 
+## Extension windows
+
+A window an extension opens (`chrome.windows.create`: a password manager's or a wallet's own window, an extension's sign-in) would otherwise be an OS window too, or fail, since the extension library throws when no `createWindow` is given. It opens the same way a popup does:
+
+- Each page of the window opens as a tab beside the tab a person is looking at, in front unless the extension asked for an unfocused window, and the agent working in that tab is told of it as of a popup.
+- The extension gets a hidden window of its own (`BaseWindow`, never shown), which its tabs count as theirs. `chrome.windows.remove` on it closes those tabs, the last tab closing takes the window, and a page in it that calls `window.close()` closes its tab, as it could in Chrome.
+- `chrome.windows.remove` on an app window does nothing, where the library would otherwise destroy the window.
+- A tab an extension opens with `chrome.tabs.create` is noted for the agent too. An extension's own `chrome-extension://` page is the person's: the agent hears it opened and is not given it to drive.
+
 ## Phases
 
 1. Main: popups adopted into views, bound as entries, opened as tabs; agent access through the existing bridge.
@@ -25,4 +34,6 @@ If a popup in a view ever behaves differently from Chromium's own popup in a way
 
 - A reload of the app window's own page (a crash recovery, or a development rebuild) drops its popups: their tabs come back as ordinary tabs at the popup's address, with no opener.
 - Permission checks that ask whether a page is a tab's `<webview>` (camera and microphone, fullscreen, links to other apps) refuse inside a popup.
+- An extension's window ends when its page is closed for memory (a tab asleep long enough): the tab comes back as an ordinary tab, and the extension hears its window was removed.
+- `chrome.windows.getCurrent` in a page of an extension's window answers the last focused window, the app's, rather than its own, since the library answers it that way for every page.
 - Where the view lands over the slot is worked out from the slot's CSS pixels, which equal the window's points only while the window's own page is unzoomed; it has been checked by the popup's size and its picture, not yet by eye on an unlocked screen.

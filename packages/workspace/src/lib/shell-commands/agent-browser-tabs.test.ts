@@ -223,6 +223,26 @@ describe("a task's tab", () => {
     );
   });
 
+  it("names an extension's own page the page had opened as the user's", async () => {
+    const shop = browserTargetOf(StoreId.newTabId());
+    const opened = StoreId.newTabId();
+    live.add(shop);
+    noteTabCommand(
+      shop,
+      { chatId: CHAT_ID, sessionId: TASK_SESSION },
+      Date.now() + 60_000,
+    );
+    notePageOpenedTab(shop, {
+      tabId: opened,
+      url: "chrome-extension://abcdefghijklmnopabcdefghijklmnop/win.html",
+    });
+    const result = await run(["click", "@e4"]);
+
+    expect(result.stdout).toContain(
+      `The page in tab ${shop} had a browser extension open chrome-extension://abcdefghijklmnopabcdefghijklmnop/win.html, the extension's own page, as a new tab of this chat, ${opened}. It is the user's to use.`,
+    );
+  });
+
   it("ends its next result with the tabs the app closed for the cap, told once", async () => {
     const closed = browserTargetOf(StoreId.newTabId());
     await setChatState(chatDir(CHAT_ID), {

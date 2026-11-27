@@ -20,6 +20,7 @@ vi.mock("@/electron-main/rpc/publisher", () => ({
 vi.mock("./guest-session", () => ({ configureGuestSession: vi.fn() }));
 vi.mock("./extensions", () => ({
   registerExtensionTab: () => () => {},
+  registerPopupTab: () => () => {},
   activateExtensionTab: vi.fn(),
   selectExtensionTab: vi.fn(),
 }));

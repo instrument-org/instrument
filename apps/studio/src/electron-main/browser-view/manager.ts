@@ -43,6 +43,7 @@ import { captureDownloadWillBeginGuid, holdsDownloadEvent } from "./downloads";
 import {
   activateExtensionTab,
   registerExtensionTab,
+  registerPopupTab,
   selectExtensionTab,
 } from "./extensions";
 import {
@@ -812,17 +813,25 @@ function createBrowserViewManager(): BrowserViewManager {
       notifyEntriesChanged();
     });
 
-    entry.disposers.add(registerExtensionTab(guest));
+    const windowOfHost = () => {
+      const host = hostOf(targetId);
+      return host && !host.isDestroyed()
+        ? BrowserWindow.fromWebContents(host)
+        : null;
+    };
+    // A popup has no host page of its own to find its window by.
+    const popupWindow = adopted ? windowOfHost() : null;
+    entry.disposers.add(
+      popupWindow
+        ? registerPopupTab(guest, popupWindow)
+        : registerExtensionTab(guest, targetId),
+    );
     // A tab shown before its guest came is the active one in its window, and
     // the one a person is looking at when that window is in front, or when
     // there is none yet: a tab in a window in the background never takes
     // over as the one an extension's new tab opens beside.
     if (entry.shown) {
-      const host = hostOf(targetId);
-      const window =
-        host && !host.isDestroyed()
-          ? BrowserWindow.fromWebContents(host)
-          : null;
+      const window = windowOfHost();
       if (window?.isFocused()) {
         selectExtensionTab(guest);
       } else {
@@ -945,6 +954,8 @@ function createBrowserViewManager(): BrowserViewManager {
     notifyEntriesChanged();
     publisher.publish("browser.open-in-new-tab", {
       background: byAgent,
+      byAgent,
+      isLoaded: true,
       tabId,
       targetId: opener.targetId,
       url,

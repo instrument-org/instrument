@@ -1,5 +1,6 @@
 import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
+import { isExtensionPage } from "../../logic/server/routes/cdp-bridge";
 import { closedTabsModelText } from "../../model-text/notes/browser-status-model-text";
 import { listChildTasks } from "../chat/children";
 import { takeClosedTabs } from "../chat/chat-tabs";
@@ -70,9 +71,10 @@ export function pageOpenedTabsNote(
     return undefined;
   }
   return `${opened
-    .map(
-      (tab) =>
-        `The page in tab ${tab.from} opened ${tab.url} as a popup, which is a new tab of this chat, ${tab.tabId}: \`agent-browser tab ${tab.tabId}\` switches to it.`,
+    .map((tab) =>
+      isExtensionPage(tab.url)
+        ? `The page in tab ${tab.from} had a browser extension open ${tab.url}, the extension's own page, as a new tab of this chat, ${tab.tabId}. It is the user's to use.`
+        : `The page in tab ${tab.from} opened ${tab.url} as a popup, which is a new tab of this chat, ${tab.tabId}: \`agent-browser tab ${tab.tabId}\` switches to it.`,
     )
     .join("\n")}\n`;
 }

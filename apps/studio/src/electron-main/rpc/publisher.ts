@@ -69,11 +69,15 @@ interface PublisherEvents {
   // the one up when `background`.
   "browser.open-in-new-tab": {
     background: boolean;
+    /** A popup an agent's click opened, whose tab is linked to nothing and never makes a group. */
+    byAgent?: boolean;
     /** A place the page's menu picked: the other side of the page's tab group, a new tab group, or a new window. */
     into?: "group" | "split" | "window";
     /** A Shift-click, whose tab opens in front like any other not opened behind. */
     newWindow?: boolean;
-    /** The id the tab opens under, for a popup, whose page is open already and which an agent's result names. */
+    /** The page is open already, a popup's, so the tab takes it as it is. */
+    isLoaded?: boolean;
+    /** The id the tab opens under, which an agent's result names: a popup's, or a tab an extension asked for. */
     tabId?: StoreId.Tab;
     targetId: BrowserTargetId;
     url: string;
@@ -85,8 +89,9 @@ interface PublisherEvents {
     state: PopupState;
     targetId: BrowserTargetId;
   };
-  // A page's popup closed itself, or went with the page that opened it. The
-  // window closes its tab, putting the opener's tab up if the popup's was.
+  // A page's popup closed itself, or an extension closed a window it opened,
+  // which takes that window's tabs. The window closes the tab, putting the
+  // tab it opened beside up if this one was.
   "browser.popup-closed": {
     openerId: BrowserTargetId;
     targetId: BrowserTargetId;

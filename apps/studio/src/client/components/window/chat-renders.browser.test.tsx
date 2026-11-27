@@ -1,10 +1,5 @@
 // First: React reads the counter's hook as it loads.
-import {
-  grown,
-  type Renders,
-  rendersOf,
-  settled,
-} from "@/tests/render-count";
+import { grown, type Renders, rendersOf, settled } from "@/tests/render-count";
 import { renderAppWindow } from "@/tests/app-window";
 import {
   applyFeedEvent,
@@ -53,10 +48,11 @@ const SHORT = 5;
 const LONG = 40;
 
 /**
- * What one more turn above may add to a streamed update or a keystroke, in
- * components rendered, run by run: nothing today. A turn drawn again is at
- * least its own row and the parts in it, several components, so half of one
- * is slack for a clock in the window ticking over mid-count, never a turn.
+ * What one more drawn turn above may add to a streamed update or a
+ * keystroke, in components rendered, run by run: nothing today. A turn drawn
+ * again is at least its own row and the parts in it, several components, so
+ * half of one is slack for a clock in the window ticking over mid-count,
+ * never a turn.
  */
 const PER_TURN = 0.5;
 
@@ -166,14 +162,32 @@ function seedChat(id: ChatId, turns: number) {
   });
 }
 
+/**
+ * The turns of the tab up, by their rows' `data-turn-id`: all of them, and
+ * those drawn rather than standing as boxes far from view.
+ */
+function turnsShown() {
+  const rows = document.querySelectorAll<HTMLElement>(
+    "[data-app-tab-active] [data-turn-id]",
+  );
+  const all = new Set<string>();
+  const boxed = new Set<string>();
+  for (const row of rows) {
+    const turn = row.dataset.turnId ?? "";
+    all.add(turn);
+    if (row.hasAttribute("data-placeholder")) {
+      boxed.add(turn);
+    }
+  }
+  return { all: all.size, drawn: all.size - boxed.size };
+}
+
 /** Fails unless the tab up shows the chat seeded with `turns`. */
 function expectShown(id: ChatId, turns: number) {
-  const shownTurns = document.querySelectorAll(
-    "[data-app-tab-active] [data-reply-row]",
-  ).length;
+  const shown = turnsShown().all;
   expect(
-    shownTurns,
-    `${id} shows ${shownTurns.toString()} replies, not its ${(turns + 1).toString()}: the chat did not open, so nothing after this measures it.`,
+    shown,
+    `${id} shows ${shown.toString()} turns, not its ${(turns + 1).toString()}: the chat did not open, so nothing after this measures it.`,
   ).toBe(turns + 1);
 }
 
@@ -232,11 +246,21 @@ it("costs a streamed update and a keystroke the same however many turns are abov
   runWindowCommand("nextChat");
   await settled();
   expectShown(shortId, SHORT);
+  const shortDrawn = turnsShown().drawn;
   const short = await measure(shortUpdates);
   runWindowCommand("previousChat");
   await settled();
   expectShown(longId, LONG);
+  const longDrawn = turnsShown().drawn;
   const long = await measure(longUpdates);
+  // A turn far from view stands as an empty box, so the turns the long chat
+  // has drawn beyond the short one's are what a turn rendering again would
+  // show in; its boxes rendering at all count against those as well.
+  const drawnAbove = Math.max(longDrawn - shortDrawn, 1);
+  expect(
+    longDrawn,
+    "the long chat draws no more turns than the short one, so nothing here measures a turn above",
+  ).toBeGreaterThan(shortDrawn);
 
   const failures = (["streamed", "typed", "settledKey"] as const).flatMap(
     (action) => {
@@ -245,7 +269,7 @@ it("costs a streamed update and a keystroke the same however many turns are abov
         return {
           after,
           before,
-          each: (after.fibers - before.fibers) / (LONG - SHORT),
+          each: (after.fibers - before.fibers) / drawnAbove,
           index,
         };
       });
@@ -255,7 +279,7 @@ it("costs a streamed update and a keystroke the same however many turns are abov
       return worst.each <= PER_TURN
         ? []
         : [
-            `${action}, run ${(worst.index + 1).toString()} of ${runs.length.toString()}: ${worst.before.fibers.toString()} components rendered in a chat of ${SHORT.toString()} turns, ${worst.after.fibers.toString()} in one of ${LONG.toString()}: ${worst.each.toFixed(1)} more for each turn above, past the ${PER_TURN.toString()} allowed. What rendered more in the long chat: ${grown(worst.before, worst.after)}.`,
+            `${action}, run ${(worst.index + 1).toString()} of ${runs.length.toString()}: ${worst.before.fibers.toString()} components rendered in a chat of ${SHORT.toString()} turns (${shortDrawn.toString()} drawn), ${worst.after.fibers.toString()} in one of ${LONG.toString()} (${longDrawn.toString()} drawn): ${worst.each.toFixed(1)} more for each drawn turn above, past the ${PER_TURN.toString()} allowed. What rendered more in the long chat: ${grown(worst.before, worst.after)}.`,
           ];
     },
   );

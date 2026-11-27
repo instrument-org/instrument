@@ -1,4 +1,6 @@
 import { showScreenFieldWithKeyboard } from "@/client/lib/screen-fields";
+import { writeKept } from "@/client/lib/kept-state";
+import { CARD_INSETS_KEY } from "@/shared/kept-state";
 import { describeTabs } from "@/client/lib/studio-drive";
 import { keyboardSide } from "@/client/lib/keyboard-place";
 import {
@@ -703,10 +705,23 @@ function WindowShell({
     if (!rowElement) {
       return;
     }
-    setRowWidth(rowElement.offsetWidth);
-    const observer = new ResizeObserver(() => {
+    // Where the card stands, kept for the next launch to draw the window in
+    // its shape before this page loads (`launch-page.ts`).
+    let written = "";
+    const measure = () => {
       setRowWidth(rowElement.offsetWidth);
-    });
+      const box = rowElement.getBoundingClientRect();
+      const kept = {
+        left: Math.round(box.left),
+        right: Math.max(0, Math.round(window.innerWidth - box.right)),
+      };
+      if (JSON.stringify(kept) !== written) {
+        written = JSON.stringify(kept);
+        writeKept("window", CARD_INSETS_KEY, kept);
+      }
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
     observer.observe(rowElement);
     return () => {
       observer.disconnect();

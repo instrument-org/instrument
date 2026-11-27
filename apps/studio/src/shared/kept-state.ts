@@ -39,6 +39,25 @@ export const TAB_GROUPS_KEY = "tab-group-list.v2";
 /** The key kept once a workspace's recent chats have opened as tab groups (`useOpenRecentChats`). */
 export const RECENT_CHATS_KEY = "recent-chats-opened.v1";
 
+/**
+ * The key a window keeps where its card stood, in px from the window's left
+ * and right edges, which the launch draws the window by before its page has
+ * loaded (`launch-page.ts`).
+ */
+export const CARD_INSETS_KEY = "card-insets.v1";
+
+const CardInsetsSchema = z.object({
+  left: z.number().nonnegative(),
+  right: z.number().nonnegative(),
+});
+
+export type CardInsets = z.output<typeof CardInsetsSchema>;
+
+/** The card insets a window kept, or undefined for a value that is not them. */
+export function keptCardInsetsOf(value: unknown): CardInsets | undefined {
+  return CardInsetsSchema.safeParse(value).data;
+}
+
 /** The tab groups a window kept, or undefined for a value that is not a list of them. */
 export function keptTabGroupsOf(value: unknown): string[] | undefined {
   return z.array(z.string()).safeParse(value).data;

@@ -27,6 +27,14 @@ export const CAPTURE_EXCEPTION_CHANNEL = "capture-exception";
 // a launch is timed to when the window is usable, not only to its first paint.
 export const BOOT_MARK_CHANNEL = "boot-mark";
 
+/**
+ * Where the launch's first window draws the window's shape while the rest of
+ * main loads (`electron-main/windows/launch-page.ts`), on the renderer's own
+ * origin so the page that replaces it keeps its process. The preload reads
+ * nothing from main there, since what answers it is not up yet.
+ */
+export const LAUNCH_PAGE_PATH = "/launch/";
+
 /** The points a window's launch reaches that it tells the main process of. */
 export const BOOT_MARKS = ["first render", "chat list read"] as const;
 export type BootMark = (typeof BOOT_MARKS)[number];

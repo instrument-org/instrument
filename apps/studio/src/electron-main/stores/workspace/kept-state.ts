@@ -386,6 +386,18 @@ export function getWindowKeptState(windowId: string, key: string): unknown {
   return windowStoreOf(windowId).get(WINDOW_KEPT_FILE, key);
 }
 
+/**
+ * One value a window keeps for itself, read from its file without loading the
+ * window's store: read before the workspace's upgrade (`launch-page.ts`),
+ * which can rewrite the file on disk, a loaded store would go on serving
+ * and writing what the upgrade replaced.
+ */
+export function peekWindowKeptState(windowId: string, key: string): unknown {
+  return readObject(
+    path.join(workspaceWindowDir(), WINDOWS_FOLDER, `${windowId}.json`),
+  )?.[key];
+}
+
 /** A value a window opens with, written before it loads. */
 export function setWindowKeptState(
   windowId: string,

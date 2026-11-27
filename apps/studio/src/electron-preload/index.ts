@@ -3,6 +3,7 @@ import {
   BOOT_MARK_CHANNEL,
   CAPTURE_EXCEPTION_CHANNEL,
   CODE_EDITOR_FOCUS_CHANNEL,
+  LAUNCH_PAGE_PATH,
   RESOLVE_THEME_CHANNEL,
   SETUP_STATE_CHANNEL,
   START_FILE_DRAG_CHANNEL,
@@ -13,10 +14,18 @@ import {
   type BookmarksSnapshot,
 } from "@/shared/bookmarks";
 import {
+  CARD_INSETS_KEY,
   isKeptFile,
   KEPT_STATE_CHANNEL,
+  keptCardInsetsOf,
   type KeptSnapshot,
 } from "@/shared/kept-state";
+import {
+  LAUNCH_SHAPE_HTML,
+  launchShapeCss,
+  WINDOW_UP_SELECTOR,
+} from "@/shared/launch-shape";
+import { APP_ZOOM_KEY, clampZoom } from "@/shared/zoom";
 import {
   DRAFTS_CHANNEL,
   type DraftOpBatch,
@@ -38,6 +47,13 @@ import os from "node:os";
 import { keptChangeFeed, tabsChangedFeed } from "./kept-changes";
 
 /**
+ * The window's shape the launch draws while main loads (`launch-page.ts`),
+ * which needs nothing from main: the reads below wait on answers boot has not
+ * set up yet, so there each starts from what a failed read would.
+ */
+const isLaunchPage = location.pathname === LAUNCH_PAGE_PATH;
+
+/**
  * Put the theme class on <html> before the document is parsed.
  *
  * The app's stylesheet is render-blocking and paints `body { background:
@@ -48,6 +64,9 @@ import { keptChangeFeed, tabsChangedFeed } from "./kept-changes";
  * of it and can ask the main process, which owns the preference.
  */
 function applyInitialTheme() {
+  if (isLaunchPage) {
+    return;
+  }
   let theme: unknown;
   try {
     // oxlint-disable-next-line no-restricted-properties -- the theme class has to land before the stylesheet paints
@@ -90,6 +109,9 @@ applyInitialTheme();
  * failed read starts from the defaults, and the window's writes still land.
  */
 function loadKeptState(): KeptSnapshot {
+  if (isLaunchPage) {
+    return {};
+  }
   let value: unknown;
   try {
     // oxlint-disable-next-line no-restricted-properties -- the first render draws the tabs the window was left with
@@ -115,6 +137,9 @@ function loadKeptState(): KeptSnapshot {
  * later. Null where the read fails, and the live state takes over.
  */
 function loadSetupState(): null | SetupState {
+  if (isLaunchPage) {
+    return null;
+  }
   try {
     // oxlint-disable-next-line no-restricted-properties -- a first launch draws setup in its first render
     const value: unknown = ipcRenderer.sendSync(SETUP_STATE_CHANNEL);
@@ -134,6 +159,9 @@ function loadSetupState(): null | SetupState {
  * starts with none, and the window hears of them with the next change.
  */
 function loadDrafts(): DraftsSnapshot {
+  if (isLaunchPage) {
+    return { acks: {}, drafts: [] };
+  }
   try {
     // oxlint-disable-next-line no-restricted-properties -- a chat's box draws the reply waiting in it in its first render
     const value: unknown = ipcRenderer.sendSync(DRAFTS_CHANNEL.load);
@@ -177,6 +205,9 @@ ipcRenderer.on(
  * none, and the window hears of them with the next change.
  */
 function loadBookmarks(): BookmarksSnapshot {
+  if (isLaunchPage) {
+    return { acks: {}, bookmarks: [], folders: [] };
+  }
   try {
     // oxlint-disable-next-line no-restricted-properties -- the browser's starting view draws them in its first render
     const value: unknown = ipcRenderer.sendSync(BOOKMARKS_CHANNEL.load);
@@ -218,6 +249,60 @@ ipcRenderer.on(
 );
 
 const keptInitial = loadKeptState();
+const initialSetupState = loadSetupState();
+
+/**
+ * The window's shape (`launch-shape.ts`), drawn under the page from before
+ * it is parsed until its window frame is up, as the launch's first window
+ * drew it while main loaded: a window opens in its shape rather than a plain
+ * background for as long as the page's code takes to load.
+ */
+function drawLaunchShape() {
+  // A first launch's window draws setup alone, with no window frame to come.
+  if (isLaunchPage || initialSetupState?.facts.hasWorkspace === false) {
+    return;
+  }
+  const zoom = keptInitial.view?.[APP_ZOOM_KEY];
+  const style = document.createElement("style");
+  style.textContent = launchShapeCss({
+    insets: keptCardInsetsOf(keptInitial.window?.[CARD_INSETS_KEY]),
+    isMac: process.platform === "darwin",
+    zoom: typeof zoom === "number" ? clampZoom(zoom) : 1,
+  });
+  // Gone for good once the window frame is up, whose own band drags, so no
+  // screen drawn later (the crash screen) has the shape behind it.
+  const removeOnceUp = (shape: Element | null) => {
+    const observer = new MutationObserver(() => {
+      if (document.querySelector(WINDOW_UP_SELECTOR)) {
+        observer.disconnect();
+        style.remove();
+        shape?.remove();
+      }
+    });
+    observer.observe(document, { childList: true, subtree: true });
+  };
+  const draw = () => {
+    const root = document.querySelector("html");
+    if (!root) {
+      return false;
+    }
+    root.append(style);
+    root.insertAdjacentHTML("beforeend", LAUNCH_SHAPE_HTML);
+    removeOnceUp(root.lastElementChild);
+    return true;
+  };
+  if (draw()) {
+    return;
+  }
+  const observer = new MutationObserver(() => {
+    if (draw()) {
+      observer.disconnect();
+    }
+  });
+  observer.observe(document, { childList: true });
+}
+
+drawLaunchShape();
 const keptChanges = keptChangeFeed(ipcRenderer);
 const tabsChanged = tabsChangedFeed(ipcRenderer);
 
@@ -317,7 +402,7 @@ const api: Window["api"] = {
   },
   getFilePath: (file: File) => webUtils.getPathForFile(file),
   homeDir: os.homedir(),
-  initialSetupState: loadSetupState(),
+  initialSetupState,
   keptState: {
     otherWindows: (key) => {
       // oxlint-disable-next-line no-restricted-properties -- its callers decide synchronously, and it is asked rarely

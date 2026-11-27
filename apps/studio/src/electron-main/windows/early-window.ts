@@ -16,6 +16,7 @@ import {
   rememberedStateOf,
 } from "@/electron-main/windows/app-window-options";
 import { holdThroughBoot } from "@/electron-main/windows/early-window-hold";
+import { loadLaunchPage } from "@/electron-main/windows/launch-page";
 import {
   isHeldOffScreen,
   putOnScreen,
@@ -45,9 +46,9 @@ let early:
 
 /**
  * Puts the window the launch brings back in front on screen as soon as
- * Electron is ready, at its place and size and in the theme's background,
- * while the rest of the main process loads and boots. Its page loads once
- * boot adopts it (`takeEarlyWindow`), as any window's does.
+ * Electron is ready, at its place and size and drawn in its shape
+ * (`launch-page.ts`), while the rest of the main process loads and boots. Its
+ * page loads once boot adopts it (`takeEarlyWindow`), as any window's does.
  *
  * Only on a launch that comes up as usual: not where setup can still come up
  * (its window opens at setup's size), a workspace is refused, a dialog asks
@@ -66,8 +67,11 @@ export function showEarlyWindow() {
     appWindowOptions(id, { bounds: remembered.bounds, isSpare: false }),
   );
   early = { id, taken: false, window };
+  const zoom = getAppZoom();
+  // Drawn in the window's shape, and draggable, until its page loads.
+  loadLaunchPage(window, { id, zoom });
   try {
-    setTrafficLightForZoom(window, getAppZoom(), WINDOW_CARD_GAP);
+    setTrafficLightForZoom(window, zoom, WINDOW_CARD_GAP);
     putOnScreen(window, { maximized: remembered.isMaximized });
   } catch (error) {
     // Boot opens it as any other and then drops this one. Hidden until then

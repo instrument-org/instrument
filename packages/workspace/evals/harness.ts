@@ -605,11 +605,13 @@ export interface EvalCase {
   allowsApps?: boolean;
   /**
    * How every card asking to run a command as an administrator is answered:
-   * `declined` as Don't allow, or `allowed`, which a stand-in for the
-   * system's prompt answers as run with exit 0 and nothing printed; left
-   * open otherwise. No run ever puts up the system's real prompt.
+   * `declined` as Don't allow, `allowed`, which a stand-in for the system's
+   * prompt answers as run with exit 0 and nothing printed, `without-admin`
+   * as Try without administrator, or `ran-by-hand` as Done after I'll run it
+   * myself; left open otherwise. No run ever puts up the system's real
+   * prompt.
    */
-  adminAnswer?: "allowed" | "declined";
+  adminAnswer?: "allowed" | "declined" | "ran-by-hand" | "without-admin";
   /**
    * Every sign-in card the conversation's agent puts up (`connect_app` on an
    * app that signs in) ends this way once its turn settles, as the app's
@@ -1554,7 +1556,7 @@ export async function runEvals(
                 } else if (ask.kind === "admin") {
                   const decision = evalCase.adminAnswer;
                   write(
-                    `${evalPrefix(label)}${c.cyan}asked${c.reset}${c.dim} to run as administrator: ${ask.target}${decision ? `; ${decision === "allowed" ? "allowing" : "declining"}` : ""}${c.reset}\n`,
+                    `${evalPrefix(label)}${c.cyan}asked${c.reset}${c.dim} to run as administrator: ${ask.target}${decision ? `; answering ${decision}` : ""}${c.reset}\n`,
                   );
                   if (decision === undefined) {
                     continue;

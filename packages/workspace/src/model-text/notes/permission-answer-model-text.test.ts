@@ -97,6 +97,14 @@ describe("permissionAnswerModelNote for a command run as administrator", () => {
       },
       "whether it ran is unknown",
     ],
+    [
+      { answer: "without-admin", kind: "admin", target: command },
+      "The user chose not to run this as an administrator, and nothing ran. Find a way to do it without one. If there is none, say so in a line and link its page of the system's settings.",
+    ],
+    [
+      { answer: "ran-by-hand", kind: "admin", target: command },
+      "The user says they ran this command themselves, outside Instrument. Check that it took effect without running it again, then go on.",
+    ],
   ] as const)("tells how it went: %o", (data, said) => {
     expect(permissionAnswerModelNote(data)).toContain(said);
   });

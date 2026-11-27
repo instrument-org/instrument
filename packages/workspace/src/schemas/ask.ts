@@ -57,14 +57,35 @@ const AnswerRefSchema = z.object({
 
 export type AnswerRef = z.output<typeof AnswerRefSchema>;
 
-/** A permission's answer: allowed in this chat, allowed always, or not now. */
+/**
+ * A permission's answer: allowed in this chat, allowed always, or not now.
+ * A command to run as an administrator takes two more, neither of which
+ * runs it: `without-admin`, find a way that needs no administrator, and
+ * `ran-by-hand`, the person ran it themselves outside the app.
+ */
 export const PermissionDecisionSchema = z.enum([
   "allowed",
   "always",
   "declined",
+  "ran-by-hand",
+  "without-admin",
 ]);
 
 export type PermissionDecision = z.output<typeof PermissionDecisionSchema>;
+
+/** Whether a decision answers only a command to run as an administrator. */
+export function isAdminOnlyDecision(decision: PermissionDecision): boolean {
+  return decision === "ran-by-hand" || decision === "without-admin";
+}
+
+/**
+ * Whether only the ask's own computer may give a decision to a command to
+ * run as an administrator: one about running it there, by the system's
+ * prompt or by hand. A no of either kind comes from any device.
+ */
+export function isAdminDecisionHereOnly(decision: PermissionDecision): boolean {
+  return decision !== "declined" && decision !== "without-admin";
+}
 
 /** What an answer gives, by the kind of ask it answers. */
 const GivenSchema = z.discriminatedUnion("kind", [

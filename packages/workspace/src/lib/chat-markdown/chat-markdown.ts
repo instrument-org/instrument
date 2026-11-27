@@ -289,7 +289,11 @@ function visibleBlock(part: SessionMessagePart.Type): string | undefined {
           ? `You skipped what Instrument waited for on ${site}.`
           : `You finished on ${site}.`;
       }
-      if (kind === "admin") {
+      if (
+        kind === "admin" &&
+        answer !== "ran-by-hand" &&
+        answer !== "without-admin"
+      ) {
         return answer === "declined" || part.data.run?.is === "canceled"
           ? `Not allowed: ${target}`
           : part.data.run?.is === "ran"
@@ -305,6 +309,13 @@ function visibleBlock(part: SessionMessagePart.Type): string | undefined {
         }
         case "declined": {
           return `You said no to ${target}.`;
+        }
+        // A command to run as an administrator's own answers.
+        case "ran-by-hand": {
+          return `You ran: ${target}`;
+        }
+        case "without-admin": {
+          return `Not run as administrator: ${target}`;
         }
       }
     }

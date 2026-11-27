@@ -6,6 +6,8 @@ import { publisher } from "../../rpc/publisher";
 import {
   type AnswerRef,
   type AskRecord,
+  isAdminDecisionHereOnly,
+  isAdminOnlyDecision,
   type Outcome,
   type PermissionAskRecord,
   type PermissionDecision,
@@ -333,6 +335,20 @@ async function carryOut(
     ...(ask.page && { page: ask.page }),
     target: ask.target,
   };
+  if (
+    answer.decision === "ran-by-hand" ||
+    answer.decision === "without-admin"
+  ) {
+    // A command's answers that run nothing here: the person ran it, or wants
+    // a way that needs no administrator, which the note says.
+    await close(
+      chatId,
+      ask.id,
+      permissionOutcome({ ...data, answer: answer.decision }),
+      answer,
+    );
+    return undefined;
+  }
   if (answer.decision === "declined") {
     // Kept before the close, so an asker that asks again meets it; one
     // that cannot be kept is reported, and the askers still hear the no.
@@ -1074,9 +1090,14 @@ export async function answerAsk(
       message: "A command can only be allowed to run once.",
     });
   }
+  if (ask.on !== "admin" && isAdminOnlyDecision(decision)) {
+    throw new ORPCError("BAD_REQUEST", {
+      message: "That answer is only for a command to run as administrator.",
+    });
+  }
   if (
     ask.on === "admin" &&
-    decision !== "declined" &&
+    isAdminDecisionHereOnly(decision) &&
     ask.device !== thisDevice()
   ) {
     throw new ORPCError("BAD_REQUEST", {
@@ -1102,13 +1123,14 @@ export async function answerAsk(
       message: "That request is waiting on the system.",
     });
   }
-  const joins = ask.stage.is === "taken" && decision !== "declined";
+  const yes = decision === "allowed" || decision === "always";
+  const joins = ask.stage.is === "taken" && yes;
   const given = joins
     ? undefined
     : await appendAnswer(chatId, askId, { decision, kind: "permission" });
   await driveAsks(chatId, workspaceRef);
   // A yes joining one already under way waits for its look, and its wake.
-  const running = decision === "declined" ? undefined : looks.get(askId);
+  const running = yes ? looks.get(askId) : undefined;
   if (running) {
     await running;
     await driveAsks(chatId, workspaceRef);

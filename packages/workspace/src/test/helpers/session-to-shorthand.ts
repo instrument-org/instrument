@@ -85,6 +85,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-pageTakeover": {
       return `<data-pageTakeover ${part.data.stage}="${part.data.tab}" />`;
     }
+    case "data-adminAskOpen": {
+      return `<data-adminAskOpen commands="${part.data.commands.join(", ")}" />`;
+    }
     case "data-permissionAnswer": {
       return `<data-permissionAnswer ${part.data.kind}="${part.data.target}" answer="${part.data.answer}" />`;
     }

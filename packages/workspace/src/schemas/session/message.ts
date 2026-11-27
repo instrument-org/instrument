@@ -50,6 +50,7 @@ import { maxStepsModelNote } from "../../model-text/notes/max-steps-model-text";
 import { outputLimitModelNote } from "../../model-text/notes/output-limit-model-text";
 import { memoryModelNote } from "../../model-text/notes/memory-model-text";
 import { setupNewsModelNote } from "../../model-text/notes/setup-news-model-text";
+import { adminAskOpenModelNote } from "../../model-text/notes/admin-command-model-text";
 import { messageGapModelNote } from "../../model-text/notes/message-gap-model-text";
 import {
   modelAnsweredModelNote,
@@ -872,6 +873,7 @@ const USER_TURN_NOTES = [
   noted("pageTakeover", ({ data }) => pageTakeoverModelNote(data)),
   noted("questionAnswer", ({ data }) => questionAnswerModelNote(data)),
   noted("signedIn", ({ data }) => signedInModelNote(data)),
+  noted("adminAskOpen", ({ data }) => adminAskOpenModelNote(data)),
   noted("viewContext", stated),
   tabGroupNote,
   noted("actions", ({ data }) => actionsModelNote(data)),

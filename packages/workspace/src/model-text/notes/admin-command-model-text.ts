@@ -1,5 +1,8 @@
+import { APP_NAME } from "@instrument-org/shared";
+
 import { ABOVE_REPLY_BOX } from "../../lib/screen-words";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { systemNote } from "./system-note";
 
 /**
  * What the agent reads about a command it asked to run as an administrator
@@ -38,11 +41,24 @@ export const ADMIN_NO_CARD = "Nothing ran: nobody can answer a card here.";
 export const ADMIN_NOT_ALLOWED =
   "The user didn't allow this command, and nothing ran. Don't run it another way: give them a Markdown link that opens its page of the system's settings, as your system information shows, and say what to change there.";
 
+/** What Try without administrator on an admin card tells the agent. */
+export const ADMIN_WITHOUT =
+  "The user chose not to run this as an administrator, and nothing ran. Find a way to do it without one. If there is none, say so in a line and link its page of the system's settings.";
+
+/** What Done after I'll run it myself on an admin card tells the agent. */
+export const ADMIN_RAN_BY_HAND = `The user says they ran this command themselves, outside ${APP_NAME}. Check that it took effect without running it again, then go on.`;
+
 /** The note an admin card's answer wakes the agent with, by how the run went. */
 export function adminAnswerText(
   data: SessionMessageDataPart.PermissionAnswerDataPart,
 ): string {
   const { run } = data;
+  if (data.answer === "without-admin") {
+    return ADMIN_WITHOUT;
+  }
+  if (data.answer === "ran-by-hand") {
+    return ADMIN_RAN_BY_HAND;
+  }
   if (data.answer === "declined" || run?.is === "canceled") {
     return ADMIN_NOT_ALLOWED;
   }
@@ -57,4 +73,21 @@ export function adminAnswerText(
       return "The app closed while this command waited to run as an administrator, so whether it ran is unknown. Check before asking to run it again.";
     }
   }
+}
+
+/**
+ * The note on a message the person sent while a card to run a command as an
+ * administrator was still up, such as its What does this do? link.
+ */
+export function adminAskOpenModelNote(
+  data: SessionMessageDataPart.AdminAskOpenDataPart,
+): string {
+  const cards = data.commands
+    .map(
+      (command) =>
+        `The card to run \`${command}\` as an administrator is still up.`,
+    )
+    .join(" ");
+  const them = data.commands.length > 1 ? "them" : "it";
+  return systemNote`${cards} Answer the user's question; don't ask to run ${them} again.`;
 }

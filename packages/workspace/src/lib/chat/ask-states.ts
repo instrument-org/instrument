@@ -2,6 +2,8 @@ import { isFreshAsk } from "@instrument-org/shared";
 
 import {
   type AnswerRef,
+  isAdminDecisionHereOnly,
+  isAdminOnlyDecision,
   type AskAnswer,
   type AskRecord,
   type AskRecordAsker,
@@ -214,17 +216,19 @@ function unusedAnswers(ask: AskRecord, answers: readonly AskAnswer[]): Taken[] {
   const admin = ask.kind === "permission" && ask.on === "admin";
   // A command run as an administrator can't be called back once its yes is
   // under way, and only its own computer, where the system's prompt is, can
-  // say yes to it, and only for this once.
+  // say yes to it, only for this once, or say it was run there by hand. A
+  // folder or app takes none of a command's own answers.
   if ((stage.is !== "open" && !yesUnderWay) || (admin && yesUnderWay)) {
     return [];
   }
   return answers.flatMap(({ at, device, given }) =>
     given.kind === "stopped" ||
     given.kind !== ask.kind ||
-    (admin &&
-      given.kind === "permission" &&
-      given.decision !== "declined" &&
-      (device !== ask.device || given.decision !== "allowed")) ||
+    (given.kind === "permission" &&
+      (admin
+        ? given.decision === "always" ||
+          (isAdminDecisionHereOnly(given.decision) && device !== ask.device)
+        : isAdminOnlyDecision(given.decision))) ||
     used.some(
       (ref) => ref.device === device && ref.at.getTime() === at.getTime(),
     ) ||

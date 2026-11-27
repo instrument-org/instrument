@@ -81,7 +81,8 @@ export async function askRecords(
 
 /**
  * Whether the person said no to running `command` as an administrator in
- * this chat since they last wrote, from the card or the system's prompt.
+ * this chat since they last wrote, from the card or the system's prompt,
+ * Try without administrator among them.
  */
 export async function adminRefusedSinceTyped(
   chatId: ChatId,
@@ -97,7 +98,24 @@ export async function adminRefusedSinceTyped(
       ask.askedAt.getTime() >= since &&
       ask.stage.is === "closed" &&
       ask.stage.outcome.kind === "permission" &&
-      ask.stage.outcome.data.answer === "declined",
+      (ask.stage.outcome.data.answer === "declined" ||
+        ask.stage.outcome.data.answer === "without-admin"),
+  );
+}
+
+/**
+ * The commands whose cards to run them as an administrator are up in the
+ * chat now, on any computer, oldest first: still to answer, or waiting on
+ * the system's prompt.
+ */
+export async function openAdminCommands(chatId: ChatId): Promise<string[]> {
+  return (await chatAskStates(chatId)).flatMap(({ ask, live }) =>
+    live &&
+    ask.kind === "permission" &&
+    ask.on === "admin" &&
+    ask.stage.is !== "closed"
+      ? [ask.target]
+      : [],
   );
 }
 

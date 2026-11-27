@@ -13,6 +13,7 @@ import {
   appendAnswer,
   changeAsk,
   closeAsksOf,
+  openAdminCommands,
   openPermissionAsks,
   recordAsk,
 } from "../../lib/chat/asks";
@@ -904,6 +905,59 @@ describe("permissions.answer", () => {
         expect(await adminRefusedSinceTyped(chatId, command)).toBe(true);
       });
 
+      it("takes Try without administrator from any device and runs nothing", async () => {
+        const { card, chatId, own } = await asked();
+        const phone = await computer("Alex's iPhone");
+        await on(phone, () => answer(chatId, card.id, "without-admin"));
+        const sentBefore = sent.length;
+        await owner().catchUp(chatId);
+        await driveAsks(chatId, context().workspaceRef);
+        expect(ran).toEqual([]);
+        expect(notesSince(sentBefore)).toEqual([
+          {
+            answer: "without-admin",
+            ask: card.id,
+            kind: "admin",
+            target: command,
+          },
+        ]);
+        expect(wokenSince(sentBefore)).toEqual([
+          { answer: ["without-admin"], sessionId: own },
+        ]);
+        expect(await openAsks(chatId)).toEqual([]);
+        expect(await adminRefusedSinceTyped(chatId, command)).toBe(true);
+      });
+
+      it("closes on Done after the person ran it by hand, only from its own computer", async () => {
+        const { card, chatId } = await asked();
+        const phone = await computer("Alex's iPhone");
+        await expect(
+          on(phone, () => answer(chatId, card.id, "ran-by-hand")),
+        ).rejects.toThrow(
+          "That command runs on Studio Mac. Open this chat there to run it.",
+        );
+        const sentBefore = sent.length;
+        await answer(chatId, card.id, "ran-by-hand");
+        expect(ran).toEqual([]);
+        expect(notesSince(sentBefore)).toEqual([
+          {
+            answer: "ran-by-hand",
+            ask: card.id,
+            kind: "admin",
+            target: command,
+          },
+        ]);
+        expect(await openAsks(chatId)).toEqual([]);
+        expect(await adminRefusedSinceTyped(chatId, command)).toBe(false);
+      });
+
+      it("names the commands whose cards are up, for the next message", async () => {
+        const { card, chatId } = await asked();
+        expect(await openAdminCommands(chatId)).toEqual([command]);
+        await answer(chatId, card.id, "declined");
+        expect(await openAdminCommands(chatId)).toEqual([]);
+      });
+
       it("closes a command a quit left waiting on the system's prompt as unknown", async () => {
         const { card, chatId } = await asked();
         await changeAsk(chatId, card.id, ({ ask }) => ({
@@ -973,6 +1027,18 @@ describe("permissions.answer", () => {
           },
           computer: "Studio Mac",
         }),
+      ]);
+    });
+
+    it("refuses a command's own answers on a folder's card", async () => {
+      const { card, chatId } = await raised();
+      for (const decision of ["ran-by-hand", "without-admin"] as const) {
+        await expect(answer(chatId, card.id, decision)).rejects.toThrow(
+          "That answer is only for a command to run as administrator.",
+        );
+      }
+      expect(await openAsks(chatId)).toEqual([
+        expect.objectContaining({ id: card.id, status: "open" }),
       ]);
     });
 

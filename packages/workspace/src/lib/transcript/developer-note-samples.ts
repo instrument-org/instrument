@@ -10,6 +10,7 @@ const SESSION = "ses_01M0000000000000000000TASK";
  */
 export const DATA_PART_SAMPLES = {
   actions: { rows: [{ count: 2, kind: "file", minutes: 1 }] },
+  adminAskOpen: { commands: ["systemsetup -settimezone America/New_York"] },
   appEvent: {
     apps: {},
     events: [{ event: "connected", name: "Notion", slug: "notion" }],

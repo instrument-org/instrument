@@ -112,6 +112,7 @@ const MARK_OF_PART: Record<
   DeveloperNoteMark
 > = {
   "data-actions": "screen",
+  "data-adminAskOpen": "permission",
   "data-appEvent": "apps",
   "data-asks": "files",
   "data-attachments": "files",
@@ -329,6 +330,9 @@ function labelOfPart(part: SessionMessagePart.DataPart): string {
             ]),
           )
         : `Memories: ${(part.data.memories.length + part.data.more).toString()}`;
+    }
+    case "data-adminAskOpen": {
+      return named("Admin card up", someOf(part.data.commands));
     }
     case "data-messageGap": {
       return `Time away: ${awayFor(part.data.minutes)}`;

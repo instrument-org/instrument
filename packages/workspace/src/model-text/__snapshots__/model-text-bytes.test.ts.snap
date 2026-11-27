@@ -2154,8 +2154,10 @@ exports[`the exported text constants > adminCommand 1`] = `
   "ADMIN_NOT_ALLOWED": "The user didn't allow this command, and nothing ran. Don't run it another way: give them a Markdown link that opens its page of the system's settings, as your system information shows, and say what to change there.",
   "ADMIN_NO_CARD": "Nothing ran: nobody can answer a card here.",
   "ADMIN_NO_SUDO": "Nothing ran: leave sudo out. \`admin\` already runs the command as an administrator.",
+  "ADMIN_RAN_BY_HAND": "The user says they ran this command themselves, outside Instrument. Check that it took effect without running it again, then go on.",
   "ADMIN_REFUSED_AGAIN": "The user already said no to this command in this turn. Ask them what they want instead.",
   "ADMIN_UNAVAILABLE": "Nothing ran: this computer has no way to run a command as an administrator. Give the user the steps in words, with the command to run themselves if one does it.",
+  "ADMIN_WITHOUT": "The user chose not to run this as an administrator, and nothing ran. Find a way to do it without one. If there is none, say so in a line and link its page of the system's settings.",
 }
 `;
 
@@ -2431,6 +2433,21 @@ exports[`the notes a stored data part renders > actions 1`] = `
 <instrument-system-note>
 Background, not something they sent: what the user did in this app before this message, oldest first, without names. \`instrument activity\` gives the names and paths, for when their words point at one of these.
 - 1m ago · opened 2 files
+</instrument-system-note>",
+  ],
+]
+`;
+
+exports[`the notes a stored data part renders > adminAskOpen 1`] = `
+[
+  [
+    "<user_message>",
+    "First",
+    "data-adminAskOpen",
+    "</user_message>",
+    "
+<instrument-system-note>
+The card to run \`systemsetup -settimezone America/New_York\` as an administrator is still up. Answer the user's question; don't ask to run it again.
 </instrument-system-note>",
   ],
 ]

@@ -31,6 +31,7 @@ import { pathExists } from "./path-exists";
 import { folderReach, reachedProjectFolders } from "./chat/folder-reach";
 import { listProjects } from "./chat/projects";
 import { tabHolders } from "./chat/chat-tabs";
+import { openAdminCommands } from "./chat/asks";
 import { chatDir, resolveChat } from "./record-folders";
 import {
   chatModelURI,
@@ -313,6 +314,18 @@ export async function newMessage({
       parts.push(messageGap);
     }
 
+    // A card to run a command as an administrator stays up through a message,
+    // which is often a question about it.
+    const adminAskOpenPart = await createAdminAskOpenPart({
+      chatId,
+      createdAt,
+      messageId,
+      sessionId,
+    });
+    if (adminAskOpenPart) {
+      parts.push(adminAskOpenPart);
+    }
+
     // What the user did in the app since they last wrote here, as the kinds
     // of things done: the names stay on this computer, behind
     // `instrument activity`.
@@ -474,6 +487,32 @@ async function grantAttachedFolder(chatId: ChatId, folderPath: string) {
   if (parsed.success && (await pathExists(parsed.data))) {
     await grantFolder({ chatId, path: parsed.data, source: "attached" });
   }
+}
+
+/** The commands whose admin cards are up as the message is sent, if any. */
+async function createAdminAskOpenPart({
+  chatId,
+  createdAt,
+  messageId,
+  sessionId,
+}: {
+  chatId: ChatId;
+  createdAt: Date;
+  messageId: StoreId.Message;
+  sessionId: StoreId.Session;
+}): Promise<SessionMessagePart.Type | undefined> {
+  // What to tell the agent is best-effort; never block sending.
+  const commands = await openAdminCommands(chatId).catch((error: unknown) => {
+    getWorkspaceConfig().captureException(error);
+    return [];
+  });
+  return commands.length === 0
+    ? undefined
+    : {
+        data: { commands },
+        metadata: { createdAt, id: StoreId.newPartId(), messageId, sessionId },
+        type: "data-adminAskOpen",
+      };
 }
 
 /** The project the chat is filed under, named for the model, or null for none. */

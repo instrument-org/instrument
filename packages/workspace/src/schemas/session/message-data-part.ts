@@ -27,6 +27,7 @@ export type SignInCookieSite = z.output<typeof SignInCookieSiteSchema>;
 export namespace SessionMessageDataPart {
   export const NameSchema = z.enum([
     "actions",
+    "adminAskOpen",
     "appEvent",
     "asks",
     "folderChanges",
@@ -139,6 +140,9 @@ export namespace SessionMessageDataPart {
     // What the user did in the app before the message, which they know better
     // than the model does: a developer's peek, like the gap note.
     actions: { author: "any", cadence: "event", shown: "dev" },
+    // The card to run a command as an administrator was still up when the
+    // person wrote: the card is theirs to see, the note the agent's.
+    adminAskOpen: { author: "any", cadence: "event", shown: "dev" },
     appEvent: { author: "app", cadence: "event", shown: "always" },
     // The places the user marked in their files, as the pills they sent.
     asks: { author: "person", cadence: "event", shown: "always" },
@@ -1370,7 +1374,17 @@ export namespace SessionMessageDataPart {
   export const PermissionAnswerDataPartSchema = z.object({
     /** The ask it answers, by id: a session holds one note per ask. */
     ask: z.string().optional(),
-    answer: z.enum(["allowed", "always", "declined"]),
+    /**
+     * As the ask's `decision`: `without-admin` and `ran-by-hand` answer only
+     * a command to run as an administrator, and nothing ran for either.
+     */
+    answer: z.enum([
+      "allowed",
+      "always",
+      "declined",
+      "ran-by-hand",
+      "without-admin",
+    ]),
     kind: PermissionOnSchema,
     /** A waited-on page as it stood when answered. */
     page: z.object({ title: z.string(), url: z.string() }).optional(),
@@ -1785,6 +1799,18 @@ export namespace SessionMessageDataPart {
   >;
 
   /**
+   * The commands whose cards to run them as an administrator were still up
+   * when the person sent this message, which they may be asking about.
+   */
+  const AdminAskOpenDataPartSchema = z.object({
+    commands: z.array(z.string()).min(1),
+  });
+
+  export type AdminAskOpenDataPart = z.output<
+    typeof AdminAskOpenDataPartSchema
+  >;
+
+  /**
    * Whole minutes since the user last wrote in this chat, written to a
    * message they sent after a long enough silence to mean they went away and
    * came back.
@@ -2060,6 +2086,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.asks]: AsksDataPartSchema,
     [NameSchema.enum.folderChanges]: FolderChangesDataPartSchema,
     [NameSchema.enum.pageTakeover]: PageTakeoverDataPartSchema,
+    [NameSchema.enum.adminAskOpen]: AdminAskOpenDataPartSchema,
     [NameSchema.enum.permissionAnswer]: PermissionAnswerDataPartSchema,
     [NameSchema.enum.questionAnswer]: QuestionAnswerDataPartSchema,
     [NameSchema.enum.attachments]: FileAttachmentsDataPartSchema,

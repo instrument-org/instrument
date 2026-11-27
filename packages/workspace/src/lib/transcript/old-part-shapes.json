@@ -1,5 +1,11 @@
 [
   {
+    "data": { "commands": ["systemsetup -settimezone America/New_York"] },
+    "note": "as written on 2026-11-27",
+    "reads": "data-adminAskOpen",
+    "type": "data-adminAskOpen"
+  },
+  {
     "type": "data-adoptedTask",
     "data": {
       "sessionId": "ses_old"

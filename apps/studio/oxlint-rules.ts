@@ -54,6 +54,139 @@ const oneTooltipProvider = defineRule({
   },
 });
 
+// What shows the app's own tooltip over the element it wraps.
+const tooltipTriggers = new Set(["ToolbarTooltip", "TooltipTrigger"]);
+// Marks that bring a tooltip of their own unless told not to.
+const marksWithTooltips = new Set(["Favicon", "PageFavicon"]);
+
+/**
+ * The app's tooltip trigger `node` sits on or inside in the same JSX, if any.
+ * The tooltip's content is not under the trigger, so the walk stops there.
+ */
+function enclosingTooltipTrigger(node: ESTree.Node) {
+  for (let at = node.parent; at; at = at.parent) {
+    if (
+      at.type !== "JSXElement" ||
+      at.openingElement.name.type !== "JSXIdentifier"
+    ) {
+      continue;
+    }
+    const { name } = at.openingElement.name;
+    if (name === "TooltipContent") {
+      return undefined;
+    }
+    if (tooltipTriggers.has(name)) {
+      return name;
+    }
+  }
+  return undefined;
+}
+
+const isIntrinsic = (name: string) => /^[a-z]/.test(name);
+
+/** Whether an element around `node` in the same JSX shows a native title. */
+function insideNativeTitle(node: ESTree.Node) {
+  for (let at = node.parent; at; at = at.parent) {
+    if (
+      at.type === "JSXElement" &&
+      at.openingElement.name.type === "JSXIdentifier" &&
+      isIntrinsic(at.openingElement.name.name) &&
+      at.openingElement.attributes.some(
+        (attribute) =>
+          attribute.type === "JSXAttribute" &&
+          attribute.name.type === "JSXIdentifier" &&
+          attribute.name.name === "title",
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+const noTitleUnderTooltip = defineRule({
+  create(context) {
+    return {
+      JSXAttribute(node) {
+        const element = node.parent;
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          node.name.name !== "title" ||
+          element?.type !== "JSXOpeningElement" ||
+          element.name.type !== "JSXIdentifier" ||
+          !(
+            isIntrinsic(element.name.name) ||
+            tooltipTriggers.has(element.name.name)
+          )
+        ) {
+          return;
+        }
+        const trigger = enclosingTooltipTrigger(node);
+        if (trigger) {
+          context.report({
+            data: { trigger: `<${trigger}>` },
+            messageId: "title",
+            node,
+          });
+        }
+      },
+      JSXOpeningElement(node) {
+        if (node.name.type !== "JSXIdentifier") {
+          return;
+        }
+        const { name } = node.name;
+        if (name === "title") {
+          const trigger = enclosingTooltipTrigger(node);
+          if (trigger) {
+            context.report({
+              data: { trigger: `<${trigger}>` },
+              messageId: "title",
+              node,
+            });
+          }
+          return;
+        }
+        if (!marksWithTooltips.has(name)) {
+          return;
+        }
+        const isQuiet = node.attributes.some(
+          (attribute) =>
+            attribute.type === "JSXAttribute" &&
+            attribute.name.type === "JSXIdentifier" &&
+            attribute.name.name === "hasTooltip" &&
+            attribute.value?.type === "JSXExpressionContainer" &&
+            attribute.value.expression.type === "Literal" &&
+            attribute.value.expression.value === false,
+        );
+        if (isQuiet) {
+          return;
+        }
+        const around = enclosingTooltipTrigger(node);
+        const trigger =
+          (around && `<${around}>`) ??
+          (insideNativeTitle(node) ? "an element with a title" : undefined);
+        if (trigger) {
+          context.report({
+            data: { mark: name, trigger },
+            messageId: "markTooltip",
+            node,
+          });
+        }
+      },
+    };
+  },
+  meta: {
+    messages: {
+      markTooltip:
+        "<{{mark}}> shows a tooltip of its own inside {{trigger}}, so two can show at once. Pass hasTooltip={false}; see docs/principles/one-tooltip-at-a-time.md.",
+      title:
+        "A native title inside {{trigger}} shows beside the app's tooltip. Put what it says in the tooltip, or drop it; see docs/principles/one-tooltip-at-a-time.md.",
+    },
+    schema: [],
+    type: "problem",
+  },
+});
+
 const noRouterLink = defineRule({
   create(context) {
     return {
@@ -1145,9 +1278,7 @@ const IDENTITY_HOOKS = new Set([
  * prop, an identity hook's argument (its dependencies included), or a name of
  * its own to follow. A field read off it, or a test of it, hands nothing on.
  */
-function handedWhole(
-  node: ESTree.Node,
-): "alias" | "hook" | "prop" | undefined {
+function handedWhole(node: ESTree.Node): "alias" | "hook" | "prop" | undefined {
   let value = node;
   let { parent } = value;
   while (
@@ -1297,6 +1428,7 @@ export default definePlugin({
     "no-stacked-doc-comments": noStackedDocComments,
     "no-sync-content-read": noSyncContentRead,
     "no-sync-write": noSyncWrite,
+    "no-title-under-tooltip": noTitleUnderTooltip,
     "no-transition-colors": noTransitionColors,
     "no-whole-query-result": noWholeQueryResult,
     "one-tooltip-provider": oneTooltipProvider,

@@ -459,3 +459,46 @@ new RuleTester({
     { code: `void ${CALL};`, filename: held, options: recorded },
   ],
 });
+
+const titleRule = plugin.rules["no-title-under-tooltip"];
+if (!titleRule) {
+  throw new Error("The plugin has no studio/no-title-under-tooltip rule");
+}
+
+new RuleTester({
+  languageOptions: { parserOptions: { lang: "tsx" } },
+}).run("no-title-under-tooltip", titleRule, {
+  invalid: [
+    {
+      code: `<TooltipTrigger asChild><button title="Linear" /></TooltipTrigger>;`,
+      errors: [{ messageId: "title" }],
+    },
+    {
+      code: `<ToolbarTooltip label="Sort"><span><b title="Sort" /></span></ToolbarTooltip>;`,
+      errors: [{ messageId: "title" }],
+    },
+    {
+      code: `<TooltipTrigger title="Linear"><svg /></TooltipTrigger>;`,
+      errors: [{ messageId: "title" }],
+    },
+    {
+      code: `<TooltipTrigger asChild><svg><title>LM Studio</title></svg></TooltipTrigger>;`,
+      errors: [{ messageId: "title" }],
+    },
+    {
+      code: `<TooltipTrigger asChild><button><Favicon url={site} /></button></TooltipTrigger>;`,
+      errors: [{ messageId: "markTooltip" }],
+    },
+    {
+      code: `<button title="Linear"><span><Favicon url={site} /></span></button>;`,
+      errors: [{ messageId: "markTooltip" }],
+    },
+  ],
+  valid: [
+    `<button title="Linear"><Favicon hasTooltip={false} url={site} /></button>;`,
+    `<TooltipTrigger asChild><button><Favicon hasTooltip={false} url={site} /></button></TooltipTrigger>;`,
+    `<Tooltip><TooltipTrigger asChild><button /></TooltipTrigger><TooltipContent><span title="x" /></TooltipContent></Tooltip>;`,
+    // A component's own title prop is not the native one.
+    `<TooltipTrigger asChild><Section title="Apps" /></TooltipTrigger>;`,
+  ],
+});

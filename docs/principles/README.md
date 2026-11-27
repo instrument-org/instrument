@@ -31,4 +31,5 @@ Principles are edited in place, like architecture: when one is refined, fix the 
 | [The agent's context only grows forward](context-only-grows-forward.md) | Append what changed, never rewrite what the agent was told |
 | [Trust the person and their agent; defend real threats](trust-the-person-and-their-agent.md) | Protect what matters, not vectors that only exist in theory |
 | [A shortened date shows the whole one on hover](a-shortened-date-shows-the-whole-one-on-hover.md) | Short dates in rows, the full date and time in a native `title` |
+| [One tooltip at a time, and only when it adds something](one-tooltip-at-a-time.md) | Icon controls get the app's tooltip, rows a native `title` only for an unseen fact, marks none |
 | [Tabs behave like a browser's](tabs-behave-like-a-browser.md) | Take Chromium's rule for tabs, groups and the address field before inventing one |

@@ -22,7 +22,7 @@ const two = ChatIdSchema.parse("record-changes-two");
 
 describe("recordChanges", () => {
   it("hands over a burst as one batch, each change once", async () => {
-    const changes = recordChanges(undefined);
+    const changes = recordChanges(undefined, { live: true });
     recordChanged(one, "messages");
     recordChanged(one, "messages");
     recordChanged(two, "agent");
@@ -37,7 +37,7 @@ describe("recordChanges", () => {
   });
 
   it("keeps what lands while the consumer is away for its next pull", async () => {
-    const changes = recordChanges(undefined);
+    const changes = recordChanges(undefined, { live: true });
     recordChanged(one, "messages");
     await changes.next();
     recordChanged(two, "settings");
@@ -48,7 +48,10 @@ describe("recordChanges", () => {
   });
 
   it("hands over only what it is asked to keep", async () => {
-    const changes = recordChanges(undefined, (change) => change.id === two);
+    const changes = recordChanges(undefined, {
+      keep: (change) => change.id === two,
+      live: true,
+    });
     recordChanged(one, "messages");
     recordRemoved(two);
     expect((await changes.next()).value).toEqual([
@@ -57,9 +60,28 @@ describe("recordChanges", () => {
     await changes.return();
   });
 
+  it("leaves out changes to a running turn's memory unless asked for them", async () => {
+    const written = recordChanges(undefined, { live: false });
+    const streaming = recordChanges(undefined, { live: true });
+    const message = {
+      id: StoreId.newMessageId(),
+      removed: false,
+      sessionId: StoreId.newSessionId(),
+    };
+    recordMessageChanged(one, message, { live: true });
+    recordChanged(two, "agent");
+    expect((await written.next()).value).toEqual([{ id: two, kind: "agent" }]);
+    expect((await streaming.next()).value).toEqual([
+      { id: one, kind: "messages", live: true, message },
+      { id: two, kind: "agent" },
+    ]);
+    await written.return();
+    await streaming.return();
+  });
+
   it("ends when its signal aborts", async () => {
     const controller = new AbortController();
-    const changes = recordChanges(controller.signal);
+    const changes = recordChanges(controller.signal, { live: true });
     const next = changes.next();
     controller.abort();
     expect(await next).toEqual({ done: true, value: undefined });
@@ -92,7 +114,10 @@ describe("the record writer on the feed", () => {
       path.join(root, TASKS_DIR_NAME, "record-changes-task"),
     );
     await fs.mkdir(chatDir(chatId), { recursive: true });
-    const changes = recordChanges(undefined, (change) => change.id === chatId);
+    const changes = recordChanges(undefined, {
+      keep: (change) => change.id === chatId,
+      live: true,
+    });
 
     await setChatState(chatDir(chatId), { openedTabs: [] });
     expect((await changes.next()).value).toEqual([

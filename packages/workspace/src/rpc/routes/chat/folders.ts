@@ -25,12 +25,12 @@ export const liveChatFolders = base
     yield* distinct(
       liveRead({
         changes: [
-          recordChanges(
-            signal,
-            (change) =>
+          recordChanges(signal, {
+            keep: (change) =>
               change.id === input.id &&
               (change.kind === "settings" || change.kind === "session"),
-          ),
+            live: false,
+          }),
         ],
         read: () => reachedFolders(input.id),
       }),
@@ -49,13 +49,11 @@ export const liveChatWrittenFolders = base
     yield* distinct(
       liveRead({
         changes: [
-          recordChanges(
-            signal,
-            (change) =>
-              change.id === input.id &&
-              change.kind === "messages" &&
-              change.live !== true,
-          ),
+          recordChanges(signal, {
+            keep: (change) =>
+              change.id === input.id && change.kind === "messages",
+            live: false,
+          }),
         ],
         read: () => foldersChatWrote(input.id),
       }),

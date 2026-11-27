@@ -37,10 +37,10 @@ export const liveChatActivity = base
     let previousState: ChatAgentStatus | undefined;
     for await (const currentState of liveRead({
       changes: [
-        recordChanges(
-          signal,
-          (change) => change.id === input.id && change.kind === "agent",
-        ),
+        recordChanges(signal, {
+          keep: (change) => change.id === input.id && change.kind === "agent",
+          live: false,
+        }),
       ],
       read: () => getChatActivity(input.id, context.workspaceRef),
     })) {

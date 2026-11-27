@@ -273,7 +273,7 @@ const live = {
       // read.
       yield* distinct(
         liveRead({
-          changes: [changedMessageBatches({ ...input, written: true }, signal)],
+          changes: [changedMessageBatches({ ...input, live: false }, signal)],
           read: () => call(contextTokens, input, { context, signal }),
         }),
       );

@@ -239,7 +239,9 @@ async function readChatList(
 ): Promise<void> {
   const { signal } = current.stop;
   const { rows } = current;
-  const records = recordChanges(signal);
+  // A row shows a reply's first words as it streams, read at most once per
+  // chat per `LIVE_READ_MS`.
+  const records = recordChanges(signal, { live: true });
   const apps = collapsed(everyOne(appListChanges(signal)));
   const refreshes = refreshesOf(current);
   const held = heldReads(signal);

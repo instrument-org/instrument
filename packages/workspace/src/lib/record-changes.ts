@@ -101,7 +101,20 @@ export function recordRemoved(id: ChatId): void {
  */
 export function recordChanges(
   signal: AbortSignal | undefined,
-  keep: (change: RecordChanged) => boolean = () => true,
+  {
+    keep = () => true,
+    live,
+  }: {
+    /** Which changes to hear; every one when left out. */
+    keep?: (change: RecordChanged) => boolean;
+    /**
+     * Whether changes to a running turn's memory alone are heard: up to ten
+     * a second for each session streaming. Only a reader that shows what is
+     * still streaming in takes them; one that reads written records alone
+     * would read them again for nothing.
+     */
+    live: boolean;
+  },
 ) {
   const pending = new Map<string, RecordChanged>();
   let wake: (() => void) | undefined;
@@ -111,7 +124,7 @@ export function recordChanges(
     resume?.();
   };
   const unsubscribe = publisher.subscribe("record.changed", (change) => {
-    if (keep(change)) {
+    if ((live || change.live !== true) && keep(change)) {
       const key = `${change.id}\n${change.kind}`;
       const earlier = pending.get(key);
       const { live: _live, ...written } = change;

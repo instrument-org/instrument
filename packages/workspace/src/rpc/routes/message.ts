@@ -360,7 +360,7 @@ const liveFeed = base
   .output(eventIterator(type<TranscriptFeedEvent>()))
   .handler(async function* ({ errors, input, signal }) {
     // Subscribed before the first read, so no change lands unobserved.
-    const batches = changedMessageBatches(input, signal);
+    const batches = changedMessageBatches({ ...input, live: true }, signal);
     const unattend = attendChatArrivals(input.id);
     try {
       const read = (only?: Set<StoreId.Message>) =>
@@ -515,7 +515,7 @@ const liveWhole = base
   )
   .output(eventIterator(type<SessionMessage.WithParts | null>()))
   .handler(async function* ({ errors, input, signal }) {
-    const batches = changedMessageBatches(input, signal);
+    const batches = changedMessageBatches({ ...input, live: true }, signal);
     const only = new Set([input.messageId]);
     const read = async () => {
       const messages = await ChatReads.transcript({
@@ -554,7 +554,7 @@ const liveDeveloperNotes = base
   .input(z.object({ id: ChatIdSchema, sessionId: StoreId.SessionSchema }))
   .output(eventIterator(type<DeveloperNote[]>()))
   .handler(async function* ({ errors, input, signal }) {
-    const batches = changedMessageBatches(input, signal);
+    const batches = changedMessageBatches({ ...input, live: true }, signal);
     const read = async () => {
       const notes = await sessionDeveloperNotes({
         chatId: input.id,

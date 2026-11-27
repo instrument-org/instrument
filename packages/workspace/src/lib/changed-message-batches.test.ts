@@ -36,7 +36,7 @@ function partUpdated(messageId: StoreId.Message, session = sessionId) {
 }
 
 function start(signal: AbortSignal) {
-  const batches = changedMessageBatches({ id: chatId, sessionId }, signal);
+  const batches = changedMessageBatches({ id: chatId, live: true, sessionId }, signal);
   return { batches, first: batches.next() };
 }
 
@@ -67,7 +67,7 @@ describe("changedMessageBatches", () => {
     // Subscriptions register at call time, so events raised while a caller is
     // still taking its initial snapshot land in the first batch.
     const batches = changedMessageBatches(
-      { id: chatId, sessionId },
+      { id: chatId, live: true, sessionId },
       controller.signal,
     );
 
@@ -154,7 +154,10 @@ describe("changedMessageBatches", () => {
   it("watches every session in the chat when no sessionId is given", async () => {
     const controller = new AbortController();
     // Omitting sessionId scopes to the whole task (e.g. a usage rollup).
-    const batches = changedMessageBatches({ id: chatId }, controller.signal);
+    const batches = changedMessageBatches(
+      { id: chatId, live: true },
+      controller.signal,
+    );
 
     const here = StoreId.newMessageId();
     const elsewhere = StoreId.newMessageId();

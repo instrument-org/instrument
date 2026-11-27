@@ -145,19 +145,23 @@ async function* liveChildTasks(
   const named = new Set<StoreId.Session>();
   // Heard at publish, ahead of the batch that carries it, so the batch that
   // wakes the loop finds every session its changes named.
-  const changes = recordChanges(signal, (change) => {
-    if (change.id !== chatId || change.kind === "settings") {
-      return false;
-    }
-    if (change.live && change.message) {
-      if (change.message.sessionId === own) {
+  const changes = recordChanges(signal, {
+    keep: (change) => {
+      if (change.id !== chatId || change.kind === "settings") {
         return false;
       }
-      named.add(change.message.sessionId);
-    } else {
-      whole = true;
-    }
-    return true;
+      if (change.live && change.message) {
+        if (change.message.sessionId === own) {
+          return false;
+        }
+        named.add(change.message.sessionId);
+      } else {
+        whole = true;
+      }
+      return true;
+    },
+    // A task's row shows its step and last words as they stream in.
+    live: true,
   });
   let tasks = await childTasks(chatId);
   yield tasks;
@@ -235,12 +239,12 @@ const liveTaskTitlesRoute = base
     yield* distinct(
       liveRead({
         changes: [
-          recordChanges(
-            signal,
-            (change) =>
+          recordChanges(signal, {
+            keep: (change) =>
               change.id === chatId &&
               (change.kind === "session" || change.kind === "removed"),
-          ),
+            live: false,
+          }),
         ],
         read: async () =>
           (await listChildTasks(chatId)).map(({ id, title }) => ({
@@ -703,16 +707,15 @@ const liveAsksRoute = base
     yield* distinct(
       liveRead({
         changes: [
-          recordChanges(
-            signal,
+          recordChanges(signal, {
+            keep: (change) =>
+              change.id === input.id &&
+              (change.kind === "messages" || change.kind === "session"),
             // A card and its answers are session records; a question is in
             // the transcript, written once its call is. Nothing is read
             // from a running turn's memory.
-            (change) =>
-              change.id === input.id &&
-              change.live !== true &&
-              (change.kind === "messages" || change.kind === "session"),
-          ),
+            live: false,
+          }),
           stale.fires,
         ],
         read: async () => {
@@ -739,14 +742,13 @@ const liveSignInRoute = base
     yield* distinct(
       liveRead({
         changes: [
-          recordChanges(
-            signal,
-            // Read from the asks' records alone, never a running turn's memory.
-            (change) =>
+          recordChanges(signal, {
+            keep: (change) =>
               change.id === input.id &&
-              change.live !== true &&
               (change.kind === "messages" || change.kind === "session"),
-          ),
+            // Read from the asks' records alone, never a running turn's memory.
+            live: false,
+          }),
         ],
         read: () => signInOfCall(input.id, input.partId),
       }),
@@ -769,15 +771,13 @@ const liveNextMessagesRoute = base
       yield* distinct(
         liveRead({
           changes: [
-            // A message written takes them away; a running turn's memory
-            // moves nothing they show.
-            recordChanges(
-              signal,
-              (change) =>
-                change.id === input.id &&
-                change.kind === "messages" &&
-                change.live !== true,
-            ),
+            recordChanges(signal, {
+              keep: (change) =>
+                change.id === input.id && change.kind === "messages",
+              // A message written takes them away; a running turn's memory
+              // moves nothing they show.
+              live: false,
+            }),
             where(
               publisher.subscribe("chat.nextMessage", { signal }),
               (event) => event.id === input.id,

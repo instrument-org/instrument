@@ -51,15 +51,15 @@ const live = {
     .handler(async function* ({ context, input, signal }) {
       yield* liveRead({
         changes: [
-          recordChanges(
-            signal,
-            (change) =>
+          recordChanges(signal, {
+            keep: (change) =>
               change.id === input.id &&
               // The title is on the chat's session row, where a rename writes it.
               (change.kind === "settings" ||
                 change.kind === "session" ||
                 change.kind === "removed"),
-          ),
+            live: false,
+          }),
         ],
         read: () => call(info, input, { context, signal }),
       });
@@ -88,7 +88,7 @@ const liveUsageSummary = base
   .handler(async function* ({ context, input, signal }) {
     // Coalesce this chat's message/part events so a streaming turn recomputes
     // the (whole-chat) summary once per batch instead of once per event.
-    const batches = changedMessageBatches(input, signal);
+    const batches = changedMessageBatches({ ...input, live: true }, signal);
     try {
       yield call(usageSummary, input, { context, signal });
       for await (const _batch of batches) {

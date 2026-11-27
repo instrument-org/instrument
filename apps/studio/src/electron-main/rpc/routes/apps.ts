@@ -34,6 +34,7 @@ import {
   isPendingAppUpdate,
   pendingAppUpdate,
   catalogEntryMacApp,
+  catalogEntriesFromBrowser,
   catalogEntryForApp,
   catalogKeyHelp,
   getAppCatalog,
@@ -81,6 +82,7 @@ import {
   expectSignIn,
   settleSignIn,
 } from "@/electron-main/browser-view/history-intents";
+import { usedInBrowser } from "@/electron-main/browser-view/browser-sites";
 import {
   finishSignInCookies,
   startSignInCookies,
@@ -452,6 +454,16 @@ const catalogByMeaning = base
     });
     return Promise.all(meant.map(withIcon));
   });
+
+/**
+ * The directory's services the person uses in the in-app browser, most
+ * recently used first, each by its slug and the host it was used on: read
+ * from the history and the browser profile when the Apps page asks, never
+ * as pages load.
+ */
+const fromBrowser = base
+  .output(z.array(z.object({ host: z.string(), slug: z.string() })))
+  .handler(async () => catalogEntriesFromBrowser(await usedInBrowser()));
 
 /** A directory entry with the icon it is drawn with. */
 async function withIcon(entry: ReturnType<typeof getAppCatalog>[number]) {
@@ -1206,6 +1218,7 @@ export const apps = {
   catalogByMeaning,
   disconnect,
   dismiss,
+  fromBrowser,
   inspect,
   list,
   live,

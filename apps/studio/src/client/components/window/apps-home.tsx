@@ -129,6 +129,7 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
     setQuery("");
   };
   const { connect } = useConnectFromDirectory();
+  const fromBrowser = useFromBrowser(listed, mineOf, listData !== undefined);
   const tileFor = (entry: CatalogEntry) => (
     <CatalogTile
       entry={entry}
@@ -369,6 +370,15 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
               </div>
             </PageSection>
           ) : null}
+          {typed === "" && fromBrowser.length > 0 ? (
+            <PageSection title="From this browser">
+              <div className="divide-y divide-border rounded-xl bg-card shadow-xs">
+                {fromBrowser.map(({ entry, host }) => (
+                  <FromBrowserRow entry={entry} host={host} key={entry.slug} />
+                ))}
+              </div>
+            </PageSection>
+          ) : null}
           {catalogData === undefined ? (
             <TileSkeletons />
           ) : typed === "" ? (
@@ -536,6 +546,68 @@ function useDirectory() {
 
 /** No directory entries, one array while the directory is on its way. */
 const NO_ENTRIES: CatalogEntry[] = [];
+
+/**
+ * The directory's services the person uses in the in-app browser and has not
+ * set up, most recently used first, each with the host it was used on. Read
+ * once the workspace's apps are, so a service already here never shows
+ * before going.
+ */
+function useFromBrowser(
+  listed: CatalogEntry[],
+  mineOf: (entry: CatalogEntry) => App[],
+  isListRead: boolean,
+): { entry: CatalogEntry; host: string }[] {
+  const used = useQuery(
+    rpcClient.apps.fromBrowser.queryOptions({ enabled: isListRead }),
+  ).data;
+  return (used ?? []).flatMap(({ host, slug }) => {
+    const entry = listed.find((candidate) => candidate.slug === slug);
+    return entry === undefined || mineOf(entry).length > 0
+      ? []
+      : [{ entry, host }];
+  });
+}
+
+/** A service used in the in-app browser: its icon, its name over the host it was used on, and the Connect its page has. */
+function FromBrowserRow({
+  entry,
+  host,
+}: {
+  entry: CatalogEntry;
+  host: string;
+}) {
+  const { connect, isConnecting } = useConnectFromDirectory();
+  return (
+    <div className="flex items-center gap-3 p-4">
+      <AppIcon
+        className="size-9 rounded-lg p-0"
+        icon={entry.icon}
+        name={entry.name}
+        site={`https://${entry.domain}`}
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px] leading-snug font-medium">
+          {entry.name}
+        </span>
+        <span className="block truncate text-[13px] leading-snug text-muted-foreground">
+          {host}
+        </span>
+      </span>
+      <Button
+        className="text-foreground"
+        disabled={isConnecting}
+        onClick={() => {
+          connect(entry);
+        }}
+        size="sm"
+        variant="outline"
+      >
+        Connect
+      </Button>
+    </div>
+  );
+}
 
 /** The workspace's own apps matching every word typed, by name, slug, site or account. */
 function searchOwn(own: App[], typed: string): App[] {

@@ -38,6 +38,10 @@ export {
   getAppCatalog,
   searchAppCatalogByMeaning,
 } from "./lib/apps/catalog";
+export {
+  catalogEntriesFromBrowser,
+  type UsedAddress,
+} from "./lib/apps/from-browser";
 export { type AppSetting, type AppSettings } from "./lib/app-settings";
 export { type AppEvent, appChanged } from "./lib/apps/changed";
 export { parseRecordFileName } from "./lib/records/file-names";

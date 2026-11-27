@@ -63,6 +63,10 @@ vi.mock("../../lib/apps", () => ({
     `https://api.example/oauth/${service}/token`,
   disconnectApp: vi.fn(),
 }));
+// The browser's profile, which opens Electron's session.
+vi.mock("@/electron-main/browser-view/browser-sites", () => ({
+  usedInBrowser: vi.fn(),
+}));
 vi.mock(
   import("@instrument-org/workspace/electron"),
   async (importOriginal) => ({

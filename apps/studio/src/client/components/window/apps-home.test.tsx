@@ -11,6 +11,8 @@ const served = vi.hoisted(() => ({
   ask: vi.fn(),
   apps: [] as unknown[],
   catalog: [] as unknown[],
+  connect: vi.fn(),
+  fromBrowser: [] as { host: string; slug: string }[],
 }));
 vi.mock("@/client/rpc/client", () => {
   const live = (key: string, read: () => unknown) => ({
@@ -24,6 +26,13 @@ vi.mock("@/client/rpc/client", () => {
             enabled: false,
             queryFn: () => [],
             queryKey: ["meaning"],
+          }),
+        },
+        fromBrowser: {
+          queryOptions: ({ enabled }: { enabled: boolean }) => ({
+            enabled,
+            queryFn: () => served.fromBrowser,
+            queryKey: ["fromBrowser"],
           }),
         },
         live: {
@@ -45,7 +54,7 @@ vi.mock("@/client/components/window/context", () => ({
   useWindow: () => ({ ask: served.ask }),
 }));
 vi.mock("@/client/components/window/use-connect-from-directory", () => ({
-  useConnectFromDirectory: () => ({ connect: vi.fn() }),
+  useConnectFromDirectory: () => ({ connect: served.connect }),
 }));
 vi.mock("@/client/components/window/app-menu", () => ({
   AppContextMenu: ({ children }: { children: React.ReactNode }) => children,
@@ -165,5 +174,61 @@ describe("AppsHome search", () => {
       href: "/apps/figma",
       title: "Figma",
     });
+  });
+});
+
+describe("AppsHome from this browser", () => {
+  const notion: typeof figma = {
+    ...figma,
+    category: "notes",
+    domain: "notion.com",
+    name: "Notion",
+    slug: "notion",
+    tagline: "Docs and wikis.",
+  };
+  beforeEach(() => {
+    served.apps = [];
+    served.catalog = [figma, notion];
+    served.connect.mockClear();
+    served.fromBrowser = [
+      { host: "www.figma.com", slug: "figma" },
+      { host: "app.notion.com", slug: "notion" },
+    ];
+  });
+
+  it("lists the services used in the browser that are not set up, each connecting from the directory", async () => {
+    served.apps = [
+      {
+        name: "Notion",
+        service: "notion",
+        slug: "notion",
+        status: "connected",
+        type: "mcp",
+      },
+    ];
+    renderWithProviders(<AppsHome onOpenApp={vi.fn()} />);
+
+    await screen.findByText("www.figma.com");
+    expect(screen.getByText("From this browser")).toBeTruthy();
+    expect(screen.queryByText("app.notion.com")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+    expect(served.connect).toHaveBeenCalledWith(figma);
+  });
+
+  it("shows no section when every service used is set up", async () => {
+    served.fromBrowser = [{ host: "www.figma.com", slug: "figma" }];
+    served.apps = [
+      {
+        name: "Figma",
+        service: "figma",
+        slug: "figma",
+        status: "connected",
+        type: "mcp",
+      },
+    ];
+    renderWithProviders(<AppsHome onOpenApp={vi.fn()} />);
+
+    await screen.findByText("Your apps");
+    expect(screen.queryByText("From this browser")).toBeNull();
   });
 });

@@ -2,6 +2,7 @@ import {
   type BrowserSite,
   getBrowserSessionDir,
   listApps,
+  type UsedAddress,
 } from "@instrument-org/workspace/electron";
 import fs from "node:fs";
 import path from "node:path";
@@ -122,3 +123,19 @@ export async function browserSites(): Promise<BrowserSite[]> {
   });
 }
 
+/**
+ * What the person used in the in-app browser, for the directory's services
+ * the Apps page offers from it: the pages they visited, each with when last,
+ * and the origins keeping site data. An agent's visits are its own work, not
+ * a sign the person uses a site.
+ */
+export async function usedInBrowser(): Promise<UsedAddress[]> {
+  const siteData = await siteDataOrigins(getBrowserSessionDir());
+  return [
+    ...getHistoryStore()
+      .visitedPages()
+      .filter((page) => page.actor === "user")
+      .map(({ at, url }) => ({ address: url, at })),
+    ...siteData.map(({ origin }) => ({ address: origin })),
+  ];
+}

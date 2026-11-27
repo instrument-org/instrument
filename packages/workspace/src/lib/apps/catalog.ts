@@ -486,14 +486,17 @@ export function findCatalogEntry(
  * docs.google.com/spreadsheets is Sheets and not Docs; failing that, the one
  * entry on the address's host. A second account of a service lives at its
  * own address of the same site (mail.google.com/mail/u/1/), which is how it
- * is still that service.
+ * is still that service. Looks among `catalog`, the whole directory unless
+ * given.
  */
-export function catalogEntryAt(address: string): AppCatalogEntry | undefined {
+export function catalogEntryAt(
+  address: string,
+  catalog: readonly AppCatalogEntry[] = getAppCatalog(),
+): AppCatalogEntry | undefined {
   const url = URL.parse(address);
   if (url === null) {
     return undefined;
   }
-  const catalog = getAppCatalog();
   const homeOf = (entry: AppCatalogEntry) =>
     URL.parse(entry.home ?? `https://${entry.domain}`);
   const within = catalog

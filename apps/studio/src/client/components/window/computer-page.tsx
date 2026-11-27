@@ -1,5 +1,4 @@
 import { undoOnShow } from "@/client/lib/undo-toast";
-import { MiddleTruncate } from "@/client/components/middle-truncate";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { useLatest } from "@/client/hooks/use-latest";
 import { useIsNarrower } from "@/client/hooks/use-is-narrower";
@@ -22,54 +21,24 @@ import { windowHoldsAtom } from "@/client/atoms/tab-navigation-block";
 import {
   FileSystem,
   type FileSystemFileItem,
-  FileSystemFolderGlyph,
   itemKindLabel,
   type FileSystemHandle,
   type FileSystemItem,
   type FileSystemGroupKey,
-  type FileSystemSortKey,
   type FileSystemSortState,
   type FileSystemView,
 } from "@/client/components/extend/file-system";
-import { TOOLBAR_ICON_BUTTON_CLASSNAME } from "@/client/components/toolbar-control";
-import {
-  isQuickLookPress,
-  listingKeys,
-} from "@/client/components/extend/file-system-keys";
-import { instrumentFolderGlyphUrl } from "@/client/components/icons/folder-glyph";
-import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
-import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
-import { IconWithFallback } from "@/client/components/icon-with-fallback";
-import { OpenTargetIcon } from "@/client/components/open-target-icon";
-import { OpenInMenu } from "@/client/components/open-with-menu";
+import { isQuickLookPress } from "@/client/components/extend/file-system-keys";
 import {
   type RailBounds,
   StudioSidebarRail,
 } from "@/client/components/studio-sidebar-rail";
 import { useTheme } from "@/client/components/theme-provider";
-import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
-import { toolbarClassName } from "@/client/components/ui/toggle";
 import {
   ContextMenu,
-  ContextMenuContent,
-  ContextMenuRadioGroup,
-  ContextMenuRadioItem,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
-import {
-  contextMenuComponents,
-  dropdownMenuComponents,
-  type MenuComponents,
-} from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
 import {
   refreshWhileShown,
@@ -77,19 +46,12 @@ import {
 } from "@/client/hooks/use-active-tab";
 import { computerFolderOptions } from "@/client/lib/live-computer-folder";
 import { useRecentFiles } from "@/client/hooks/use-recent-files";
-import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
-import { useOpenFile } from "@/client/hooks/use-open-file";
 import {
   useBookmarkRow,
   useWindowPlaces,
-  wantsNewWindow,
 } from "@/client/hooks/use-open-target";
 import { fileAddressOf } from "@/client/bookmarks/address";
 import { keptPathsAtom } from "@/client/bookmarks/store";
-import {
-  getComputerFileUrl,
-  getComputerThumbnailUrl,
-} from "@/client/lib/computer-file-url";
 import { getFileType, opensInSystemApp } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import {
@@ -116,42 +78,14 @@ import {
   RECENTS_ROOT,
 } from "@/shared/computer-href";
 import { keptInPlaceReason } from "@/shared/instrument-folders";
-import { RENDERED_EXTENSIONS } from "@/shared/rendered-kinds";
-import {
-  NO_FAVORITE_CHANGES,
-  favoritePlaces,
-  type FavoriteChanges,
-} from "@/shared/favorite-places";
+import { NO_FAVORITE_CHANGES, favoritePlaces } from "@/shared/favorite-places";
 import { expandHomePath, folderNameFromPath } from "@instrument-org/shared";
 import {
   type BrowserTargetId,
-  type ComputerFolder,
-  type ComputerRefusal,
   WINDOW_ID,
 } from "@instrument-org/workspace/client";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
-import { StackIcon } from "@phosphor-icons/react/Stack";
-import { StarIcon } from "@phosphor-icons/react/Star";
-import { ClipboardIcon } from "@phosphor-icons/react/Clipboard";
-import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
-import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
-import { CopyIcon } from "@phosphor-icons/react/Copy";
-import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
-import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { FileDashedIcon } from "@phosphor-icons/react/FileDashed";
 import { FolderDashedIcon } from "@phosphor-icons/react/FolderDashed";
-import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
-import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
-import { MonitorIcon } from "@phosphor-icons/react/Monitor";
-import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
-import { MinusCircleIcon } from "@phosphor-icons/react/MinusCircle";
-import { PlusCircleIcon } from "@phosphor-icons/react/PlusCircle";
-import { ScissorsIcon } from "@phosphor-icons/react/Scissors";
-import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
-import { SortAscendingIcon } from "@phosphor-icons/react/SortAscending";
-import { TrashIcon } from "@phosphor-icons/react/Trash";
-import { InfoIcon } from "@phosphor-icons/react/Info";
 import {
   keepPreviousData,
   useMutation,
@@ -171,7 +105,6 @@ import ms from "ms";
 import { unique } from "radashi";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
-  memo,
   type ReactNode,
   useEffect,
   useEffectEvent,
@@ -179,7 +112,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { spokenMessage, toast } from "@/client/lib/toast";
+import { toast } from "@/client/lib/toast";
 import {
   drivePage,
   giveKeyboardTo,
@@ -194,16 +127,11 @@ import { DROP_LOOK } from "./drag/tone";
 import { filesOfDrop } from "./drag/held-tabs";
 import { arrivalView } from "./files-step";
 import { useGroupTab } from "./group-tab";
-import { pressPlace } from "./drag/press-bookmark";
 import { dragAtom } from "./drag/session";
-import { useFavoritesTarget } from "./favorites-drops";
 import { maySpring, SPRING_FLASH_MS, springTimer } from "./spring-loading";
 import { type GoFiles } from "./use-files-step";
-import { PlaceMenu } from "./place-menu";
 import { FileThumbnail } from "./file-thumbnail";
 import { ComputerOverview } from "./computer-overview";
-import { soundTypeIfNoPicture } from "./file-mark";
-import { FolderMark } from "./folder-mark";
 import { type FileInfoItem, TITLED_NAME } from "./file-info";
 import { lookPathOf, type LookTarget } from "./look-at";
 import { FolderNameMenu } from "./folder-name-menu";
@@ -221,6 +149,27 @@ import { useClashQuestions } from "./clash-dialog";
 import { createPasteTarget } from "./paste-target";
 import { toastWithUndo, withdrawUndoOffer } from "./undo-offers";
 
+import { FinderPlaces, PlacesToggle, placeMenuOf } from "./finder-places";
+import {
+  FolderMenu,
+  type FolderMenuActions,
+  FolderOverflowMenu,
+  SORT_BY,
+} from "./folder-menu";
+import { NotPermitted } from "./not-permitted";
+import { combineListings, useListedItems } from "./use-listed-items";
+import {
+  dropEffectOf,
+  fileActionFailed,
+  fileTabOf,
+  filesToPaste,
+  hostPathOfItem,
+  placedMessage,
+  protectionBlocked,
+  refusalLine,
+  rowPress,
+  undoFailed,
+} from "./finder-actions";
 /**
  * How many folders' layouts are kept. Past it the one left alone longest goes
  * back to opening the way a folder never set does.
@@ -266,30 +215,6 @@ const RECENTS_SORT: FileSystemSortState = {
   direction: "desc",
   key: "openedAt",
 };
-
-/**
- * The orders the folder's menu offers, in the Finder's words, each opening in
- * the direction the toolbar's sort opens it in. The recents add the order
- * they were opened in, which is theirs alone.
- */
-const SORT_BY: {
-  direction: "asc" | "desc";
-  key: FileSystemSortKey;
-  label: string;
-  recentsOnly?: boolean;
-}[] = [
-  {
-    direction: "desc",
-    key: "openedAt",
-    label: "Date Last Opened",
-    recentsOnly: true,
-  },
-  { direction: "asc", key: "name", label: "Name" },
-  { direction: "asc", key: "kind", label: "Kind" },
-  { direction: "desc", key: "updatedAt", label: "Date Modified" },
-  { direction: "desc", key: "createdAt", label: "Date Created" },
-  { direction: "desc", key: "size", label: "Size" },
-];
 
 /** The folder the user is looking at, for the conversation. */
 export interface FolderOnScreen {
@@ -3088,819 +3013,6 @@ function ICloudAccessBanner() {
 }
 // oxlint-enable studio/no-os-words
 
-/** What a row's menus do, by the menu's own components; see `FolderMenu`. */
-type FolderMenuActions = {
-  /**
-   * Why a folder among what the menu acts on stays where it is
-   * (`keptInPlaceOf`): Move to Trash, Rename and Duplicate are there, and
-   * off, and the reason is said at the menu's foot.
-   */
-  kept?: string | undefined;
-  onCopy: () => void;
-  onCopyPath: () => void;
-  onCut: () => void;
-  onDuplicate: () => void;
-  /** Keeps it as a bookmark; left out for several. */
-  onAddToBookmarks?: (() => void) | undefined;
-  /** Left out where nothing shows a file's info, or the menu is on the folder's empty space. */
-  onInfo: (() => void) | undefined;
-  /** Left out where there is no folder to make one in. */
-  onNewFolder: (() => void) | undefined;
-  /** What a double-click does: a folder is gone into, a file opened here. */
-  onOpen: () => void;
-  /** A folder in a tab of its own, which is the Finder's first answer for one. */
-  onOpenInNewTab: () => void;
-  /** What it is in a window of its own, several as tabs of one. */
-  onOpenInNewWindow: () => void;
-  /** The first tab of a new tab group; left out for several. */
-  onOpenInNewGroup?: (() => void) | undefined;
-  /** On the other side of this tab's group, made where it has one side; left out for several. */
-  onOpenInSplit?: (() => void) | undefined;
-  /** Left out where nothing shows a file over the page. */
-  onQuickLook: (() => void) | undefined;
-  /** Left out where there is no field to type a name in. */
-  onRename?: () => void;
-  onReveal: () => void;
-  /** A package (an app) gone into as the folder it is; left out for anything else. */
-  onShowPackageContents?: (() => void) | undefined;
-  onTrash: () => void;
-  /**
-   * Where opening leaves this window: an app that runs, or a file the
-   * computer's own app for it opens. Left out for what opens here.
-   */
-  opensOutside?: "app" | "file" | undefined;
-  /** Adding a folder to Favorites, or removing it; left out for anything but one folder. */
-  favorite?: { isFavorite: boolean; onToggle: () => void } | undefined;
-  /** Files on the clipboard, copied into the folder on screen, by its name; left out where there is no folder. */
-  paste?: { into: string; onMove: () => void; onPaste: () => void } | undefined;
-  /**
-   * What the menu acts on, when it is several selected: what names one thing
-   * (Rename, Copy Path, Quick Look, Reveal) is left off, and Open With lists
-   * the apps every one of them opens in.
-   */
-  group?: FileSystemItem[] | undefined;
-};
-
-/**
- * What can be done to the thing under the pointer, or to the folder itself
- * where there is nothing under it, in the order the Finder's own menu puts
- * them: opening first, the Trash apart, then what changes the thing, then
- * where it is. Handing a file to another program is one row, and a submenu
- * wherever the Mac can name the apps that read it, a folder's included: naming an app on the row
- * itself makes the menu as wide as whatever app that file happens to belong
- * to.
- */
-function FolderMenu({
-  isRecents = false,
-  onClosed,
-  onSortKey,
-  sort,
-  ...props
-}: FolderMenuActions & {
-  isRecents?: boolean;
-  item: FileSystemItem | undefined;
-  /** The menu gone, and the keyboard with it. */
-  onClosed?: () => void;
-  /** With `sort`, the folder's own orders, offered on its empty space. */
-  onSortKey?: (key: FileSystemSortKey) => void;
-  sort?: FileSystemSortState;
-}) {
-  return (
-    <ContextMenuContent
-      className="min-w-48"
-      // Closing hands the keyboard back to what the menu came up over, which
-      // lands after a chosen action has already put it somewhere of its own:
-      // in the name field a rename just opened, or on the browser. Every item
-      // here says where the keyboard goes, so the menu says nothing.
-      onCloseAutoFocus={(event) => {
-        event.preventDefault();
-        onClosed?.();
-      }}
-    >
-      <FolderMenuItems
-        {...props}
-        emptyTail={
-          onSortKey && sort ? (
-            <ContextMenuSub>
-              <ContextMenuSubTrigger>
-                <SortAscendingIcon className="size-4" />
-                <span>Sort By</span>
-              </ContextMenuSubTrigger>
-              <ContextMenuSubContent className="min-w-44">
-                <ContextMenuRadioGroup
-                  onValueChange={(key) => {
-                    const option = SORT_BY.find((entry) => entry.key === key);
-                    if (option) {
-                      onSortKey(option.key);
-                    }
-                  }}
-                  value={sort.key}
-                >
-                  {SORT_BY.filter(
-                    (option) => isRecents || !option.recentsOnly,
-                  ).map((option) => (
-                    <ContextMenuRadioItem key={option.key} value={option.key}>
-                      {option.label}
-                    </ContextMenuRadioItem>
-                  ))}
-                </ContextMenuRadioGroup>
-              </ContextMenuSubContent>
-            </ContextMenuSub>
-          ) : null
-        }
-        menuComponents={contextMenuComponents}
-      />
-    </ContextMenuContent>
-  );
-}
-
-/**
- * The toolbar's More menu, the Finder's ⋯: the folder menu for what is
- * selected, or for the folder where nothing is, with New Folder at its head
- * either way, since a list with no empty space to right-click still needs a
- * way to make one.
- */
-function FolderOverflowMenu({
-  folded,
-  onClosed,
-  ...props
-}: FolderMenuActions & {
-  /** The folder's views and sort, at the menu's head, where the toolbar has no room for them. */
-  folded?: ReactNode;
-  item: FileSystemItem | undefined;
-  onClosed: () => void;
-}) {
-  // The recents with nothing selected have nothing to make or paste, so the
-  // menu would open empty.
-  if (!folded && !props.item && !props.onNewFolder && !props.paste) {
-    return null;
-  }
-  return (
-    <DropdownMenu>
-      <ToolbarTooltip label="More">
-        <DropdownMenuTrigger asChild>
-          <button
-            aria-label="More"
-            className={TOOLBAR_ICON_BUTTON_CLASSNAME}
-            type="button"
-          >
-            <DotsThreeIcon className="size-4" weight="bold" />
-          </button>
-        </DropdownMenuTrigger>
-      </ToolbarTooltip>
-      <DropdownMenuContent
-        align="end"
-        className="min-w-48"
-        onCloseAutoFocus={(event) => {
-          event.preventDefault();
-          onClosed();
-        }}
-      >
-        {folded}
-        <FolderMenuItems
-          {...props}
-          menuComponents={dropdownMenuComponents}
-          newFolderFirst
-        />
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-/** The folder menu's rows, drawn by whichever menu holds them. */
-export function FolderMenuItems({
-  emptyTail,
-  item,
-  kept,
-  menuComponents,
-  newFolderFirst = false,
-  onAddToBookmarks,
-  onCopy,
-  onCopyPath,
-  onCut,
-  onDuplicate,
-  onInfo,
-  onNewFolder,
-  onOpen,
-  onOpenInNewGroup,
-  onOpenInNewTab,
-  onOpenInNewWindow,
-  onOpenInSplit,
-  onQuickLook,
-  onRename,
-  onReveal,
-  onShowPackageContents,
-  onTrash,
-  opensOutside,
-  paste,
-  favorite,
-  group,
-}: FolderMenuActions & {
-  /** What the menu adds on the folder's empty space, after New Folder. */
-  emptyTail?: ReactNode;
-  item: FileSystemItem | undefined;
-  menuComponents: MenuComponents;
-  /** New Folder at the head whatever the menu is about, the way the Finder's ⋯ has it. */
-  newFolderFirst?: boolean;
-}) {
-  const { Item, Separator, Shortcut } = menuComponents;
-  const keys = listingKeys(currentOs());
-  const tab = item?.kind === "file" ? fileTabOf(item) : undefined;
-  const several = group?.length;
-  const file = tab && !several ? { hostPath: tab.hostPath } : undefined;
-  const openFile = useOpenFile();
-  const { openLabel, opensUnnamed, showOpen } = useFileOpenTarget(file);
-  // Paste is offered only while the clipboard has files, read as the menu
-  // opens on the folder's empty space.
-  const clipboard = useQuery({
-    ...rpcClient.files.clipboardHasFiles.queryOptions(),
-    enabled: !item && paste !== undefined,
-    gcTime: 0,
-    staleTime: 0,
-  });
-  const canPaste = clipboard.data?.hasFiles === true;
-  const itemHostPath = hostPathOfItem(item);
-  // A file the system opens with a helper not worth naming has one way to
-  // open, and the Open above already takes it.
-  const openIn =
-    isMacOS() && itemHostPath && !opensUnnamed
-      ? { hostPath: itemHostPath }
-      : undefined;
-  // The rest of the selection, opened along with the row in the app picked.
-  const openInOthers = (group ?? []).flatMap((each) => {
-    const hostPath = hostPathOfItem(each);
-    return hostPath && hostPath !== itemHostPath ? [{ hostPath }] : [];
-  });
-  return (
-    <>
-      {newFolderFirst && onNewFolder ? (
-        <>
-          <Item onClick={onNewFolder}>
-            <FolderPlusIcon className="size-4" />
-            <span>New Folder</span>
-            <Shortcut>{keys.newFolder}</Shortcut>
-          </Item>
-          {item || (canPaste && paste) || emptyTail ? <Separator /> : null}
-        </>
-      ) : null}
-      {item ? (
-        <>
-          {/* Open is drawn as where the file goes: an app runs, and a file
-              with no viewer here comes up in the app the computer picks for
-              it, so neither looks like it opens in this window. */}
-          {(item.kind === "file" || several) && (
-            <Item onClick={onOpen}>
-              {!opensOutside ? (
-                <FolderOpenIcon className="size-4" />
-              ) : opensOutside === "app" && item.kind === "file" ? (
-                <IconWithFallback
-                  className="size-4"
-                  fallback={<AppWindowIcon className="size-4" />}
-                  src={item.previewImageUrl ?? null}
-                />
-              ) : file ? (
-                <OpenTargetIcon className="size-4" file={file} />
-              ) : (
-                <AppWindowIcon className="size-4" />
-              )}
-              <span>{opensOutside === "file" ? openLabel : "Open"}</span>
-              {/* The key opens the one row the keyboard is on. */}
-              {several ? null : <Shortcut>{keys.open}</Shortcut>}
-            </Item>
-          )}
-          {onOpenInSplit ? (
-            <Item onClick={onOpenInSplit}>
-              <SquareSplitHorizontalIcon className="size-4" />
-              <span>Open in Split</span>
-            </Item>
-          ) : null}
-          <Item onClick={onOpenInNewTab}>
-            <NewTabIcon className="size-4" />
-            <span>{several ? "Open in New Tabs" : "Open in New Tab"}</span>
-          </Item>
-          {onOpenInNewGroup ? (
-            <Item onClick={onOpenInNewGroup}>
-              <StackIcon className="size-4" />
-              <span>Open in New Tab Group</span>
-            </Item>
-          ) : null}
-          <Item onClick={onOpenInNewWindow}>
-            <AppWindowIcon className="size-4" />
-            <span>Open in New Window</span>
-          </Item>
-          {onShowPackageContents && !several ? (
-            <Item onClick={onShowPackageContents}>
-              <FolderOpenIcon className="size-4" />
-              <span>Show Package Contents</span>
-            </Item>
-          ) : null}
-          {/* The apps are listed where the Mac can be asked for them, and the
-                submenu asks only once it is opened, so the row is there from
-                the first frame rather than arriving under the pointer once a
-                lookup has answered. Elsewhere the one row hands the file to
-                whichever program the system has chosen for it. */}
-          {openIn ? (
-            <OpenInMenu
-              file={openIn}
-              menuComponents={menuComponents}
-              onlyAlternatives={opensOutside === "file"}
-              others={openInOthers}
-            />
-          ) : file && showOpen && !opensUnnamed && !opensOutside ? (
-            <Item
-              onClick={() => {
-                openFile(file);
-              }}
-            >
-              <OpenTargetIcon className="size-4" file={file} />
-              <span>{openLabel}</span>
-            </Item>
-          ) : null}
-          <Separator />
-          <Item
-            disabled={kept !== undefined}
-            onClick={onTrash}
-            variant="destructive"
-          >
-            <TrashIcon className="size-4" />
-            <span>Move to {osConventions().trash}</span>
-            <Shortcut>{keys.trash}</Shortcut>
-          </Item>
-          <Separator />
-          {onRename ? (
-            <Item disabled={kept !== undefined} onClick={onRename}>
-              <PencilSimpleIcon className="size-4" />
-              <span>Rename</span>
-              <Shortcut>{keys.rename}</Shortcut>
-            </Item>
-          ) : null}
-          {keys.cut ? (
-            <Item disabled={kept !== undefined} onClick={onCut}>
-              <ScissorsIcon className="size-4" />
-              <span>Cut</span>
-              <Shortcut>{keys.cut}</Shortcut>
-            </Item>
-          ) : null}
-          <Item onClick={onCopy}>
-            <CopyIcon className="size-4" />
-            <span>Copy</span>
-            <Shortcut>{keys.copy}</Shortcut>
-          </Item>
-          <Item disabled={kept !== undefined} onClick={onDuplicate}>
-            <CopyIcon className="size-4" />
-            <span>Duplicate</span>
-            {keys.duplicate ? <Shortcut>{keys.duplicate}</Shortcut> : null}
-          </Item>
-          {!several && onQuickLook ? (
-            <Item onClick={onQuickLook}>
-              <EyeIcon className="size-4" />
-              <span>Preview</span>
-              <Shortcut>{keys.preview}</Shortcut>
-            </Item>
-          ) : null}
-          {onInfo ? (
-            <Item onClick={onInfo}>
-              <InfoIcon className="size-4" />
-              <span>{osConventions().files.infoLabel}</span>
-              <Shortcut>{keys.info}</Shortcut>
-            </Item>
-          ) : null}
-          {/* Where one thing is has no answer for several. */}
-          {several ? null : (
-            <>
-              <Separator />
-              {onAddToBookmarks ? (
-                <Item onClick={onAddToBookmarks}>
-                  <StarIcon className="size-4" />
-                  <span>Add to Bookmarks</span>
-                </Item>
-              ) : null}
-              <Item onClick={onCopyPath}>
-                <ClipboardTextIcon className="size-4" />
-                <span>Copy Path</span>
-                {keys.copyPath ? <Shortcut>{keys.copyPath}</Shortcut> : null}
-              </Item>
-              {/* The Open in list already offers the Finder, so a row of its
-                    own would name it twice. */}
-              {openIn ? null : (
-                <Item onClick={onReveal}>
-                  <RevealInFolderIcon className="size-4" />
-                  <span>{osConventions().showInFileManager}</span>
-                </Item>
-              )}
-              {favorite ? (
-                <Item onClick={favorite.onToggle}>
-                  {favorite.isFavorite ? (
-                    <MinusCircleIcon className="size-4" />
-                  ) : (
-                    <PlusCircleIcon className="size-4" />
-                  )}
-                  <span>
-                    {favorite.isFavorite
-                      ? "Remove from Favorites"
-                      : "Add to Favorites"}
-                  </span>
-                </Item>
-              ) : null}
-            </>
-          )}
-          {/* Said up front, since a turned-off item cannot be pointed at
-              for a tooltip. */}
-          {kept === undefined ? null : (
-            <>
-              <Separator />
-              <p className="max-w-60 px-2 py-1.5 text-xs text-muted-foreground">
-                {kept}
-              </p>
-            </>
-          )}
-        </>
-      ) : (
-        <>
-          {onNewFolder && !newFolderFirst ? (
-            <Item onClick={onNewFolder}>
-              <FolderPlusIcon className="size-4" />
-              <span>New Folder</span>
-              <Shortcut>{keys.newFolder}</Shortcut>
-            </Item>
-          ) : null}
-          {canPaste && paste ? (
-            <>
-              {onNewFolder && !newFolderFirst ? <Separator /> : null}
-              <Item onClick={paste.onPaste}>
-                <ClipboardIcon className="size-4" />
-                <span>Paste into “{paste.into}”</span>
-                <Shortcut>{keys.paste}</Shortcut>
-              </Item>
-              {keys.moveHere ? (
-                <Item onClick={paste.onMove}>
-                  <ClipboardIcon className="size-4" />
-                  <span>Move into “{paste.into}”</span>
-                  <Shortcut>{keys.moveHere}</Shortcut>
-                </Item>
-              ) : null}
-            </>
-          ) : null}
-          {emptyTail ? (
-            <>
-              {(onNewFolder && !newFolderFirst) || (canPaste && paste) ? (
-                <Separator />
-              ) : null}
-              {emptyTail}
-            </>
-          ) : null}
-        </>
-      )}
-    </>
-  );
-}
-
-/**
- * Stable while nothing changed: what each query holds, and only that, so a
- * re-render that fetched nothing new hands the browser the same items. A
- * folder that could not be read travels with them, since the one asking is
- * the only one that can stop asking.
- */
-function combineListings(
-  results: {
-    data: ComputerFolder | undefined;
-    isError: boolean;
-    isPending: boolean;
-  }[],
-) {
-  return results.map((result) => ({
-    data: result.data?.kind === "listing" ? result.data : undefined,
-    isError: result.isError,
-    isPending: result.isPending,
-    refusal: result.data?.kind === "refused" ? result.data : undefined,
-  }));
-}
-
-/**
- * What the browser lists: the folders' entries as items, or the recents as a
- * folder's worth of files, named where they live and flat, since a list of
- * what was opened is not a tree. A hook of its own so the compiler keeps the
- * items the same object while nothing they come from changed, which spares
- * the browser re-indexing the folder on every selection change.
- */
-function useListedItems({
-  instrumentPath,
-  isRecents,
-  listings,
-  prefixes,
-  recentEntries,
-  resolvedTheme,
-  showHiddenFiles,
-  workspaceFolder,
-}: {
-  instrumentPath: string | undefined;
-  isRecents: boolean;
-  listings: ReturnType<typeof combineListings>;
-  prefixes: readonly string[];
-  recentEntries: ReturnType<typeof useRecentFiles>["files"];
-  resolvedTheme: Parameters<typeof previewOf>[1];
-  showHiddenFiles: boolean;
-  workspaceFolder: string | undefined;
-}) {
-  // A WebM or a 3GP is a video or a sound, which its name cannot tell. Each
-  // one listed is read (`files.probeMedia`, kept per version), and one with
-  // no picture is typed and drawn as a sound, as the viewer opens it.
-  const ambiguousPaths = [
-    ...new Set(
-      [
-        ...listings.flatMap(({ data }) => data?.entries ?? []),
-        ...recentEntries,
-      ].flatMap((entry) =>
-        entry.kind !== "folder" && soundTypeIfNoPicture(entry.name)
-          ? [entry.path]
-          : [],
-      ),
-    ),
-  ];
-  // Combined into a string, which stays equal from one render to the next
-  // where a set would be new each time. Each answer names its own file, so
-  // nothing past the hook reads the paths asked about, which would keep the
-  // compiler from memoizing what is built from them.
-  const soundOnlyPaths = useQueries({
-    combine: picturelessPaths,
-    queries: ambiguousPaths.map((ambiguousPath) =>
-      rpcClient.files.probeMedia.queryOptions({
-        input: { path: ambiguousPath },
-        retry: false,
-        select: (probe) => ({ path: ambiguousPath, picture: probe?.picture }),
-      }),
-    ),
-  });
-  // Everything below is built after the hook, where the compiler can keep it.
-  const recentKeys = recentPaths(recentEntries);
-  const soundOnly = new Set(soundOnlyPaths.split("\n"));
-  const recentItems = recentEntries.map((entry, index): FileSystemItem => {
-    return {
-      contentType: contentTypeOf(entry, soundOnly),
-      ...(entry.createdAt === undefined
-        ? {}
-        : { createdAt: new Date(entry.createdAt).toISOString() }),
-      kind: "file",
-      metadata: { hostPath: entry.path },
-      name: entry.name,
-      path: recentKeys[index] ?? entry.name,
-      ...previewOf(entry, resolvedTheme),
-      openedAt: new Date(entry.openedAt).toISOString(),
-      size: entry.size,
-      ...(entry.modifiedAt === undefined
-        ? {}
-        : { updatedAt: new Date(entry.modifiedAt).toISOString() }),
-    };
-  });
-  const folderItems = listings.flatMap(({ data }, index) => {
-    const prefix = prefixes[index] ?? "";
-    if (!data) {
-      return [];
-    }
-    return (
-      data.entries
-        // The browser hides a name that begins with a dot itself. Windows keeps
-        // the answer as a file attribute instead, which only the listing can
-        // read, so those are dropped here -- under the same switch, so one menu
-        // item still governs everything the system would rather you did not see.
-        .filter((entry) => showHiddenFiles || !entry.hidden)
-        .map((entry): FileSystemItem => {
-          const stamps = {
-            ...(entry.createdAt === undefined
-              ? {}
-              : { createdAt: new Date(entry.createdAt).toISOString() }),
-            ...(entry.modifiedAt === undefined
-              ? {}
-              : { updatedAt: new Date(entry.modifiedAt).toISOString() }),
-          };
-          if (entry.kind === "folder") {
-            return {
-              ...stamps,
-              ...withGlyph(
-                instrumentFolderGlyphUrl(entry.path, {
-                  outputFolder: instrumentPath,
-                  workspace: workspaceFolder,
-                }),
-              ),
-              hasChildren: true,
-              kind: "folder",
-              metadata: { hostPath: entry.path },
-              path: `${prefix}${entry.name}/`,
-            };
-          }
-          // Read by where it is, as the listing was: whatever the column can
-          // list, the viewer can show, whether or not the agent can reach it.
-          return {
-            ...stamps,
-            contentType: contentTypeOf(entry, soundOnly),
-            ...(entry.displayName === undefined
-              ? {}
-              : { displayName: entry.displayName }),
-            kind: "file",
-            metadata: { hostPath: entry.path },
-            path: `${prefix}${entry.name}`,
-            ...previewOf(entry, resolvedTheme),
-            size: entry.size,
-            ...(entry.typeName === undefined
-              ? {}
-              : { typeName: entry.typeName }),
-          };
-        })
-    );
-  });
-  return { items: isRecents ? recentItems : folderItems, recentKeys };
-}
-
-/** What a place's menu and the place lists do, steady for the life of the screen. */
-type PlaceActions = {
-  /** Files let go on a place of Favorites, moved or copied into its folder. */
-  dropInto: (
-    files: readonly { hostPath: string; isFolder: boolean }[],
-    folder: string,
-    how: { copies: boolean },
-  ) => void;
-  openInNewTab: (place: string) => void;
-  openInNewWindow: (place: string) => void;
-  /** Folders added, or rows moved, so Favorites' rows stand in `order`. */
-  favoriteAt: (paths: readonly string[], order: readonly string[]) => void;
-  rootTo: (folder: string) => void;
-  /** A place's folder opened under a drag resting on it, or (`undefined`) the view put back. */
-  spring: (folder: string | undefined) => void;
-  /** Whether a place's folder may open under a drag resting on it. */
-  springs: (folder: string) => boolean;
-  removeFavorite: (place: string) => void;
-};
-
-/** The menu on a place in the sidebar. */
-function placeMenuOf(
-  place: string,
-  { actions, isFavorite }: { actions: PlaceActions; isFavorite: boolean },
-) {
-  return (
-    <PlaceMenu
-      hostPath={place}
-      onOpenInNewTab={() => {
-        actions.openInNewTab(place);
-      }}
-      onOpenInNewWindow={() => {
-        actions.openInNewWindow(place);
-      }}
-      favorite={
-        isFavorite
-          ? {
-              isFavorite,
-              onToggle: () => {
-                actions.removeFavorite(place);
-              },
-            }
-          : undefined
-      }
-    />
-  );
-}
-
-/**
- * The places beside the folder: the app's own, the favorites, and the
- * computer's disks. A component of its own, handed only what it shows and
- * steady actions, so moving the selection in the folder leaves it alone.
- * Kept by hand (`memo`): the React Compiler keeps none of the page's render
- * around it, which would draw the places again, and every menu on them, each
- * time the page draws.
- */
-const FinderPlaces = memo(function FinderPlaces({
-  actions,
-  defaults,
-  folderHostPath,
-  homePath,
-  instrumentPlace,
-  isComputer,
-  isRecents,
-  favoriteChanges,
-  volumes,
-}: {
-  actions: PlaceActions;
-  /** The system's places as the computer lists them, the Instrument folder among them. */
-  defaults: RPCOutput["workspace"]["computer"]["places"]["favorites"];
-  /** The folder on screen, the one place marked. */
-  folderHostPath: string | undefined;
-  homePath: string;
-  instrumentPlace:
-    | RPCOutput["workspace"]["computer"]["places"]["favorites"][number]
-    | undefined;
-  isComputer: boolean;
-  isRecents: boolean;
-  favoriteChanges: FavoriteChanges;
-  volumes: RPCOutput["workspace"]["computer"]["places"]["volumes"];
-}) {
-  const favorites = favoritePlaces(
-    defaults.filter((place) => place !== instrumentPlace),
-    favoriteChanges,
-    (place) => ({
-      kind: "folder" as const,
-      name: folderNameFromPath(place),
-      path: place,
-    }),
-  );
-  const placeMenu = (place: string, { isFavorite = false } = {}) =>
-    placeMenuOf(place, { actions, isFavorite });
-  const favoritesList = useRef<HTMLUListElement>(null);
-  useFavoritesTarget({
-    list: () => favoritesList.current,
-    onInto: actions.dropInto,
-    onFavorite: actions.favoriteAt,
-    onSpring: actions.spring,
-    springs: actions.springs,
-  });
-  return (
-    <>
-      {/* The app's own places, which nobody removes: what the person opened,
-          and the folder Instrument keeps what it makes in. */}
-      <PlaceList
-        menu={(place) =>
-          place === RECENTS_ROOT ? undefined : placeMenu(place)
-        }
-        onOpenInNewTab={actions.openInNewTab}
-        onOpenInNewWindow={actions.openInNewWindow}
-        onOpen={actions.rootTo}
-        places={[
-          {
-            icon: (
-              <ClockCounterClockwiseIcon className="size-4 text-muted-foreground" />
-            ),
-            isActive: isRecents,
-            name: "Recents",
-            path: RECENTS_ROOT,
-          },
-          ...(instrumentPlace
-            ? [
-                {
-                  icon: <FolderMark size="large" path={instrumentPlace.path} />,
-                  isActive: folderHostPath === instrumentPlace.path,
-                  name: instrumentPlace.name,
-                  path: instrumentPlace.path,
-                },
-              ]
-            : []),
-        ]}
-      />
-      <PlaceList
-        label="Favorites"
-        listRef={favoritesList}
-        menu={(place) => placeMenu(place, { isFavorite: true })}
-        onOpenInNewTab={actions.openInNewTab}
-        onOpenInNewWindow={actions.openInNewWindow}
-        onOpen={(folder) => {
-          actions.rootTo(folder === homePath ? "~" : folder);
-        }}
-        favorites={favorites.map((place) => place.path)}
-        places={favorites.map((place) => ({
-          // The home folder wears the house it wears in the Finder, which
-          // is what says the account-named folder is home.
-          icon: <FolderMark size="large" path={place.path} />,
-          isActive: folderHostPath === place.path,
-          name: place.name,
-          path: place.path,
-        }))}
-      />
-      <PlaceList
-        label="Locations"
-        menu={(place) =>
-          place === COMPUTER_ROOT ? undefined : placeMenu(place)
-        }
-        onOpenInNewTab={actions.openInNewTab}
-        onOpenInNewWindow={actions.openInNewWindow}
-        onOpen={actions.rootTo}
-        places={[
-          {
-            icon: <MonitorIcon className="size-4 text-muted-foreground" />,
-            isActive: isComputer,
-            name: osConventions().computer,
-            path: COMPUTER_ROOT,
-          },
-          ...volumes.map((volume) => ({
-            icon: <FolderMark size="large" path={volume.path} />,
-            isActive: folderHostPath === volume.path,
-            name: volume.name,
-            path: volume.path,
-          })),
-        ]}
-      />
-    </>
-  );
-});
-
-/** A file's type, as a sound where probing found it has no picture. */
-function contentTypeOf(
-  entry: { mimeType?: string; name: string; path: string },
-  soundOnly: ReadonlySet<string>,
-) {
-  return (
-    (soundOnly.has(entry.path)
-      ? soundTypeIfNoPicture(entry.name)
-      : undefined) ?? entry.mimeType
-  );
-}
-
 /**
  * Puts back each journal entry, the last first, stopping at the first that
  * cannot come back. One already put back another way is passed over.
@@ -3937,15 +3049,6 @@ async function trashInTurn(
     const { journalId } = await rpcClient.files.trash.call({ path });
     onTrashed(journalId);
   }
-}
-
-/** The probed files found to have no picture, one to a line. */
-function picturelessPaths(
-  results: { data?: { path: string; picture?: boolean } }[],
-) {
-  return results
-    .flatMap(({ data }) => (data?.picture === false ? [data.path] : []))
-    .join("\n");
 }
 
 /**
@@ -4001,139 +3104,6 @@ export function rootParentSearch(
     root: above,
     select: `${segmentsOf(rootHostPath).at(-1) ?? ""}/`,
   };
-}
-
-/**
- * A press Quick Look holds, made again for the listing's selected row with
- * the keys held with it: ↑ with the parent folder's key goes up a folder,
- * and Shift widens the selection.
- */
-export function rowPress({
-  altKey,
-  ctrlKey,
-  key,
-  metaKey,
-  shiftKey,
-}: KeyboardEvent): KeyboardEvent {
-  return new KeyboardEvent("keydown", {
-    altKey,
-    bubbles: true,
-    cancelable: true,
-    ctrlKey,
-    key,
-    metaKey,
-    shiftKey,
-  });
-}
-
-// The files routes' errors that come with a sentence written for people. The
-// rest carry the system's own message, which only developer mode shows.
-const SPOKEN_FILE_ERRORS = [
-  "CANNOT_UNDO",
-  "NAME_IN_USE",
-  "NAME_INVALID",
-  "NOTHING_TO_UNDO",
-  "PROTECTED",
-];
-
-/** Says a file action didn't happen, with the reason when it is one a person can use. */
-export function fileActionFailed(title: string, error: unknown) {
-  const protection = protectionOf(error);
-  if (protection) {
-    protectionBlocked(protection);
-    return;
-  }
-  toast.error(title, {
-    cause: error,
-    description: spokenMessage(error, SPOKEN_FILE_ERRORS),
-  });
-}
-
-/**
- * Says ⌘Z couldn't take the last action back. With nothing left to take
- * back it says nothing, as the system's file manager does.
- */
-export function undoFailed(error: unknown) {
-  if (error instanceof ORPCError && error.code === "NOTHING_TO_UNDO") {
-    return;
-  }
-  fileActionFailed("Couldn't undo that", error);
-}
-
-/** What Windows' ransomware protection kept out, from a files route's error. */
-function protectionOf(
-  error: unknown,
-): undefined | { folder: string; programs: string[] } {
-  if (!(error instanceof ORPCError) || error.code !== "WINDOWS_PROTECTION") {
-    return undefined;
-  }
-  const data: unknown = error.data;
-  return typeof data === "object" &&
-    data !== null &&
-    "folder" in data &&
-    typeof data.folder === "string" &&
-    "programs" in data &&
-    Array.isArray(data.programs)
-    ? {
-        folder: data.folder,
-        programs: data.programs.filter(
-          (program): program is string => typeof program === "string",
-        ),
-      }
-    : undefined;
-}
-
-/**
- * Says Windows' ransomware protection kept Instrument out of a folder, with
- * Allow: Windows' own prompt for an administrator's yes, which lets the
- * blocked programs and the app through. The person then does again what
- * they were doing.
- */
-function protectionBlocked({
-  folder,
-  programs,
-}: {
-  folder: string;
-  programs: string[];
-}) {
-  const name = folder.split(/[\\/]/).at(-1) ?? folder;
-  toast.error(`Windows is blocking Instrument from changing “${name}”`, {
-    action: {
-      label: "Allow",
-      onClick: () => {
-        void rpcClient.files.allowThroughProtection
-          .call({ programs })
-          .then(({ outcome }) => {
-            if (outcome === "allowed") {
-              toast(`Instrument can change “${name}” now. Try that again.`);
-            } else if (outcome === "failed") {
-              toast.error(`Couldn't let Instrument into “${name}”`, {
-                description:
-                  "You can allow it under Ransomware protection in Windows Security.",
-              });
-            }
-          })
-          .catch((error: unknown) => {
-            toast.error(`Couldn't let Instrument into “${name}”`, {
-              cause: error,
-            });
-          });
-      },
-    },
-    description:
-      "Ransomware protection only lets programs it trusts change this folder.",
-  });
-}
-
-/** A folder's own glyph as an item's field, when it has one. */
-function withGlyph(glyphSrc: string | undefined) {
-  return glyphSrc === undefined ? {} : { glyphSrc };
-}
-
-/** Where an item the browser is showing sits on the Mac. */
-function hostPathOfItem(item: FileSystemItem | undefined) {
-  const hostPath = item?.metadata?.hostPath;
-  return typeof hostPath === "string" ? hostPath : "";
 }
 
 /**
@@ -4195,54 +3165,6 @@ function keptInPlaceToast(title: string, reason: string) {
   toast.error(title, { description: reason });
 }
 
-/**
- * What a toast says a drop or paste did: what was moved or copied into the
- * folder, and how many of them replaced something. Skipped ones are named
- * only when nothing else happened. Null when there is nothing to say.
- */
-export function placedMessage({
-  folderName,
-  placed,
-  skipped,
-}: {
-  folderName: string;
-  placed: readonly {
-    how: "copied" | "moved";
-    path: string;
-    replaced: boolean;
-  }[];
-  skipped: number;
-}) {
-  if (placed.length === 0) {
-    return skipped === 0
-      ? null
-      : `You skipped ${skipped === 1 ? "it" : "them"}, so nothing changed.`;
-  }
-
-  const moved = placed.filter((each) => each.how === "moved").length;
-  const verb =
-    moved === placed.length
-      ? "Moved"
-      : moved === 0
-        ? "Copied"
-        : "Moved and copied";
-  const replaced = placed.filter((each) => each.replaced).length;
-  const inTrash =
-    replaced === 0
-      ? ""
-      : placed.length === 1
-        ? " The one it replaced is in the Trash."
-        : replaced === 1
-          ? " The one they replaced is in the Trash."
-          : ` The ${replaced.toString()} items they replaced are in the Trash.`;
-  const [only] = placed;
-  if (placed.length === 1 && only) {
-    const name = only.path.split(/[\\/]/).at(-1) ?? only.path;
-    return `${verb} “${name}” into “${folderName}”${inTrash ? `.${inTrash}` : ""}`;
-  }
-  return `${verb} ${placed.length.toString()} items into “${folderName}”${inTrash ? `.${inTrash}` : ""}`;
-}
-
 /** What can move into `folder`: nothing already there, and no folder into itself. */
 function movableInto<T extends { hostPath: string }>(
   sources: readonly T[],
@@ -4268,192 +3190,12 @@ function parentPrefixOf(prefix: string) {
   return at === -1 ? "" : prefix.slice(0, at + 1);
 }
 
-/** The disk a path on a Mac is on, by where disks are mounted. */
-function macDiskOf(path: string) {
-  return /^\/Volumes\/[^/]+/u.exec(path)?.[0] ?? "/";
-}
-
-/**
- * What the pointer says a drop will do, by the rule the drop itself follows.
- * Only the Mac: elsewhere a drag the app starts offers no move to say.
- */
-export function dropEffectOf({
-  altKey,
-  carried,
-  into,
-  isMac = isMacOS(),
-}: {
-  altKey: boolean;
-  carried: readonly string[];
-  into: string;
-  isMac?: boolean;
-}) {
-  const [first] = carried;
-  if (!isMac || !first || altKey) return "copy";
-  return macDiskOf(first) === macDiskOf(into) ? "move" : "copy";
-}
-
 function isSamePathSet(left: readonly string[], right: readonly string[]) {
   const those = new Set(right);
   return (
     left.length > 0 &&
     left.length === those.size &&
     left.every((path) => those.has(path))
-  );
-}
-
-/**
- * What a paste in the Finder copies: the computer's own list of the files
- * on the clipboard where it has one, else the files the paste event carried.
- * Only files: text on the clipboard beside them, or alone, is never pasted.
- */
-export function filesToPaste(
-  fromComputer: readonly { isFolder: boolean; path: string }[],
-  fromEvent: readonly { hostPath: string; isFolder: boolean }[],
-) {
-  return fromComputer.length > 0
-    ? fromComputer.map((file) => ({
-        hostPath: file.path,
-        isFolder: file.isFolder,
-      }))
-    : [...fromEvent];
-}
-
-/** A refusal in a line, under a folder opened in place in the list. */
-function refusalLine(reason: ComputerRefusal["reason"]) {
-  switch (reason) {
-    case "account":
-      return "You don’t have permission to open this folder";
-    case "app":
-      return "This folder is protected";
-    case "system":
-      return "macOS hasn’t let Instrument read this folder";
-  }
-}
-
-/**
- * The folder the system would not let this app read, and what can be done
- * about it. A refusal by the Mac's privacy controls has two ways back. The
- * system's own panel is the graceful one: a folder picked there is the
- * person's intent, which the Mac honors from then on without asking again,
- * so the panel opens at the folder itself and the answer is one press. The
- * settings pane is where a declined ask is undone for good. A refusal by the
- * folder's own permissions has neither, so it only says whose they are. A
- * package (a Photos library) has neither either: the panel will not pick one,
- * and what guards it is the app's own permission, so the way in is to open it
- * in its app. The app's own data has no way in from here at all.
- */
-export function NotPermitted({
-  onGranted,
-  refusal,
-}: {
-  /** The folder the person picked in the panel, which is usually this one. */
-  onGranted: (hostPath: string) => void;
-  refusal: ComputerRefusal;
-}) {
-  // The folder that refused, which is one above this when the account cannot
-  // pass through it.
-  const shut = refusal.refusedBy ?? refusal.path;
-  const name = segmentsOf(shut).at(-1) ?? shut;
-  const choose = useMutation({
-    mutationFn: () =>
-      rpcClient.utils.showFolderPicker.call({
-        buttonLabel: "Open",
-        message: `Instrument can’t read “${name}” until you open it here.`,
-        startingAt: shut,
-      }),
-    onSuccess: (picked) => {
-      if (picked) {
-        onGranted(picked.path);
-      }
-    },
-  });
-  const openSettings = useMutation(
-    rpcClient.features.openPrivacySettings.mutationOptions(),
-  );
-  const openInApp = useMutation(rpcClient.utils.openPath.mutationOptions());
-  const isSystem = refusal.reason === "system";
-  if (refusal.reason === "app") {
-    return (
-      <div className="flex size-full items-center justify-center p-8">
-        <div className="flex max-w-sm flex-col items-center gap-4 text-center">
-          <FileSystemFolderGlyph className="h-10 w-auto opacity-60" />
-          <div>
-            <p className="text-sm font-medium">{`“${name}” is protected`}</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              It has Instrument’s data and can’t be opened here.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-  if (isSystem && refusal.package) {
-    return (
-      <div className="flex size-full items-center justify-center p-8">
-        <div className="flex max-w-sm flex-col items-center gap-4 text-center">
-          <FileSystemFolderGlyph className="h-10 w-auto opacity-60" />
-          <div>
-            <p className="text-sm font-medium">
-              {`macOS hasn’t let Instrument look inside “${name}”`}
-            </p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              It belongs to another app, so you can open it there instead.
-            </p>
-          </div>
-          <Button
-            onClick={() => {
-              openInApp.mutate({ filepath: refusal.path });
-            }}
-            size="sm"
-          >
-            Open
-          </Button>
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div className="flex size-full items-center justify-center p-8">
-      <div className="flex max-w-sm flex-col items-center gap-4 text-center">
-        <FileSystemFolderGlyph className="h-10 w-auto opacity-60" />
-        <div>
-          <p className="text-sm font-medium">
-            {isSystem
-              ? `macOS hasn’t let Instrument read “${name}”`
-              : `You don’t have permission to open “${name}”`}
-          </p>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            {isSystem
-              ? // oxlint-disable-next-line studio/no-os-words -- a system refusal is macOS privacy, so only a Mac shows it
-                "Open the folder in the system’s own panel to read it now, or allow it under Files and Folders in System Settings."
-              : "Ask its owner for access."}
-          </p>
-        </div>
-        {isSystem && (
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={() => {
-                choose.mutate();
-              }}
-              size="sm"
-            >
-              Choose the folder…
-            </Button>
-            <Button
-              onClick={() => {
-                openSettings.mutate({ pane: "FilesAndFolders" });
-              }}
-              size="sm"
-              variant="outline"
-            >
-              {/* oxlint-disable-next-line studio/no-os-words -- a system refusal is macOS privacy, so only a Mac shows it */}
-              Open System Settings
-            </Button>
-          </div>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -4525,22 +3267,6 @@ function prefixesOf(folder: string): string[] {
     prefixes.push(at);
   }
   return prefixes;
-}
-
-/**
- * What the browser knows each recent file by. Its own name for almost every
- * one of them, which holds still as the list is read again; where two folders
- * hold the same name, the later of the two is told apart by where it sits.
- */
-function recentPaths(entries: readonly { name: string }[]): string[] {
-  const taken = new Set<string>();
-  return entries.map((entry, index) => {
-    const path = taken.has(entry.name)
-      ? `${entry.name} (${index})`
-      : entry.name;
-    taken.add(path);
-    return path;
-  });
 }
 
 /**
@@ -4623,39 +3349,6 @@ const TEXT_EXTENSIONS = new Set([
   "yml",
 ]);
 
-/**
- * What has a picture rather than an icon, the way the Finder's icons show
- * one: pictures, documents with pages and video, which the system draws, and
- * pages, Markdown and code, which the app draws itself. Anything else would
- * come back as a blank page, which says less than the file's own type icon.
- */
-const THUMBNAIL_EXTENSIONS = new Set([
-  ...RENDERED_EXTENSIONS,
-  "ai",
-  "bmp",
-  "docx",
-  "gif",
-  "heic",
-  "heif",
-  "jpeg",
-  "jpg",
-  "key",
-  "m4v",
-  "mov",
-  "mp4",
-  "numbers",
-  "pages",
-  "pdf",
-  "png",
-  "pptx",
-  "psd",
-  "rtf",
-  "tif",
-  "tiff",
-  "webp",
-  "xlsx",
-]);
-
 /** The selected row the keyboard is on, of several. */
 function selectedRowIn(browser: HTMLElement | null) {
   return (
@@ -4735,20 +3428,6 @@ function lookTargetOf(item: FileSystemItem): LookTarget | undefined {
   };
 }
 
-/** The tab a file opens in: the file by where it is on the computer. */
-function fileTabOf(file: FileSystemFileItem): FileTab | undefined {
-  const hostPath = file.metadata?.hostPath;
-  if (typeof hostPath !== "string") {
-    return;
-  }
-  return {
-    hostPath,
-    // A recents row carries its own name: what it is called where it lives,
-    // rather than what the list knows it by.
-    name: file.name ?? file.path.split("/").at(-1) ?? file.path,
-  };
-}
-
 /** A file that reads as text: by its declared type, or by an extension a person would open in an editor. */
 function isTextLike(file: FileSystemFileItem) {
   if (file.contentType?.startsWith("text/")) {
@@ -4756,224 +3435,4 @@ function isTextLike(file: FileSystemFileItem) {
   }
   const extension = file.path.split(".").at(-1)?.toLowerCase() ?? "";
   return TEXT_EXTENSIONS.has(extension);
-}
-
-function PlaceList({
-  label,
-  listRef,
-  menu,
-  onOpen,
-  onOpenInNewTab,
-  onOpenInNewWindow,
-  places,
-  favorites,
-}: {
-  /** Left out for the app's own places, which need no heading. */
-  label?: string;
-  /** The list of rows, for Favorites, which takes drops (`useFavoritesTarget`). */
-  listRef?: React.Ref<HTMLUListElement>;
-  /** What a right-click on a place offers; nothing where a place is not a folder. */
-  menu?: (path: string) => ReactNode;
-  onOpen: (path: string) => void;
-  /** A middle click: the place in a tab of its own, waiting behind. */
-  onOpenInNewTab: (path: string) => void;
-  /** A click with Shift: the place in a window of its own. */
-  onOpenInNewWindow?: (path: string) => void;
-  places: {
-    icon: ReactNode;
-    isActive: boolean;
-    name: string;
-    path: string;
-  }[];
-  /** For Favorites, its rows' paths in order, which a row dragged out of the window leaves. */
-  favorites?: readonly string[];
-}) {
-  return (
-    <div>
-      {label === undefined ? null : (
-        <p className="px-2 pb-1 text-xs font-medium text-muted-foreground">
-          {label}
-        </p>
-      )}
-      <ul className="flex flex-col gap-px" ref={listRef}>
-        {places.map((place) => (
-          <PlaceRow
-            key={place.path}
-            menu={menu?.(place.path)}
-            onOpen={onOpen}
-            onOpenInNewTab={onOpenInNewTab}
-            onOpenInNewWindow={onOpenInNewWindow}
-            place={place}
-            favorites={favorites}
-          />
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/**
- * A place in the sidebar, which drags as a place, held by the pointer: a
- * link to Files at its folder, never the folder itself, so nothing is
- * handed out of the app to copy (`pressPlace`). It joins a strip as a tab,
- * goes on the bookmarks bar, moves along Favorites, or goes into a message as
- * its folder; a row of Favorites let go where nothing takes it leaves Favorites,
- * as in Finder's sidebar. The recents and the computer are no folder, and
- * stay put.
- */
-function PlaceRow({
-  menu,
-  onOpen,
-  onOpenInNewTab,
-  onOpenInNewWindow,
-  place,
-  favorites,
-}: {
-  menu: ReactNode;
-  onOpen: (path: string) => void;
-  onOpenInNewTab: (path: string) => void;
-  onOpenInNewWindow?: ((path: string) => void) | undefined;
-  place: {
-    icon: ReactNode;
-    isActive: boolean;
-    name: string;
-    path: string;
-  };
-  favorites: readonly string[] | undefined;
-}) {
-  const isFolder = place.path !== RECENTS_ROOT && place.path !== COMPUTER_ROOT;
-  return (
-    <li
-      {...(favorites
-        ? {
-            "data-favorite-name": place.name,
-            "data-favorite-place": place.path,
-          }
-        : {})}
-    >
-      <ContextMenu>
-        <ContextMenuTrigger asChild disabled={menu === undefined}>
-          <button
-            className={cn(
-              "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-foreground/5 data-[state=open]:bg-foreground/5",
-              place.isActive && "bg-foreground/8",
-            )}
-            onPointerDown={(event) => {
-              if (isFolder) {
-                pressPlace(event, {
-                  name: place.name,
-                  path: place.path,
-                  ...(favorites ? { favorites } : {}),
-                });
-              }
-            }}
-            onAuxClick={(event) => {
-              if (event.button === 1) {
-                event.preventDefault();
-                onOpenInNewTab(place.path);
-              }
-            }}
-            onClick={(event) => {
-              if (onOpenInNewWindow && wantsNewWindow(event)) {
-                onOpenInNewWindow(place.path);
-              } else {
-                onOpen(place.path);
-              }
-            }}
-            onMouseDown={(event) => {
-              if (event.button === 1) {
-                event.preventDefault();
-              }
-            }}
-            type="button"
-          >
-            <span className="flex size-4 shrink-0 items-center justify-center">
-              {place.icon}
-            </span>
-            <MiddleTruncate text={place.name} />
-          </button>
-        </ContextMenuTrigger>
-        {menu}
-      </ContextMenu>
-    </li>
-  );
-}
-
-/**
- * A listed file's own URL, and the system's picture of it where there is one,
- * named by when the file was written so a new write is a new picture. A
- * package's picture is the system's icon for it, square.
- */
-function previewOf(
-  entry: {
-    mimeType?: string;
-    modifiedAt?: number;
-    name: string;
-    package?: true;
-    path: string;
-  },
-  theme: "dark" | "light",
-): Pick<
-  FileSystemFileItem,
-  "previewAspectRatio" | "previewImageUrl" | "previewIsIcon" | "url"
-> {
-  const version = entry.modifiedAt;
-  const url = getComputerFileUrl({ hostPath: entry.path, version });
-  const extension = entry.name.split(".").at(-1)?.toLowerCase() ?? "";
-  if (entry.package) {
-    return {
-      previewAspectRatio: 1,
-      previewImageUrl: getComputerThumbnailUrl({
-        hostPath: entry.path,
-        size: 512,
-        theme,
-        version,
-      }),
-      previewIsIcon: true,
-      url,
-    };
-  }
-  if (
-    !entry.mimeType?.startsWith("image/") &&
-    !THUMBNAIL_EXTENSIONS.has(extension)
-  ) {
-    return { url };
-  }
-  return {
-    previewImageUrl: getComputerThumbnailUrl({
-      hostPath: entry.path,
-      size: 512,
-      theme,
-      version,
-    }),
-    url,
-  };
-}
-
-/**
- * Puts the Finder's sidebar of places away and brings it back, the way the
- * tree beside a file is toggled.
- */
-function PlacesToggle({
-  isOpen,
-  onToggle,
-}: {
-  isOpen: boolean;
-  onToggle: () => void;
-}) {
-  const label = isOpen ? "Hide the sidebar" : "Show the sidebar";
-  return (
-    <ToolbarTooltip label={label}>
-      <Button
-        aria-label={label}
-        aria-pressed={isOpen}
-        className={toolbarClassName({ className: "shrink-0", pressed: false })}
-        onClick={onToggle}
-        size="icon-sm"
-        variant="ghost"
-      >
-        <SidebarSimpleIcon className="size-4" />
-      </Button>
-    </ToolbarTooltip>
-  );
 }

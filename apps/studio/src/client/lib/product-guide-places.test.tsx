@@ -28,7 +28,7 @@ import {
   type Project,
 } from "@/client/components/window/chats";
 import { useCommandMenuRows } from "@/client/components/window/command-menu";
-import { FolderMenuItems } from "@/client/components/window/computer-page";
+import { FolderMenuItems } from "@/client/components/window/folder-menu";
 import {
   WindowContext,
   type WindowContextValue,

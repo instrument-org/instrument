@@ -77,9 +77,9 @@ import {
   type FolderOnScreen,
   nearestFolderThere,
   NotFound,
-  NotPermitted,
   RECENTS_ROOT,
 } from "./computer-page";
+import { NotPermitted } from "./not-permitted";
 import { asksOwnPlace, type OpenOptions, useWindow } from "./context";
 import { reachablePath } from "./file-tabs";
 import { ShownVersion } from "./file-versions";
@@ -594,9 +594,7 @@ export function FilesScreen({
   });
   const isMarkUnread = isLinkPage && !isUnmarked;
   const hostedFile =
-    isPageFile && !isMissing && !isMarkUnread
-      ? activeFile.hostPath
-      : undefined;
+    isPageFile && !isMissing && !isMarkUnread ? activeFile.hostPath : undefined;
   // A group's tab is drawn only while it is up on its side, so this screen
   // goes whenever another tab comes up there; its page stays live for it.
   const keepsHostedPage = useKeepsHostedPage(tabId);
@@ -996,35 +994,35 @@ export function FilesScreen({
       : hostedFile === undefined
         ? {}
         : {
-          ...(hostedTabId === undefined
-            ? {}
-            : {
-                pageEdit: <PageEditMenuItem tabId={hostedTabId} />,
-                pageMenu: (
-                  <PageMenuItems targetId={browserTargetOf(hostedTabId)} />
-                ),
-              }),
-          page: (
-            <div
-              className={
-                isBesideSomething
-                  ? "h-full [--guest-bottom-radius:0_var(--pane-bottom-right-radius,18px)]"
-                  : "h-full"
-              }
-              // After the file list: the page has the keyboard when the
-              // folder beside it is put away.
-              data-keyboard-home="2"
-              // The page a side's chords mean (`pageOfSide`).
-              {...(hostedTabId === undefined
-                ? {}
-                : { "data-hosted-page-tab": hostedTabId })}
-              ref={(element) => {
-                setSlot(element);
-                setPageSlot(element);
-              }}
-            />
-          ),
-        };
+            ...(hostedTabId === undefined
+              ? {}
+              : {
+                  pageEdit: <PageEditMenuItem tabId={hostedTabId} />,
+                  pageMenu: (
+                    <PageMenuItems targetId={browserTargetOf(hostedTabId)} />
+                  ),
+                }),
+            page: (
+              <div
+                className={
+                  isBesideSomething
+                    ? "h-full [--guest-bottom-radius:0_var(--pane-bottom-right-radius,18px)]"
+                    : "h-full"
+                }
+                // After the file list: the page has the keyboard when the
+                // folder beside it is put away.
+                data-keyboard-home="2"
+                // The page a side's chords mean (`pageOfSide`).
+                {...(hostedTabId === undefined
+                  ? {}
+                  : { "data-hosted-page-tab": hostedTabId })}
+                ref={(element) => {
+                  setSlot(element);
+                  setPageSlot(element);
+                }}
+              />
+            ),
+          };
   // What the document links to opens where the folder's rows do: in this
   // tab, unless a tab of its own is asked for; a folder opens as the Finder
   // standing in it.

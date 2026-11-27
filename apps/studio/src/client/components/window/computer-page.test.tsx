@@ -14,15 +14,15 @@ vi.mock("sonner", async (importOriginal) => ({
 }));
 
 const { setToastDeveloperMode } = await import("@/client/lib/toast");
+const { rootParentSearch } = await import("./computer-page");
 const {
   fileActionFailed,
   dropEffectOf,
   filesToPaste,
   placedMessage,
-  rootParentSearch,
   rowPress,
   undoFailed,
-} = await import("./computer-page");
+} = await import("./finder-actions");
 const { listingCommandOf } = await import("../extend/file-system-keys");
 
 // With Quick Look up, the arrows are handed to the listing's selected row.

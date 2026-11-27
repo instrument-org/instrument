@@ -23,6 +23,7 @@ import { taskHref } from "./tab-location";
 import { chatHref, groupHref } from "./window-href";
 import {
   useWindowTabs,
+  useWindowTabsChange,
   hostGroupOf,
   seedWindowTabsAtom,
   windowTabsAtom,
@@ -220,7 +221,12 @@ function windowOnTwoSides({
         showGroup: spies.showGroup,
         windowTabs,
       });
-      return { openers, seed: useSetAtom(seedWindowTabsAtom), windowTabs };
+      return {
+        change: useWindowTabsChange(),
+        openers,
+        seed: useSetAtom(seedWindowTabsAtom),
+        windowTabs,
+      };
     },
     {
       wrapper: ({ children }: { children: ReactNode }) => (
@@ -505,9 +511,12 @@ describe("an agent and the window's other tab groups", () => {
     const { result } = windowOnTwoSides();
     act(() => {
       for (const id of [first, second]) {
-        result.current.windowTabs.openPage({
-          group: OTHER_GROUP,
+        result.current.change("openPageTab", {
+          behind: false,
+          into: OTHER_GROUP,
+          newTab: false,
           page: { id, openedAt: 6 },
+          show: false,
         });
       }
     });
@@ -837,9 +846,12 @@ describe("an agent tidying tabs and reading History", () => {
     const page = StoreId.newTabId();
     const { result } = windowOnTwoSides();
     act(() => {
-      result.current.windowTabs.openPage({
-        group: hostGroupOf(LEFT_PAGE),
+      result.current.change("openPageTab", {
+        behind: false,
+        into: hostGroupOf(LEFT_PAGE),
+        newTab: false,
         page: { id: page, openedAt: 6 },
+        show: false,
       });
     });
     await answerTo(

@@ -1,5 +1,4 @@
 import {
-  type BrowserTab,
   tabChatFiltersAtom,
   type WindowTab,
 } from "@/client/atoms/window";
@@ -40,7 +39,6 @@ import {
   everyTabId,
   type GroupOwn,
   moveTabTo,
-  patchPage,
   type Placing,
   reopenSide,
   restoreGroup,
@@ -466,13 +464,6 @@ export function useWindowTabs() {
     /** The chat a group has up, the side with the keyboard first (`chatUpIn`). */
     chatUpIn: (group: string) => chatUpIn(state, group),
     activeByGroup: state.activeByGroup,
-    /** Page tabs a group gains behind whatever it has up, at its end or right after a tab. */
-    addPages: (
-      pages: (BrowserTab & { group: string | undefined })[],
-      placing: { after?: string; from?: Opening } = {},
-    ) => {
-      run("addPages", pages, placing);
-    },
     /** Closes a tab; `up` comes up in its place where a step back named it (`closeTab`). */
     close: (id: string, options: { up?: string } = {}) => {
       run("closeTab", id, options);
@@ -533,9 +524,6 @@ export function useWindowTabs() {
      */
     moveTo: (move: Parameters<typeof moveTabTo>[1]) => {
       run("moveTabTo", move);
-    },
-    moveToGroup: (id: string, group: string) => {
-      run("moveToGroup", id, group);
     },
     /**
      * A tab opened in a group as every open places one: on a side, right
@@ -734,54 +722,8 @@ export function useWindowTabs() {
         id: newScreenId(),
       });
     },
-    /**
-     * A new page tab, in a tab's place or at the end of a group (the group
-     * on screen, unless one is named); one opened beside the rest comes up
-     * when its group is on screen or when asked.
-     */
-    openPage: ({
-      after,
-      from,
-      group,
-      page,
-      replacing,
-      select = false,
-      side,
-    }: {
-      after?: string;
-      from?: Opening;
-      group?: string;
-      page: BrowserTab;
-      replacing?: WindowTab;
-      select?: boolean;
-      side?: Placing["side"];
-    }) => {
-      run("openPage", {
-        ...(after === undefined ? {} : { after }),
-        ...(from === undefined ? {} : { from }),
-        ...(group === undefined ? {} : { group }),
-        page,
-        ...(replacing ? { replacing } : {}),
-        select,
-        ...(side === undefined ? {} : { side }),
-      });
-    },
-    pageNavigated: (id: string, url?: string) => {
-      run("pageNavigated", id, url);
-    },
-    /** A page drawn inside a tab takes that tab over; see `pageTakesOver`. */
-    pageTakesOver: (page: string, tab: string, url: string) => {
-      run("pageTakesOver", { page, tab, url });
-    },
-    patchPage: (id: string, changes: Parameters<typeof patchPage>[2]) => {
-      run("patchPage", id, changes);
-    },
     /** The tab Back returns to from the start of a tab a link opened (`backToOpenerOf`). */
     backToOpenerOf: (id: string) => backToOpenerOf(state, id),
-    /** A group's tabs in a new order, by their strip keys. */
-    reorder: (keys: string[], group: string) => {
-      run("reorderGroup", group, keys);
-    },
     replace: (id: string, next: WindowTab) => {
       run("replaceTab", id, next);
     },

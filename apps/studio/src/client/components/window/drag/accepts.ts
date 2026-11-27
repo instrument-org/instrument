@@ -1,5 +1,10 @@
 import { type Rect, type SideZone } from "./landing";
-import { type Held, type Landing, opensAsBookmark, placeOf } from "./types";
+import {
+  type Held,
+  isPageOwnPlace,
+  type Landing,
+  opensAsBookmark,
+} from "./types";
 
 /**
  * What a side's page has under the pointer that takes a drop itself, as the
@@ -34,10 +39,11 @@ export type SideShows = "newTab" | "other" | "site";
  *    nowhere.
  *
  * A piece of the window (a tab, a group, a bookmark, a shortcut at the
- * bar's start, a place) skips step 2: it is never handed to a page. A
- * bookmark or a shortcut stops after step 1, as a tab
- * does, so it opens as a tab only from a strip or an edge; a place lands
- * nowhere on a page, its edge included, and opens as a tab from a strip.
+ * bar's start or in the side panel, a place) skips step 2: it is never
+ * handed to a page. A bookmark or a shortcut stops after step 1, as a tab
+ * does, so it opens as a tab only from a strip or an edge; a place of
+ * Files' own sidebar lands nowhere on a page, its edge included, and opens
+ * as a tab from a strip.
  */
 export function pageLandingOf({
   group,
@@ -69,7 +75,7 @@ export function pageLandingOf({
     side: of.side,
     split: of.kind === "split",
   });
-  if (placeOf(held)) {
+  if (isPageOwnPlace(held)) {
     return undefined;
   }
   if (zone?.edge) {

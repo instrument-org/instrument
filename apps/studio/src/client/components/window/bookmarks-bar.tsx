@@ -477,7 +477,7 @@ function FilesMark({ group, open }: { group: string; open: OpenAddress }) {
       key={place.path}
       {...bookmarkClicks(folderHref(place.path), open)}
       onPointerDown={(event) => {
-        pressPlace(event, place, () => {
+        pressPlace(event, { ...place, shortcut: true }, () => {
           setOpen(false);
         });
       }}

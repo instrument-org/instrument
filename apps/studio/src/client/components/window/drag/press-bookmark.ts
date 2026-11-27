@@ -79,18 +79,27 @@ export function pressShortcut(
 }
 
 /**
- * A press on a place of Files' sidebar or of the bar's Files menu, which
- * past the start becomes the place held by the pointer, as a bookmark is:
- * a link to Files at that folder, never the folder itself, so nothing is
- * handed out of the app to copy. It opens as a tab from a strip, goes on
- * the bookmarks bar, goes with a message from a composer's box, and moves
- * along Favorites or is added there; a row of Favorites (`favorites`, the rows' paths in
- * order) let go where nothing takes it leaves Favorites. A press that goes nowhere stays a click. `onHeld` is told as it
- * becomes a drag, for a menu it was in to get out of the way.
+ * A press on a place of Files' sidebar, of the bar's Files menu or of the
+ * side panel, which past the start becomes the place held by the pointer,
+ * as a bookmark is: a link to Files at that folder, never the folder
+ * itself, so nothing is handed out of the app to copy. It opens as a tab
+ * from a strip, goes on the bookmarks bar, goes with a message from a
+ * composer's box, and moves along Favorites or is added there; a row of
+ * Favorites (`favorites`, the rows' paths in order) let go where nothing
+ * takes it leaves Favorites. One from outside a page (`shortcut`, the bar's
+ * Files menu or the side panel) also opens as its tab wherever a bookmark
+ * does, a page's outer edge included. A press that goes nowhere stays a
+ * click. `onHeld` is told as it becomes a drag, for a menu it was in to get
+ * out of the way.
  */
 export function pressPlace(
   event: React.PointerEvent<HTMLElement>,
-  place: { name: string; path: string; favorites?: readonly string[] },
+  place: {
+    name: string;
+    path: string;
+    favorites?: readonly string[];
+    shortcut?: true;
+  },
   onHeld?: () => void,
 ) {
   pressToHold(event, () => {
@@ -102,6 +111,7 @@ export function pressPlace(
         path: place.path,
         ...(place.favorites ? { favorites: place.favorites } : {}),
       },
+      ...(place.shortcut ? { shortcut: true } : {}),
       title: place.name,
       url: fileAddressOf(place.path, { isFolder: true }),
     };

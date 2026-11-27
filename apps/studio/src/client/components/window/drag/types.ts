@@ -80,10 +80,11 @@ export type Held =
        */
       place?: { path: string; favorites?: readonly string[] };
       /**
-       * Apps, Chats or Files at the bookmarks bar's start, or a row of their
-       * menus: a link to where it opens, held by the pointer and landing
-       * where a bookmark does, though it is no bookmark kept, so the bar's
-       * row adds it as one.
+       * Apps, Chats or Files at the bookmarks bar's start, a row of their
+       * menus, or a row of the side panel: a link to where it opens, held
+       * by the pointer and landing where a bookmark does, though it is no
+       * bookmark kept, so the bar's row adds it as one. A place one is
+       * still a place, which a composer's box and Favorites take.
        */
       shortcut?: true;
       /** Its name, empty where the system's drag says it only at the release. */
@@ -213,7 +214,12 @@ export function opensAsBookmark(held: Held): boolean {
   );
 }
 
-/** The place of Files' sidebar or Files menu a link is, if it is one. */
+/** The place of Files' sidebar, the Files menu or the side panel a link is, if it is one. */
 export function placeOf(held: Held) {
   return held.kind === "link" ? held.place : undefined;
+}
+
+/** Whether what is held is a place of Files' own sidebar, which opens as a tab from a strip alone and lands nowhere on a page, its edge included. */
+export function isPageOwnPlace(held: Held): boolean {
+  return placeOf(held) !== undefined && !opensAsBookmark(held);
 }

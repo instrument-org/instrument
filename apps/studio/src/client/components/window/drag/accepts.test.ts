@@ -50,6 +50,7 @@ const PINNED_PLACE: Held = {
   title: "Documents",
   url: "file:///Users/mac-user/Documents/",
 };
+const PANEL_PLACE: Held = { ...PLACE, shortcut: true };
 const TAB: Held = { group: "g", id: "t", key: "t", kind: "tab", side: 0 };
 
 /** What letting go over a side's page does, said in a word. */
@@ -169,6 +170,11 @@ describe("pageLandingOf", () => {
     { expected: "split", held: SHORTCUT, zone: EDGE },
     // A place of Files' sidebar is a link to Files there, never the folder.
     { expected: "nothing", held: PLACE, under: "folder" },
+    // One from the side panel or the bar's Files menu opens as a tab from
+    // an edge, as a shortcut does, and is still never handed to a page.
+    { expected: "nothing", held: PANEL_PLACE, under: "folder" },
+    { expected: "nothing", held: PANEL_PLACE, shows: "newTab" },
+    { expected: "split", held: PANEL_PLACE, zone: EDGE },
   ] satisfies {
     expected: string;
     held: Held;

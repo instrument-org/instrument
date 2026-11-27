@@ -1,6 +1,7 @@
 import { opensOf } from "./held-tabs";
 import {
   isBookmark,
+  isPageOwnPlace,
   type Held,
   type Landing,
   opensAsBookmark,
@@ -27,10 +28,10 @@ import {
  * Let go where nothing takes it, a bookmark stays where it is kept, as in a
  * browser's bar.
  *
- * A bookmark, a shortcut at the bar's start or a place held is a piece of
- * the window, as a tab is, which no page's content takes: a bookmark or a
- * shortcut opens as a tab from a strip or a
- * page's outer edge, and a place from a strip alone.
+ * A bookmark, a shortcut at the bar's start or in the side panel, or a
+ * place held is a piece of the window, as a tab is, which no page's content
+ * takes: a bookmark or a shortcut opens as a tab from a strip or a page's
+ * outer edge, and a place of Files' own sidebar from a strip alone.
  *
  * No line where what is held already stands where it would go: its own
  * strip, a whole group's room in the list.
@@ -119,9 +120,9 @@ export function outcomeOf(
         : goes("Open in this tab");
     }
     case "side": {
-      // A place opens as a tab from a strip alone, and a bookmark or a
-      // shortcut from a strip or a page's outer edge.
-      if (placeOf(held) || (opensAsBookmark(held) && !landing.edge)) {
+      // A place of Files' own sidebar opens as a tab from a strip alone,
+      // and a bookmark or a shortcut from a strip or a page's outer edge.
+      if (isPageOwnPlace(held) || (opensAsBookmark(held) && !landing.edge)) {
         return nothing;
       }
       if (landing.isLone) {

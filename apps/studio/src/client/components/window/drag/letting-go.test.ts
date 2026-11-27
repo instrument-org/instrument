@@ -77,10 +77,18 @@ const HELD: Record<string, Held> = {
     title: "Documents",
     url: "file:///Users/mac-user/Documents/",
   },
-  "place (Files menu)": {
+  "place (Files sidebar)": {
     id: "tab_p2",
     kind: "link",
     place: { path: "/Users/mac-user/Documents" },
+    title: "Documents",
+    url: "file:///Users/mac-user/Documents/",
+  },
+  "place (side panel)": {
+    id: "tab_p3",
+    kind: "link",
+    place: { path: "/Users/mac-user/Documents" },
+    shortcut: true,
     title: "Documents",
     url: "file:///Users/mac-user/Documents/",
   },
@@ -410,7 +418,7 @@ describe("outcomeOf", () => {
         over nothing, a Favorites row → unfavorite · "Remove from Favorites"
         message box → attach
         nowhere → nothing
-      place (Files menu):
+      place (Files sidebar):
         own strip → open
         strip line → open · "Open in a new tab"
         strip tab → open · "Open in this tab"
@@ -419,6 +427,28 @@ describe("outcomeOf", () => {
         middle, one side → nothing
         right side of two → nothing
         right edge, two sides → nothing
+        new tab's page → nothing
+        sidebar row → open · "Add to Reading"
+        sidebar room → open · "New tab group"
+        sidebar line → open · "New tab group"
+        bookmarks bar → keep · "Add to bookmarks"
+        Favorites line → favorite · "Add to Favorites"
+        Favorites line, a row of it → favorite · "Move here"
+        Favorites row, own files → into · "Move into Downloads"
+        Favorites row, from Finder → into · "Copy into Downloads"
+        past the window → open · "Open in a new window"
+        over nothing, a Favorites row → nothing
+        message box → attach
+        nowhere → nothing
+      place (side panel):
+        own strip → open
+        strip line → open · "Open in a new tab"
+        strip tab → open · "Open in this tab"
+        left edge, one side → open · "Open on the left"
+        right edge, one side → open · "Open on the right"
+        middle, one side → nothing
+        right side of two → nothing
+        right edge, two sides → open · "Open on the right"
         new tab's page → nothing
         sidebar row → open · "Add to Reading"
         sidebar room → open · "New tab group"

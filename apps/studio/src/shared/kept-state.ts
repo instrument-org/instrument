@@ -126,6 +126,35 @@ export const NO_GROUP_MEMBER = "-";
 export const SITE_GROUP_PREFIX = "site:";
 
 /**
+ * A kept tab group member's shape (`WINDOW_TABS_KEY`); its tabs' own fields
+ * are the tab model's, which `joinTabGroups` reads them by.
+ */
+export const TabGroupMemberSchema = z.object({
+  chatSide: z
+    .union([z.literal(0), z.literal(1)])
+    .optional()
+    .catch(undefined),
+  focused: z.number().int().min(0),
+  lead: z.string().optional(),
+  /** A group's name as a build that took names only from links kept it. */
+  linkGroup: z.string().optional(),
+  name: z.string().optional(),
+  pinned: z.boolean().optional(),
+  project: z.string().optional(),
+  share: z.number().optional(),
+  shownAt: z.number().optional(),
+  sidePanel: z.boolean().optional().catch(undefined),
+  sides: z
+    .array(
+      z.object({
+        tabs: z.array(z.looseObject({ id: z.string(), kind: z.string() })),
+        up: z.string().optional(),
+      }),
+    )
+    .min(1),
+});
+
+/**
  * The tab group members no window file lists, or with no tabs left, which go
  * (`TAB_GROUPS_KEY`): a group exists only while some window, open or closed
  * to come back, lists it. The tabs with no group and a site's group have
@@ -145,9 +174,7 @@ export function unlistedTabGroups(
     ) {
       return [];
     }
-    const sides = z
-      .object({ sides: z.array(z.object({ tabs: z.array(z.unknown()) })) })
-      .safeParse(member).data?.sides;
+    const sides = TabGroupMemberSchema.safeParse(member).data?.sides;
     const hasTabs = sides?.some((side) => side.tabs.length > 0) === true;
     return listed.has(group) && hasTabs ? [] : [key];
   });

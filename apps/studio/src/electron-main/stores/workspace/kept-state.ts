@@ -1,3 +1,4 @@
+import { joinTabGroups } from "@/client/components/window/tab-members";
 import { workspaceWindowDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
@@ -21,9 +22,9 @@ import {
 import { BrowserWindow, ipcMain } from "electron";
 import fs from "node:fs";
 import path from "node:path";
-import { z } from "zod";
 
 import { logger } from "../../lib/electron-logger";
+import { tabMembersIn } from "./tab-service";
 
 /** How long writes gather before a file is written: a burst of navigation is one write. */
 const WRITE_DELAY_MS = 250;
@@ -543,68 +544,28 @@ export function changeKeptState(file: KeptFile, key: string, value: unknown) {
   tellWindowsKept(file, key, value);
 }
 
-/** A kept tab group's tabs, as much of them as main reads (`WINDOW_TABS_KEY`). */
-export const KeptTabGroupSchema = z.object({
-  sides: z.array(
-    z.object({
-      tabs: z.array(
-        z.object({
-          href: z.string().optional(),
-          id: z.string(),
-          openedBy: z.string().optional(),
-          promptedAt: z.number().optional(),
-          /** Where a page tab stands, a file's page at its `file:` URL. */
-          url: z.string().optional(),
-        }),
-      ),
-    }),
-  ),
-});
-
-/**
- * What main reads of a kept tab group's own: its name and when it last came
- * up. A build that only took names from links kept the name as `linkGroup`.
- */
-const KeptGroupOwnSchema = z.object({
-  linkGroup: z.string().optional(),
-  name: z.string().optional(),
-  shownAt: z.number().optional(),
-});
+/** The tab groups kept in the `groups` file, read as a window reads them (`joinTabGroups`). */
+function keptTabGroups() {
+  return joinTabGroups(
+    new Map(tabMembersIn("groups", getStore().snapshot().groups ?? {})),
+  );
+}
 
 /** Every kept tab group that has a name, with the name and when it last came up. */
 export function keptGroupNames() {
-  const prefix = `${WINDOW_TABS_KEY}/`;
-  const groups = getStore().snapshot().groups ?? {};
-  return Object.entries(groups).flatMap(([key, value]) => {
-    const own = key.startsWith(prefix)
-      ? KeptGroupOwnSchema.safeParse(value).data
-      : undefined;
-    const name = own?.name ?? own?.linkGroup;
-    return name === undefined
-      ? []
-      : [
-          {
-            group: key.slice(prefix.length),
-            name,
-            ...(own?.shownAt === undefined ? {} : { shownAt: own.shownAt }),
-          },
-        ];
-  });
+  return Object.entries(keptTabGroups().groups ?? {}).flatMap(
+    ([group, { name, shownAt }]) =>
+      name === undefined
+        ? []
+        : [{ group, name, ...(shownAt === undefined ? {} : { shownAt }) }],
+  );
 }
 
 /** Every tab kept in a tab group, with its group's key. */
 export function keptGroupedTabs() {
-  const prefix = `${WINDOW_TABS_KEY}/`;
-  const groups = getStore().snapshot().groups ?? {};
-  return Object.entries(groups).flatMap(([key, value]) => {
-    const sides = key.startsWith(prefix)
-      ? KeptTabGroupSchema.safeParse(value).data?.sides
-      : undefined;
-    const group = key.slice(prefix.length);
-    return (sides ?? []).flatMap((side) =>
-      side.tabs.map((tab) => ({ ...tab, group })),
-    );
-  });
+  return keptTabGroups().tabs.flatMap((tab) =>
+    tab.group === undefined ? [] : [{ ...tab, group: tab.group }],
+  );
 }
 
 /** The tab group a tab is the only tab of, by the tab's id; undefined for a tab with others beside it. */
@@ -618,7 +579,7 @@ export function keptLoneGroupOfTab(tabId: string): string | undefined {
 
 /** The chat whose agent opened a tab, by the tab's id; undefined for one the person opened. */
 export function keptOpenerOfTab(tabId: string): string | undefined {
-  return keptGroupedTabs().find((tab) => tab.id === tabId)?.openedBy;
+  return keptTabGroups().tabs.find((tab) => tab.id === tabId)?.openedBy;
 }
 
 /** Writes what is still waiting, at once. The quit calls it on its way out. */

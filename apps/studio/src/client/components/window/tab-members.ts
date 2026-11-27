@@ -1,6 +1,5 @@
 import { type WindowTab } from "@/client/atoms/window";
-import { NO_GROUP_MEMBER } from "@/shared/kept-state";
-import { z } from "zod";
+import { NO_GROUP_MEMBER, TabGroupMemberSchema } from "@/shared/kept-state";
 
 import { type GroupOwn, groupLayoutOf, type WindowTabs } from "./tab-model";
 
@@ -14,32 +13,6 @@ import { type GroupOwn, groupLayoutOf, type WindowTabs } from "./tab-model";
  * them into members to write and joins the members to read, the main
  * process and a window alike.
  */
-
-/** A kept group's shape; its tabs' own fields are the tab model's. */
-const TabGroupMemberSchema = z.object({
-  chatSide: z
-    .union([z.literal(0), z.literal(1)])
-    .optional()
-    .catch(undefined),
-  focused: z.number().int().min(0),
-  lead: z.string().optional(),
-  /** A group's name as a build that took names only from links kept it. */
-  linkGroup: z.string().optional(),
-  name: z.string().optional(),
-  pinned: z.boolean().optional(),
-  project: z.string().optional(),
-  share: z.number().optional(),
-  shownAt: z.number().optional(),
-  sidePanel: z.boolean().optional().catch(undefined),
-  sides: z
-    .array(
-      z.object({
-        tabs: z.array(z.looseObject({ id: z.string(), kind: z.string() })),
-        up: z.string().optional(),
-      }),
-    )
-    .min(1),
-});
 
 /**
  * The share an earlier build kept on a group whose split an agent's page

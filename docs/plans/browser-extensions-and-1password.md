@@ -1,6 +1,6 @@
 # Plan: Chrome extensions in the in-app browser, starting with 1Password
 
-Status: open. Phases 1, 3 and 4 are landed and extensions are on for everyone. What is left of phase 2 is the bridge refusing extension frames, the shortcuts, and the notice where the sandbox is off. A throwaway spike first proved each link separately, then the in-Studio spike proved them together (see [What the spike proved](#what-the-spike-proved)); since the plan was written the library it rests on went MIT, its author took over Electron's own extension code, and the one bug the spike hit became an upstream issue with a fix pending. [Phases](#phases) lands 1Password first and opens the store after.
+Status: open. Phases 1, 3 and 4 are landed and extensions are on for everyone. What is left of phase 2 is the bridge refusing extension frames and the notice where the sandbox is off. A throwaway spike first proved each link separately, then the in-Studio spike proved them together (see [What the spike proved](#what-the-spike-proved)); since the plan was written the library it rests on went MIT, its author took over Electron's own extension code, and the one bug the spike hit became an upstream issue with a fix pending. [Phases](#phases) lands 1Password first and opens the store after.
 
 ## Why
 
@@ -57,7 +57,7 @@ Read from the extension's manifest (8.12.44, MV3, minimum Chrome 140; Studio's E
 | `tabs`, `webNavigation`, `contextMenus`, `notifications`, `nativeMessaging` | The library. |
 | `privacy`, `downloads` | The library's stand-ins. |
 | `webRequestAuthProvider` | Nothing. Only reached for proxy sign-in. |
-| `commands` (`_execute_action`, `lock`) | Nothing in the library. Studio can bind the two itself: open the popup, and tell the extension to lock. Not needed to work; needed to feel like Chrome. |
+| `commands` (`_execute_action`, `lock`) | Studio ([`extension-commands.ts`](../../apps/studio/src/electron-main/browser-view/extension-commands.ts)): a suggested key pressed while a page has the keyboard presses the extension's button for `_execute_action` and reaches `chrome.commands.onCommand` for the rest, unless the app's menu binds it. |
 
 Each content script and the worker read the API through `browser` as well as `chrome`, which is the bug below.
 

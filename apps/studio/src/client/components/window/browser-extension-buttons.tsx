@@ -34,6 +34,7 @@ import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { SlidersHorizontalIcon } from "@phosphor-icons/react/SlidersHorizontal";
 import { StorefrontIcon } from "@phosphor-icons/react/Storefront";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
+import { min } from "radashi";
 import { useEffect, useRef, useState } from "react";
 
 import { AdBlockingButton, useAdBlocking } from "./ad-blocking";
@@ -81,6 +82,28 @@ function markPinsDrawn(pinnedIds: string[]) {
   for (const id of pinnedIds) {
     drawnPins.ids.add(id);
   }
+}
+
+/**
+ * Presses an extension's button, as a click on it does, for its shortcut:
+ * the one in the row nearest the top right of the page that has the
+ * keyboard (`document.activeElement`, the page's `<webview>`), where the
+ * page's own row draws it.
+ */
+export function openExtensionPopup(extensionId: string): void {
+  const page = document.activeElement?.getBoundingClientRect();
+  const lists = [...document.querySelectorAll("browser-action-list")].filter(
+    (list) => list.getClientRects().length > 0,
+  );
+  const nearest = page
+    ? min(lists, (list) => {
+        const { bottom, right } = list.getBoundingClientRect();
+        return Math.abs(right - page.right) + Math.abs(bottom - page.top);
+      })
+    : lists[0];
+  nearest?.shadowRoot
+    ?.querySelector<HTMLElement>(`#${CSS.escape(extensionId)}`)
+    ?.click();
 }
 
 /**

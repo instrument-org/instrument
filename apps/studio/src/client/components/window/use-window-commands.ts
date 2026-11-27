@@ -19,6 +19,7 @@ import {
 import { appZoomAfter, zoomAtom } from "@/client/atoms/zoom";
 import { requestBookmarkTab } from "@/client/components/window/bookmark-star";
 import { requestBookmarkAllTabs } from "./bookmark-all-tabs";
+import { openExtensionPopup } from "./browser-extension-buttons";
 import { requestFileInfo } from "@/client/components/window/file-info";
 import {
   holdPageKey,
@@ -482,6 +483,8 @@ export function useWindowCommands(
                   latest.current.selectGroup(command.index);
                 }
               }
+            } else if (command.type === "openExtensionPopup") {
+              openExtensionPopup(command.extensionId);
             } else if (command.type === "receiveTab") {
               latest.current.receiveTab(command.tab, command.index);
             } else if (command.type === "receiveGroupTab") {

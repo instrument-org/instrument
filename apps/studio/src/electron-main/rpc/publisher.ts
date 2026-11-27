@@ -248,6 +248,8 @@ export type WindowCommand =
   | { href: string; requestId: string; type: "showTab" }
   | { index: number; type: "selectTab" }
   | { index: number; type: "selectGroup" }
+  /** An extension's shortcut for its button: press it, as a click does. */
+  | { extensionId: string; type: "openExtensionPopup" }
   | { key: PageKey; type: "pageKey" };
 
 // Per subscription, starting empty when it subscribes: what a subscriber that

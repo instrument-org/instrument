@@ -63,7 +63,6 @@ describe("unsupportedFeatures", () => {
       {
         "1Password": [
           "Blocking content on pages",
-          "Keyboard shortcuts",
           "Downloads",
         ],
         "Google Keep": [
@@ -82,7 +81,6 @@ describe("unsupportedFeatures", () => {
         ],
         "uBlock Origin Lite": [
           "Blocking content on pages",
-          "Keyboard shortcuts",
           "User scripts",
         ],
       }

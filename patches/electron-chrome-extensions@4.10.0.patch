@@ -1,7 +1,7 @@
 diff --git a/dist/chrome-extension-api.preload.js b/dist/chrome-extension-api.preload.js
 index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..bebb663332e79265ae1c5a95faf816ff481f735e 100644
 --- a/dist/chrome-extension-api.preload.js	
-+++ b/dist/chrome-extension-api.preload.js
++++ b/dist/chrome-extension-api.preload.js	
 @@ -114,6 +114,34 @@
          ctx.putImageData(imageData, 0, 0);
          return canvas.toDataURL();
@@ -63,9 +63,9 @@ index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..bebb663332e79265ae1c5a95faf816ff
      if (!process.contextIsolated) {
        console.warn(`injectExtensionAPIs: context isolation disabled in ${location.href}`);
 diff --git a/dist/cjs/index.js b/dist/cjs/index.js
-index a91ca8fd07194abb081e9bb35fad0060fefddf91..3144fa217e5fe030b9f3f664925e15541ad54560 100644
+index a91ca8fd07194abb081e9bb35fad0060fefddf91..fe87d1c9398d108b8ca553d9783416e0df6083ef 100644
 --- a/dist/cjs/index.js	
-+++ b/dist/cjs/index.js
++++ b/dist/cjs/index.js	
 @@ -906,7 +906,8 @@ var _TabsAPI = class _TabsAPI {
        this.onRemoved(tabId);
      });
@@ -153,10 +153,29 @@ index a91ca8fd07194abb081e9bb35fad0060fefddf91..3144fa217e5fe030b9f3f664925e1554
      });
    }
  };
+@@ -2773,6 +2783,18 @@ var ElectronChromeExtensions = class _ElectronChromeExtensions extends import_no
+     this.checkWebContentsArgument(tab);
+     this.ctx.store.removeTab(tab);
+   }
++  /** Answers an extension API call with the app's own handler, in place of the library's when it has one. */
++  handleApiCall(name, callback, opts) {
++    this.ctx.router.handle(name, callback, opts);
++  }
++  /** Sends an event to one extension's listeners for it. */
++  sendExtensionEvent(extensionId, eventName, ...args) {
++    this.ctx.router.sendEvent(extensionId, eventName, ...args);
++  }
++  /** A tab as the extensions see it, or undefined for one they were never given. */
++  getTabDetails(tab) {
++    return this.ctx.store.tabs.has(tab) ? this.api.tabs.getTabDetails(tab) : void 0;
++  }
+   /** Notify extension system that the active tab has changed. */
+   selectTab(tab) {
+     this.checkWebContentsArgument(tab);
 diff --git a/dist/esm/index.mjs b/dist/esm/index.mjs
-index 43929222572e4d6875cc192aca0750da79d8ff14..247b29a6448e9065867484076aba732b709b9a2c 100644
+index 43929222572e4d6875cc192aca0750da79d8ff14..53e9a82d3e5393d67981916992d8e8414990d70c 100644
 --- a/dist/esm/index.mjs	
-+++ b/dist/esm/index.mjs
++++ b/dist/esm/index.mjs	
 @@ -869,7 +869,8 @@ var _TabsAPI = class _TabsAPI {
        this.onRemoved(tabId);
      });
@@ -244,10 +263,29 @@ index 43929222572e4d6875cc192aca0750da79d8ff14..247b29a6448e9065867484076aba732b
      });
    }
  };
+@@ -2736,6 +2746,18 @@ var ElectronChromeExtensions = class _ElectronChromeExtensions extends EventEmit
+     this.checkWebContentsArgument(tab);
+     this.ctx.store.removeTab(tab);
+   }
++  /** Answers an extension API call with the app's own handler, in place of the library's when it has one. */
++  handleApiCall(name, callback, opts) {
++    this.ctx.router.handle(name, callback, opts);
++  }
++  /** Sends an event to one extension's listeners for it. */
++  sendExtensionEvent(extensionId, eventName, ...args) {
++    this.ctx.router.sendEvent(extensionId, eventName, ...args);
++  }
++  /** A tab as the extensions see it, or undefined for one they were never given. */
++  getTabDetails(tab) {
++    return this.ctx.store.tabs.has(tab) ? this.api.tabs.getTabDetails(tab) : void 0;
++  }
+   /** Notify extension system that the active tab has changed. */
+   selectTab(tab) {
+     this.checkWebContentsArgument(tab);
 diff --git a/dist/types/browser/impl.d.ts b/dist/types/browser/impl.d.ts
 index 28dcab4817e9a14057da54b4e37bd48878aa678c..949fb067ee4ab7614765489379095729510b24fd 100644
 --- a/dist/types/browser/impl.d.ts	
-+++ b/dist/types/browser/impl.d.ts
++++ b/dist/types/browser/impl.d.ts	
 @@ -12,4 +12,14 @@ export interface ChromeExtensionImpl {
      createWindow?(details: chrome.windows.CreateData): Promise<Electron.BaseWindow>;
      removeWindow?(window: Electron.BaseWindow): void;
@@ -263,3 +301,28 @@ index 28dcab4817e9a14057da54b4e37bd48878aa678c..949fb067ee4ab7614765489379095729
 +        reason: "install" | "update";
 +    } | null;
  }
+diff --git a/dist/types/browser/index.d.ts b/dist/types/browser/index.d.ts
+index b5295a5e9f69736026f89d621cd70ca0329b9e4a..bc8b4c69e8667ede0d03a0dd5a91b56abced0a3b 100644
+--- a/dist/types/browser/index.d.ts	
++++ b/dist/types/browser/index.d.ts	
+@@ -1,6 +1,7 @@
+ /// <reference types="node" />
+ import { EventEmitter } from 'node:events';
+ import { ChromeExtensionImpl } from './impl';
++import type { HandlerCallback, HandlerOptions } from './router';
+ export interface ChromeExtensionOptions extends ChromeExtensionImpl {
+     /**
+      * Session to add Chrome extension support in.
+@@ -37,6 +38,12 @@ export declare class ElectronChromeExtensions extends EventEmitter {
+     addTab(tab: Electron.WebContents, window: Electron.BaseWindow): void;
+     /** Remove webContents from being tracked as a tab. */
+     removeTab(tab: Electron.WebContents): void;
++    /** Answers an extension API call with the app's own handler, in place of the library's when it has one. */
++    handleApiCall(name: string, callback: HandlerCallback, opts?: Partial<HandlerOptions>): void;
++    /** Sends an event to one extension's listeners for it. */
++    sendExtensionEvent(extensionId: string, eventName: string, ...args: unknown[]): void;
++    /** A tab as the extensions see it, or undefined for one they were never given. */
++    getTabDetails(tab: Electron.WebContents): chrome.tabs.Tab | undefined;
+     /** Notify extension system that the active tab has changed. */
+     selectTab(tab: Electron.WebContents): void;
+     /**

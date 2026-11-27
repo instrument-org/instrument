@@ -14,7 +14,11 @@ import {
 import { routeGuestDownloads } from "./downloads";
 import { mayOpenInAnotherApp } from "./external-app-links";
 import { askToOpenInAnotherApp } from "./external-app-prompt";
-import { enableBrowserExtensions, registerExtensionWindow } from "./extensions";
+import {
+  enableBrowserExtensions,
+  listenForExtensionCommands,
+  registerExtensionWindow,
+} from "./extensions";
 import { mayEnterFullScreen } from "./full-screen-policy";
 import { attachGuestInteractions } from "./guest-interactions";
 import { guests } from "./guest-registry";
@@ -76,6 +80,7 @@ export function configureGuestSession(profileDir: string): Session {
       record.contents.on("did-create-window", (window) => {
         registerExtensionWindow(window);
       });
+      listenForExtensionCommands(record.contents);
       if (record.role === "popup") {
         refuseLocalFilesIn(record.contents);
         // A page's popup becomes a tab as it is made (`adoptPopup` in

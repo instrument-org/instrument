@@ -30,7 +30,6 @@ const FEATURES: [feature: string, permissions: string[]][] = [
   ["Blocking content on pages", BLOCKING_PERMISSIONS],
   ["Seeing what pages load", ["webRequest"]],
   ["Side panel", ["sidePanel"]],
-  ["Keyboard shortcuts", []],
   ["Signing in through the browser", ["identity"]],
   ["User scripts", ["userScripts"]],
   ["Tab groups", ["tabGroups"]],
@@ -59,7 +58,6 @@ const FEATURES: [feature: string, permissions: string[]][] = [
 const SupportManifestSchema = z.object({
   chrome_settings_overrides: z.unknown().optional(),
   chrome_url_overrides: z.record(z.string(), z.unknown()).catch({}),
-  commands: z.record(z.string(), z.unknown()).catch({}),
   oauth2: z.unknown().optional(),
   omnibox: z.unknown().optional(),
   permissions: z
@@ -75,7 +73,6 @@ const SupportManifestSchema = z.object({
 export function unsupportedFeatures(manifest: unknown): string[] {
   const parsed = SupportManifestSchema.catch({
     chrome_url_overrides: {},
-    commands: {},
     permissions: [],
   }).parse(manifest);
   const asked = new Set(parsed.permissions);
@@ -83,7 +80,6 @@ export function unsupportedFeatures(manifest: unknown): string[] {
   const byKey: Record<string, boolean> = {
     "Address bar keywords": parsed.omnibox !== undefined,
     "Default search engine": parsed.chrome_settings_overrides !== undefined,
-    "Keyboard shortcuts": Object.keys(parsed.commands).length > 0,
     "New tab page": overrides.includes("newtab"),
     "Replacing browser pages": overrides.some((page) => page !== "newtab"),
     "Side panel": parsed.side_panel !== undefined,

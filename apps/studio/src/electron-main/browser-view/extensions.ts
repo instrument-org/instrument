@@ -14,6 +14,9 @@ import {
   desktopAppSteps,
 } from "@/shared/browser-extensions";
 import { APP_NAME } from "@instrument-org/shared";
+import { matchesAccelerator } from "@/electron-main/menus/match-accelerator";
+import { commandWindow } from "@/electron-main/windows/window-command";
+import { osOf } from "@/shared/os-conventions";
 import {
   type BrowserTargetId,
   BrowserTargetIdSchema,
@@ -26,6 +29,7 @@ import {
   type Extension,
   ipcMain,
   type IpcMainInvokeEvent,
+  Menu,
   type NativeImage,
   session,
   type Session,
@@ -49,6 +53,13 @@ import {
   type ExtensionConnection,
   openDesktopApp,
 } from "./extension-connection";
+import {
+  ACTION_COMMANDS,
+  assignCommands,
+  collidesWith,
+  type ExtensionCommand,
+  reportedCommand,
+} from "./extension-commands";
 import { unsupportedFeatures } from "./extension-support";
 import {
   addVersion,
@@ -166,6 +177,14 @@ function inTurn<T>(change: () => Promise<T>): Promise<T> {
   return turn;
 }
 
+const OS = osOf(process.platform);
+
+/** The extensions running, by id in the order they loaded, which settles two asking for one key. */
+const loadOrder: string[] = [];
+
+/** Every running extension's commands, with the key each runs on. */
+let commands: ExtensionCommand[] = [];
+
 const ManifestWordsSchema = z.object({
   description: z.string().catch(""),
 });
@@ -229,6 +248,10 @@ export function enableBrowserExtensions(
     );
     publisher.publish("browser.extensions-changed", null);
     void recheckExtensionConnections();
+    reassignCommands(guestSession, [
+      ...loadOrder.filter((id) => id !== extension.id),
+      extension.id,
+    ]);
     // Just added or turned on, so the tabs already open have none of its content
     // scripts; one loaded at launch comes before any tab.
     if (justAllowed.delete(extension.id)) {
@@ -241,6 +264,10 @@ export function enableBrowserExtensions(
     log.info(`extension unloaded ${extension.name} id=${extension.id}`);
     connections.delete(extension.id);
     publisher.publish("browser.extensions-changed", null);
+    reassignCommands(
+      guestSession,
+      loadOrder.filter((id) => id !== extension.id),
+    );
   });
   // A worker that stopped may leave its extension idle, which is when an
   // update it was too busy for can load.
@@ -249,6 +276,11 @@ export function enableBrowserExtensions(
       applyReadyUpdates();
     }
   });
+  extensions.handleApiCall("commands.getAll", ({ extension }) =>
+    commands
+      .filter((command) => command.extensionId === extension.id)
+      .map((command) => reportedCommand(command, OS)),
+  );
   installChromeWebStore({
     autoUpdate: false,
     beforeInstall: confirmInstall,
@@ -267,6 +299,107 @@ export function enableBrowserExtensions(
     (error: unknown) => {
       log.error("the installed extensions could not be loaded", error);
     },
+  );
+}
+
+/**
+ * Gives the running extensions' commands their keys again, after one loaded
+ * or unloaded. A key the app's menu binds stays the app's, so the command
+ * has none, as in Chrome, which refuses a key the browser has.
+ */
+function reassignCommands(guestSession: Session, order: string[]): void {
+  loadOrder.splice(0, loadOrder.length, ...order);
+  const menuAccelerators = appAccelerators();
+  commands = assignCommands(
+    loadOrder.flatMap((id) => guestSession.extensions.getExtension(id) ?? []),
+    OS,
+  ).map((command) =>
+    command.accelerator !== null &&
+    collidesWith(command.accelerator, menuAccelerators, OS)
+      ? { ...command, accelerator: null }
+      : command,
+  );
+}
+
+/** Every accelerator the app's menu binds. */
+function appAccelerators(): string[] {
+  const found: string[] = [];
+  const walk = (menu: Menu | null | undefined) => {
+    for (const item of menu?.items ?? []) {
+      if (item.accelerator) {
+        found.push(item.accelerator);
+      }
+      walk(item.submenu);
+    }
+  };
+  walk(Menu.getApplicationMenu());
+  return found;
+}
+
+/**
+ * Runs an extension's command when its key is pressed in `contents`, a page
+ * of the in-app browser or a window one opened, ahead of the page, as
+ * Chrome's browser-wide keys are. A chord the app's menu binds is never an
+ * extension's (`reassignCommands`), checked again on the press since the
+ * menu is built again as the app changes.
+ */
+export function listenForExtensionCommands(contents: WebContents): void {
+  contents.on("before-input-event", (event, input) => {
+    if (input.type !== "keyDown" || input.isAutoRepeat) {
+      return;
+    }
+    const command = commands.find(
+      ({ accelerator }) =>
+        accelerator !== null &&
+        matchesAccelerator(input, accelerator, { isMac: OS === "mac" }),
+    );
+    if (
+      !command?.accelerator ||
+      collidesWith(command.accelerator, appAccelerators(), OS)
+    ) {
+      return;
+    }
+    event.preventDefault();
+    runExtensionCommand(command, contents);
+  });
+}
+
+/**
+ * An extension's command for the tab it was pressed in, or the one a person
+ * is looking at when it was pressed in a window a page opened: an action's
+ * command presses the extension's button in that tab's window, which opens
+ * its popup or tells it it was clicked; any other reaches the extension's
+ * `chrome.commands.onCommand` with the tab.
+ */
+function runExtensionCommand(command: ExtensionCommand, from: WebContents) {
+  const tab = extensions?.getTabDetails(from)
+    ? from
+    : currentTab && !currentTab.isDestroyed()
+      ? currentTab
+      : null;
+  log.info(
+    `extension ${command.extensionId} command ${command.name} guest=${String(tab?.id)}`,
+  );
+  if (ACTION_COMMANDS.has(command.name)) {
+    // A window a page opened has no host; its opener's tab is in one.
+    const host = [tab, currentTab].find(
+      (contents) => contents && !contents.isDestroyed() && contents.hostWebContents,
+    )?.hostWebContents;
+    const window =
+      host && !host.isDestroyed() ? BrowserWindow.fromWebContents(host) : null;
+    if (window) {
+      commandWindow(window, {
+        extensionId: command.extensionId,
+        type: "openExtensionPopup",
+      });
+    }
+    return;
+  }
+  extensions?.sendExtensionEvent(
+    command.extensionId,
+    "commands.onCommand",
+    command.name,
+    tab ? extensions.getTabDetails(tab) : undefined,
   );
 }
 

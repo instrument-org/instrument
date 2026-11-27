@@ -449,7 +449,7 @@ export const STATES = {
   },
   "tg-new-tab": {
     about: "Tab groups: a new group just made with ⌘N, up above the pricing chat's group in the sidebar. The new tab as it ships: back, forward and reload off, + and New Tab in Split, the bookmarks bar with Apps, Chats and Files and the line on bookmarking (no bookmarks), the Instrument mark, \"How can I help?\" and the composer (+, Project, Auto), nothing typed.",
-    themes: ["light"],
+    themes: ["light", "dark"],
     run: async (h) => {
       await h.bookmarksBar(false);
       await h.chatAlone(h.chats.pricing);
@@ -548,7 +548,7 @@ export const STATES = {
   },
   "tg-three-groups": {
     about: "Tab groups: three chats each alone in a group of its own, made with ⌘N (the SOC 2 quotes, the board update, then the pricing chat's group brought back up). Bookmarks kept, the bookmarks bar off.",
-    themes: ["light"],
+    themes: ["light", "dark"],
     run: async (h) => threeGroups(h, h.chats.pricing),
   },
   "tg-three-groups-soc2": {

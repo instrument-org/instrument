@@ -18,6 +18,7 @@ import {
 } from "@/shared/window-shortcuts";
 import {
   BrowserWindow,
+  type Input,
   type MenuItemConstructorOptions,
   type WebContents,
 } from "electron";
@@ -367,6 +368,34 @@ export function bindAppWindowChords(webContents: WebContents) {
       pressed.run(window);
     }
   });
+}
+
+const GUEST_TAB_SWITCH_CHORDS = [
+  ...TAB_SWITCH_CHORDS,
+  ...TAB_SWITCH_ALIAS_CHORDS,
+];
+
+/**
+ * Runs a tab-switch chord a page with the keyboard was sent, ahead of the
+ * page, as Chrome keeps them from pages. The menu would answer only the keys
+ * the page left unhandled, and a page parked off screen hands none on.
+ * Returns the chord's label when one ran.
+ */
+export function runGuestTabSwitchChord(
+  window: BrowserWindow,
+  input: Input,
+): string | undefined {
+  if (input.type !== "keyDown" || isSetupUp()) {
+    return undefined;
+  }
+  const pressed = GUEST_TAB_SWITCH_CHORDS.find(({ accelerator }) =>
+    matchesAccelerator(input, accelerator, { isMac: IS_MAC }),
+  );
+  if (!pressed) {
+    return undefined;
+  }
+  pressed.run(window);
+  return pressed.label;
 }
 
 /** What the menu does with the windows themselves, which the windows' own module answers. */

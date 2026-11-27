@@ -300,3 +300,28 @@ describe("a window chord from the menu", () => {
     expect(publish).not.toHaveBeenCalled();
   });
 });
+
+describe("a tab chord sent to a page", () => {
+  it.each([
+    ["Cmd+Shift+[", press("{", "BracketLeft", "meta", "shift"), "previousTab"],
+    ["Cmd+Shift+]", press("}", "BracketRight", "meta", "shift"), "nextTab"],
+    ["Ctrl+Tab", press("Tab", "Tab", "control"), "nextTab"],
+    ["Cmd+Shift+T, not a tab chord", press("T", "KeyT", "meta", "shift"), null],
+  ])("%s", async (_name, input, ran) => {
+    Object.defineProperty(process, "platform", { value: "darwin" });
+    vi.resetModules();
+    const { runGuestTabSwitchChord } = await import("./app-window");
+    publish.mockClear();
+    // A stand-in with only what a command to the window reads.
+    const window = {
+      isDestroyed: () => false,
+      webContents: { id: 1 },
+    } as unknown as Parameters<typeof runGuestTabSwitchChord>[0];
+    const label = runGuestTabSwitchChord(window, {
+      ...input,
+      type: "keyDown",
+    } as Input);
+    expect(commandOf(publish.mock.calls[0]?.[1])).toBe(ran);
+    expect(label !== undefined).toBe(ran !== null);
+  });
+});

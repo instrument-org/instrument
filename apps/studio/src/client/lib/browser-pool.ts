@@ -400,28 +400,56 @@ function recordHostFocus(event: FocusEvent) {
 //
 // A page up on the side of a tab group with the keyboard keeps it: it leaves
 // one slot for another as that side takes the keyboard, and handing focus
-// back then would put it in the side that just lost the keyboard.
+// back then would put it in the side that just lost the keyboard. That side
+// can still name the page for a moment after its tab group leaves the screen,
+// so a page still parked once the move would have settled hands the keyboard
+// back then.
 function releaseGuestFocus(targetId: BrowserTargetId) {
   queueMicrotask(() => {
-    const pooled = pool.get(targetId);
     const side = keyboardSide();
-    if (
-      !pooled ||
-      paintOwners.has(targetId) ||
-      document.activeElement !== pooled.webview ||
-      (side !== null && pageOfSide(side) === targetId)
-    ) {
+    if (side !== null && pageOfSide(side) === targetId) {
+      clearTimeout(parkedKeyboardChecks.get(targetId));
+      parkedKeyboardChecks.set(
+        targetId,
+        setTimeout(() => {
+          parkedKeyboardChecks.delete(targetId);
+          handKeyboardBackFromParked(targetId);
+        }, SLOT_MOVE_SETTLE_MS),
+      );
       return;
     }
-    pooled.webview.blur();
-    // What had the keyboard before the page may be in a tab no longer up, so
-    // in a tab group it goes to what the side with it shows.
-    if (side !== null) {
-      focusHomeIn(side);
-      return;
-    }
-    returnKeyboardToWindow();
+    handKeyboardBackFromParked(targetId);
   });
+}
+
+/** How long a page moving from one slot to another may stay parked, in ms. */
+const SLOT_MOVE_SETTLE_MS = 500;
+
+/** The pending look, per page, at whether a parked page still has the keyboard. */
+const parkedKeyboardChecks = new Map<
+  BrowserTargetId,
+  ReturnType<typeof setTimeout>
+>();
+
+/** Takes the keyboard from a page no slot shows, which no one can be typing into. */
+function handKeyboardBackFromParked(targetId: BrowserTargetId) {
+  const pooled = pool.get(targetId);
+  if (
+    !pooled ||
+    paintOwners.has(targetId) ||
+    document.activeElement !== pooled.webview
+  ) {
+    return;
+  }
+  pooled.webview.blur();
+  // What had the keyboard before the page may be in a tab no longer up, so
+  // in a tab group it goes to what the side with it shows.
+  const side = keyboardSide();
+  if (side !== null) {
+    focusHomeIn(side);
+    return;
+  }
+  returnKeyboardToWindow();
 }
 
 // The slot currently showing each guest.
@@ -1262,6 +1290,8 @@ function applyPaintHost(pooled: PooledWebview) {
 }
 
 function disposeWebview(targetId: BrowserTargetId) {
+  clearTimeout(parkedKeyboardChecks.get(targetId));
+  parkedKeyboardChecks.delete(targetId);
   const pooled = pool.get(targetId);
   if (!pooled) {
     return;
@@ -1860,6 +1890,9 @@ function reconcile(all: BrowserGuestTarget[]) {
       kept.asleep = target.asleep;
       if (!paintOwners.has(target.id)) {
         applyPaintHost(kept);
+        if (kept.asleep) {
+          handKeyboardBackFromParked(target.id);
+        }
       }
     }
   }

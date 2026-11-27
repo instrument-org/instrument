@@ -1,3 +1,4 @@
+import path from "node:path";
 import {
   historyStandingOn,
   wholeHistory,
@@ -35,6 +36,7 @@ import { noop } from "radashi";
 import { applyProductBrandedMetadata } from "../lib/user-agent";
 import { pageEditorPreloadPath } from "../page-editor/sessions";
 import { isDrivenInstance } from "../windows/on-screen";
+import { runGuestTabSwitchChord } from "../menus/app-window";
 import { commandWindow } from "../windows/window-command";
 import { carryAgentPointer } from "./agent-pointer";
 import { type DeviceEmulation, setDeviceEmulation } from "./device-emulation";
@@ -695,7 +697,7 @@ function createBrowserViewManager(): BrowserViewManager {
     // A character typed while a frame below the main one has the keyboard.
     // Heard before the key is dispatched, since a frame in a process of its
     // own raises no `input-event` here.
-    guest.on("before-input-event", (_event, input) => {
+    guest.on("before-input-event", (event, input) => {
       const record = guests.get(guest.id);
       if (
         record &&
@@ -705,17 +707,26 @@ function createBrowserViewManager(): BrowserViewManager {
       ) {
         notePersonEdit(record, "frame");
       }
+      const host = hostOf(targetId);
+      const window =
+        host && !host.isDestroyed()
+          ? BrowserWindow.fromWebContents(host)
+          : null;
+      if (!window || focusGuard.isGuarded(targetId)) {
+        return;
+      }
       // A page with the keyboard keeps every key from its window, which
       // still puts up the numbers a held modifier shows.
       const pageKey = pageKeyOfInput(input);
-      const host = hostOf(targetId);
-      if (pageKey && !focusGuard.isGuarded(targetId) && host) {
-        const window = host.isDestroyed()
-          ? null
-          : BrowserWindow.fromWebContents(host);
-        if (window) {
-          commandWindow(window, { key: pageKey, type: "pageKey" });
-        }
+      if (pageKey) {
+        commandWindow(window, { key: pageKey, type: "pageKey" });
+      }
+      const tabChord = runGuestTabSwitchChord(window, input);
+      if (tabChord !== undefined) {
+        event.preventDefault();
+        log.info(
+          `tab chord from page targetId=${targetId} chord="${tabChord}" shown=${String(entry.shown)} asleep=${String(entry.asleep)} windowFocused=${String(window.isFocused())}`,
+        );
       }
     });
     guest.on("input-event", (_event, input) => {
@@ -1626,6 +1637,10 @@ function createBrowserViewManager(): BrowserViewManager {
   }
 
   function setGuestFocus(targetId: BrowserTargetId, focused: boolean) {
+    const entry = entries.get(targetId);
+    log.info(
+      `page keyboard ${focused ? "taken" : "left"} targetId=${targetId} shown=${String(entry?.shown ?? false)} asleep=${String(entry?.asleep ?? false)}`,
+    );
     if (!focused || focusGuard.bounceGuestFocus(targetId)) {
       return;
     }
@@ -1757,6 +1772,11 @@ function createBrowserViewManager(): BrowserViewManager {
       if (entry) {
         const changed = entry.shown !== shown;
         entry.shown = shown;
+        if (changed) {
+          log.info(
+            `guest ${shown ? "shown" : "parked"} targetId=${targetId} page=${pageKindOf(entry.webContents)}`,
+          );
+        }
         if (shown) {
           void wakeGuest(entry, notifyEntriesChanged);
           if (entry.webContents) {
@@ -1938,4 +1958,20 @@ function markNavigated(entry: BrowserEntry, url: string) {
 function notifyEntriesChanged() {
   publisher.publish("browser.targets-changed", null);
   noteLoad();
+}
+
+/**
+ * What a page is, for the log, without its address: the scheme, the host,
+ * and the extension of the file it names, when it names one.
+ */
+function pageKindOf(guest: WebContents | null): string {
+  if (!guest || guest.isDestroyed()) {
+    return "none";
+  }
+  try {
+    const url = new URL(guest.getURL());
+    return `${url.protocol}//${url.host}${path.posix.extname(url.pathname)}`;
+  } catch {
+    return "unknown";
+  }
 }

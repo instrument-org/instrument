@@ -46,6 +46,7 @@ Each entry is the follow-up's title and the opening of its own `Status:` line.
 - [How often the main thread freezes in real use, and whether the watchdog tells the truth](main-thread-freezes.md): open · Check after: 2026-12-05 · Last checked: never
 - [How often and how long the main thread stalls in real use](main-thread-stalls.md): open · Check after: 2026-12-10, after a week on a laptop beta that leaves held time out of stalls · Last checked: 2026-11-26
 - [What a second computer shows of a chat whose task waits on a card](multi-computer-sync-audit.md): open (cards resolved, see Result) · Check after: when using one workspace from more than one computer is taken on · Last checked: 2026-10-30
+- [Whether a page off screen still takes the keyboard](page-keyboard-and-tab-chords.md): open · Check after: 2026-12-11
 - [Whether page links without a link token can stop opening](page-links-without-a-token.md): open · Check after: 2026-12-13, 30 days after the pages worker began giving every new page a link token, plus a day for its bucket's lifecycle rule · Last ch...
 - [A third sighting of the quit-teardown livelock](quit-teardown-livelock.md): open, passive · Check after: 2026-12-01, or at once after an update that left the app spinning with no window · Last checked: 2026-10-24
 - [Where app windows freeze, from the stacks their hangs record](renderer-hangs.md): open · Check after: 2026-12-07, or once a build carrying the `unresponsive` events has run two weeks of daily use on macOS and Windows · Last checked: never

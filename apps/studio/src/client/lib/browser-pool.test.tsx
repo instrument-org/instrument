@@ -22,7 +22,8 @@ import {
 } from "./browser-pool";
 import { installKeyboardLoan } from "./keyboard-loan";
 
-const target = browserTargetOf(StoreId.newTabId());
+const targetTab = StoreId.newTabId();
+const target = browserTargetOf(targetTab);
 // A tab opened behind the one on screen, which no slot has shown.
 const behind = browserTargetOf(StoreId.newTabId());
 
@@ -537,4 +538,69 @@ it("lays out a page behind at its own side's size, beside a side of another widt
   expect(width(1)).toBe("400px");
   setPaintHost(target, left);
   setPagePanes(new Map());
+});
+
+describe("a page parked while it has the keyboard", () => {
+  const guest = () => {
+    const webview = document.querySelector<HTMLElement>("webview");
+    if (!webview) {
+      throw new Error("no guest");
+    }
+    // jsdom focuses only what has a tab index; Electron's guest takes focus itself.
+    webview.tabIndex = -1;
+    return webview;
+  };
+  // The side with the keyboard, still naming the page as its tab group
+  // leaves the screen.
+  let group: HTMLElement;
+  beforeEach(() => {
+    group = document.createElement("div");
+    group.setAttribute("data-app-tab-active", "");
+    const side = document.createElement("div");
+    side.setAttribute("data-group-side", "");
+    side.setAttribute("data-keyboard", "");
+    side.setAttribute("data-page-tab", targetTab);
+    group.append(side);
+    document.body.append(group);
+  });
+  afterEach(() => {
+    group.remove();
+  });
+
+  it("gives it back once a move to another slot would have settled", async () => {
+    const slot = Symbol("slot");
+    showOverSlot(target, inlineBounds, slot);
+    guest().focus();
+    setPaintHost(target, slot);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(document.activeElement).toBe(guest());
+    await vi.waitFor(
+      () => {
+        expect(document.activeElement).not.toBe(guest());
+      },
+      { interval: 10, timeout: 2000 },
+    );
+  });
+
+  it("gives it back as main puts the page to sleep", async () => {
+    const slot = Symbol("slot");
+    showOverSlot(target, inlineBounds, slot);
+    guest().focus();
+    setPaintHost(target, slot);
+    targets.next(true);
+    await vi.waitFor(
+      () => {
+        expect(visibility()).toBe("hidden");
+      },
+      { interval: 1 },
+    );
+    expect(document.activeElement).not.toBe(guest());
+    targets.next(false);
+    await vi.waitFor(
+      () => {
+        expect(visibility()).toBe("visible");
+      },
+      { interval: 1 },
+    );
+  });
 });

@@ -1041,7 +1041,12 @@ function SideCard({
           }
         />
       )}
-      <div className="relative min-h-0 flex-1" data-side-page={sideIndex}>
+      {/* The width a screen in this side gets, for `@container/app-content`
+          variants: the side's own, not the window's. */}
+      <div
+        className="@container/app-content relative min-h-0 flex-1"
+        data-side-page={sideIndex}
+      >
         {screens.map((tab) => {
           const isTabUp = isUp && tab.id === up?.id;
           return (

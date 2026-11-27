@@ -1,6 +1,11 @@
 import { cn } from "@/client/lib/utils";
+import { useEffect, useRef, useState } from "react";
 
 const KEYBOARD_STEP = 16;
+/** How long the pointer rests in a gap before its grip shows. */
+const GRIP_DELAY_MS = 200;
+/** The grip's height in layout px (`h-9`). */
+const GRIP_HEIGHT = 36;
 
 /**
  * The edge a column or pane is resized by. It owns the gesture and nothing
@@ -16,6 +21,11 @@ const KEYBOARD_STEP = 16;
  *   what it resizes.
  * - Double-click resets; with a `label`, it is a focusable WAI-ARIA window
  *   splitter whose arrows step and whose Home/End jump to the bounds.
+ * - An edge that is a border (`variant: "line"`) shows a 2px line down its
+ *   length on hover. A gap between cards (`"grip"`) shows a short grip where
+ *   the pointer has rested for `GRIP_DELAY_MS`, which stays at that height
+ *   until the pointer leaves the gap, through a drag and its release, so it
+ *   never chases the pointer. The whole handle takes the drag either way.
  *
  * The callbacks a drag started with are the ones it calls throughout, so
  * what they close over is the state at the press.
@@ -34,6 +44,7 @@ export function ResizeHandle({
   onResizeEnd,
   onResizeStart,
   value,
+  variant = "line",
 }: {
   /**
    * The client x of the edge that stays put, to measure the width from it;
@@ -59,14 +70,57 @@ export function ResizeHandle({
   /** Before the first width: the moment to stop whatever animates it. */
   onResizeStart?: () => void;
   value?: number;
+  variant?: "grip" | "line";
 }) {
   const toward = grows === "right" ? 1 : -1;
+  const isGrip = variant === "grip";
+  /** Where the grip stands, in layout px from the handle's top; kept while it fades out. */
+  const [grip, setGrip] = useState<{ isShown: boolean; y: number } | null>(
+    null,
+  );
+  const gripTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(gripTimer.current), []);
+
+  /** The pointer's height on the handle in layout px, clamped so the grip stays whole. */
+  function gripYAt(event: React.PointerEvent<HTMLDivElement>) {
+    const handle = event.currentTarget;
+    const rect = handle.getBoundingClientRect();
+    const zoom = handle.offsetHeight > 0 ? rect.height / handle.offsetHeight : 1;
+    const y = (event.clientY - rect.top) / zoom;
+    return Math.min(
+      Math.max(y, GRIP_HEIGHT / 2),
+      Math.max(handle.offsetHeight - GRIP_HEIGHT / 2, GRIP_HEIGHT / 2),
+    );
+  }
+
+  /** Until the grip shows, each move starts the rest over at the pointer's height. */
+  function handleGripRest(event: React.PointerEvent<HTMLDivElement>) {
+    if (grip?.isShown) {
+      return;
+    }
+    const y = gripYAt(event);
+    clearTimeout(gripTimer.current);
+    gripTimer.current = setTimeout(() => {
+      setGrip({ isShown: true, y });
+    }, GRIP_DELAY_MS);
+  }
+
+  // Pointer capture holds the pointer over the handle for a drag, so this
+  // comes after a release away from it, never during the drag.
+  function handleGripLeave() {
+    clearTimeout(gripTimer.current);
+    setGrip((shown) => shown && { ...shown, isShown: false });
+  }
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
     if (event.button !== 0) {
       return;
     }
     event.preventDefault();
+    if (isGrip && !grip?.isShown) {
+      clearTimeout(gripTimer.current);
+      setGrip({ isShown: true, y: gripYAt(event) });
+    }
     const handle = event.currentTarget;
     const { clientX: startX, pointerId } = event;
     onResizeStart?.();
@@ -173,13 +227,33 @@ export function ResizeHandle({
           }
         : { "aria-hidden": true })}
       className={cn(
-        "absolute inset-y-0 z-20 w-2 cursor-col-resize outline-hidden select-none",
-        "after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-transparent",
-        "hover:after:bg-muted-foreground/15 focus-visible:after:bg-ring active:after:bg-resize-held",
+        "group absolute inset-y-0 z-20 w-2 cursor-col-resize outline-hidden select-none",
+        !isGrip &&
+          "after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:bg-transparent hover:after:bg-muted-foreground/15 focus-visible:after:bg-ring active:after:bg-resize-held",
         className,
       )}
       onDoubleClick={onReset}
       onPointerDown={handlePointerDown}
-    />
+      {...(isGrip
+        ? {
+            onPointerEnter: handleGripRest,
+            onPointerLeave: handleGripLeave,
+            onPointerMove: handleGripRest,
+          }
+        : {})}
+    >
+      {isGrip && (
+        // Centered on the handle, or as far off it as `--grip-nudge` says,
+        // for a gap a focus outline takes one side of.
+        <span
+          className={cn(
+            "pointer-events-none absolute left-[calc(50%+var(--grip-nudge,0px))] h-9 w-1 -translate-1/2 rounded-full bg-muted-foreground/60 opacity-0 transition-opacity duration-200 ease-out",
+            "group-focus-visible:bg-ring group-focus-visible:opacity-100 group-active:bg-foreground/70",
+            grip?.isShown && "opacity-100 duration-150",
+          )}
+          style={{ top: grip ? grip.y : "50%" }}
+        />
+      )}
+    </div>
   );
 }

@@ -68,9 +68,9 @@ export function StudioSidebarRail({
   /** Whose content it shows: when this changes, an open or close lands at once, since it comes of a switch to other content rather than of the person opening or closing it. */
   contentKey?: string;
   /**
-   * Where the resize line stands: centered on the panel's own border, or in
-   * the handle's width of gutter just past the panel, where a panel without
-   * a border meets the card beside it.
+   * Where the resize handle stands: centered on the panel's own border, as
+   * a line, or in the handle's width of gutter just past the panel, where a
+   * panel without a border meets the card beside it, as a grip.
    */
   handleOn?: "border" | "gutter";
   /** Whether the next open or close happens at once rather than sliding: one the window made for want of room, in the middle of a resize the slide would fight. */
@@ -295,6 +295,7 @@ export function StudioSidebarRail({
             const rect = containerRef.current?.getBoundingClientRect();
             return side === "left" ? rect?.left : rect?.right;
           }}
+          variant={handleOn === "border" ? "line" : "grip"}
           className={cn(
             side === "left" ? "right-0" : "left-0",
             handleOn === "border"

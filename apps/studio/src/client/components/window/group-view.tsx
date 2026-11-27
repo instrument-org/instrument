@@ -490,13 +490,21 @@ function GroupSides({
       {isTwo &&
         !isMoving && (
           // The gap between the cards is the gutter, standing over the row at
-          // the left side's edge.
+          // the left side's edge, past the row's 2px of room. The focused
+          // side's line takes 2px of the gap, so the grip stands in the middle
+          // of what is left.
           <ResizeHandle
             anchor={() => {
               const row = rowRef.current;
               return row ? row.getBoundingClientRect().left : undefined;
             }}
-            className="top-0 bottom-0 left-(--gutter-at)"
+            className={cn(
+              "top-0 bottom-0 left-(--gutter-at) ml-0.5",
+              isUp &&
+                (layout.focused === 0
+                  ? "[--grip-nudge:1px]"
+                  : "[--grip-nudge:-1px]"),
+            )}
             getWidth={() => leftWidthAt(share, roomNow())}
             grows="right"
             label="Resize sides"
@@ -523,6 +531,7 @@ function GroupSides({
               document.documentElement.toggleAttribute("data-tab-held", true);
             }}
             value={gutterAt}
+            variant="grip"
           />
         )}
     </div>

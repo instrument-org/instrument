@@ -1,6 +1,6 @@
 import { ResizeHandle } from "@/client/components/resize-handle";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeAll, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 // jsdom implements PointerEvent but not pointer capture; the handle only asks
 // for it and checks whether it still holds it.
@@ -111,4 +111,60 @@ it("stays out of the tab order and assistive tech without a label", () => {
   const handle = container.firstElementChild;
   expect(handle?.getAttribute("aria-hidden")).toBe("true");
   expect(handle?.hasAttribute("tabindex")).toBe(false);
+});
+
+describe("a grip", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** A grip handle 400px tall at the top of the page, and what its grip shows. */
+  function renderGrip() {
+    const { calls, handle } = renderHandle({ variant: "grip" });
+    Object.defineProperty(handle, "offsetHeight", { value: 400 });
+    handle.getBoundingClientRect = () => new DOMRect(0, 0, 8, 400);
+    const grip = () => {
+      const mark = handle.querySelector("span");
+      return {
+        isShown: mark?.classList.contains("opacity-100") ?? false,
+        top: mark?.style.top,
+      };
+    };
+    return { calls, grip, handle };
+  }
+
+  it("shows where the pointer rests and stays there as it moves on", () => {
+    const { grip, handle } = renderGrip();
+    fireEvent.pointerEnter(handle, { clientY: 100 });
+    fireEvent.pointerMove(handle, { clientY: 150 });
+    act(() => {
+      vi.advanceTimersByTime(199);
+    });
+    expect(grip().isShown).toBe(false);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(grip()).toEqual({ isShown: true, top: "150px" });
+    fireEvent.pointerMove(handle, { clientY: 300 });
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(grip()).toEqual({ isShown: true, top: "150px" });
+    fireEvent.pointerLeave(handle);
+    expect(grip()).toEqual({ isShown: false, top: "150px" });
+  });
+
+  it("shows at once where a press lands before the rest is over", () => {
+    const { grip, handle } = renderGrip();
+    fireEvent.pointerEnter(handle, { clientY: 100 });
+    fireEvent.pointerDown(handle, { button: 0, clientY: 390, pointerId: 1 });
+    expect(grip()).toEqual({ isShown: true, top: "382px" });
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(grip().top).toBe("382px");
+  });
 });

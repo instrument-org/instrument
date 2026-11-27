@@ -29,18 +29,17 @@ import {
   keptGroupedTabs,
   keptGroupNames,
   keptLoneGroupOfTab,
+  KeptTabGroupSchema,
   setKeptState,
   setWindowKeptState,
   tellWindowKeptState,
   windowKeptKeys,
 } from "@/electron-main/stores/workspace/kept-state";
-import { tabMembersIn } from "@/electron-main/stores/workspace/tab-service";
-import { joinTabGroups } from "@/client/components/window/tab-members";
 import {
   APP_TABS_KEY,
+  isHostedPageKey,
   keptTabGroupsOf,
   TAB_GROUPS_KEY,
-  WINDOW_KEPT_FILE,
   WINDOW_TABS_KEY,
 } from "@/shared/kept-state";
 import { chatOfAddress, tabGroupOfAddress } from "@/shared/tab-identity";
@@ -369,12 +368,16 @@ export function keptTabsOf(id: string): TabsModel {
 
 /** The pages drawn inside a window's surfaces, which no other window's tabs name and which go when it does. */
 export function hostedPagesOf(id: string): BrowserTargetId[] {
-  const kept = Object.fromEntries(
-    windowKeptKeys(id).map((key) => [key, getWindowKeptState(id, key)]),
-  );
-  return joinTabGroups(new Map(tabMembersIn(WINDOW_KEPT_FILE, kept))).tabs.map(
-    (tab) => browserTargetOf(tab.id),
-  );
+  return windowKeptKeys(id)
+    .filter(isHostedPageKey)
+    .flatMap(
+      (key) =>
+        KeptTabGroupSchema.safeParse(
+          getWindowKeptState(id, key),
+        ).data?.sides.flatMap((side) =>
+          side.tabs.map((tab) => browserTargetOf(tab.id)),
+        ) ?? [],
+    );
 }
 
 /**

@@ -9,8 +9,10 @@
 # Run from inside a linked worktree. The checks are the ones CI would fail on
 # for what the branch changed: types in the packages it touched, lint in the
 # files it changed, unused code (knip) anywhere, the tests that import what it
-# changed (vitest related), and the tests marked `// land: every landing`
-# (ones that read source as text, which vitest related cannot trace). It also
+# changed (vitest related), the tests marked `// land: every landing`
+# (ones that read source as text, which vitest related cannot trace), and,
+# when the branch changes app source or dependencies, Studio's startup size
+# budget (check:startup, a production build of about a minute). It also
 # lists the Commits-to: contracts of the commits whose lines the branch changes,
 # and the architecture docs that describe files it changes but left as they were.
 # When the target moves during the checks it rebases and checks again, and it
@@ -204,6 +206,16 @@ run_checks() {
   # Unused code anywhere, as CI checks it: deleting a caller leaves an export
   # unused in a file the branch never opened. Each finding is a line to fix.
   pnpm exec knip || fail "knip finds unused code; fix it before landing, wherever it is"
+
+  # What Studio loads before its first window, against its budget, as CI
+  # checks it. Its build is the slowest check here, so only a branch that
+  # changes what a build bundles runs it: source outside tests, a manifest,
+  # the lockfile, or the build's own config.
+  if grep -E '^(apps/studio/(src/|electron-builder/|electron\.vite\.config\.|scripts/check-startup-bundle\.ts|package\.json)|packages/[^/]+/(src/|package\.json)|pnpm-lock\.yaml|pnpm-workspace\.yaml)' <<< "$changed" |
+    grep -qvE '\.test\.tsx?$|\.test-d\.ts$|/__tests__/|/test-utils?/'; then
+    pnpm --filter @instrument-org/studio run --if-present check:startup ||
+      fail "Studio's startup bundle is over budget or takes in a banned package; see apps/studio/scripts/check-startup-bundle.ts"
+  fi
 
   # The tests that import a changed source file, and the ones marked
   # `// land: every landing`, which read source as text and so are related to

@@ -1043,6 +1043,26 @@ describe("FileSystem", () => {
       ).toMatchInlineSnapshot(`"1 found in Files and its folders"`);
     });
 
+    it("names the folder that stopped responding when the search ends there", () => {
+      renderWithProviders(
+        <FileSystem
+          defaultSearch="plan"
+          items={FOLDERS}
+          searchResults={{
+            items: [{ kind: "file", path: "deep/plan.txt" }],
+            notSearched: [],
+            stalledAt: "System32",
+            truncated: true,
+          }}
+          searchResultsPending={false}
+        />,
+      );
+
+      expect(
+        document.querySelector("[data-file-system-status]")?.textContent,
+      ).toMatchInlineSnapshot(`"1 found before System32 stopped responding"`);
+    });
+
     it("says it is searching the folders below only once that takes a moment", async () => {
       renderWithProviders(
         <FileSystem

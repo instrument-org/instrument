@@ -26,13 +26,14 @@ type WalkedEntry = {
 
 /**
  * What is under a folder, nearest first. `truncated` says the walk stopped
- * before the end, at the cap or at a folder that stopped answering;
- * `notSearched` names the folders it listed and stepped over rather than
- * put up the system's prompt.
+ * before the end, at the cap or at a folder that stopped answering, which
+ * `stalledAt` names; `notSearched` names the folders it listed and stepped
+ * over.
  */
 type FolderWalk = {
   entries: WalkedEntry[];
   notSearched: string[];
+  stalledAt?: string;
   truncated: boolean;
 };
 
@@ -50,6 +51,22 @@ const STAT_BATCH = 8;
 
 /** Folders left out along with everything in them, by name: what a program installed for itself. */
 const SKIPPED_FOLDER_NAMES: ReadonlySet<string> = new Set(["node_modules"]);
+
+/**
+ * The folders a walk that starts above them steps over: the ones macOS
+ * guards (`folderSizeSkips`), and on Windows the home folder's `AppData`,
+ * where programs keep their own files, nearly all of a home folder's
+ * entries and none of the person's.
+ */
+export function folderWalkSkips({
+  home = os.homedir(),
+  platform = process.platform,
+}: { home?: string; platform?: NodeJS.Platform } = {}): ReadonlySet<string> {
+  const skips = folderSizeSkips({ home, platform });
+  return platform === "win32"
+    ? new Set([...skips, path.win32.join(home, "AppData")])
+    : skips;
+}
 
 /**
  * Folders a Mac shows as one file, by extension. Each is listed as a file
@@ -83,7 +100,7 @@ const PACKAGE_EXTENSIONS: ReadonlySet<string> = new Set([
  *
  * As `folderSize` walks: from where `root` really is, on that folder's own
  * disk, never following a link (a link is left out), stepping over the
- * folders `skips` names (by default the ones macOS guards, `folderSizeSkips`),
+ * folders `skips` names (by default `folderWalkSkips`),
  * and ending with what it has when a step stalls. Left out besides: names
  * starting with a dot and `node_modules`. A Mac package is listed and not
  * entered. Throws when `signal` aborts.
@@ -116,7 +133,7 @@ export async function walkFolder(
   const { device, real } = start;
   const stepsOver =
     skips ??
-    folderSizeSkips({
+    folderWalkSkips({
       home: await withinStall(
         fs.realpath(os.homedir()).catch(() => os.homedir()),
         stallMs,
@@ -210,6 +227,7 @@ export async function walkFolder(
       const folder = batch[at];
       if (found === STALLED) {
         walk.truncated = true;
+        walk.stalledAt = folder?.at ?? real;
         return walk;
       }
       if (found === null) {

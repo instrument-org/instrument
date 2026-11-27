@@ -136,9 +136,12 @@ describe("searchDownloads", () => {
     [{ startedAfter: new Date(START + 1).toISOString() }, [3, 2]],
     [{ endedBefore: new Date(START + 100).toISOString() }, [1]],
     [{ error: "USER_CANCELED" }, [3]],
-  ] satisfies [DownloadQuery, number[]][])("answers %j with %j", (query, expected) => {
-    expect(ids(query)).toEqual(expected);
-  });
+  ] satisfies [DownloadQuery, number[]][])(
+    "answers %j with %j",
+    (query, expected) => {
+      expect(ids(query)).toEqual(expected);
+    },
+  );
 });
 
 describe("downloadDelta", () => {

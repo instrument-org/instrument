@@ -20,16 +20,25 @@ const PROGRAM_FOLDERS: ReadonlySet<string> = new Set([
 /**
  * Of the paths Spotlight matched, the ones in a folder a walk from `root`
  * stepped over (`skips` inside `root`), leaving out hidden names,
- * `node_modules`, what is inside a package, and the program folders.
+ * `node_modules`, what is inside a package, and the program folders. Of
+ * iCloud's folders only iCloud Drive's own is kept: the other apps' are
+ * their data.
  */
 export function steppedOverMatches(
   paths: readonly string[],
   { root, skips }: { root: string; skips: ReadonlySet<string> },
 ): string[] {
   const top = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
-  const folders = [...skips].filter(
-    (skip) => skip.startsWith(top) && !PROGRAM_FOLDERS.has(path.basename(skip)),
-  );
+  const folders = [...skips]
+    .filter(
+      (skip) =>
+        skip.startsWith(top) && !PROGRAM_FOLDERS.has(path.basename(skip)),
+    )
+    .map((skip) =>
+      path.basename(skip) === "Mobile Documents"
+        ? path.join(skip, "com~apple~CloudDocs")
+        : skip,
+    );
   return paths.filter((at) => {
     const folder = folders.find((skip) => at.startsWith(`${skip}${path.sep}`));
     if (folder === undefined) {

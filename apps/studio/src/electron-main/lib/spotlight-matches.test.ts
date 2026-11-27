@@ -8,6 +8,7 @@ describe("steppedOverMatches", () => {
     "/Users/mac-user/Downloads",
     "/Users/mac-user/Library",
     "/Users/mac-user/Library/Containers",
+    "/Users/mac-user/Library/Mobile Documents",
   ]);
 
   it("keeps matches in the folders a walk from home stepped over", () => {
@@ -24,6 +25,8 @@ describe("steppedOverMatches", () => {
           "/Users/mac-user/Downloads/Pricing.app/Contents/pricing.plist",
           "/Users/mac-user/Downloads/Pricing.app",
           "/Applications/Pricing.app",
+          "/Users/mac-user/Library/Mobile Documents/com~apple~CloudDocs/pricing.pdf",
+          "/Users/mac-user/Library/Mobile Documents/iCloud~com~apple~clips/Documents/pricing.plist",
         ],
         { root: "/Users/mac-user", skips },
       ),
@@ -31,6 +34,7 @@ describe("steppedOverMatches", () => {
       "/Users/mac-user/Documents/pricing.md",
       "/Users/mac-user/Documents/Notes/pricing-notes.md",
       "/Users/mac-user/Downloads/Pricing.app",
+      "/Users/mac-user/Library/Mobile Documents/com~apple~CloudDocs/pricing.pdf",
     ]);
   });
 

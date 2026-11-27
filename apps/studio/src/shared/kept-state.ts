@@ -174,7 +174,11 @@ export function unlistedTabGroups(
     ) {
       return [];
     }
-    const sides = TabGroupMemberSchema.safeParse(member).data?.sides;
+    // Only the tabs' count is read, so a member whose tabs this build cannot
+    // read (a newer build's) still counts its tabs and stays.
+    const sides = z
+      .object({ sides: z.array(z.object({ tabs: z.array(z.unknown()) })) })
+      .safeParse(member).data?.sides;
     const hasTabs = sides?.some((side) => side.tabs.length > 0) === true;
     return listed.has(group) && hasTabs ? [] : [key];
   });

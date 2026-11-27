@@ -69,6 +69,18 @@ Scrolling all the way back costs more in all on slow cores, since every page sti
 
 Both builds: no step in the probe's walk down to the end and back (587, 407 and 1,164 steps at 1x, 0.75x and 1.5x) left the row in the middle of the view off where the step put it, and the debug page's trace counted no unasked move while either reply streamed. Wheeling to the top took 13 nudges down before (each page loaded at a scroll position of 0 pushed the reader down by its height, and the loader stayed in view) and none after. Scrolling a long way back now commits more often (each turn coming near is drawn, each going far is boxed), with smaller commits and no long frame while stepping.
 
+With room for the turns not loaded yet (`OlderTurns`), on a fresh seed of the fixture, before is the build with boxes alone:
+
+| Measure | Before | After |
+| --- | --- | --- |
+| Column at opening, against every turn in (169,602 px) | 10,806 px | 158,076 px |
+| Column length changes wheeling to the top | 25, 158,804 px in all, at most 11,430 | 25, 12,618 px in all, at most 10,813 |
+| Frames the scrollbar thumb moved down while wheeling up | 14 | 0 |
+| Scrollbar dragged to the very top | after 60 s, 2 pages in, 11,388 px under the top | after 2.2 s, every page in, on the first turn at the top |
+| Efficiency cores, wheeled to the top: long frames | 587, 158.9 s (57.5 s blocking), worst 26.3 s | 578, 121.4 s (25.2 s blocking), worst 2.8 s |
+
+The column changes about as often as before, since each page still lands and the room is taken again from more turns, but by a twelfth as much, and no step of the walks at 1x, 0.75x and 1.5x missed, nor did anything move unasked while a reply streamed. The drag is the probe's stand-in for a thumb (a press on the scroller, then the position stepped to 0 over ten frames), since synthesized drags do not reach the overlay scrollbar of a window off screen.
+
 ### What was taken from where
 
 - **TanStack Virtual** (`virtual-core`): heights from the `ResizeObserver` entry's box sizes, never a rect, and a size cache that outlives the row (here the row never unmounts, so its height stays on it). Not taken: its own scroll corrections, which the browser's anchoring does here.
@@ -83,7 +95,8 @@ Both builds: no step in the probe's walk down to the end and back (587, 407 and 
 - **The band has two edges.** Drawn within two viewport heights, a box only past three: one edge would box and draw a row at the edge on every small scroll.
 - **The box is a child of the row.** The row keeps its own style and holds one empty `div` as tall as its content was; Chrome stops anchoring for a layout in which the anchor node's own style changed, and a jump to a box landed 21 px off when the box was the row's own height.
 - **A jump to a box needs no correction from the owner.** `scrollToMessage` lands on the row, the row draws as it comes near, and anchoring keeps it where it landed while the rows above draw at their new heights.
-- **The owner keeps the place at the very top.** Chrome anchors nothing at a scroll position of 0, so a page of older turns loading there pushed the reader down by its height. The owner notes the first message row and its top while the view is at the very top, and puts that row back where it was once rows are added above it, the loader going with the last page included (`keepPlaceAtTop`).
+- **The owner keeps the place at the very top.** Chrome anchors nothing at a scroll position of 0, so a page of older turns loading there pushed the reader down by its height. The owner notes the first message row and its top while the view is at the very top, and puts that row back where it was once rows are added above it, the loader going with the last page included (`keepPlaceAtTop`). It notes the row only while the row is in view: with the room for older turns filling the view, the position stays at 0 as pages land, so a drag of the scrollbar to the very top ends on the first turn.
+- **The turns not loaded yet have room of their own.** Not in the plan: a long chat opened with a scrollbar for its last 20 turns, which grew by a page at a time as the reader went up, and a fast scroll up hit the top and bounced. The feed counts the session's own turns above what it sends (`olderTurns`, from the messages that open a turn, so a task's turns from its chat count none), and `OlderTurns` above the first turn held is that count times the average height of the turns held, taken again only when the count changes (a send leaves it as it was). It is the only spacer: no turn is measured offscreen or guessed at, and the room carries `overflow-anchor: none`, so the browser anchors on a turn row and a page landing in the room's place moves nothing on screen. It asks for the next page as it comes within 600 px of the view, and again after each page while it is still near, so a drag to the top keeps loading until real turns fill the view; a page that fails or adds nothing is not asked again until the room comes near anew.
 - **The reader's open controls are lifted** (`KeptOpen`, by turn): the Worked row, activity and step rows, a long bubble and a long code block (by its language and first line, which stay put while it streams), and a code block's line wrapping, show as they were left when a turn is drawn again.
 - **The log reads out only the turns kept drawn.** The column is `role="log"`; rows of any other turn carry `aria-live="off"`, so a turn drawn again, or a page of older ones, is not read out as news.
 - **An open menu holds a turn; an open disclosure does not.** Only a popup's button (`aria-haspopup` with `aria-expanded="true"`) keeps its turn drawn.

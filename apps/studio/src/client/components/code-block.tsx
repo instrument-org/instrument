@@ -3,7 +3,7 @@ import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft
 import { ArrowsHorizontalIcon } from "@phosphor-icons/react/ArrowsHorizontal";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
-import { createContext, use, useDeferredValue } from "react";
+import { createContext, use, useDeferredValue, useState } from "react";
 
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { getLanguageDisplayName } from "../lib/file-extension-to-language";
@@ -214,8 +214,15 @@ export const MarkdownCodeBlock = ({
   // Named by its first line, which is whole by the time there are lines
   // enough to fold, and stays put while the rest is still arriving.
   const name = `${language ?? ""}:${code.split("\n", 1)[0] ?? ""}`;
-  const [wrapChosen, setWrapLines] = useKeptOpen(`wrap:${name}`);
-  const wrapLines = wrapChosen ?? use(CodeBlockWrapContext);
+  const [wrapKept, keepWrap] = useKeptOpen(`wrap:${name}`);
+  // Its own too, for while the first line is still arriving and the name
+  // with it.
+  const [wrapChosen, setWrapChosen] = useState<boolean>();
+  const wrapLines = wrapKept ?? wrapChosen ?? use(CodeBlockWrapContext);
+  const setWrapLines = (wrap: boolean) => {
+    setWrapChosen(wrap);
+    keepWrap(wrap);
+  };
   const [isExpanded = false, setIsExpanded] = useKeptOpen(`code:${name}`);
   const releaseAutoScroll = useReleaseAutoScroll();
 

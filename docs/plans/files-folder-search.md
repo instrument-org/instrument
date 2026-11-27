@@ -84,6 +84,21 @@ Two things it turned up, both fixed since:
 
 Typing was slow there: seven keystrokes took up to two minutes to show while the window matched the 18,700 names it had been sent. That run was under x64 emulation with a busy main process, so it says little about a native machine, but it is the case the AppData skip removes.
 
+## Spotlight fills in the folders macOS guards
+
+A search on a Mac also asks Spotlight for the longest word typed, naming no folder, and keeps the matches inside the folders the walk stepped over (Library and other apps' iCloud folders aside). Spotlight answers only from folders macOS lets the app read, so this shows exactly the folders the person allowed. The status bar names the folders macOS asks about that are still left out, then Allow…, which opens "Search more folders": each folder with an Allow… that lists it from the main process, when macOS shows its prompt, once.
+
+Checked with a signed preview on a fresh clone of the macOS test VM, the same `pricing-*` files planted, and the VM's screen looked at after each step:
+
+| Step | Search for "pricing" from the home folder | macOS dialog |
+| --- | --- | --- |
+| Nothing answered yet | the 3 in `Projects`; Desktop, Documents and Downloads named as not searched | none |
+| Allow… on Documents, allowed | 6: the 3 in Documents, nested ones included, join; Documents leaves the list | Documents', once, from Allow… |
+| Allow… on Desktop, refused | still 6; Desktop stays listed with Open System Settings | Desktop's, once |
+| The search typed again | 6 | none |
+
+Measured from a terminal on a Mac signed in to iCloud, the same filter over Spotlight's whole-Mac answers kept 805 of 1,242 matches for "plan", nearly all in iCloud Drive, and took 0.3 to 0.4 seconds; a one-letter word ran past the 3-second limit and kept the first 200.
+
 ## Measure before calling it done
 
 - The same walk on Linux: check what its noise folders are (`.cache` is already left out as a dot folder) and that nothing raises a prompt.

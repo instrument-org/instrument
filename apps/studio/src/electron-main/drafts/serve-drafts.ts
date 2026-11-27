@@ -1,3 +1,4 @@
+import { isOpBatch } from "@/shared/op-batch";
 import {
   getWorkspaceFolder,
   workspaceWindowDir,
@@ -5,7 +6,6 @@ import {
 import {
   DRAFTS_CHANNEL,
   type DraftOp,
-  type DraftOpBatch,
   type DraftsSnapshot,
 } from "@/shared/drafts";
 import { whenWorkspaceHasPhone } from "@instrument-org/workspace/electron";
@@ -156,7 +156,7 @@ export function serveDrafts() {
     event.returnValue = STORE ? shown(STORE.snapshot()) : NO_DRAFTS;
   });
   ipcMain.handle(DRAFTS_CHANNEL.apply, (_event, batch: unknown) => {
-    if (!isBatch(batch)) {
+    if (!isOpBatch<DraftOp>(batch)) {
       throw new Error("Not a batch of draft changes");
     }
     const store = getStore();
@@ -168,23 +168,5 @@ export function serveDrafts() {
   });
   ipcMain.handle(DRAFTS_CHANNEL.trash, (_event, request: unknown) =>
     getStore().trash(request),
-  );
-}
-
-/**
- * Whether a window sent a batch at all. The ops in it are the renderer's own,
- * built by the same module main applies them with, so only the envelope is
- * checked here.
- */
-function isBatch(value: unknown): value is DraftOpBatch {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "client" in value &&
-    typeof value.client === "string" &&
-    "seq" in value &&
-    typeof value.seq === "number" &&
-    "ops" in value &&
-    Array.isArray(value.ops)
   );
 }

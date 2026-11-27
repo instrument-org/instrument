@@ -1,3 +1,4 @@
+import { type AckedSnapshot, type OpBatch } from "./op-batch";
 import { omit } from "radashi";
 
 /**
@@ -118,9 +119,7 @@ export type BookmarkOp =
   | { id: string; type: "setUrl"; url: string };
 
 /** Main's bookmarks as a window receives them, with the last batch it applied from each window. */
-export interface BookmarksSnapshot extends Bookmarks {
-  /** By window: the `seq` of the last batch main applied from it. */
-  acks: Record<string, number>;
+export interface BookmarksSnapshot extends Bookmarks, AckedSnapshot {
   /**
    * Set while main has not yet read the bookmarks, when `bookmarks` and
    * `folders` say nothing of what is kept: before the workspace opens, and
@@ -129,14 +128,8 @@ export interface BookmarksSnapshot extends Bookmarks {
   loading?: true;
 }
 
-/** A batch of ops from one window, numbered so main can say which it has applied. */
-export interface BookmarkOpBatch {
-  /** The window sending, by the id it made for itself as it loaded. */
-  client: string;
-  ops: BookmarkOp[];
-  /** Counts up per window; the batch is applied once an ack reaches it. */
-  seq: number;
-}
+/** A batch of bookmark ops from one window (`OpBatch`). */
+export type BookmarkOpBatch = OpBatch<BookmarkOp>;
 
 /**
  * The IPC channels between a window and main's bookmarks: `load` is the

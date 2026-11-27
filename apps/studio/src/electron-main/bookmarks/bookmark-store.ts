@@ -1,3 +1,4 @@
+import { ackBatch } from "@/shared/op-batch";
 import {
   applyBookmarkOps,
   type BookmarkOpBatch,
@@ -152,7 +153,7 @@ export function createBookmarkStore({
       await store.apply(ops);
     } finally {
       applying -= 1;
-      acks[batch.client] = Math.max(acks[batch.client] ?? 0, batch.seq);
+      ackBatch(acks, batch);
       onChange(snapshot());
     }
   }

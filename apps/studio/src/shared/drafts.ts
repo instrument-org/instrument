@@ -1,3 +1,4 @@
+import { type AckedSnapshot, type OpBatch } from "./op-batch";
 import { type ChatId } from "@instrument-org/workspace/client";
 
 /**
@@ -214,9 +215,7 @@ type OptionalField = {
 }[keyof DraftFields];
 
 /** Main's drafts as a window receives them, with the last op it applied from each window. */
-export interface DraftsSnapshot {
-  /** By window: the `seq` of the last op main applied from it. */
-  acks: Record<string, number>;
+export interface DraftsSnapshot extends AckedSnapshot {
   /** Every draft, oldest first. */
   drafts: Draft[];
   /**
@@ -227,14 +226,8 @@ export interface DraftsSnapshot {
   loading?: true;
 }
 
-/** A batch of ops from one window, numbered so main can say which it has applied. */
-export interface DraftOpBatch {
-  /** The window sending, by the id it made for itself as it loaded. */
-  client: string;
-  ops: DraftOp[];
-  /** Counts up per window; the batch's last op is applied when an ack reaches it. */
-  seq: number;
-}
+/** A batch of draft ops from one window (`OpBatch`). */
+export type DraftOpBatch = OpBatch<DraftOp>;
 
 /**
  * The IPC channels between a window and main's drafts: `load` is the

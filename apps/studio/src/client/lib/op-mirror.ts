@@ -1,3 +1,4 @@
+import { type AckedSnapshot, type OpBatch } from "@/shared/op-batch";
 import { atom } from "jotai";
 import { ulid } from "ulid";
 
@@ -15,20 +16,6 @@ import { ulid } from "ulid";
 
 /** This window, among the ones sending main ops. */
 const CLIENT = ulid();
-
-/** A batch of ops from one window, numbered so main can say which it has applied. */
-interface OpBatch<Op> {
-  /** The window sending, by the id it made for itself as it loaded. */
-  client: string;
-  ops: Op[];
-  /** Counts up per window; the batch is applied once an ack reaches it. */
-  seq: number;
-}
-
-/** Main's snapshot as a window receives it: whatever it holds, and by window the `seq` of the last batch it applied. */
-export interface AckedSnapshot {
-  acks: Record<string, number>;
-}
 
 /** What a window has heard from main and sent it. */
 export interface MirrorSync<S, Op> {

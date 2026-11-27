@@ -1,7 +1,8 @@
+import { isOpBatch } from "@/shared/op-batch";
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import {
   BOOKMARKS_CHANNEL,
-  type BookmarkOpBatch,
+  type BookmarkOp,
   type BookmarksSnapshot,
 } from "@/shared/bookmarks";
 import {
@@ -44,7 +45,7 @@ export function serveBookmarks(): void {
     event.returnValue = store?.snapshot() ?? NO_BOOKMARKS;
   });
   ipcMain.handle(BOOKMARKS_CHANNEL.apply, async (_event, batch: unknown) => {
-    if (!isBatch(batch)) {
+    if (!isOpBatch<BookmarkOp>(batch)) {
       throw new Error("Not a batch of bookmark changes");
     }
     // A window opens before the bookmarks are read, and one changed that
@@ -119,22 +120,4 @@ function tellWindows(snapshot: BookmarksSnapshot) {
       window.webContents.send(BOOKMARKS_CHANNEL.changed, snapshot);
     }
   }
-}
-
-/**
- * Whether a window sent a batch at all. The ops in it are the renderer's own,
- * built by the same module main applies them with, so only the envelope is
- * checked here.
- */
-function isBatch(value: unknown): value is BookmarkOpBatch {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "client" in value &&
-    typeof value.client === "string" &&
-    "seq" in value &&
-    typeof value.seq === "number" &&
-    "ops" in value &&
-    Array.isArray(value.ops)
-  );
 }

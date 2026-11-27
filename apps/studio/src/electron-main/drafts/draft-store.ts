@@ -1,3 +1,4 @@
+import { ackBatch } from "@/shared/op-batch";
 import {
   applyDraftOps,
   type Draft,
@@ -487,7 +488,7 @@ export function createDraftStore({
         }
       }
       persist(before);
-      acks[batch.client] = Math.max(acks[batch.client] ?? 0, batch.seq);
+      ackBatch(acks, batch);
       onChange(snapshot());
     },
 

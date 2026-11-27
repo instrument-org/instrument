@@ -75,6 +75,18 @@ vi.mock(import("../chat/chat-tabs"), async (importOriginal) => ({
   },
   tabHolders: () => Promise.resolve(holders),
 }));
+// The pages the chat's records count it as having been on.
+const visited: string[][] = [];
+vi.mock(import("../browser-state"), async (importOriginal) => {
+  const { okAsync } = await import("neverthrow");
+  return {
+    ...(await importOriginal()),
+    recordVisitedHosts: ({ urls }) => {
+      visited.push(urls);
+      return okAsync(undefined);
+    },
+  };
+});
 // The chat a tab in another group shows, and the project a group is in.
 vi.mock(import("../chat/chats"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -646,6 +658,13 @@ describe("window show, for something new", () => {
       "
     `);
     expect(asked).toEqual([]);
+  });
+
+  it("counts each page it showed as one the chat has been on", async () => {
+    visited.length = 0;
+    await run({}, "show", "https://example.com/", "/Users/me/Instrument");
+
+    expect(visited).toEqual([["https://example.com/"]]);
   });
 
   it("names the chat that asked", async () => {

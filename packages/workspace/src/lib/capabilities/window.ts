@@ -34,6 +34,7 @@ import {
 } from "../../model-text/notes/window-list-model-text";
 import { parseBrowserTargetId } from "../../types";
 import { noteBrowserAgentActivity } from "../browser-agent-activity";
+import { recordVisitedHosts } from "../browser-state";
 import { ChatStateSchema, chatStateOf } from "../chat/chat-state";
 import { listChats } from "../chat/chats";
 import { recordAsk } from "../chat/asks";
@@ -553,7 +554,7 @@ export const windowShow = defineCapability({
   render: renderOutcomes,
   async run({ group, into, targets }, ctx) {
     if (into !== undefined) {
-      return [await replace(into, targets, ctx)];
+      return noteShownPages([await replace(into, targets, ctx)], ctx);
     }
     let inGroup: LayoutSnapshot | undefined;
     if (group !== undefined) {
@@ -569,7 +570,7 @@ export const windowShow = defineCapability({
     for (const arg of targets) {
       outcomes.push(await showOne(idOf(arg), ctx, inGroup));
     }
-    return outcomes;
+    return noteShownPages(outcomes, ctx);
   },
   summary:
     "Show each to the user: a url, file, folder or app address (a chat, an app, a task, a built-in page) opens in a tab of its own, never in place of you, printing the tab's id, which `agent-browser tab` takes, and where it landed; a tab's id makes it the tab its side shows, switching the window to its group when another is on screen; a group's id switches the window to that group. With --group, what opens goes into that group and the window stays where it is.",
@@ -584,6 +585,32 @@ export const windowShow = defineCapability({
   text: (outcomes) => outcomes.map((each) => each.said).join("\n"),
   where: CHATS,
 });
+
+/**
+ * Each web page shown is one the session has been on, as a page an
+ * agent-browser command reaches is: `connect_app` puts a web app's card up
+ * only once its site was looked at, and a page shown here is read with
+ * `read`.
+ */
+async function noteShownPages(
+  outcomes: Outcome[],
+  ctx: CapabilityContext,
+): Promise<Outcome[]> {
+  const urls = outcomes
+    .filter((each) => !each.failed && /^https?:\/\//i.test(each.target))
+    .map((each) => each.target);
+  if (urls.length > 0) {
+    const noted = await recordVisitedHosts({
+      chatId: ctx.chatId,
+      sessionId: ctx.sessionId,
+      urls,
+    });
+    if (noted.isErr()) {
+      getWorkspaceConfig().captureException(noted.error);
+    }
+  }
+  return outcomes;
+}
 
 async function showOne(
   arg: string,

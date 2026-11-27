@@ -730,7 +730,8 @@ function WindowShell({
   // The side panel steps out of the way in a window too narrow for it beside
   // the group, and comes back as the window widens again. Asked as the
   // window opens and as it is resized, never as something in it moves, so
-  // the sidebar's slide never sends the panel off or back. The room is all
+  // the sidebar's slide never sends the panel off or back, nor does opening
+  // or closing a split. The room is all
   // the window has past the card's left edge, which the panel's own slide
   // does not move, so a resize during it reads the same.
   const sidePanelRow = rowWidth + (sidePanel.isOpen ? sidePanelWidth : 0);
@@ -742,7 +743,9 @@ function WindowShell({
         window.innerWidth -
         rowElement.getBoundingClientRect().left -
         Number.parseFloat(getComputedStyle(rowElement).marginRight);
-      setSidePanelRoom(sidePanelRoomOf(room, sidePanelWidth));
+      const sides =
+        groupUp === undefined ? 1 : windowTabs.layoutOf(groupUp).sides.length;
+      setSidePanelRoom(sidePanelRoomOf(room, sidePanelWidth, sides));
     }
   });
   useEffect(() => {

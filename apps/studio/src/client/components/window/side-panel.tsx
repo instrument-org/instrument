@@ -37,7 +37,8 @@ import {
 import { noteTypedPage } from "@/client/hooks/use-browser-history";
 import { useIsScrollable } from "@/client/hooks/use-is-scrollable";
 import { useWindowPlaces } from "@/client/hooks/use-open-target";
-import { cn, isMacOS } from "@/client/lib/utils";
+import { cn, isMacOS, osConventions } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import {
   type BarItem,
   type BookmarkFolder,
@@ -58,7 +59,10 @@ import { BookmarksSimpleIcon } from "@phosphor-icons/react/BookmarksSimple";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
+import { CloudIcon } from "@phosphor-icons/react/Cloud";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
+import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
+import { HouseIcon } from "@phosphor-icons/react/House";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -78,6 +82,7 @@ import { createPortal } from "react-dom";
 import { AddressMark } from "./app-chip";
 import { AppIcon } from "./app-icon";
 import { FolderEditor } from "./bookmark-editor";
+import { FolderMark } from "./folder-mark";
 import { BookmarkNameDialog, FolderContextMenu } from "./bookmark-folders";
 import {
   type OpenAddress,
@@ -90,7 +95,7 @@ import {
 } from "./bookmark-menu";
 import { bookmarkName } from "./bookmark-edits";
 import { chatListOptions } from "./chat-list-query";
-import { type RowDensity, rowDensityAtom } from "./chat-list-view";
+import { type RowDensity, sidePanelRowDensityAtom } from "./chat-list-view";
 import { RecentChatRow } from "./chats-mark";
 import {
   byLastUserMessage,
@@ -152,14 +157,25 @@ function sidePanelBounds(width: number): RailBounds {
   };
 }
 
+/** The least a group with one side keeps beside the side panel before the panel steps away. */
+const ONE_SIDE_BESIDE_PANEL = 640;
+/** The least each side of a split keeps beside the side panel before the panel steps away. */
+const SPLIT_SIDE_BESIDE_PANEL = 420;
+
 /**
  * Whether a window whose group and panel share `width` has room for the
- * panel at `panelWidth` beside the group at its narrowest. The share is the
- * same with the panel out of the way, so the answer holds once the panel
- * goes or comes back.
+ * panel at `panelWidth` beside the group's `sides`, each at a width that
+ * still reads well. The share is the same with the panel out of the way, so
+ * the answer holds once the panel goes or comes back.
  */
-export function sidePanelRoomOf(width: number, panelWidth: number): boolean {
-  return width >= GROUP_WIDTH_MIN + panelWidth;
+export function sidePanelRoomOf(
+  width: number,
+  panelWidth: number,
+  sides: number,
+): boolean {
+  const group =
+    sides > 1 ? sides * SPLIT_SIDE_BESIDE_PANEL : ONE_SIDE_BESIDE_PANEL;
+  return width >= group + panelWidth;
 }
 
 /**
@@ -256,7 +272,7 @@ export function SidePanelHere({
   );
 }
 
-type View = "bookmarks" | "chats" | "home";
+type View = "apps" | "bookmarks" | "chats" | "files" | "home";
 
 /**
  * Apps, Chats, Files and Bookmarks, each opening in the tab as a bookmark
@@ -342,21 +358,24 @@ function SidePanel({
   // Gray and a little faint until the pointer or the keyboard is on it, or
   // a menu of its own is open, so its icons draw no eye away from the page.
   return (
-    <div className="flex min-h-0 flex-1 flex-col opacity-85 grayscale transition-[filter,opacity] duration-200 hover:opacity-100 hover:grayscale-0 has-focus-visible:opacity-100 has-focus-visible:grayscale-0 has-data-[state=open]:opacity-100 has-data-[state=open]:grayscale-0">
+    <div className="@container flex min-h-0 flex-1 flex-col opacity-85 grayscale transition-[filter,opacity] duration-200 hover:opacity-100 hover:grayscale-0 has-focus-visible:opacity-100 has-focus-visible:grayscale-0 has-data-[state=open]:opacity-100 has-data-[state=open]:grayscale-0">
       <PanelHead
         onClose={() => {
           setOpen(false);
         }}
         shiftRef={headShiftRef}
-        {...(view !== "home" && {
-          onBack: home,
-          title: view === "chats" ? "Chats" : "Bookmarks",
-        })}
+        {...(view !== "home" && { onBack: home, title: VIEW_TITLES[view] })}
       />
       <div className="flex min-h-0 flex-1 flex-col" ref={listShiftRef}>
         {view === "home" && (
           <PanelScroll>
-            <AppsSection open={open} openScreen={openScreen} />
+            <AppsSection
+              onAll={() => {
+                setView("apps");
+              }}
+              open={open}
+              openScreen={openScreen}
+            />
             <ChatsSection
               count={RECENT_CHATS_SHOWN}
               group={group}
@@ -365,7 +384,13 @@ function SidePanel({
                 setView("chats");
               }}
             />
-            <FilesSection group={group} open={openScreen} />
+            <FilesSection
+              group={group}
+              onAll={() => {
+                setView("files");
+              }}
+              open={openScreen}
+            />
             <BookmarksSection
               onAll={() => {
                 setView("bookmarks");
@@ -374,7 +399,9 @@ function SidePanel({
             />
           </PanelScroll>
         )}
+        {view === "apps" && <AllApps open={open} openScreen={openScreen} />}
         {view === "chats" && <AllChats group={group} open={openScreen} />}
+        {view === "files" && <ComputerPlaces open={openScreen} />}
         {view === "bookmarks" && (
           <PanelScroll>
             <BookmarkTree isBarOpenAtFirst open={open} />
@@ -507,8 +534,74 @@ function MoreRow({
   );
 }
 
-/** The person's own apps as a row of icons, then one for the Apps page to add another; a pick goes to its site where it is signed in, else its page in Instrument. */
+/** The person's own apps as a row of icons; a pick goes to its site where it is signed in, else its page in Instrument. */
 function AppsSection({
+  onAll,
+  open,
+  openScreen,
+}: {
+  onAll: () => void;
+  open: OpenAddress;
+  openScreen: OpenAddress;
+}) {
+  const apps = useOwnApps().toSorted((a, b) => a.name.localeCompare(b.name));
+  if (apps.length === 0) {
+    return (
+      <>
+        <Heading opens={{ onClick: onAll }}>Apps</Heading>
+        <AddAppRow openScreen={openScreen} />
+      </>
+    );
+  }
+  return (
+    <>
+      <Heading opens={{ onClick: onAll }}>Apps</Heading>
+      <div className="flex flex-wrap gap-0.5 px-0.5">
+        {apps.map((app) => (
+          <button
+            aria-label={app.name}
+            className="grid size-8 cursor-default place-items-center rounded-lg hover:bg-foreground/6 data-[state=open]:bg-foreground/6"
+            key={app.slug}
+            {...appClicks(app, open, openScreen)}
+            title={app.name}
+            type="button"
+          >
+            <AppIcon
+              className="size-5"
+              icon={app.icon}
+              name={app.name}
+              site={app.site}
+              size="sm"
+            />
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+type OwnApp = ReturnType<typeof useOwnApps>[number];
+
+/** What a press on an app does: its site where it is signed in, else its page in Instrument, and a drag takes it as a shortcut. */
+function appClicks(app: OwnApp, open: OpenAddress, openScreen: OpenAddress) {
+  const page = `/apps/${app.slug}`;
+  return {
+    ...(app.opensAt === undefined
+      ? bookmarkClicks(page, openScreen)
+      : bookmarkClicks(app.opensAt, open)),
+    onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
+      pressShortcut(
+        event,
+        app.opensAt === undefined
+          ? { href: page, title: app.name }
+          : { title: app.name, url: app.opensAt },
+      );
+    },
+  };
+}
+
+/** Every app of the person's by name, then the way to the Apps page, where another is added. */
+function AllApps({
   open,
   openScreen,
 }: {
@@ -517,51 +610,40 @@ function AppsSection({
 }) {
   const apps = useOwnApps().toSorted((a, b) => a.name.localeCompare(b.name));
   return (
-    <>
-      <Heading opens={bookmarkClicks(APPS_HREF, openScreen)}>Apps</Heading>
-      <div className="flex flex-wrap gap-0.5 px-0.5">
-        {apps.map((app) => {
-          const page = `/apps/${app.slug}`;
-          return (
-            <button
-              aria-label={app.name}
-              className="grid size-8 cursor-default place-items-center rounded-lg hover:bg-foreground/6 data-[state=open]:bg-foreground/6"
-              key={app.slug}
-              {...(app.opensAt === undefined
-                ? bookmarkClicks(page, openScreen)
-                : bookmarkClicks(app.opensAt, open))}
-              onPointerDown={(event) => {
-                pressShortcut(
-                  event,
-                  app.opensAt === undefined
-                    ? { href: page, title: app.name }
-                    : { title: app.name, url: app.opensAt },
-                );
-              }}
-              title={app.name}
-              type="button"
-            >
-              <AppIcon
-                className="size-5"
-                icon={app.icon}
-                name={app.name}
-                site={app.site}
-                size="sm"
-              />
-            </button>
-          );
-        })}
+    <PanelScroll>
+      {apps.map((app) => (
         <button
-          aria-label="Add an app"
-          className="grid size-8 cursor-default place-items-center rounded-lg text-muted-foreground hover:bg-foreground/6 hover:text-foreground"
-          title="Add an app"
+          className={ROW}
+          key={app.slug}
+          {...appClicks(app, open, openScreen)}
           type="button"
-          {...bookmarkClicks(APPS_HREF, openScreen)}
         >
-          <PlusIcon className="size-4" />
+          <AppIcon
+            className="size-4 shrink-0"
+            icon={app.icon}
+            name={app.name}
+            site={app.site}
+            size="sm"
+          />
+          <span className="min-w-0 truncate">{app.name}</span>
         </button>
-      </div>
-    </>
+      ))}
+      <AddAppRow openScreen={openScreen} />
+    </PanelScroll>
+  );
+}
+
+/** Opens the Apps page, where a new app is found and connected. */
+function AddAppRow({ openScreen }: { openScreen: OpenAddress }) {
+  return (
+    <button
+      className={cn(ROW, "text-muted-foreground")}
+      {...bookmarkClicks(APPS_HREF, openScreen)}
+      type="button"
+    >
+      <PlusIcon className="size-4 shrink-0" />
+      Add an app
+    </button>
   );
 }
 
@@ -616,7 +698,7 @@ function ChatRows({
               title: chat.title,
             });
           }}
-          timeLabel={shortActivityLabel}
+          shortTime={shortActivityLabel}
         />
       ))}
       {deleting && (
@@ -666,10 +748,18 @@ function ChatsSection({
   );
 }
 
+/** What each list the panel opens over the rest is called in its head. */
+const VIEW_TITLES = {
+  apps: "Apps",
+  bookmarks: "Bookmarks",
+  chats: "Chats",
+  files: osConventions().computer,
+} satisfies Record<Exclude<View, "home">, string>;
+
 /** Every chat not archived, newest first, narrowed by what is typed above them. */
 function AllChats({ group, open }: { group: string; open: OpenAddress }) {
   const [search, setSearch] = useState("");
-  const density = useAtomValue(rowDensityAtom);
+  const density = useAtomValue(sidePanelRowDensityAtom);
   const chats = useListedChats().filter((chat) =>
     hasWords(search, [chat.title]),
   );
@@ -689,7 +779,11 @@ function AllChats({ group, open }: { group: string; open: OpenAddress }) {
             value={search}
           />
         </label>
-        <ViewButton className="size-8" hasDayHeadings={false} />
+        <ViewButton
+          className="size-8"
+          densityAtom={sidePanelRowDensityAtom}
+          hasDayHeadings={false}
+        />
       </div>
       <PanelScroll>
         {chats.length === 0 ? (
@@ -705,7 +799,15 @@ function AllChats({ group, open }: { group: string; open: OpenAddress }) {
 }
 
 /** The places of this group's Files sidebar, its project's folder first where it has one. */
-function FilesSection({ group, open }: { group: string; open: OpenAddress }) {
+function FilesSection({
+  group,
+  onAll,
+  open,
+}: {
+  group: string;
+  onAll: () => void;
+  open: OpenAddress;
+}) {
   const { places, project } = useFilesPlaces(group);
   const shown = project ? [project, ...places] : places;
   if (shown.length === 0) {
@@ -713,11 +815,70 @@ function FilesSection({ group, open }: { group: string; open: OpenAddress }) {
   }
   return (
     <>
-      <Heading>Files</Heading>
+      <Heading opens={{ onClick: onAll }}>Files</Heading>
       {shown.map((place) => (
         <PlaceRow key={place.path} open={open} place={place} />
       ))}
     </>
+  );
+}
+
+/**
+ * The computer from the top, as Files' This Mac has it: the person's own
+ * folders, the disks, and the folders cloud services keep in step.
+ */
+function ComputerPlaces({ open }: { open: OpenAddress }) {
+  const places = useQuery(
+    rpcClient.workspace.computer.places.queryOptions(),
+  ).data;
+  const drives = useQuery(rpcClient.workspace.computer.drives.queryOptions());
+  const home = window.api.homeDir;
+  // A folder wears the mark the Files places above wear, the home its house.
+  const rows = (
+    list: { name: string; path: string }[],
+    icon: ReactNode | undefined,
+  ) =>
+    list.map((each) => (
+      <PlaceRow
+        key={each.path}
+        open={open}
+        place={{
+          icon:
+            each.path === home ? (
+              <HouseIcon className="size-4" />
+            ) : (
+              (icon ?? <FolderMark path={each.path} size="large" />)
+            ),
+          name: each.name,
+          path: each.path,
+        }}
+      />
+    ));
+  return (
+    <PanelScroll>
+      <Heading>Folders</Heading>
+      {rows(
+        (places?.favorites ?? []).filter(
+          (place) => place.kind === "home" || place.kind === "folder",
+        ),
+        undefined,
+      )}
+      {drives.data && drives.data.length > 0 && (
+        <>
+          <Heading>Drives</Heading>
+          {rows(drives.data, <HardDriveIcon className="size-4" />)}
+        </>
+      )}
+      {places?.volumes.some((volume) => volume.kind === "cloud") && (
+        <>
+          <Heading>Cloud storage</Heading>
+          {rows(
+            places.volumes.filter((volume) => volume.kind === "cloud"),
+            <CloudIcon className="size-4" />,
+          )}
+        </>
+      )}
+    </PanelScroll>
   );
 }
 
@@ -768,7 +929,12 @@ function PlaceRow({ open, place }: { open: OpenAddress; place: Place }) {
   );
 }
 
-/** The bookmarks bar as a folder, then the bookmarks kept off the bar, the first few. */
+/**
+ * The bookmarks bar as a folder, then the bookmarks kept off the bar, the
+ * first few, with All bookmarks after them while more are kept. What is held
+ * over All bookmarks, or over the heading while there is no such row, is
+ * filed at the end of All Bookmarks.
+ */
 function BookmarksSection({
   onAll,
   open,
@@ -777,11 +943,21 @@ function BookmarksSection({
   open: OpenAddress;
 }) {
   const state = useAtomValue(bookmarksStateAtom);
-  const isEmpty =
-    barItems(state).length === 0 && rootItems(state, OTHER_ROOT).length === 0;
+  const others = rootItems(state, OTHER_ROOT).length;
+  const isEmpty = barItems(state).length === 0 && others === 0;
+  const hasMore = others > BOOKMARKS_SHOWN;
+  const heading = <Heading opens={{ onClick: onAll }}>Bookmarks</Heading>;
   return (
     <>
-      <Heading opens={{ onClick: onAll }}>Bookmarks</Heading>
+      {isEmpty || hasMore ? (
+        heading
+      ) : (
+        <AllBookmarksDrop className="not-first:mt-2">
+          {(className) => (
+            <div className={cn("rounded-lg", className)}>{heading}</div>
+          )}
+        </AllBookmarksDrop>
+      )}
       {isEmpty ? (
         <AllBookmarksDrop>
           {(className) => (
@@ -798,15 +974,17 @@ function BookmarksSection({
       ) : (
         <>
           <BookmarkTree open={open} othersShown={BOOKMARKS_SHOWN} />
-          <AllBookmarksDrop>
-            {(className) => (
-              <MoreRow
-                className={className}
-                label="All bookmarks"
-                onClick={onAll}
-              />
-            )}
-          </AllBookmarksDrop>
+          {hasMore && (
+            <AllBookmarksDrop>
+              {(className) => (
+                <MoreRow
+                  className={className}
+                  label="All bookmarks"
+                  onClick={onAll}
+                />
+              )}
+            </AllBookmarksDrop>
+          )}
         </>
       )}
     </>
@@ -818,19 +996,21 @@ const ALL_BOOKMARKS_ROW = ":all";
 
 /**
  * What files what is held at the end of All Bookmarks (`useAllBookmarksTarget`):
- * the All bookmarks row, or the empty list's line. `children` draws it, given
- * the ring while a drop would land there.
+ * the All bookmarks row, the section's heading, or the empty list's line.
+ * `children` draws it, given the ring while a drop would land there.
  */
 function AllBookmarksDrop({
   children,
+  className,
 }: {
   children: (className: string | undefined) => ReactNode;
+  className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useAllBookmarksTarget({ area: () => ref.current, id: ALL_BOOKMARKS_ROW });
   const drop = useOutlineDrop();
   return (
-    <div ref={ref}>
+    <div className={className} ref={ref}>
       {children(drop.row?.id === ALL_BOOKMARKS_ROW ? DROP_TONE : undefined)}
     </div>
   );

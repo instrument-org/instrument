@@ -278,13 +278,16 @@ const DENSITIES: {
  */
 export function ViewButton({
   className,
+  densityAtom = rowDensityAtom,
   hasDayHeadings = true,
 }: {
   className?: string;
+  /** Where the rows it sets are kept: the chat list's by default. */
+  densityAtom?: typeof rowDensityAtom;
   /** Whether the list it sets puts a heading over each day when asked. */
   hasDayHeadings?: boolean;
 }) {
-  const [density, setDensity] = useAtom(rowDensityAtom);
+  const [density, setDensity] = useAtom(densityAtom);
   const [groupByDay, setGroupByDay] = useAtom(groupByDayAtom);
   const Current =
     DENSITIES.find((entry) => entry.id === density)?.icon ?? ThreeLinesIcon;

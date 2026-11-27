@@ -10,6 +10,14 @@ export type RowDensity = "one" | "three" | "two";
 
 const DENSITIES: readonly RowDensity[] = ["one", "three", "two"];
 
+/** How the side panel's All chats shows its rows, apart from the list's: the title alone until changed. */
+export const sidePanelRowDensityAtom = keptAtom<RowDensity>(
+  "view",
+  "side-panel-chat-row-density.v1",
+  "one",
+  (value, initial) => DENSITIES.find((density) => density === value) ?? initial,
+);
+
 /** How the person likes the list's rows, the same in every window. */
 export const rowDensityAtom = keptAtom<RowDensity>(
   "view",

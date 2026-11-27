@@ -109,7 +109,7 @@ export function ChatRow({
   onSetProject,
   search = "",
   projects,
-  timeLabel = activityLabel,
+  shortTime,
 }: {
   /** The chat's actions, answered by the list for every row through one set of mutations. */
   actions: RowAction[];
@@ -135,8 +135,11 @@ export function ChatRow({
   mark?: ReactNode;
   /** The moment the row's time is read against. */
   now: Date;
-  /** How the row's time reads, given when the user last messaged the chat and `now`. */
-  timeLabel?: (date: Date, now: Date) => string;
+  /**
+   * The row's time as a container narrower than `@xs` shows it, given when
+   * the user last messaged the chat and `now`; past it, the full time.
+   */
+  shortTime?: (date: Date, now: Date) => string;
   /** Asks before the chat goes to the trash, through the caller's dialog. */
   onDelete: () => void;
   /** Opens the new-project dialog for this chat, with the name typed in the picker when anything was. */
@@ -273,7 +276,18 @@ export function ChatRow({
       )}
       title={formatAbsoluteTime(new Date(chat.lastUserMessageAt))}
     >
-      {timeLabel(new Date(chat.lastUserMessageAt), now)}
+      {shortTime ? (
+        <>
+          <span className="@xs:hidden">
+            {shortTime(new Date(chat.lastUserMessageAt), now)}
+          </span>
+          <span className="hidden @xs:inline">
+            {activityLabel(new Date(chat.lastUserMessageAt), now)}
+          </span>
+        </>
+      ) : (
+        activityLabel(new Date(chat.lastUserMessageAt), now)
+      )}
     </span>
   );
   // A starred chat's star, past its time in the row's corner and a mark

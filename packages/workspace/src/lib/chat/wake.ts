@@ -598,14 +598,23 @@ async function hasConversation(chatId: ChatId): Promise<boolean> {
  * and that the person's answer wakes the task, so the chat need not.
  */
 function cardNeed(card: Ask): string {
+  const waits =
+    card.kind === "sign-in"
+      ? "waiting for the person"
+      : "waiting for the person's answer";
+  return `${cardNamed(card)}, on the card in this chat ${waits}, which wakes it`;
+}
+
+/** A card's kind and what it names, in the chat's spelling of a folder. */
+export function cardNamed(card: Ask): string {
   if (card.kind === "question") {
-    return `question: ${card.question}, on the card in this chat waiting for the person's answer, which wakes it`;
+    return `question: ${card.question}`;
   }
   if (card.kind === "sign-in") {
-    return `sign-in: ${card.apps.map((app) => app.name).join(", ")}, on the card in this chat waiting for the person, which wakes it`;
+    return `sign-in: ${card.apps.map((app) => app.name).join(", ")}`;
   }
   const what = card.kind === "folder" ? shellPath(card.target) : card.target;
-  return `${card.kind}: ${what}, on the card in this chat waiting for the person's answer, which wakes it`;
+  return `${card.kind}: ${what}`;
 }
 
 /**

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { openAsksOf } from "../../chat/open-asks";
+import { cardNamed } from "../../chat/wake";
 import { recordHandOff } from "../../shell-commands/task-hand-off";
 import { defineCapability } from "../define";
 import { requireChild } from "./children";
@@ -19,6 +21,8 @@ export const taskSend = defineCapability({
   }),
   name: "task.send",
   output: z.object({
+    /** The cards an idle task's turn ended on that are still up, which an answer wakes it from again. */
+    cards: z.array(z.string()),
     id: z.string(),
     /** Whether it was working when the message reached it. */
     running: z.boolean(),
@@ -40,7 +44,10 @@ export const taskSend = defineCapability({
       task,
     });
     recordHandOff({ kind: "sent", messageId: sent.id, sessionId: task.id });
-    return { id: task.handle, now, running };
+    const cards = running
+      ? []
+      : (await openAsksOf(task.chatId, task.id)).map(cardNamed);
+    return { cards, id: task.handle, now, running };
   },
   summary:
     "Deliver a message into a task: it runs now if idle; if busy, the task hears it at its next step. Follow-ups, corrections, answers to its questions.",
@@ -53,11 +60,11 @@ export const taskSend = defineCapability({
       words: ["task", "send"],
     },
   },
-  text: ({ id, now, running }) =>
+  text: ({ cards, id, now, running }) =>
     running
       ? now
         ? `Sent to ${id}. Its step in flight was stopped, and it takes this up as its next turn; you will be told when that turn finishes.`
         : `Sent to ${id}. It is busy and will hear this at its next step; you will be told when its turn finishes. If its latest step has run for minutes without a tool call, \`send --now\` interrupts it.`
-      : `Sent to ${id}. It is running now; you will be told when it finishes.`,
+      : `Sent to ${id}. It is running now; you will be told when it finishes.${cards.length > 0 ? ` Its card${cards.length === 1 ? " is" : "s are"} still up for the person (${cards.join("; ")}), and their answer wakes it again.` : ""}`,
   where: TASKS_ARE_THE_CHATS,
 });

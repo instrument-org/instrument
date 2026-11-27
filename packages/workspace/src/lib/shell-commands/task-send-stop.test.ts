@@ -255,6 +255,21 @@ describe("task send", () => {
       "
     `);
   });
+
+  // A send leaves the card up, so the person's answer wakes the task again.
+  it("names the card an idle task is still waiting on", async () => {
+    working.value = () => false;
+    await recordAsk(
+      { chatId: CHAT_ID, sessionId: CHILD_ID },
+      "folder",
+      "/Users/me/Documents/Pantry",
+    );
+    const result = await send([]);
+    expect(result.stdout.replaceAll("t1", "<id>")).toMatchInlineSnapshot(`
+      "Sent to <id>. It is running now; you will be told when it finishes. Its card is still up for the person (folder: /Users/me/Documents/Pantry), and their answer wakes it again.
+      "
+    `);
+  });
 });
 
 describe("task stop", () => {

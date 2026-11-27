@@ -1,5 +1,5 @@
 import { renderWithProviders } from "@/tests/render";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppsHome, CatalogTile } from "./apps-home";
@@ -226,9 +226,15 @@ describe("AppsHome from this browser", () => {
         type: "mcp",
       },
     ];
-    renderWithProviders(<AppsHome onOpenApp={vi.fn()} />);
+    const { queryClient } = renderWithProviders(
+      <AppsHome onOpenApp={vi.fn()} />,
+    );
 
-    await screen.findByText("Your apps");
+    await waitFor(() => {
+      expect(queryClient.getQueryState(["fromBrowser"])?.status).toBe(
+        "success",
+      );
+    });
     expect(screen.queryByText("From this browser")).toBeNull();
   });
 });

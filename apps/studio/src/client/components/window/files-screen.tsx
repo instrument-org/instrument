@@ -86,6 +86,7 @@ import { useGroupTab } from "./group-tab";
 import { type SettledStep } from "./files-step";
 import { scrollOpenFileOnSpace } from "./scroll-open-file";
 import { useFilesStep } from "./use-files-step";
+import { useUnmarkedPage } from "./use-unmarked-page";
 import { folderOf, relativeHostPath, segmentsOf } from "./host-path";
 import {
   useHostedPage,
@@ -176,7 +177,18 @@ export function FilesScreen({
   // Where the tab stands is the address's alone; every change to it goes
   // through `go`.
   const { arrivals, go, step: here } = useFilesStep(routed);
-  const { file, page, path, query, root, select, tree, version, view } = here;
+  const {
+    file,
+    fromLink,
+    page,
+    path,
+    query,
+    root,
+    select,
+    tree,
+    version,
+    view,
+  } = here;
   const source = here.source ?? false;
   const {
     openScreen,
@@ -560,8 +572,30 @@ export function FilesScreen({
   // tab shows in its place (`NotFound`) until it is back.
   const [missing, setMissing] = useState<string>();
   const isMissing = activeFile !== undefined && missing === activeFile.hostPath;
+  const isFileGone = useWatchedFileGone(file);
+  const [askedAgain, setAskedAgain] = useState(0);
+  // A page a link from outside named while nothing was there (`fromLink`)
+  // is drawn only once the file there is found unmarked, asked again each
+  // time the file is looked for; one that carries the downloaded mark opens
+  // its folder with it selected, as a link to it would have. Until then the
+  // tab shows nothing.
+  const isLinkPage = fromLink === true && isPageFile && !isMissing;
+  const isUnmarked = useUnmarkedPage({
+    look: `${String(isFileGone)} ${askedAgain}`,
+    onMarked: (marked) => {
+      router.history.replace(
+        folderHref(folderOf(marked), {
+          select: segmentsOf(marked).at(-1) ?? marked,
+        }),
+      );
+    },
+    page: isLinkPage ? activeFile.hostPath : undefined,
+  });
+  const isMarkUnread = isLinkPage && !isUnmarked;
   const hostedFile =
-    isPageFile && !isMissing ? activeFile.hostPath : undefined;
+    isPageFile && !isMissing && !isMarkUnread
+      ? activeFile.hostPath
+      : undefined;
   // A group's tab is drawn only while it is up on its side, so this screen
   // goes whenever another tab comes up there; its page stays live for it.
   const keepsHostedPage = useKeepsHostedPage(tabId);
@@ -751,12 +785,10 @@ export function FilesScreen({
   // system refuses, or the app's own data the channel forbids, stays the same
   // way, saying whose refusal it is in place of the viewer (with the ways past
   // one macOS made), and is asked again once the person picks its folder.
-  const isFileGone = useWatchedFileGone(file);
   const [refused, setRefused] = useState<{
     file: string;
     reason: ComputerRefusal["reason"];
   } | null>(null);
-  const [askedAgain, setAskedAgain] = useState(0);
   const fileGone = useEffectEvent((gone: string) => {
     // A version shown over a file that has gone since takes the file's
     // place, where Restore puts the file back.
@@ -958,9 +990,11 @@ export function FilesScreen({
   // bottom left while something stands against it, and at the right
   // whatever the pane's own corner is; the pane's corners when nothing does.
   const pageInSlot = (isBesideSomething: boolean) =>
-    hostedFile === undefined
-      ? {}
-      : {
+    isMarkUnread
+      ? { page: <div className="h-full" /> }
+      : hostedFile === undefined
+        ? {}
+        : {
           ...(hostedTabId === undefined
             ? {}
             : {

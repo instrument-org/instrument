@@ -6,18 +6,26 @@ import { defaultStringifySearch } from "@tanstack/react-router";
  * `source` asks for its text instead. `tree` is the folder a file opened
  * from the Finder shows beside it: the folder the Finder was standing in.
  * `version` is a copy a chat kept of the file, shown over it. `page` is the
- * page a PDF opens at.
+ * page a PDF opens at. `fromLink` is a file a link from outside named while
+ * nothing was at it, whose page is drawn only once it is found unmarked.
  */
 export function fileHref(
   hostPath: string,
   {
+    fromLink = false,
     page,
     source = false,
     tree,
     version,
-  }: { page?: number; source?: boolean; tree?: string; version?: string } = {},
+  }: {
+    fromLink?: boolean;
+    page?: number;
+    source?: boolean;
+    tree?: string;
+    version?: string;
+  } = {},
 ) {
-  return `/files?file=${encodeURIComponent(hostPath)}&path=&root=~${source ? "&source=true" : ""}${tree === undefined ? "" : `&tree=${encodeURIComponent(tree)}`}${version === undefined ? "" : `&version=${encodeURIComponent(version)}`}${page === undefined ? "" : `&page=${page}`}`;
+  return `/files?file=${encodeURIComponent(hostPath)}&path=&root=~${fromLink ? "&fromLink=true" : ""}${source ? "&source=true" : ""}${tree === undefined ? "" : `&tree=${encodeURIComponent(tree)}`}${version === undefined ? "" : `&version=${encodeURIComponent(version)}`}${page === undefined ? "" : `&page=${page}`}`;
 }
 
 /**
@@ -117,8 +125,15 @@ function namesFolder(written: string): boolean {
 /**
  * The address of a tab at a path with nothing at it, which stands there and
  * says it can't find it (`NotFound`): a folder's tab or a file's, by how the
- * path is written (`namesFolder`).
+ * path is written (`namesFolder`). `fromLink` is a path a link from outside
+ * named, whose file's page is drawn only once it is found unmarked.
  */
-export function missingPathHref(hostPath: string, written: string): string {
-  return namesFolder(written) ? folderHref(hostPath) : fileHref(hostPath);
+export function missingPathHref(
+  hostPath: string,
+  written: string,
+  { fromLink = false }: { fromLink?: boolean } = {},
+): string {
+  return namesFolder(written)
+    ? folderHref(hostPath)
+    : fileHref(hostPath, { fromLink });
 }

@@ -55,11 +55,6 @@ const AskSchema = z.discriminatedUnion("type", [
     hrefs: z.array(z.string()),
     type: z.literal("openGroup"),
   }),
-  z.object({
-    folder: z.string().optional(),
-    name: z.string(),
-    type: z.literal("missingFile"),
-  }),
   z.object({ count: z.number(), type: z.literal("notOpened") }),
   z.object({
     host: z.string(),

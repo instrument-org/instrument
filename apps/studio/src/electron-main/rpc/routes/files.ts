@@ -11,6 +11,7 @@ import {
   UndoRefusedError,
 } from "@/electron-main/lib/file-journal";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
+import { isFromInternet } from "@/electron-main/lib/download-mark";
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import { pathKey } from "@/electron-main/lib/path-identity";
 import {
@@ -743,6 +744,22 @@ const missing = base
     return { missing: input.paths.filter((_, index) => !there[index]) };
   });
 
+/**
+ * Whether the system marks a file as downloaded from the internet
+ * (`isFromInternet`), or nothing is there yet, for a page a link named while
+ * nothing was there, which is drawn only once it is there unmarked.
+ */
+const downloadMark = base
+  .input(z.object({ path: HostPathSchema }))
+  .output(z.object({ mark: z.enum(["marked", "missing", "unmarked"]) }))
+  .handler(async ({ input }) => ({
+    mark: !(await exists(input.path))
+      ? "missing"
+      : (await isFromInternet(input.path))
+        ? "marked"
+        : "unmarked",
+  }));
+
 const trash = base
   .errors({
     CANNOT_TRASH: { message: "That could not be moved to the trash" },
@@ -1229,6 +1246,7 @@ export const files = {
   clipboardHasFiles,
   copyInto,
   copyToClipboard,
+  downloadMark,
   dragged,
   duplicate,
   live,

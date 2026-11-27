@@ -277,6 +277,24 @@ describe("the step a change leads to", () => {
       });
     },
   );
+
+  // A link's mark on its file is the file's alone: another file shown in the
+  // tab is judged as any file the person opens is.
+  it.each<[string, FilesIntent]>([
+    ["another file opened", { file: "/Users/sam/b.html", type: "openFile" }],
+    ["another file picked beside", { file: "/Users/sam/b.html", type: "followFile" }],
+    ["the file closed", { type: "closeFile" }],
+  ])("drops a link's mark on the file when %s", (_name, intent) => {
+    const step: SettledStep = { ...BESIDE, file: "/Users/sam/a.html", fromLink: true };
+    expect(nextStep(step, intent).step.fromLink).toBeUndefined();
+  });
+
+  it("keeps a link's mark on the file while the folder beside it walks", () => {
+    const step: SettledStep = { ...BESIDE, file: "/Users/sam/a.html", fromLink: true };
+    expect(
+      nextStep(step, { path: "", type: "walk" }).step.fromLink,
+    ).toBe(true);
+  });
 });
 
 describe("an address arriving from outside the tab", () => {

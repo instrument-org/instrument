@@ -11,6 +11,12 @@ import { isInside, relativeHostPath } from "./host-path";
 export type FilesStep = {
   /** A file open with the folder, by where it is on the computer. */
   file?: string | undefined;
+  /**
+   * The file is one a link from outside named while nothing was at it, so
+   * a page is drawn only once the system's downloaded mark is found not on
+   * it (`isFromInternet`).
+   */
+  fromLink?: boolean | undefined;
   /** The page a PDF file opens at. */
   page?: number | undefined;
   /** The folder under the root, as a prefix: `Documents/Instrument/`. */
@@ -142,6 +148,7 @@ export type FilesWrite = "none" | "push" | "replace";
 
 const STEP_KEYS = [
   "file",
+  "fromLink",
   "path",
   "query",
   "root",
@@ -317,6 +324,7 @@ function applied(
         {
           ...selecting(step, intent.select),
           file: intent.file,
+          fromLink: undefined,
           source: undefined,
           tree: intent.tree ?? step.tree,
           version: undefined,
@@ -328,6 +336,7 @@ function applied(
         {
           ...selecting(step, intent.select),
           file: intent.file,
+          fromLink: undefined,
           source: undefined,
           version: undefined,
         },
@@ -338,6 +347,7 @@ function applied(
         {
           ...step,
           file: undefined,
+          fromLink: undefined,
           source: undefined,
           tree: undefined,
           version: undefined,

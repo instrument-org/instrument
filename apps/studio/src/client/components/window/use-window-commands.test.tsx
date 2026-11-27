@@ -44,7 +44,6 @@ const handlers = {
   forward: vi.fn(),
   focusSide: vi.fn(),
   listChat: vi.fn(),
-  missingFile: vi.fn(),
   newChat: vi.fn(),
   newChatFromLink: vi.fn(),
   notOpened: vi.fn(),
@@ -116,34 +115,6 @@ describe("useWindowCommands", () => {
       },
       { interval: 1 },
     );
-  });
-
-  it("says a file a link named is not there, with the folder it was in", async () => {
-    renderWithDefaultStore(<Window />);
-    stream.push({
-      folder: "/Users/mac-user/Work",
-      name: "pricing.html",
-      type: "missingFile",
-    });
-    stream.push({ name: "gone.md", type: "missingFile" });
-    await vi.waitFor(
-      () => {
-        expect(handlers.missingFile).toHaveBeenCalledTimes(2);
-      },
-      { interval: 1 },
-    );
-    expect(handlers.missingFile.mock.calls).toMatchInlineSnapshot(`
-      [
-        [
-          "pricing.html",
-          "/Users/mac-user/Work",
-        ],
-        [
-          "gone.md",
-          undefined,
-        ],
-      ]
-    `);
   });
 
   it("says which hosted page a link named did not open", async () => {

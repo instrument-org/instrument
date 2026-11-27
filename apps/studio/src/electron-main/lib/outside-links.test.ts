@@ -195,38 +195,14 @@ describe("asksOfOutsideLink", () => {
     ).toEqual([]);
   });
 
-  // A page a link names that is not there is never one to open, so a page
-  // that turns up there later is not run straight from the link; the window
-  // says it is gone, over its folder when that is there.
-  it("says a page is not there, over its folder", async () => {
-    expect(
-      await asksOfOutsideLink(
-        `instrument://file${encodeURI(path.join(folder, "Notes", "pricing.html"))}`,
-        { isDownloaded: allowed, isRefused: allowed },
-      ),
-    ).toEqual([
-      {
-        folder: path.join(folder, "Notes"),
-        name: "pricing.html",
-        type: "missingFile",
-      },
-    ]);
-  });
-
-  it("says a page is not there with no folder when that is gone too", async () => {
-    expect(
-      await asksOfOutsideLink(
-        `instrument://file${encodeURI(path.join(folder, "Gone", "pricing.html"))}`,
-        { isDownloaded: allowed, isRefused: allowed },
-      ),
-    ).toEqual([{ name: "pricing.html", type: "missingFile" }]);
-  });
-
-  // Any other file or folder that is not there opens a tab at it, which says
-  // it can't find it, as a tab whose file went missing does: a folder's when
-  // the link writes it as one.
+  // A file or folder that is not there opens a tab at it, which says it
+  // can't find it, as a tab whose file went missing does: a folder's when
+  // the link writes it as one. A file's tab is marked as a link's, so a page
+  // that lands there is drawn only once it is found unmarked.
   it.each([
     ["a file", ["Gone", "notes.md"], "", false],
+    ["a page", ["Notes", "pricing.html"], "", false],
+    ["a page whose folder is gone too", ["Gone", "pricing.html"], "", false],
     ["a folder written with a slash", ["Gone", "Specs"], "/", true],
     ["a name with no extension", ["Gone", "Specs"], "", true],
   ])("opens a tab at %s that is not there", async (_case, parts, end, isFolder) => {
@@ -238,7 +214,9 @@ describe("asksOfOutsideLink", () => {
       }),
     ).toEqual([
       {
-        href: isFolder ? folderHref(hostPath) : fileHref(hostPath),
+        href: isFolder
+          ? folderHref(hostPath)
+          : fileHref(hostPath, { fromLink: true }),
         type: "openScreen",
       },
     ]);
@@ -352,7 +330,9 @@ describe("a path from home", () => {
       }),
     ).toEqual([
       {
-        href: fileHref(path.join(folder, "Notes", "gone.md")),
+        href: fileHref(path.join(folder, "Notes", "gone.md"), {
+          fromLink: true,
+        }),
         type: "openScreen",
       },
     ]);
@@ -476,7 +456,7 @@ describe("asksOfOutsideLink with several files", () => {
           "type": "openScreen",
         },
         {
-          "href": "/files?file=%2FUsers%2Fmac-user%2FWork%2Fgone.md&path=&root=~",
+          "href": "/files?file=%2FUsers%2Fmac-user%2FWork%2Fgone.md&path=&root=~&fromLink=true",
           "type": "openScreen",
         },
         {
@@ -515,7 +495,7 @@ describe("asksOfOutsideLink with several files", () => {
           "type": "openScreen",
         },
         {
-          "href": "/files?file=%2FUsers%2Fmac-user%2FWork%2Fgone.md&path=&root=~",
+          "href": "/files?file=%2FUsers%2Fmac-user%2FWork%2Fgone.md&path=&root=~&fromLink=true",
           "type": "openScreen",
         },
       ]
@@ -990,7 +970,7 @@ describe("what a link opens", () => {
         {
           "hrefs": [
             "/files?file=%2FUsers%2Fmac-user%2Fa.md&path=&root=~",
-            "/files?file=%2FUsers%2Fmac-user%2FWork%2Fgone.md&path=&root=~",
+            "/files?file=%2FUsers%2Fmac-user%2FWork%2Fgone.md&path=&root=~&fromLink=true",
             "/files?path=&root=%2FUsers%2Fmac-user%2FWork",
           ],
           "type": "openGroup",

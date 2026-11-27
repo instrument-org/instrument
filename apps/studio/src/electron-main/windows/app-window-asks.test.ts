@@ -103,16 +103,10 @@ describe("tabHrefOfAsk", () => {
   // The window with a tab already showing what an ask puts up is the one
   // that answers it, so a file, a folder or a screen linked again comes up
   // where it is rather than in another tab.
-  it("names the tab showing a file, a screen or a missing file's folder", () => {
+  it("names the tab showing a file or a screen", () => {
     const asked: AppWindowAsk[] = [
       file,
       link,
-      {
-        folder: "/Users/mac-user/Work",
-        name: "pricing.html",
-        type: "missingFile",
-      },
-      { name: "pricing.html", type: "missingFile" },
       { type: "newChat", words: "Plan my week" },
       { type: "openNewChat" },
       { count: 3, type: "notOpened" },
@@ -127,8 +121,6 @@ describe("tabHrefOfAsk", () => {
       [
         "/files?file=%2FUsers%2Fmac-user%2Fa.pdf&path=&root=~",
         "/chats/abc",
-        undefined,
-        undefined,
         undefined,
         undefined,
         undefined,
@@ -177,32 +169,11 @@ describe("outsideOpensOf", () => {
     `);
   });
 
-  it("makes a missing file's folder alone a screen, and says the file is gone", () => {
-    expect(
-      outsideOpensOf([
-        { folder: "/Work", name: "gone.md", type: "missingFile" },
-      ]),
-    ).toMatchInlineSnapshot(`
-      [
-        {
-          "href": "/files?path=&root=%2FWork",
-          "type": "openScreen",
-        },
-        {
-          "folder": "/Work",
-          "name": "gone.md",
-          "type": "missingFile",
-        },
-      ]
-    `);
-  });
-
   it("keeps even one file in a group a link named by its word", () => {
     expect(
       outsideOpensOf(
         [
           { hostPath: "/a.md", type: "openFile" },
-          { folder: "/Work", name: "gone.md", type: "missingFile" },
         ],
         "New tab row",
       ),
@@ -212,14 +183,8 @@ describe("outsideOpensOf", () => {
           "group": "New tab row",
           "hrefs": [
             "/files?file=%2Fa.md&path=&root=~",
-            "/files?path=&root=%2FWork",
           ],
           "type": "openGroup",
-        },
-        {
-          "folder": "/Work",
-          "name": "gone.md",
-          "type": "missingFile",
         },
       ]
     `);

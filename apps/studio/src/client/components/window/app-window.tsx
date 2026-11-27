@@ -1667,15 +1667,6 @@ function WindowShell({
       // it, however far that tab has walked within it, and in a tab of its
       // own where none does. Main has already picked this window as the one
       // showing it, or the one in front where none does.
-      // Said alone: the folder it was in opens in the hand-over's tab group.
-      missingFile: (name, folder) => {
-        toast(
-          `Can’t find “${name}”`,
-          folder === undefined
-            ? { description: "Its folder can’t be found either." }
-            : undefined,
-        );
-      },
       notOpened: (count) => {
         toast(
           count === 1

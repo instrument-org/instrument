@@ -218,19 +218,14 @@ async function askOfPath(
     return { href: folderHref(hostPath), type: "openScreen" };
   }
   // A tab at the path, which says it can't find it and shows it once it is
-  // there, as a tab whose file went missing does. A page is the exception:
-  // it is never a file to open, so one a site puts there later is not run
-  // straight from the link, and the window says it is not there, over the
-  // folder it was in when that is there.
-  if (place === "missing" && !PAGE.test(hostPath)) {
-    return { href: missingPathHref(hostPath, linkPath), type: "openScreen" };
-  }
+  // there, as a tab whose file went missing does. A page that lands there
+  // is checked for the downloaded mark first, as one already there is below
+  // (`fromLink`), so a page a site puts there later is never run from the
+  // link.
   if (place === "missing") {
-    const folder = hostPaths.dirname(hostPath);
     return {
-      ...((await placeOf(folder)) === "folder" ? { folder } : {}),
-      name: hostPaths.basename(hostPath),
-      type: "missingFile",
+      href: missingPathHref(hostPath, linkPath, { fromLink: true }),
+      type: "openScreen",
     };
   }
   if (PAGE.test(hostPath) && (await isDownloaded(hostPath))) {

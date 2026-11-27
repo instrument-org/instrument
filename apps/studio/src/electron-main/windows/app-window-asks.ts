@@ -1,4 +1,4 @@
-import { fileHref, folderHref } from "@/shared/computer-href";
+import { fileHref } from "@/shared/computer-href";
 
 /**
  * What something outside the window asks it to put up: a screen by its
@@ -22,11 +22,6 @@ export type AppWindowAsk =
    * is one, and a group they make takes the name.
    */
   | { group?: string; hrefs: string[]; type: "openGroup" }
-  /**
-   * A file a link named that is not there, said by its name, with the folder
-   * it was in opened when that folder is there.
-   */
-  | { folder?: string; name: string; type: "missingFile" }
   /** How many paths past its cap a link to several files left unopened, said. */
   | { count: number; type: "notOpened" }
   /**
@@ -57,7 +52,6 @@ export function tabHrefOfAsk(ask: AppWindowAsk): string | undefined {
       return ask.href;
     }
     case "linkNotOpened":
-    case "missingFile":
     case "newChat":
     case "notOpened":
     case "openGroup":
@@ -78,9 +72,8 @@ const isFilesHref = (href: string) => /^\/files(?:[?#]|$)/.test(href);
  * stood among the asks. One alone is a screen (`openScreen`), which a tab
  * already showing it brings forward, unless the link named a group
  * (`named`, or one an `openGroup` among the asks carries), which keeps even
- * one in its group. A missing file's folder counts among them, and its ask
- * stays to say the file is gone. Everything else stays as it was: a chat is
- * never in the group, and comes forward where it is open.
+ * one in its group. Everything else stays as it was: a chat is never in the
+ * group, and comes forward where it is open.
  */
 export function outsideOpensOf(
   asked: readonly AppWindowAsk[],
@@ -103,7 +96,7 @@ export function outsideOpensOf(
     if (hrefs.length === 0) {
       opens.push(group);
     }
-    // A missing file's folder may be named in the same hand-over too.
+    // Two asks in one hand-over may name the same address.
     if (!hrefs.includes(href)) {
       hrefs.push(href);
     }
@@ -118,9 +111,6 @@ export function outsideOpensOf(
         intoGroup(href);
       }
     } else {
-      if (ask.type === "missingFile" && ask.folder !== undefined) {
-        intoGroup(folderHref(ask.folder));
-      }
       opens.push(ask);
     }
   }

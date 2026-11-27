@@ -22,6 +22,11 @@ export const Route = createFileRoute("/_app/files")({
   validateSearch: z.object({
     /** A file open in a tab beside the folder, by where it is on the computer. */
     file: z.string().optional(),
+    /**
+     * The file is one a link from outside named while nothing was at it: a
+     * page is drawn only once the system's downloaded mark is found not on it.
+     */
+    fromLink: z.boolean().optional().catch(undefined),
     /** The page a PDF opens at, as a link's `#page=4` names it. */
     page: z.number().int().positive().optional().catch(undefined),
     /** The folder open under the root, as a prefix: `Documents/Instrument/`. */

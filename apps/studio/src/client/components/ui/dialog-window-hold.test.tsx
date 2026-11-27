@@ -38,7 +38,6 @@ function Commands({
       forward: vi.fn(),
       focusSide: vi.fn(),
       listChat: vi.fn(),
-      missingFile: vi.fn(),
       newChat: vi.fn(),
       newChatFromLink: vi.fn(),
       notOpened: vi.fn(),

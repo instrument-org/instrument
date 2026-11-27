@@ -7,6 +7,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { z } from "zod";
 
 import { appChanged } from "../apps/changed";
+import { isXApp } from "../apps/x-site";
 import { recordSetupTouch } from "../setup-changes";
 import {
   type AppCatalogEntry,
@@ -128,7 +129,9 @@ function describeCatalogEntry(entry: AppCatalogEntry, role: Role): string {
               : entry.family === "apple"
                 ? `${APP_COMMAND.name} new ${entry.slug} --name '${macApp.name}' --local ${macApp.server} --runtime bundled, then ${TOOL_NAMES.connectApp}: ${APP_NAME}'s own way into ${macApp.name}, which reads every account added there.`
                 : `through ${macApp.name} on this Mac when its account is added there, which is \`${APP_COMMAND.name} catalog ${macApp.server}\`; otherwise \`${start} --web ${entry.home ?? `https://${entry.domain}`}\`.`
-            : `${start} --web ${way.url}  (on the web: no other way in works from here yet, so the user signs in on the site in ${APP_NAME}'s browser and it is worked in a tab)`;
+            : isXApp({ type: "web", url: way.url })
+              ? `${start} --web ${way.url}  (on the web, with ${APP_NAME}'s own X tools for search and threads, which run on the user's Grok plan; the rest of X is worked on its site in a tab)`
+              : `${start} --web ${way.url}  (on the web: no other way in works from here yet, so the user signs in on the site in ${APP_NAME}'s browser and it is worked in a tab)`;
   const keySurface =
     way.kind === "mcp" || way.kind === "api"
       ? entry.interfaces.find((surface) => surface.endpoint === way.endpoint)

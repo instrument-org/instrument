@@ -73,6 +73,17 @@ describe("the apps a session starts with", () => {
     expect(text).not.toContain("app_instructions");
   });
 
+  it("points at the directory's X for X's search until an X app is here", async () => {
+    const hint = "Searching X and reading its threads is Instrument's own";
+    expect(await buildAppsContextText()).toContain(hint);
+
+    await seedApp("x", {
+      name: "X",
+      setup: { type: "web", url: "https://x.com" },
+    });
+    expect(await buildAppsContextText()).not.toContain(hint);
+  });
+
   it("says where X's search and its site each stand", async () => {
     await seedApp("x", {
       name: "X",

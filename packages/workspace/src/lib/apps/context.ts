@@ -54,12 +54,29 @@ export async function buildAppsContextText(): Promise<string> {
     rows.length > 0
       ? `Apps in this workspace, by the id the \`${APP_COMMAND.name}\` command names each by (\`${APP_COMMAND.name} list\` for the current standing):\n${rows.join("\n")}`
       : `No apps are connected yet. An app is a service you reach with the \`${APP_COMMAND.name}\` command once it is set up with it.`,
-    `The directory (\`${APP_COMMAND.name} catalog <words>\`) knows these services and how they are reached: ${known}.`,
+    `The directory (\`${APP_COMMAND.name} catalog <words>\`) knows these services and how they are reached: ${known}.${xSearchHint(apps)}`,
   ];
 
   return [lines.join("\n"), ...standing.filter((text) => text !== undefined)]
     .join("\n\n")
     .trimEnd();
+}
+
+/**
+ * With no X app here, the agent learns X's search is reachable at all only
+ * from this: set one up from the directory, whose entry it names.
+ */
+function xSearchHint(apps: AppInfo[]): string {
+  if (apps.some((app) => isXApp(app.manifest))) {
+    return "";
+  }
+  const entry = getAppCatalog().find(
+    (each) =>
+      each.home !== undefined && isXApp({ type: "web", url: each.home }),
+  );
+  return entry === undefined
+    ? ""
+    : ` Searching X and reading its threads is ${APP_NAME}'s own, on the user's Grok plan: set up \`${entry.slug}\` from the directory, then \`${APP_COMMAND.name} tools ${entry.slug}\`.`;
 }
 
 /**

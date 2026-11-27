@@ -64,7 +64,7 @@ Each entry is the plan's title and the opening of its status.
 - [Rainy-day refactors](rainy-day-refactors.md): A running list;
 - [The code React Compiler never sees](react-compiler-blind-spots.md): Proposal, mostly not started (checked 2026-10-29).
 - [Letting a task look at what it made](render-a-file-to-look-at-it.md): Proposed, 2026-09-07.
-- [The agent asks to run a command as administrator](run-as-administrator.md): Built on macOS and Windows, checked with unit tests, evals and the running app with a stand-in for the system's prompt.
+- [The agent asks to run a command as administrator](run-as-administrator.md): Built on macOS and Windows, checked with unit tests, evals (the card's other choices included) and the running app, and run through the real macOS password p...
 - [Seeded, disposable workspaces for driving and testing Studio](seeded-test-workspaces.md): Corpus (`fixtures/workspaces/`), seeder (`pnpm workspace:seed`), recorder and `studio-drive --workspace` wiring landed, on the 2.0 chat layout.
 - [Seeded workspaces on the Windows test host](seeded-workspaces-on-windows.md): The helper side has landed;
 - [Semantic prompt composer](semantic-prompt-composer.md): Landed for skills and apps, deferred for the rest.

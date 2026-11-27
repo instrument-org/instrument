@@ -1,3 +1,4 @@
+import { useDebouncedValue } from "@/client/hooks/use-debounced-value";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { PageFavicon } from "@/client/components/favicon";
 import { noteTypedPage } from "@/client/hooks/use-browser-history";
@@ -652,15 +653,8 @@ function useOmnibarRows({
   // What the engine would finish the words as, asked once typing pauses
   // rather than on every letter, and never for a path or an address.
   const wantsSuggestions = isSearchWords(words);
-  const [asked, setAsked] = useState("");
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setAsked(wantsSuggestions ? words : "");
-    }, 120);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [wantsSuggestions, words]);
+  // Nothing asked as it opens, even with words already in it.
+  const asked = useDebouncedValue(wantsSuggestions ? words : "", 120, "");
   const suggestions = useQuery(
     rpcClient.browser.searchSuggestions.queryOptions({
       input: asked ? { query: asked } : skipToken,

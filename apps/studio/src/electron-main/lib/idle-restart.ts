@@ -225,6 +225,12 @@ export function startIdleRestart({
     const step = stepIdleRestart({ facts, state, timings });
     state = step.state;
     say(step.verdict);
+    if (
+      step.verdict.type === "wait" &&
+      step.verdict.blocker === "attempts-used"
+    ) {
+      updater.showReady();
+    }
     if (step.verdict.type === "restart" && update.type === "ready") {
       await restart(update);
     }

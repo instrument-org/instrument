@@ -15,6 +15,7 @@ import {
   type AppUpdaterStatus,
   FAILED_POLL_RETRY_MS,
   POLL_INTERVAL_MS,
+  READY_QUIET_MS,
   STAGED_POLL_INTERVAL_MS,
   SUPERSEDING_DOWNLOAD_WAIT_MS,
   VERIFY_TIMEOUT_MS,
@@ -31,10 +32,14 @@ const NEWEST = "1.7.0";
 function createHarness({
   confirmQuit,
   currentVersion = CURRENT,
+  installsUnattended,
+  now,
   withdrawQuit,
 }: {
   confirmQuit?: () => Promise<boolean>;
   currentVersion?: string;
+  installsUnattended?: boolean;
+  now?: () => number;
   withdrawQuit?: () => void;
 } = {}) {
   let handlers: undefined | UpdaterEvents;
@@ -68,7 +73,9 @@ function createHarness({
     confirmQuit,
     getCurrentVersion: () => currentVersion,
     installAsksForPassword: false,
+    now,
     installNotice: undefined,
+    installsUnattended,
     log: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
     publish: (status) => published.push(status),
     recordCheck,
@@ -101,14 +108,7 @@ function createHarness({
     respondWith(version: string | undefined, downloadPromise?: Promise<never>) {
       nextCheck = () =>
         Promise.resolve(
-          version === undefined
-            ? null
-            : ({
-                downloadPromise,
-                isUpdateAvailable: true,
-                updateInfo: updateInfo(version),
-                versionInfo: updateInfo(version),
-              } satisfies Partial<UpdateCheckResult> as UpdateCheckResult),
+          version === undefined ? null : foundUpdate(version, downloadPromise),
         );
     },
     respondWithFailure(error: Error) {
@@ -126,6 +126,18 @@ function createHarness({
     },
     updater,
   };
+}
+
+function foundUpdate(
+  version: string,
+  downloadPromise?: Promise<never>,
+): UpdateCheckResult {
+  return {
+    downloadPromise,
+    isUpdateAvailable: true,
+    updateInfo: updateInfo(version),
+    versionInfo: updateInfo(version),
+  } satisfies Partial<UpdateCheckResult> as UpdateCheckResult;
 }
 
 function progressInfo(percent: number): ProgressInfo {
@@ -695,6 +707,60 @@ describe("status stream", () => {
 
     await h.updater.checkForUpdates();
     await expect(downloadPromise).rejects.toThrow("download failed");
+  });
+});
+
+describe("showing a staged update", () => {
+  let clock = 0;
+  const lastReady = (published: AppUpdaterStatus[]) =>
+    published.findLast((status) => status.type === "downloaded")?.notifyUser;
+
+  beforeEach(() => {
+    clock = 0;
+  });
+
+  it("keeps an update that installs by itself quiet until it has waited a day", async () => {
+    const h = createHarness({ installsUnattended: true, now: () => clock });
+    h.events().available(updateInfo(STAGED));
+    h.events().downloaded(updateInfo(STAGED));
+    expect(lastReady(h.published)).toBe(false);
+
+    h.respondWith(STAGED);
+    clock = READY_QUIET_MS - 1;
+    await h.updater.checkForUpdates();
+    expect(lastReady(h.published)).toBe(false);
+
+    clock = READY_QUIET_MS;
+    await h.updater.checkForUpdates();
+    expect(lastReady(h.published)).toBe(true);
+  });
+
+  it("shows an update at once where it does not install by itself", () => {
+    const h = createHarness({ now: () => clock });
+    h.events().available(updateInfo(STAGED));
+    h.events().downloaded(updateInfo(STAGED));
+    expect(lastReady(h.published)).toBe(true);
+  });
+
+  it("shows an update at once when the person checked for it", async () => {
+    const h = createHarness({ installsUnattended: true, now: () => clock });
+    h.respondWith(STAGED);
+    await h.updater.checkForUpdates({ notify: true });
+    h.events().available(updateInfo(STAGED));
+    h.events().downloaded(updateInfo(STAGED));
+    expect(lastReady(h.published)).toBe(true);
+
+    // A background poll after that keeps it showing.
+    await h.updater.checkForUpdates();
+    expect(lastReady(h.published)).toBe(true);
+  });
+
+  it("shows an update the automatic restart gave up on", () => {
+    const h = createHarness({ installsUnattended: true, now: () => clock });
+    h.events().available(updateInfo(STAGED));
+    h.events().downloaded(updateInfo(STAGED));
+    h.updater.showReady();
+    expect(lastReady(h.published)).toBe(true);
   });
 });
 

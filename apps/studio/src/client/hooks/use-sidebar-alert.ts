@@ -64,5 +64,8 @@ export function useSidebarAlert(): "new" | "problem" | "warning" | null {
   if (bell === "problem") {
     return "problem";
   }
-  return updateState?.type === "downloaded" || bell === "new" ? "new" : null;
+  return (updateState?.type === "downloaded" && updateState.notifyUser) ||
+    bell === "new"
+    ? "new"
+    : null;
 }

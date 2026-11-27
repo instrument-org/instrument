@@ -13,6 +13,7 @@ import {
   isSameStatus,
   nextPollDelayMs,
   resolveInstallDecision,
+  READY_QUIET_MS,
   resolveStatus,
   SUPERSEDING_DOWNLOAD_WAIT_MS,
   VERIFY_TIMEOUT_MS,
@@ -35,6 +36,9 @@ export interface AppUpdaterHandle {
   // Whether a staged update could be installed right now, for the restart
   // that installs it while the app is not in use.
   readiness: () => UpdateReadiness;
+  // Shows the staged update as ready now, for one the automatic restart has
+  // given up on.
+  showReady: () => void;
 }
 
 // An install nobody asked for: it shows no dialog and stays quiet until the
@@ -160,6 +164,10 @@ export function createAppUpdater({
   // build superseding it, so a steady stream of releases does not keep
   // resetting how long an update has been waiting.
   let stagedSince: number | undefined;
+  // Whether the staged update shows as ready (`notifyUser` on `downloaded`)
+  // ahead of `READY_QUIET_MS`: the person asked (a check or an install of
+  // their own), or the automatic restart gave up on it.
+  let readyShown = false;
   // Set by the `failed` handler when an install attempt reports an error.
   // electron-updater catches a missing installer or a failed launch, emits
   // `error`, and returns normally instead of throwing, so this is the only
@@ -205,8 +213,26 @@ export function createAppUpdater({
     }
   };
 
+  // Where an update installs by itself, it shows as ready only once it has
+  // waited `READY_QUIET_MS`, re-read on every status, so a staged poll is
+  // what brings the pill up once that passes.
+  const showsReady = () => {
+    if (notify) {
+      readyShown = true;
+    }
+    return (
+      !installsUnattended ||
+      readyShown ||
+      (stagedSince !== undefined && now() - stagedSince >= READY_QUIET_MS)
+    );
+  };
+
   const setStatus = (next: AppUpdaterStatus) => {
-    const resolved = resolveStatus({ next, phase });
+    const settled = resolveStatus({ next, phase });
+    const resolved =
+      settled.type === "downloaded"
+        ? { ...settled, notifyUser: showsReady() }
+        : settled;
     if (status && isSameStatus(status, resolved)) {
       return;
     }
@@ -296,7 +322,7 @@ export function createAppUpdater({
       phase.pendingNewer = null;
       phase.staged = info;
       stagedSince ??= now();
-      // Always notify when an update is ready to install.
+      // `setStatus` decides whether it shows (`showsReady`).
       setStatus({ notifyUser: true, type: "downloaded", updateInfo: info });
       // A check resolves when the *check* completes, so the poll that found this
       // build scheduled its successor while nothing was staged yet. Re-arm now
@@ -442,6 +468,7 @@ export function createAppUpdater({
         );
         phase.staged = null;
         stagedSince = undefined;
+        readyShown = false;
         setStatus({
           notifyUser,
           type: "not-available",
@@ -562,6 +589,7 @@ export function createAppUpdater({
       if (error instanceof StagedUpdateRejectedError) {
         phase.staged = null;
         stagedSince = undefined;
+        readyShown = false;
       }
       return reportInstallFailure(
         error instanceof Error ? error.message : String(error),
@@ -645,6 +673,16 @@ export function createAppUpdater({
         type: "ready",
         version: phase.staged.version,
       };
+    },
+
+    showReady: () => {
+      if (readyShown) {
+        return;
+      }
+      readyShown = true;
+      if (status?.type === "downloaded") {
+        setStatus(status);
+      }
     },
 
     quitAndInstall: (mode) => {

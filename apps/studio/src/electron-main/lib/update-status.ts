@@ -99,6 +99,11 @@ export const WAKE_CHECK_DELAY_MS = ms("10 seconds");
 // forever.
 export const SUPERSEDING_DOWNLOAD_WAIT_MS = ms("3 minutes");
 
+// How long a staged update that installs by itself stays out of the toolbar
+// and the sidebar. The restart while the app is not in use usually lands it
+// well inside this, so the pill only shows for an update that is still waiting.
+export const READY_QUIET_MS = ms("1 day");
+
 // Bounds the pre-install check. Long enough for a slow network, short enough
 // that clicking install doesn't feel stuck; falling through installs what is
 // already staged rather than blocking on an unreachable feed.

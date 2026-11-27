@@ -95,11 +95,13 @@ const BADGE_META = {
     label: "Checking",
     manualOnly: true,
   },
+  // An update that installs by itself shows once it has waited a day, or
+  // when the person asked (`showsReady` in create-app-updater.ts).
   downloaded: {
     className:
       "border-transparent bg-brand-600 text-brand-foreground hover:bg-brand-700",
     label: "Update",
-    manualOnly: false,
+    manualOnly: true,
   },
   // A download the app started on its own goes unseen; one the person asked
   // for (Settings, the menu) shows its progress.

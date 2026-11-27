@@ -1,4 +1,7 @@
-import { liveRead } from "@instrument-org/workspace/electron";
+import {
+  grokPlanSwitchedOnHere,
+  liveRead,
+} from "@instrument-org/workspace/electron";
 import { startAuthCallbackServer } from "@/electron-main/auth/server";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import {
@@ -6,7 +9,10 @@ import {
   connectOpenRouter,
   type OpenRouterConnectResult,
 } from "@/electron-main/lib/openrouter-connect";
-import { getAllAIProviderConfigs } from "@/electron-main/lib/get-ai-provider-configs";
+import {
+  getAIProviderConfigs,
+  getAllAIProviderConfigs,
+} from "@/electron-main/lib/get-ai-provider-configs";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
 import { base } from "@/electron-main/rpc/base";
 import { ClientAIProviderConfigSchema } from "@/shared/schemas/provider";
@@ -70,11 +76,13 @@ const remove = base
 
 /**
  * Turns a connection off without removing it, or back on. Instrument's own
- * has no switch: signing out is how it stops.
+ * has no switch: signing out is how it stops. A Grok account back on is a
+ * plan X's search runs on again, so X hears of it, which answers a card row
+ * waiting on the plan (`grokPlanSwitchedOnHere`).
  */
 const setEnabled = base
   .input(z.object({ enabled: z.boolean(), id: AIProviderConfigIdSchema }))
-  .handler(({ errors, input }) => {
+  .handler(async ({ errors, input }) => {
     if (
       input.id === OUR_PROVIDER_CONFIG.id ||
       (!input.enabled &&
@@ -83,6 +91,21 @@ const setEnabled = base
       throw errors.NOT_FOUND({ message: "Provider not found" });
     }
     setProviderConfigEnabled(input.id, input.enabled);
+    if (
+      input.enabled &&
+      getAIProviderConfigs().some(
+        (config) => config.id === input.id && config.type === "grok-account",
+      )
+    ) {
+      await grokPlanSwitchedOnHere().catch((error: unknown) => {
+        captureServerException(
+          new Error("Telling X a Grok account is back on failed", {
+            cause: error,
+          }),
+          { area: "auth" },
+        );
+      });
+    }
   });
 
 const disabled = base

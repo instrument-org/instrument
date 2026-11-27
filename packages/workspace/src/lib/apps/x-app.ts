@@ -17,12 +17,7 @@ const X_APP = {
  * the id of the app it set up, if it set one up.
  */
 export async function grokPlanSignedInHere(): Promise<string | undefined> {
-  const { apps } = await listApps();
-  const xApps = apps.filter((app) => isXApp(app.manifest));
-  for (const app of xApps) {
-    await appChanged(app.slug, { event: "connected", plan: "grok" });
-  }
-  if (xApps.length > 0) {
+  if ((await tellXAppsThePlanIsIn()) > 0) {
     return undefined;
   }
   const slug = await unusedSlug(X_APP.slug);
@@ -34,6 +29,26 @@ export async function grokPlanSignedInHere(): Promise<string | undefined> {
   });
   await appChanged(slug);
   return slug;
+}
+
+/**
+ * A Grok account switched on in Settings, which X's search can run on
+ * again: every X app here is told the plan is in, which answers a card
+ * waiting on it. Sets up no app, since switching an account on is no
+ * sign-in.
+ */
+export async function grokPlanSwitchedOnHere(): Promise<void> {
+  await tellXAppsThePlanIsIn();
+}
+
+/** Tells every X app here the Grok plan is in; answers how many there are. */
+async function tellXAppsThePlanIsIn(): Promise<number> {
+  const { apps } = await listApps();
+  const xApps = apps.filter((app) => isXApp(app.manifest));
+  for (const app of xApps) {
+    await appChanged(app.slug, { event: "connected", plan: "grok" });
+  }
+  return xApps.length;
 }
 
 /** `wanted`, or the first of `wanted-2`, `wanted-3`... nothing in the store is. */

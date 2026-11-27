@@ -35,7 +35,8 @@ export function isXApp(manifest: AppManifest): boolean {
 
 /**
  * Whether a Grok plan is signed in on this computer, which X's tools run on:
- * an account with a plan xAI has not said it lacks.
+ * an account with a plan xAI has not said it lacks, and not disabled in
+ * Settings, which leaves it out of the provider configs.
  */
 export function grokPlanSignedIn(): boolean {
   return getWorkspaceConfig()

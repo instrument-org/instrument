@@ -75,6 +75,9 @@ vi.mock("@/client/rpc/client", () => ({
     grokAccount: {
       live: { status: query("grok", () => Promise.resolve({ accounts: [] })) },
     },
+    providerConfig: {
+      live: { disabled: query("disabled", () => Promise.resolve([])) },
+    },
     utils: {
       browserOpenTarget: {
         queryOptions: (options: object) => ({

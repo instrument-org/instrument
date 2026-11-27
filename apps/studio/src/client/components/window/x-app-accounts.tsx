@@ -1,6 +1,9 @@
+import { useProviderSwitch } from "@/client/components/settings/provider-switch";
+import { Button } from "@/client/components/ui/button";
 import { waitingLine } from "@/client/components/window/apps-home";
 import { connectLine } from "@/client/lib/connect-copy";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
+import { AIProviderConfigIdSchema } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 
 import { DisconnectSite } from "./ai-app-accounts";
@@ -12,6 +15,48 @@ import { useSiteSignIn } from "./site-sign-in";
 import { useSetUpThenSignIn } from "./use-set-up-then-sign-in";
 
 type App = RPCOutput["apps"]["list"]["apps"][number];
+
+/**
+ * The Grok plan X's search runs on, as the workspace counts it: `account`,
+ * the first signed in with a plan and not disabled in Settings, else
+ * `disabled`, the first that only needs enabling.
+ */
+export function useGrokPlan({ enabled = true }: { enabled?: boolean } = {}) {
+  const { data } = useQuery({
+    ...rpcClient.grokAccount.live.status.experimental_liveOptions(),
+    enabled,
+  });
+  const { data: off = [] } = useQuery({
+    ...rpcClient.providerConfig.live.disabled.experimental_liveOptions(),
+    enabled,
+  });
+  const isOff = (id: string) => off.some((each) => each === id);
+  const signedIn =
+    data?.accounts.filter((each) => each.state === "signed-in") ?? [];
+  return {
+    account: signedIn.find((each) => !isOff(each.id)),
+    disabled: signedIn.find((each) => isOff(each.id)),
+  };
+}
+
+/** Enables a Grok account disabled in Settings, which X's search runs on again. */
+export function EnableGrokAccount({ id }: { id: string }) {
+  const providerSwitch = useProviderSwitch();
+  return (
+    <Button
+      onClick={() => {
+        providerSwitch.setEnabled(AIProviderConfigIdSchema.parse(id), true);
+      }}
+      size="sm"
+      variant="outline"
+    >
+      Enable
+    </Button>
+  );
+}
+
+/** A Grok account's line while it is disabled in Settings. */
+export const GROK_ACCOUNT_DISABLED = "Your Grok account is disabled.";
 
 /**
  * X's two sign-ins on its page, each its own: the Grok plan its search runs
@@ -31,10 +76,7 @@ export function XAppAccounts({
 }) {
   const { browser, openPage } = useWindow();
   const signIn = usePlanSignIns().grok;
-  const { data } = useQuery(
-    rpcClient.grokAccount.live.status.experimental_liveOptions(),
-  );
-  const account = data?.accounts.find((each) => each.state === "signed-in");
+  const { account, disabled } = useGrokPlan();
   const isBusy = signIn.phase !== "idle";
   const answer =
     isBusy || signIn.outcome === undefined
@@ -53,7 +95,9 @@ export function XAppAccounts({
     <AccountsCard>
       <AccountRow
         end={
-          account === undefined ? (
+          account !== undefined ? undefined : disabled !== undefined ? (
+            <EnableGrokAccount id={disabled.id} />
+          ) : (
             <SignInButton
               busy={isBusy}
               canSignInHere={browser !== null}
@@ -68,11 +112,13 @@ export function XAppAccounts({
               }}
               waiting={isBusy}
             />
-          ) : undefined
+          )
         }
         line={
           account !== undefined ? (
             `Grok plan, signed in as ${account.label}`
+          ) : disabled !== undefined ? (
+            GROK_ACCOUNT_DISABLED
           ) : isBusy ? (
             <SignInWaitingLine where={signIn.waitingIn ?? "app"} />
           ) : (

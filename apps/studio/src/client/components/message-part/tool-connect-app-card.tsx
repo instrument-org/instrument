@@ -5,6 +5,11 @@ import { ConnectControls } from "@/client/components/window/connect-controls";
 import { WindowContext } from "@/client/components/window/context";
 import { useOptionalPlanSignIns } from "@/client/components/window/plan-sign-in";
 import {
+  EnableGrokAccount,
+  GROK_ACCOUNT_DISABLED,
+  useGrokPlan,
+} from "@/client/components/window/x-app-accounts";
+import {
   FixWithInstrumentButton,
   useFixConnection,
 } from "@/client/components/window/fix-connection";
@@ -495,15 +500,12 @@ function ConnectRow({
 
 /**
  * A row asking for the Grok plan X's search runs on: it stands by the plan
- * on this computer, connected once any account of it can be used, or by
- * the card, which keeps its decline; its button is the plan's own sign-in,
- * the one Settings and X's page start.
+ * on this computer, connected once an account signed in with a plan is not
+ * disabled in Settings, or by the card, which keeps its decline; its button
+ * is the plan's own sign-in, the one Settings and X's page start.
  */
 function useGrokPlanRow(enabled: boolean) {
-  const { data } = useQuery({
-    ...rpcClient.grokAccount.live.status.experimental_liveOptions(),
-    enabled,
-  });
+  const grokPlan = useGrokPlan({ enabled });
   const signIn = useOptionalPlanSignIns()?.grok;
   const isBusy = signIn !== undefined && signIn.phase !== "idle";
   return {
@@ -519,6 +521,9 @@ function useGrokPlanRow(enabled: boolean) {
           return "Skipped";
         }
         default: {
+          if (grokPlan.disabled !== undefined) {
+            return GROK_ACCOUNT_DISABLED;
+          }
           const answer =
             signIn?.outcome === undefined
               ? undefined
@@ -528,7 +533,7 @@ function useGrokPlanRow(enabled: boolean) {
       }
     },
     status: (declined: boolean): RowStatus =>
-      data?.accounts.some((account) => account.state === "signed-in")
+      grokPlan.account !== undefined
         ? "connected"
         : declined
           ? "declined"
@@ -541,7 +546,7 @@ function useGrokPlanRow(enabled: boolean) {
 /**
  * The Grok plan's sign-in, from a row asking for it, which opens in a tab of
  * the window where it can. The chat it was asked in hears how it went, the
- * card folded or not.
+ * card folded or not. An account disabled in Settings is enabled instead.
  */
 function GrokPlanSignIn({
   askedIn,
@@ -552,6 +557,10 @@ function GrokPlanSignIn({
 }) {
   const shell = useContext(WindowContext);
   const signIn = useOptionalPlanSignIns()?.grok;
+  const { disabled } = useGrokPlan();
+  if (disabled !== undefined) {
+    return <EnableGrokAccount id={disabled.id} />;
+  }
   if (shell === null || signIn === undefined) {
     return null;
   }

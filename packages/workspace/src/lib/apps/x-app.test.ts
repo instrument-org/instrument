@@ -4,7 +4,7 @@ import { publisher } from "../../rpc/publisher";
 import { forgetApps, seedApp } from "../../test/helpers/seed-app";
 import { actionLog } from "../actions/log";
 import { listApps, loadApp, readAppGuide } from "./store";
-import { grokPlanSignedInHere } from "./x-app";
+import { grokPlanSignedInHere, grokPlanSwitchedOnHere } from "./x-app";
 import { isXApp } from "./x-site";
 
 afterEach(async () => {
@@ -89,6 +89,21 @@ describe("a Grok plan signed in on this computer", () => {
     expect((await listApps()).apps.map((app) => app.slug)).toEqual(["twitter"]);
     // The person signed in to a plan, not to the app.
     expect(await actionLog().read({ since: 0 })).toEqual([]);
+  });
+
+  it("tells X apps the plan is in when an account is switched on, and sets up none", async () => {
+    await seedApp("twitter", {
+      name: "Twitter",
+      setup: { type: "web", url: "https://twitter.com" },
+    });
+
+    expect((await heard(grokPlanSwitchedOnHere)).said).toEqual([
+      "app.updated",
+      expect.objectContaining({ event: "connected", plan: "grok" }),
+    ]);
+    await forgetApps();
+    expect((await heard(grokPlanSwitchedOnHere)).said).toEqual([]);
+    expect((await listApps()).apps).toEqual([]);
   });
 
   it("takes the next free id where another app is called x", async () => {

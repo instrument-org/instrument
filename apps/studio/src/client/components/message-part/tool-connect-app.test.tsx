@@ -16,7 +16,10 @@ import { ToolConnectApp } from "./tool-connect-app";
 const { mocks, mutation, query } = vi.hoisted(() => ({
   mocks: {
     apps: vi.fn<() => Promise<unknown>>(),
+    disabled: vi.fn<() => Promise<unknown>>(),
     grok: vi.fn<() => Promise<unknown>>(),
+    setEnabled:
+      vi.fn<(input: { enabled: boolean; id: string }) => Promise<unknown>>(),
     signIn: vi.fn<() => Promise<unknown>>(),
     declineSignIn:
       vi.fn<(input: { askId: string; id: string }) => Promise<unknown>>(),
@@ -74,6 +77,15 @@ vi.mock("@/client/rpc/client", () => ({
       startWebSignIn: mutation(),
     },
     grokAccount: { live: { status: query("grok", mocks.grok) } },
+    providerConfig: {
+      live: { disabled: query("disabled", mocks.disabled) },
+      setEnabled: {
+        mutationOptions: (options: object) => ({
+          ...options,
+          mutationFn: mocks.setEnabled,
+        }),
+      },
+    },
     workspace: {
       chats: {
         declineSignIn: {
@@ -212,6 +224,9 @@ beforeEach(() => {
   mocks.apps.mockReset();
   mocks.grok.mockReset();
   mocks.grok.mockResolvedValue({ accounts: [] });
+  mocks.disabled.mockReset();
+  mocks.disabled.mockResolvedValue([]);
+  mocks.setEnabled.mockReset();
   mocks.dismiss.mockReset();
   mocks.markWebSignedIn.mockReset();
   mocks.startOAuth.mockReset();
@@ -1013,5 +1028,27 @@ describe("X's row asking for the Grok plan", () => {
     show("2026-11-27-x");
 
     expect(await screen.findByText("You skipped X.")).toBeTruthy();
+  });
+
+  it("counts no Grok account disabled in Settings, and enables it from the row", async () => {
+    mocks.apps.mockResolvedValue(x("needs-sign-in"));
+    mocks.grok.mockResolvedValue({
+      accounts: [{ id: "g1", label: "sam@example.com", state: "signed-in" }],
+    });
+    mocks.disabled.mockResolvedValue(["g1"]);
+    mocks.setEnabled.mockResolvedValue(undefined);
+    show();
+
+    expect(
+      await screen.findByText("Your Grok account is disabled."),
+    ).toBeTruthy();
+    expect(screen.queryByText("X connected")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Enable" }));
+    await waitFor(() => {
+      expect(mocks.setEnabled).toHaveBeenCalledWith(
+        { enabled: true, id: "g1" },
+        expect.anything(),
+      );
+    });
   });
 });

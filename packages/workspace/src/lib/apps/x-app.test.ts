@@ -5,6 +5,7 @@ import { forgetApps, seedApp } from "../../test/helpers/seed-app";
 import { actionLog } from "../actions/log";
 import { listApps, loadApp, readAppGuide } from "./store";
 import { grokPlanSignedInHere } from "./x-app";
+import { isXApp } from "./x-site";
 
 afterEach(async () => {
   await forgetApps();
@@ -23,6 +24,23 @@ async function heard<T>(act: () => Promise<T>) {
   }
   return { answered, said };
 }
+
+describe("an app on X's site", () => {
+  it.each([
+    ["https://x.com", true],
+    ["https://www.x.com/home", true],
+    ["https://mobile.x.com", true],
+    ["https://twitter.com", true],
+    ["https://www.twitter.com", true],
+    ["https://mobile.twitter.com/explore", true],
+    ["https://ads.x.com", false],
+    ["https://developer.x.com", false],
+    ["https://api.twitter.com", false],
+    ["https://notx.com", false],
+  ])("%s is X: %s", (url, isX) => {
+    expect(isXApp({ type: "web", url })).toBe(isX);
+  });
+});
 
 describe("a Grok plan signed in on this computer", () => {
   it("sets up X where the workspace has no app on its site", async () => {

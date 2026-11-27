@@ -1,9 +1,17 @@
 import { getWorkspaceConfig } from "../workspace-config";
 import { type AppManifest } from "./manifest";
-import { onSameSite } from "./same-site";
 
-/** X's site, and the one it had as Twitter. */
-const X_SITES = ["x.com", "twitter.com"] as const;
+/**
+ * X's hosts: its site and the one it had as Twitter, bare or as `www.` and
+ * `mobile.`. Its other hosts (ads, developer) are services of their own.
+ */
+const X_HOSTS = new Set(
+  ["x.com", "twitter.com"].flatMap((site) => [
+    site,
+    `www.${site}`,
+    `mobile.${site}`,
+  ]),
+);
 
 /**
  * Whether an app is X: a web app on X's site, whatever its id. Every such
@@ -11,10 +19,14 @@ const X_SITES = ["x.com", "twitter.com"] as const;
  * on the user's Grok plan.
  */
 export function isXApp(manifest: AppManifest): boolean {
-  return (
-    manifest.type === "web" &&
-    X_SITES.some((site) => onSameSite(site, manifest.url))
-  );
+  if (manifest.type !== "web") {
+    return false;
+  }
+  try {
+    return X_HOSTS.has(new URL(manifest.url).hostname);
+  } catch {
+    return false;
+  }
 }
 
 /**

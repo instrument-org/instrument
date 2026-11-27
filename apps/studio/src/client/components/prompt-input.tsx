@@ -1,5 +1,6 @@
 import { displayLocale } from "@/client/lib/display-locale";
 import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
+import { NEW_SKILL_ASK } from "@/client/lib/new-skill-ask";
 import { lookAtAtom, lookTargetOf } from "@/client/components/window/look-at";
 import { dismissedModelOffersAtom } from "@/client/atoms/dismissed-model-offers";
 import { providerMetadataAtom } from "@/client/atoms/provider-metadata";
@@ -1184,6 +1185,9 @@ export const PromptInput = ({
                   <ComposerAddMenu
                     actions={actions}
                     disabled={isLoading}
+                    onNewSkill={() => {
+                      promptEditorRef.current?.insertText(NEW_SKILL_ASK);
+                    }}
                     onReturnFocus={() => {
                       promptEditorRef.current?.focus();
                     }}

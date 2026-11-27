@@ -23,15 +23,12 @@ import { useGroupTab } from "@/client/components/window/group-tab";
 import { showInFolder } from "@/client/lib/show-in-files";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useContext, useState } from "react";
+import { NEW_SKILL_ASK } from "@/client/lib/new-skill-ask";
 import { toast } from "@/client/lib/toast";
-
-/** The system skill that knows how a skill is packaged, placed and checked. */
-const SKILL_CREATOR = skillMentionToken("skill-creator");
 
 type Skill = RPCOutput["workspace"]["skill"]["list"][number];
 
@@ -61,7 +58,7 @@ export function SkillsSection() {
           <Button
             className="text-foreground"
             onClick={() => {
-              ask(`Use ${SKILL_CREATOR} to make a skill that `);
+              ask(NEW_SKILL_ASK);
             }}
             size="sm"
             variant="outline"

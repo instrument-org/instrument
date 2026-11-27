@@ -82,6 +82,7 @@ const ATTACH_ACTIONS = new Set(["add-files", "work-in-folder"]);
 export function ComposerAddMenu({
   actions,
   disabled,
+  onNewSkill,
   onReturnFocus,
   onSelectSkill,
   onViewChange,
@@ -92,6 +93,8 @@ export function ComposerAddMenu({
 }: {
   actions: ComposerAction[];
   disabled?: boolean;
+  /** Starts a message that makes a new skill, after the skills. */
+  onNewSkill?: () => void;
   /** Puts the caret back in the prompt, once something has been chosen here. */
   onReturnFocus: () => void;
   onSelectSkill: (skill: ComposerSkill) => void;
@@ -123,6 +126,21 @@ export function ComposerAddMenu({
     chose.current = "prompt";
     action.onSelect();
   };
+  // After the skills, the way Connect an app… ends the apps.
+  const newSkillItem = onNewSkill && (
+    <>
+      {skills.length > 0 && <DropdownMenuSeparator />}
+      <DropdownMenuItem
+        onSelect={() => {
+          chose.current = "prompt";
+          onNewSkill();
+        }}
+      >
+        <PlusIcon className="size-4" />
+        New skill…
+      </DropdownMenuItem>
+    </>
+  );
   return (
     <DropdownMenu
       onOpenChange={(open) => {
@@ -238,6 +256,7 @@ export function ComposerAddMenu({
                   skill={skill}
                 />
               ))}
+              {newSkillItem}
             </>
           ) : places ? (
             // One list, the way the rest of the menu reads, so every entry
@@ -333,6 +352,7 @@ export function ComposerAddMenu({
                   skill={skill}
                 />
               ))}
+              {newSkillItem}
             </>
           )}
         </MenuScrollArea>

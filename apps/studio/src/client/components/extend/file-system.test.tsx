@@ -963,7 +963,8 @@ describe("FileSystem", () => {
               { kind: "file", path: "deep/down/plan.md" },
               { kind: "file", path: "deep/plan.txt" },
             ],
-            notSearched: ["Desktop", "Documents", "Downloads"].map((name) => ({
+            asks: ["Desktop", "Documents", "Downloads"].map((name) => ({
+              hostPath: `/Users/mac-user/${name}`,
               name,
               path: `${name}/`,
             })),
@@ -976,7 +977,7 @@ describe("FileSystem", () => {
       expect(
         document.querySelector("[data-file-system-status]")?.textContent,
       ).toMatchInlineSnapshot(
-        `"2 found in the first 2 items under FilesDesktop, Documents, and Downloads not searched"`,
+        `"2 found in the first 2 items under Files· Desktop, Documents, and Downloads not searchedAllow…"`,
       );
 
       fireEvent.click(screen.getByRole("button", { name: "Search: plan" }));
@@ -987,7 +988,59 @@ describe("FileSystem", () => {
       expect(screen.queryByText(/Search everywhere/)).toBeNull();
     });
 
-    it("names three folders it stepped over and offers to search in each", () => {
+    it("names the folders it stepped over and lets each be allowed from a dialog", async () => {
+      const onAllowFolder = vi.fn(() => Promise.resolve());
+      const onOpenPrivacySettings = vi.fn();
+      renderWithProviders(
+        <FileSystem
+          defaultSearch="plan"
+          items={FOLDERS}
+          onAllowFolder={onAllowFolder}
+          onOpenPrivacySettings={onOpenPrivacySettings}
+          searchResults={{
+            asks: [
+              {
+                hostPath: "/Users/mac-user/Desktop",
+                name: "Desktop",
+                path: "Desktop/",
+                refused: true,
+              },
+              {
+                hostPath: "/Users/mac-user/Documents",
+                name: "Documents",
+                path: "Documents/",
+              },
+              {
+                hostPath: "/Users/mac-user/Downloads",
+                name: "Downloads",
+                path: "Downloads/",
+              },
+            ],
+            items: [{ kind: "file", path: "deep/plan.txt" }],
+            truncated: false,
+          }}
+          searchResultsPending={false}
+        />,
+      );
+
+      expect(
+        document.querySelector("[data-file-system-status]")?.textContent,
+      ).toMatchInlineSnapshot(`"1 found in Files and its folders· Desktop, Documents, and Downloads not searchedAllow…"`);
+      fireEvent.click(screen.getByRole("button", { name: "Allow…" }));
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog.textContent).toMatchInlineSnapshot(`"Search more foldersmacOS asks before Instrument can open these folders.DesktopOpen System SettingsDocumentsAllow…DownloadsAllow…DoneClose"`);
+
+      fireEvent.click(
+        within(dialog).getAllByRole("button", { name: "Allow…" })[0]!,
+      );
+      expect(onAllowFolder.mock.calls).toEqual([["/Users/mac-user/Documents"]]);
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Open System Settings" }),
+      );
+      expect(onOpenPrivacySettings).toHaveBeenCalledOnce();
+    });
+
+    it("moves the search into AppData from the dialog on Windows", async () => {
       const onSearchInFolder = vi.fn();
       renderWithProviders(
         <FileSystem
@@ -995,33 +1048,28 @@ describe("FileSystem", () => {
           items={FOLDERS}
           onSearchInFolder={onSearchInFolder}
           searchResults={{
-            items: [{ kind: "file", path: "deep/plan.txt" }],
-            notSearched: ["Desktop", "Documents", "Downloads", "Library", "Music"].map(
-              (name) => ({ name, path: `${name}/` }),
-            ),
+            asks: [
+              {
+                hostPath: String.raw`C:\Users\windows-user\AppData`,
+                name: "AppData",
+                path: "AppData/",
+                searchIn: true,
+              },
+            ],
+            items: [],
             truncated: false,
           }}
           searchResultsPending={false}
         />,
       );
-      const line = screen.getByRole("button", { name: /not searched/ });
 
-      expect(line.textContent).toMatchInlineSnapshot(`"Desktop, Documents, Downloads, and 2 more not searched"`);
-      fireEvent.pointerDown(line, { button: 0, ctrlKey: false });
-      expect(
-        screen.getAllByRole("menuitem").map((item) => item.textContent),
-      ).toMatchInlineSnapshot(`
-        [
-          "Search in Desktop",
-          "Search in Documents",
-          "Search in Downloads",
-          "Search in Library",
-          "Search in Music",
-        ]
-      `);
-      fireEvent.click(screen.getByRole("menuitem", { name: "Search in Library" }));
+      fireEvent.click(screen.getByRole("button", { name: "Search…" }));
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Search in AppData" }),
+      );
 
-      expect(onSearchInFolder.mock.calls).toEqual([["Library/"]]);
+      expect(onSearchInFolder.mock.calls).toEqual([["AppData/"]]);
     });
 
     it("says how many it found under the folder once it is read", () => {
@@ -1031,7 +1079,7 @@ describe("FileSystem", () => {
           items={FOLDERS}
           searchResults={{
             items: [{ kind: "file", path: "deep/plan.txt" }],
-            notSearched: [],
+            asks: [],
             truncated: false,
           }}
           searchResultsPending={false}
@@ -1050,7 +1098,7 @@ describe("FileSystem", () => {
           items={FOLDERS}
           searchResults={{
             items: [{ kind: "file", path: "deep/plan.txt" }],
-            notSearched: [],
+            asks: [],
             stalledAt: "System32",
             truncated: true,
           }}
@@ -1096,7 +1144,7 @@ describe("FileSystem", () => {
               { kind: "file", path: "deep/plan.txt" },
               { kind: "file", path: "notes.txt" },
             ],
-            notSearched: [],
+            asks: [],
             truncated: false,
           }}
         />,

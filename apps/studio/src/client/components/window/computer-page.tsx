@@ -648,6 +648,10 @@ export function ComputerPage({
       retry: false,
     }),
   );
+  const askFolder = useMutation(rpcClient.files.askFolder.mutationOptions());
+  const openPrivacySettings = useMutation(
+    rpcClient.features.openPrivacySettings.mutationOptions(),
+  );
   const searchItems = [
     ...(folderWalk.data?.entries ?? []),
     ...(spotlight.data ?? []),
@@ -2936,16 +2940,26 @@ export function ComputerPage({
                     ? {
                         searchResults: {
                           items: searchItems,
-                          notSearched: folderWalk.data.notSearched.map(
-                            (folder) => ({
-                              name: nameOf(folder),
-                              path: `${current}${folder
+                          // A folder Spotlight found something in is one the
+                          // system already lets the app read.
+                          asks: folderWalk.data.asks
+                            .filter(
+                              (ask) =>
+                                !(spotlight.data ?? []).some((entry) =>
+                                  entry.path.startsWith(`${ask.path}/`),
+                                ),
+                            )
+                            .map((ask) => ({
+                              hostPath: ask.path,
+                              name: ask.name,
+                              path: `${current}${ask.path
                                 .slice(
                                   walkedFrom.replace(/[\\/]+$/, "").length + 1,
                                 )
                                 .replaceAll("\\", "/")}/`,
-                            }),
-                          ),
+                              ...(ask.refused ? { refused: true } : {}),
+                              ...(ask.searchIn ? { searchIn: true } : {}),
+                            })),
                           stalledAt:
                             folderWalk.data.stalledAt === undefined
                               ? undefined
@@ -2958,6 +2972,20 @@ export function ComputerPage({
                     isSearching && !isFolderless && folderWalk.isPending
                   }
                   onSearchKindsChange={setSearchKinds}
+                  onAllowFolder={async (folder) => {
+                    await askFolder.mutateAsync({ path: folder });
+                    await Promise.all([
+                      queryClient.invalidateQueries({
+                        queryKey: rpcClient.files.walkFolder.key(),
+                      }),
+                      queryClient.invalidateQueries({
+                        queryKey: rpcClient.files.spotlightMatches.key(),
+                      }),
+                    ]);
+                  }}
+                  onOpenPrivacySettings={() => {
+                    openPrivacySettings.mutate({ pane: "FilesAndFolders" });
+                  }}
                   onSearchInFolder={(folder) => {
                     setSelectedPaths([]);
                     go({ path: folder, query: query ?? "", type: "walk" });

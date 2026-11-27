@@ -14,6 +14,7 @@ const SPOTLIGHT_MS = 3000;
 const PROGRAM_FOLDERS: ReadonlySet<string> = new Set([
   "Containers",
   "Group Containers",
+  // oxlint-disable-next-line studio/no-os-words -- a folder only macOS has
   "Library",
 ]);
 

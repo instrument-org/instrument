@@ -664,6 +664,44 @@ export const STATES = {
       h.after(() => h.oneGroup());
     },
   },
+  "tg-image-alone": {
+    about: "Tab groups: a new group from ⌘N whose new tab's side panel went to the workspace folder, then Screenshots, and opened harbor-desk-pricing.png at Fit, alone in its tab.",
+    themes: ["light", "dark"],
+    run: async (h) => {
+      const { files, press } = h.app.words;
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.pricing);
+      await press("Meta+n");
+      await h.filesFromSidePanel();
+      await files.item("Screenshots").dblclick();
+      await wait(1000);
+      await files.item("harbor-desk-pricing.png").dblclick();
+      await wait(10_000);
+      h.after(() => h.oneGroup());
+    },
+  },
+  "tg-image-zoomed": {
+    about: "tg-image-alone, then a click on the picture and ⌘= twice, so it is zoomed in with the keyboard on it.",
+    themes: ["light"],
+    run: async (h) => {
+      const { files, press } = h.app.words;
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.pricing);
+      await press("Meta+n");
+      await h.filesFromSidePanel();
+      await files.item("Screenshots").dblclick();
+      await wait(1000);
+      await files.item("harbor-desk-pricing.png").dblclick();
+      await wait(10_000);
+      await h.app.click({ selector: "[data-picture-keys][tabindex]" });
+      await press("Meta+=");
+      await press("Meta+=");
+      await wait(800);
+      h.after(() => h.oneGroup());
+    },
+  },
   "tg-file-alone": {
     about: "Tab groups: a new group from ⌘N whose new tab's side panel went to the workspace folder and opened q3-board-update.md, a file alone in its tab.",
     themes: ["light", "dark"],

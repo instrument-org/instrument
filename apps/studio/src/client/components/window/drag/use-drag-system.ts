@@ -71,6 +71,7 @@ import {
   tabsOfHeldGroup,
 } from "./held-tabs";
 import { outcomeOf } from "./letting-go";
+import { carriesFiles, whenUnheard } from "./native-drag";
 import { keptAs } from "./use-bookmarks-drag";
 import { type Point } from "./landing";
 import {
@@ -90,13 +91,6 @@ import {
   type Landing,
   placeOf,
 } from "./types";
-
-/**
- * How long a drag of files goes unheard from before it is taken to have
- * gone: the system tells the window of a drag held still over it several
- * times a second.
- */
-const GONE_AFTER_MS = 1000;
 
 /**
  * The window's side of every drag (`session`): what letting go does where
@@ -908,25 +902,23 @@ export function useSystemDrags() {
     // which takes it. One taken out from under it, as a tab making way for
     // it is, never hears it leave.
     const entered = new Set<Node>();
-    let goneTimer: number | undefined;
     let point: Point = { x: 0, y: 0 };
 
     const end = () => {
-      window.clearTimeout(goneTimer);
+      unheard.stop();
       held = undefined;
       entered.clear();
       endFromElsewhere("native");
     };
-    const hasFiles = (event: DragEvent) =>
-      event.dataTransfer?.types.includes("Files") ?? false;
+    const unheard = whenUnheard(end);
     /** Whether the drag carries files, or else a link, which is all it takes. */
     const carries = (event: DragEvent) =>
-      hasFiles(event) ||
+      carriesFiles(event) ||
       (event.dataTransfer?.types.includes("text/uri-list") ?? false);
 
     /** A drag first seen: how many it carries now, and what they are once main says; a link, which says nothing until it is let go. */
     const begin = (event: DragEvent): NonNullable<typeof held> => {
-      if (!hasFiles(event)) {
+      if (!carriesFiles(event)) {
         // This window's own link is known by name from the start.
         const own = ownLinkInAir();
         return {
@@ -983,8 +975,7 @@ export function useSystemDrags() {
       if (held.kind === "files") {
         sawOwnFileDrag();
       }
-      window.clearTimeout(goneTimer);
-      goneTimer = window.setTimeout(end, GONE_AFTER_MS);
+      unheard.heard();
       const landing = followNative(held, point);
       if (landing === "refused") {
         // Where letting go changes nothing, nothing under it hears of it
@@ -1037,7 +1028,7 @@ export function useSystemDrags() {
       const released = held
         ? releaseNative({ x: event.clientX, y: event.clientY })
         : undefined;
-      window.clearTimeout(goneTimer);
+      unheard.stop();
       held = undefined;
       entered.clear();
       if (!was || !released || !event.dataTransfer) {

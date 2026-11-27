@@ -6,6 +6,7 @@ import {
 import { useEffect, useRef } from "react";
 
 import { filesOfDrop } from "./drag/held-tabs";
+import { carriesFiles } from "./drag/native-drag";
 import { type DroppedFile } from "./drag/types";
 
 /**
@@ -30,11 +31,9 @@ export function useWindowDropFallback(
   });
 
   useEffect(() => {
-    const hasFiles = (event: DragEvent) =>
-      event.dataTransfer?.types.includes("Files") ?? false;
     // Cancelled so the drop is allowed here at all.
     const take = (event: DragEvent) => {
-      if (!hasFiles(event) || event.defaultPrevented) {
+      if (!carriesFiles(event) || event.defaultPrevented) {
         return;
       }
       event.preventDefault();
@@ -43,7 +42,7 @@ export function useWindowDropFallback(
       }
     };
     const drop = (event: DragEvent) => {
-      if (!hasFiles(event) || event.defaultPrevented) {
+      if (!carriesFiles(event) || event.defaultPrevented) {
         return;
       }
       // Cancelled either way, so a file let go of here is never the page

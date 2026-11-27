@@ -2,6 +2,10 @@ import {
   dragAtom,
   useDropTarget,
 } from "@/client/components/window/drag/session";
+import {
+  carriesFiles,
+  whenUnheard,
+} from "@/client/components/window/drag/native-drag";
 import { DROP_LOOK } from "@/client/components/window/drag/tone";
 import { placeOf } from "@/client/components/window/drag/types";
 import { type DropHandlers } from "@/client/hooks/use-file-drop-region";
@@ -15,12 +19,6 @@ import { cn } from "@/client/lib/utils";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
-
-// How long the overlay survives without a `dragover`. Generous, because the
-// only cost of waiting is an overlay that lingers a moment after a drag it
-// never saw end, and the cost of being wrong the other way is an overlay taken
-// down while the file is still in the air.
-const STALE_DRAG_MS = 1000;
 
 /**
  * A box that takes a dropped file, the composer's, and the only thing that
@@ -99,11 +97,8 @@ export function FileDropRegion({
       return;
     }
 
-    let staleTimer: number | undefined;
-
     const endDrag = () => {
-      window.clearTimeout(staleTimer);
-      staleTimer = undefined;
+      unheard.stop();
       dragDepthRef.current = 0;
       setIsDragging(false);
       // Every way a drag ends passes through here, including leaving the
@@ -112,15 +107,11 @@ export function FileDropRegion({
     };
 
     // `dragover` keeps firing while a drag is over the element, on a timer of
-    // its own rather than on movement, so silence means the drag is gone:
-    // dropped on another window, cancelled with Escape, or ended while this app
-    // was behind another. Only the overlay rides on this -- a drop is handled
-    // whether or not the overlay is up -- so clearing a beat early costs
-    // nothing, while leaving it up leaves an overlay nobody can dismiss.
-    const keepAlive = () => {
-      window.clearTimeout(staleTimer);
-      staleTimer = window.setTimeout(endDrag, STALE_DRAG_MS);
-    };
+    // its own rather than on movement, so silence means the drag is gone. Only
+    // the overlay rides on this -- a drop is handled whether or not the
+    // overlay is up -- so clearing a beat early costs nothing, while leaving
+    // it up leaves an overlay nobody can dismiss.
+    const unheard = whenUnheard(endDrag);
 
     const handleDragEnter = (e: DragEvent) => {
       e.preventDefault();
@@ -129,9 +120,9 @@ export function FileDropRegion({
       // Counted but not drawn: the depth has to stay balanced against the
       // leave that follows, while a ring would be offering to take a file this
       // app is in the middle of handing out.
-      if (e.dataTransfer?.types.includes("Files") && !isSelfFileDrag(region)) {
+      if (carriesFiles(e) && !isSelfFileDrag(region)) {
         setIsDragging(true);
-        keepAlive();
+        unheard.heard();
       }
     };
 
@@ -154,7 +145,7 @@ export function FileDropRegion({
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      keepAlive();
+      unheard.heard();
     };
 
     const handleDrop = (e: DragEvent) => {

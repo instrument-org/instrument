@@ -124,6 +124,7 @@ import { pictureHoldingKeyboard } from "@/client/lib/picture-keys";
 import { openInNewWindow } from "./app-tabs";
 import { useWindow } from "./context";
 import { DROP_LOOK } from "./drag/tone";
+import { carriesFiles, whenUnheard } from "./drag/native-drag";
 import { filesOfDrop } from "./drag/held-tabs";
 import { arrivalView } from "./files-step";
 import { useGroupTab } from "./group-tab";
@@ -1286,11 +1287,13 @@ export function ComputerPage({
     if (!browser || !isDropOpen) {
       return;
     }
-    let staleTimer: number | undefined;
     const clear = () => {
-      window.clearTimeout(staleTimer);
+      unheard.stop();
       setDropInto(null);
     };
+    // `dragover` repeats while the drag is over the folder, so its silence
+    // means the drag went somewhere this did not hear about.
+    const unheard = whenUnheard(clear);
     // A drag resting on a folder opens it, so the drag can go on into a
     // folder inside it, and so on down. The folders it opened stand in place
     // of the step on screen until the drag ends: dropped here, the tab stays
@@ -1324,7 +1327,7 @@ export function ComputerPage({
       endSpring(false);
     };
     const over = (event: DragEvent) => {
-      if (!event.dataTransfer?.types.includes("Files")) {
+      if (!event.dataTransfer || !carriesFiles(event)) {
         return;
       }
       event.preventDefault();
@@ -1354,10 +1357,7 @@ export function ComputerPage({
         dropHandlers.readAhead(resting);
       }
       spring.rest(resting);
-      // `dragover` repeats while the drag is over the folder, so its silence
-      // means the drag went somewhere this did not hear about.
-      window.clearTimeout(staleTimer);
-      staleTimer = window.setTimeout(clear, 1000);
+      unheard.heard();
     };
     const leave = (event: DragEvent) => {
       if (
@@ -1383,7 +1383,7 @@ export function ComputerPage({
       }
     };
     const drop = (event: DragEvent) => {
-      if (!event.dataTransfer?.types.includes("Files")) {
+      if (!event.dataTransfer || !carriesFiles(event)) {
         return;
       }
       event.preventDefault();

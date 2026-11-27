@@ -1,7 +1,12 @@
 import { cn } from "@/client/lib/utils";
+import remend from "remend";
 
 import { MarkdownTable } from "../markdown-table";
-import { type Alignment, completeLines, readBlockHeader } from "./parse-body";
+import {
+  type Alignment,
+  arrivingTableLines,
+  readBlockHeader,
+} from "./parse-body";
 import { optionName, type Options, parseOptions } from "./parse-options";
 import { plainTextOf } from "./plain-text";
 import { useReplyMarkdown } from "./reply-markdown-context";
@@ -11,7 +16,8 @@ import { useReplyMarkdown } from "./reply-markdown-context";
  * table where the column is wide enough, one record per option where it is
  * not (the stacking is CSS on the table, by the block's own width), and the
  * pictures side by side when the options are pictures. The pick, when the
- * reply names one, is marked where it stands.
+ * reply names one, is marked where it stands. While it is arriving, the row
+ * being written fills in a cell at a time once its first cell is whole.
  */
 export function OptionsBlock({
   code,
@@ -21,11 +27,19 @@ export function OptionsBlock({
   isArriving: boolean;
 }) {
   const markdown = useReplyMarkdown();
-  const { body, header } = readBlockHeader(
-    completeLines(code, isArriving),
-    "options",
-  );
+  const drawn = isArriving ? arrivingTableLines(code) : code;
+  const { body, header } = readBlockHeader(drawn, "options");
   const options = parseOptions(body, header);
+  // The cell the row being written stops in can stop in the middle of a bold
+  // or a link, which `remend` closes as it does for a reply's own last block.
+  const arrivingRow =
+    isArriving && !drawn.endsWith("\n")
+      ? options?.table.rows.at(-1)
+      : undefined;
+  const arrivingCell = arrivingRow?.findLastIndex((cell) => cell !== "") ?? -1;
+  if (arrivingRow && arrivingCell !== -1) {
+    arrivingRow[arrivingCell] = remend(arrivingRow[arrivingCell] ?? "");
+  }
 
   if (!options || options.table.rows.length === 0) {
     // Half a table is not yet a table; a finished one that is not one is

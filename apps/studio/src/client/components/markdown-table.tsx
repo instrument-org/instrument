@@ -17,6 +17,7 @@ import {
   type TableCopyFormat,
 } from "./document-viewers/table-clipboard";
 import { TABLE_COPY_ALTERNATES } from "./document-viewers/table-copy-formats";
+import { useStreamBlockFade } from "./markdown-chat-context";
 import { readTableContents, tableRows } from "./markdown-table-rows";
 import {
   DropdownMenu,
@@ -193,6 +194,7 @@ export const MarkdownTable = ({
   /** An options block's table, which turns into one record per option in a narrow column. */
   stack?: "options";
 }) => {
+  const streamBlockFade = useStreamBlockFade();
   const frameRef = useRef<HTMLDivElement>(null);
   const rowCopyRef = useRef<HTMLSpanElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
@@ -447,6 +449,7 @@ export const MarkdownTable = ({
   return (
     <div
       className="markdown-table-row"
+      data-stream-block={streamBlockFade}
       onMouseLeave={hideRowControl}
       onMouseMove={trackRow}
     >

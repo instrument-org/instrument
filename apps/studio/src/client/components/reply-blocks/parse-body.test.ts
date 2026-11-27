@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseTable, readBlockHeader } from "./parse-body";
+import { arrivingTableLines, parseTable, readBlockHeader } from "./parse-body";
 
 describe("readBlockHeader", () => {
   it("reads only the keys the block takes, up to the first other line", () => {
@@ -20,6 +20,22 @@ describe("readBlockHeader", () => {
     expect(
       readBlockHeader("Title: The Hobbit\nPages: 310", "timeline").header,
     ).toEqual({});
+  });
+});
+
+describe("arrivingTableLines", () => {
+  const table = "| Plan | Price |\n| - | - |\n";
+
+  it.each([
+    { body: `${table}| Basic | $5 |\n| Pro | $`, row: "| Pro | $" },
+    { body: `${table}| Basic | **fr`, row: "| Basic | **fr" },
+    { body: `${table}| Bas`, row: "" },
+    { body: `${table}| Basic | $5 |\n\nPick Basic | or`, row: "" },
+    { body: "| Plan | Price |\n| - | -", row: "" },
+    { body: "Two plans | both", row: "" },
+  ])("draws $row of the row being written in $body", ({ body, row }) => {
+    const complete = body.slice(0, body.lastIndexOf("\n") + 1);
+    expect(arrivingTableLines(body)).toBe(complete + row);
   });
 });
 

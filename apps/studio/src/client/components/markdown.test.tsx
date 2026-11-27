@@ -697,6 +697,49 @@ describe("Markdown streaming words", () => {
     expect(streamingWords("Then a **bold")).toEqual(["Then", "a", "bold"]);
   });
 
+  it("holds a table's first row back until the row under it makes it a table", () => {
+    const { container } = renderWithProviders(
+      <Markdown isStreaming markdown={"One.\n\n| a | b |\n| - |"} />,
+    );
+    expect(container.textContent).toBe("One.");
+
+    const table = renderWithProviders(
+      <Markdown isStreaming markdown={"One.\n\n| a | b |\n| - | -"} />,
+    );
+    expect(table.container.querySelectorAll("th")).toHaveLength(2);
+    expect(
+      table.container.querySelectorAll("[data-stream-block]"),
+    ).toHaveLength(1);
+  });
+
+  it("fills an options row in by cell and closes what its last cell stops in", () => {
+    const { container } = renderWithProviders(
+      <Markdown
+        isStreaming
+        markdown={"```options\n| Plan | Price |\n| - | - |\n| Basic | **fr"}
+      />,
+    );
+    expect(
+      [...container.querySelectorAll("td")].map((cell) => cell.textContent),
+    ).toEqual(["Basic", "fr"]);
+    expect(container.querySelector("td strong")?.textContent).toBe("fr");
+  });
+
+  it("draws a chart once its block has closed", () => {
+    const chart = "```chart\n| Month | Sales |\n| - | - |\n| Jan | 4 |\n";
+    const arriving = renderWithProviders(
+      <Markdown isStreaming markdown={chart} />,
+    );
+    expect(arriving.container.querySelector("[data-slot=chart]")).toBeNull();
+
+    const closed = renderWithProviders(
+      <Markdown isStreaming markdown={`${chart}| Feb | 6 |\n\`\`\`\n\nNext`} />,
+    );
+    expect(
+      closed.container.querySelector("[data-slot=chart][data-stream-block]"),
+    ).not.toBeNull();
+  });
+
   it("fades a code block in only while its message is arriving", () => {
     const fence = "One.\n\n```ts\nconst x = 1;\n";
     const arriving = renderWithProviders(

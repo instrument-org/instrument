@@ -85,6 +85,7 @@ import {
   prefetchMermaid,
 } from "../lib/mermaid";
 import { withoutArrivingInlineOpener } from "../lib/arriving-inline-opener";
+import { withoutArrivingTableHead } from "../lib/arriving-table-head";
 import { rehypeAnimateWords } from "../lib/rehype-animate-words";
 import { remarkDropBreakAfterBr } from "../lib/remark-drop-break-after-br";
 import {
@@ -440,7 +441,6 @@ const MarkdownPre: Components["pre"] = ({ children, node }) => {
   return (
     <MarkdownCodeBlock
       code={fence.code}
-      fadesIn={arrivingSource !== undefined}
       filename={fence.filename}
       isArriving={isArriving}
       language={fence.language}
@@ -1705,7 +1705,11 @@ export const Markdown = memo(
                   // the repair walks the whole string it is given once per
                   // construct it knows, several of those walks quadratically.
                   index === blocks.length - 1
-                    ? remend(withoutArrivingInlineOpener(block))
+                    ? remend(
+                        withoutArrivingInlineOpener(
+                          withoutArrivingTableHead(block),
+                        ),
+                      )
                     : block
                 }
               />

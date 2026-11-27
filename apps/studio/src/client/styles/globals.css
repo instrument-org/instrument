@@ -1591,12 +1591,18 @@ a.cursor-pointer {
  * would, puts every one of them on its own compositing layer for the duration.
  *
  * A code span has a border and a background around its words, so it fades in
- * the same way from the moment it holds its first streaming word. A code block
- * that first appears while its message is arriving fades in whole, once. */
+ * the same way from the moment it holds its first streaming word. */
 [data-stream-word],
-[data-stream-block],
 code:has(> [data-stream-word]) {
   animation: stream-word-in 240ms ease-out both;
+}
+
+/* A code block, table or chart that first appeared while its message was
+ * arriving; see `useStreamBlockFade`. Its frame fades in whole, once, and what
+ * arrives inside it afterwards is its own business. No fill, so nothing of the
+ * animation is left on the block once it has run. */
+[data-stream-block] {
+  animation: stream-word-in 240ms ease-out;
 }
 
 @keyframes stream-word-in {

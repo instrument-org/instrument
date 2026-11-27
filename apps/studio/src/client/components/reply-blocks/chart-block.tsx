@@ -1,7 +1,8 @@
 import { useTimedFlag } from "@/client/hooks/use-timed-flag";
 import { cn } from "@/client/lib/utils";
 
-import { completeLines, readBlockHeader } from "./parse-body";
+import { useStreamBlockFade } from "../markdown-chat-context";
+import { readBlockHeader } from "./parse-body";
 import {
   type Chart,
   chartTicks,
@@ -18,7 +19,9 @@ import { useReplyMarkdown } from "./reply-markdown-context";
  * A chart block: numbers whose shape matters, drawn by hand from the table
  * the reply wrote. Bars in one neutral tone with the highlighted one in the
  * brand color, or a thin line; light gridlines, muted labels, no frame. Data
- * it cannot draw is the table it is, never an error.
+ * it cannot draw is the table it is, never an error. Nothing is drawn while
+ * the block is arriving: every row moves the scale, so a chart drawn a row at
+ * a time redraws itself whole each time.
  */
 export function ChartBlock({
   code,
@@ -28,16 +31,16 @@ export function ChartBlock({
   isArriving: boolean;
 }) {
   const markdown = useReplyMarkdown();
-  const { body, header } = readBlockHeader(
-    completeLines(code, isArriving),
-    "chart",
-  );
+  const { body, header } = readBlockHeader(code, "chart");
   const chart = parseChart(body, header);
+  const streamBlockFade = useStreamBlockFade();
+
+  if (isArriving) {
+    return null;
+  }
 
   if (!chart) {
-    return isArriving || body.trim() === "" ? null : (
-      <>{markdown.block(body)}</>
-    );
+    return body.trim() === "" ? null : <>{markdown.block(body)}</>;
   }
 
   const { table } = chart;
@@ -47,6 +50,7 @@ export function ChartBlock({
       <figure
         className="not-prose @container my-[1.5em] first:mt-0 last:mb-0"
         data-slot="chart"
+        data-stream-block={streamBlockFade}
       >
         {(chart.title || chart.series.length > 1) && (
           <figcaption className="mb-3 flex flex-col gap-1.5">
@@ -57,7 +61,7 @@ export function ChartBlock({
           </figcaption>
         )}
         <ChartBody chart={chart} />
-        <CopyData disabled={isArriving} rows={[table.head, ...table.rows]} />
+        <CopyData rows={[table.head, ...table.rows]} />
       </figure>
       {table.after && markdown.block(table.after)}
     </>
@@ -573,13 +577,13 @@ function Lines({ at, chart }: { at: (value: number) => number; chart: Chart }) {
   );
 }
 
-function CopyData({ disabled, rows }: { disabled: boolean; rows: string[][] }) {
+function CopyData({ rows }: { rows: string[][] }) {
   const { active: copied, trigger } = useTimedFlag();
   return (
     <div className="mt-2.5 text-xs text-muted-foreground">
       <button
         className="rounded-sm hover:text-foreground disabled:pointer-events-none"
-        disabled={disabled || rows.length === 0}
+        disabled={rows.length === 0}
         onClick={() => {
           const tsv = rows
             .map((row) => row.map((cell) => plainTextOf(cell)).join("\t"))

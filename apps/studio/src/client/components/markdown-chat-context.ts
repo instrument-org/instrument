@@ -1,5 +1,5 @@
 import { type ChatId } from "@instrument-org/workspace/client";
-import { createContext } from "react";
+import { createContext, useContext, useState } from "react";
 
 /**
  * Carries the ambient chat context down to the module-scope components a
@@ -23,3 +23,15 @@ export const MarkdownChatContext = createContext<{
   isStreaming?: boolean;
   chatId?: ChatId;
 }>({});
+
+/**
+ * The `data-stream-block` attribute for a block's outermost element, which the
+ * stylesheet fades in once: present when the block first appeared in text
+ * still arriving, and kept as it was then, so the text settling does not cut
+ * the fade short.
+ */
+export function useStreamBlockFade(): "" | undefined {
+  const { isStreaming } = useContext(MarkdownChatContext);
+  const [fadesIn] = useState(isStreaming === true);
+  return fadesIn ? "" : undefined;
+}

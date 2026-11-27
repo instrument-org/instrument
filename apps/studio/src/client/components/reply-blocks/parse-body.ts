@@ -33,6 +33,23 @@ export function readBlockHeader(
 export const completeLines = (body: string, isArriving: boolean) =>
   isArriving ? body.slice(0, body.lastIndexOf("\n") + 1) : body;
 
+/**
+ * What a body still arriving, written around a table, has to draw: its
+ * complete lines, and with them the row being written once it carries straight
+ * on from the table's rows and its first cell has closed. The first cell is
+ * what names the row, so until it is whole the row has nothing to go by.
+ */
+export const arrivingTableLines = (body: string) => {
+  const complete = completeLines(body, true);
+  const lines = complete.split("\n");
+  const table = parseTable(complete);
+  return table?.after === "" &&
+    isTableLine(lines.at(-2) ?? "") &&
+    tableCellsOf(body.slice(complete.length)).length > 1
+    ? body
+    : complete;
+};
+
 export type Alignment = "center" | "left" | "right" | undefined;
 
 export interface ParsedTable {

@@ -10,6 +10,7 @@ import { getLanguageDisplayName } from "../lib/file-extension-to-language";
 import { cn } from "../lib/utils";
 import { CopyButton } from "./copy-button";
 import { FileTypeIcon } from "./extend/file-system";
+import { useStreamBlockFade } from "./markdown-chat-context";
 import { useKeptOpen } from "./transcript/kept-open";
 import { useReleaseAutoScroll } from "./transcript-scroll-context";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -201,14 +202,11 @@ export const CodeBlockWrapContext = createContext(true);
  */
 export const MarkdownCodeBlock = ({
   code,
-  fadesIn = false,
   filename,
   isArriving = false,
   language,
 }: {
   code: string;
-  /** The block first appears in a message still arriving, so it fades in. */
-  fadesIn?: boolean;
   filename?: string;
   /** The fence has not closed yet, so the code it holds is still arriving. */
   isArriving?: boolean;
@@ -237,14 +235,12 @@ export const MarkdownCodeBlock = ({
   // than the token a model typed. A fence claiming neither carries no label,
   // which is the one case where the block is drawn exactly as it always was.
   const label = filename ?? (language && getLanguageDisplayName(language));
-  // Kept as it was when the block appeared: the message carrying on to its next
-  // block must not cut a fade short.
-  const [fadedIn] = useState(fadesIn);
+  const streamBlockFade = useStreamBlockFade();
 
   return (
     <div
       className="group/block-toolbar relative isolate"
-      data-stream-block={fadedIn ? "" : undefined}
+      data-stream-block={streamBlockFade}
     >
       {/* Out of the flow, which is not only about overlaying the code: the
           block's own margin collapses out of this wrapper, and an in-flow

@@ -46,6 +46,14 @@ import {
   useExtensionActions,
 } from "./browser-extensions";
 
+/**
+ * What a tab row too narrow for its address hides of the group: the pinned
+ * buttons, which the puzzle piece's menu still lists, as Chrome folds them
+ * into it when the toolbar runs out of room. Left in, the field's end
+ * (its site icon and star) would draw over them.
+ */
+const NARROW_ROW_HIDDEN = "@max-[32rem]/tabrow:hidden";
+
 /** The refusals already put to the person this launch, by extension id, so each is said once. */
 const noticed = new Set<string>();
 
@@ -217,13 +225,14 @@ export function BrowserExtensionButtons({
           }}
         >
           <AdBlockingButton
+            className={cn(!shieldOpen && NARROW_ROW_HIDDEN)}
             compact={isGrouped}
             onOpenChange={setShieldOpen}
             open={shieldOpen}
             targetId={targetId}
           />
           <browser-action-list
-            className={cn(!hasPinned && "hidden")}
+            className={cn(!hasPinned && "hidden", NARROW_ROW_HIDDEN)}
             partition={BROWSER_EXTENSIONS_SESSION}
             ref={listRef}
           />

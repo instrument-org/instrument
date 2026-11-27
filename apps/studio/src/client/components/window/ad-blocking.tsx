@@ -84,11 +84,13 @@ export function useAdBlocking() {
  * when not, the way Chrome shows an unpinned extension with its popup up.
  */
 export function AdBlockingButton({
+  className,
   compact,
   onOpenChange,
   open,
   targetId,
 }: {
+  className?: string;
   compact: boolean;
   onOpenChange: (open: boolean) => void;
   open: boolean;
@@ -116,6 +118,7 @@ export function AdBlockingButton({
               compact
                 ? "size-7 rounded-[calc(var(--radius-xl)-2px)]"
                 : "size-8 rounded-xl",
+              className,
             )}
             type="button"
           >

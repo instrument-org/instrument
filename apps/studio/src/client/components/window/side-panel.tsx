@@ -95,7 +95,11 @@ import {
 import { DROP_TONE } from "./drag/tone";
 import { ViewButton } from "./filter-head";
 import { GROUP_WIDTH_MIN } from "./group-sidebar";
-import { useOutlineDrop, useOutlineTarget } from "./drag/use-bookmarks-drag";
+import {
+  useAllBookmarksTarget,
+  useOutlineDrop,
+  useOutlineTarget,
+} from "./drag/use-bookmarks-drag";
 import { type Place, useFilesPlaces } from "./files-places";
 import { PlaceItems } from "./place-items";
 import { TabRowControl } from "./tab-location-row";
@@ -138,7 +142,7 @@ function sidePanelBounds(width: number): RailBounds {
  * Whether a window whose group and panel share `width` has room for the
  * panel at `panelWidth` beside the group at its narrowest. The share is the
  * same with the panel out of the way, so the answer holds once the panel
- * goes or comes back, and only a change of the window or the sidebar turns it.
+ * goes or comes back.
  */
 export function sidePanelRoomOf(width: number, panelWidth: number): boolean {
   return width >= GROUP_WIDTH_MIN + panelWidth;
@@ -444,10 +448,18 @@ const ROW =
   "flex h-7.5 w-full shrink-0 cursor-default items-center gap-2 rounded-lg px-2 text-left text-[13px] text-foreground/85 hover:bg-foreground/6 hover:text-foreground data-[state=open]:bg-foreground/6";
 
 /** A row that shows more of a section in the panel. */
-function MoreRow({ label, onClick }: { label: string; onClick: () => void }) {
+function MoreRow({
+  className,
+  label,
+  onClick,
+}: {
+  className?: string;
+  label: string;
+  onClick: () => void;
+}) {
   return (
     <button
-      className={cn(ROW, "text-muted-foreground")}
+      className={cn(ROW, "text-muted-foreground", className)}
       onClick={onClick}
       type="button"
     >
@@ -726,16 +738,56 @@ function BookmarksSection({
     <>
       <Heading>Bookmarks</Heading>
       {isEmpty ? (
-        <p className="px-2 py-1 text-[13px] text-muted-foreground">
-          Bookmarks you keep show up here.
-        </p>
+        <AllBookmarksDrop>
+          {(className) => (
+            <p
+              className={cn(
+                "rounded-lg px-2 py-1 text-[13px] text-muted-foreground",
+                className,
+              )}
+            >
+              Bookmarks you keep show up here.
+            </p>
+          )}
+        </AllBookmarksDrop>
       ) : (
         <>
           <BookmarkTree open={open} othersShown={BOOKMARKS_SHOWN} />
-          <MoreRow label="All bookmarks" onClick={onAll} />
+          <AllBookmarksDrop>
+            {(className) => (
+              <MoreRow
+                className={className}
+                label="All bookmarks"
+                onClick={onAll}
+              />
+            )}
+          </AllBookmarksDrop>
         </>
       )}
     </>
+  );
+}
+
+/** All Bookmarks as a place to drop on, ringed while what is held would go there. */
+const ALL_BOOKMARKS_ROW = ":all";
+
+/**
+ * What files what is held at the end of All Bookmarks (`useAllBookmarksTarget`):
+ * the All bookmarks row, or the empty list's line. `children` draws it, given
+ * the ring while a drop would land there.
+ */
+function AllBookmarksDrop({
+  children,
+}: {
+  children: (className: string | undefined) => ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useAllBookmarksTarget({ area: () => ref.current, id: ALL_BOOKMARKS_ROW });
+  const drop = useOutlineDrop();
+  return (
+    <div ref={ref}>
+      {children(drop.row?.id === ALL_BOOKMARKS_ROW ? DROP_TONE : undefined)}
+    </div>
   );
 }
 

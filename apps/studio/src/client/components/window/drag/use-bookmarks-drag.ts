@@ -563,6 +563,49 @@ export function useOutlineTarget({
 }
 
 /**
+ * A place that files what is held at the end of All Bookmarks (`OTHER_ROOT`),
+ * as the bar's All Bookmarks chip does, drawn as the row `id` ringed: the
+ * side panel's All bookmarks row, and its list while it has none. A
+ * bookmark or a folder moves there, and anything else is kept there.
+ */
+export function useAllBookmarksTarget({
+  area,
+  id,
+}: {
+  area: () => HTMLElement | null;
+  id: string;
+}) {
+  const context = useKeptContext(() => "");
+  const store = useStore();
+  useDropTarget({
+    landingAt: (_point, { held }) => {
+      const state = store.get(bookmarksStateAtom);
+      const kept =
+        held.kind === "folder"
+          ? []
+          : keptAs(held, { ...context, bookmarks: state.bookmarks });
+      if (held.kind !== "folder" && kept.length === 0) {
+        return undefined;
+      }
+      const moving =
+        held.kind === "folder"
+          ? [held.folder]
+          : [STANDING_ID, ...kept.map((each) => each.id)];
+      const index = siblingsIn(state, undefined, OTHER_ROOT).filter(
+        (each) => !moving.includes(each.id),
+      ).length;
+      return {
+        index,
+        kind: "bookmarks",
+        root: OTHER_ROOT,
+        row: { at: "into", id },
+      };
+    },
+    rect: () => shownRect(area()),
+  });
+}
+
+/**
  * What an outline of bookmarks draws of a drag: the rows held, which stay
  * dimmed in their places, and the row a landing on it is drawn at.
  */

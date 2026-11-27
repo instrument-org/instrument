@@ -728,21 +728,34 @@ function WindowShell({
     };
   }, [rowElement]);
   // The side panel steps out of the way in a window too narrow for it beside
-  // the group, and comes back as the window widens again.
-  const setSidePanelRoom = useSetAtom(setSidePanelRoomAtom);
+  // the group, and comes back as the window widens again. Asked as the
+  // window opens and as it is resized, never as something in it moves, so
+  // the sidebar's slide never sends the panel off or back. The room is all
+  // the window has past the card's left edge, which the panel's own slide
+  // does not move, so a resize during it reads the same.
   const sidePanelRow = rowWidth + (sidePanel.isOpen ? sidePanelWidth : 0);
-  useEffect(() => {
-    if (rowWidth > 0) {
-      setSidePanelRoom(sidePanelRoomOf(sidePanelRow, sidePanelWidth));
-    }
-  }, [rowWidth, setSidePanelRoom, sidePanelRow, sidePanelWidth]);
+  const setSidePanelRoom = useSetAtom(setSidePanelRoomAtom);
   const sidePanelWindowResized = useSetAtom(sidePanelWindowResizedAtom);
+  const measureSidePanelRoom = useEffectEvent(() => {
+    if (rowElement) {
+      const room =
+        window.innerWidth -
+        rowElement.getBoundingClientRect().left -
+        Number.parseFloat(getComputedStyle(rowElement).marginRight);
+      setSidePanelRoom(sidePanelRoomOf(room, sidePanelWidth));
+    }
+  });
   useEffect(() => {
-    window.addEventListener("resize", sidePanelWindowResized);
-    return () => {
-      window.removeEventListener("resize", sidePanelWindowResized);
+    measureSidePanelRoom();
+    const resized = () => {
+      sidePanelWindowResized();
+      measureSidePanelRoom();
     };
-  }, [sidePanelWindowResized]);
+    window.addEventListener("resize", resized);
+    return () => {
+      window.removeEventListener("resize", resized);
+    };
+  }, [rowElement, sidePanelWindowResized]);
   const [browser, setBrowser] = useState<BrowserTabsHandle | null>(null);
   const windowTabs = useWindowTabs();
   // Every screen a group's tab stands on is walked by a router of its own.

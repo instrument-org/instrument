@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-11-27T22:59:58.814Z",
-  "entriesHash": "cb3927f464cbf537",
+  "revision": "2026-11-27T23:27:11.455Z",
+  "entriesHash": "8763a677f54b3f48",
   "entries": [
     {
       "slug": "activecampaign",
@@ -479,30 +479,11 @@
       "rank": 10
     },
     {
-      "slug": "astro-docs",
-      "name": "Astro Docs",
-      "tagline": "The Astro documentation.",
-      "description": "The Astro documentation.",
-      "domain": "astro.build",
-      "authMethods": [],
-      "interfaces": [
-        {
-          "format": "mcp",
-          "name": "Astro Docs MCP server",
-          "endpoint": "https://mcp.docs.astro.build/mcp",
-          "auth": "none"
-        }
-      ],
-      "home": "https://docs.astro.build",
-      "category": "developer",
-      "tier": "hidden"
-    },
-    {
       "slug": "atlassian",
       "name": "Atlassian",
       "tagline": "Jira issues and Confluence pages over one sign-in.",
       "description": "Jira issues and Confluence pages over one sign-in.",
-      "domain": "atlassian.com",
+      "domain": "atlassian.net",
       "authMethods": [
         {
           "type": "oauth2",
@@ -565,46 +546,20 @@
     {
       "slug": "audible",
       "name": "Audible",
-      "tagline": "Audiobooks and podcasts in the catalog.",
-      "description": "Ask by genre, mood, topic or anything else that comes to mind. Note: If you're outside the United States, results may redirect you to your local marketplace. Its server refuses every request from outside the clients Audible allows (a 403 from its CDN for the endpoint and every well-known address), so it is not a way in from here.",
+      "tagline": "Audiobooks, your library, and your wish list.",
+      "description": "Amazon's audiobooks. Its server refuses Instrument, so Audible is reached on the web: the user signs in to audible.com in Instrument's browser.",
       "domain": "audible.com",
       "authMethods": [],
-      "interfaces": [
-        {
-          "format": "mcp",
-          "name": "Audible MCP server",
-          "endpoint": "https://mcp.audible.com/mcp",
-          "auth": "none"
-        }
-      ],
+      "interfaces": [],
       "home": "https://www.audible.com",
       "category": "life",
-      "tier": "hidden",
+      "tier": "listed",
       "rank": 189,
       "examples": [
         "Find a gripping mystery for a road trip",
-        "What are the best-reviewed history audiobooks?",
-        "Suggest a short audiobook I can finish today"
+        "What's on my wish list?",
+        "Which books in my library haven't I started?"
       ]
-    },
-    {
-      "slug": "aws-knowledge",
-      "name": "AWS Knowledge",
-      "tagline": "AWS documentation, API references, and best practices.",
-      "description": "AWS documentation, API references, and best practices.",
-      "domain": "aws.amazon.com",
-      "authMethods": [],
-      "interfaces": [
-        {
-          "format": "mcp",
-          "name": "AWS Knowledge MCP server",
-          "endpoint": "https://knowledge-mcp.global.api.aws",
-          "auth": "none"
-        }
-      ],
-      "home": "https://docs.aws.amazon.com",
-      "category": "developer",
-      "tier": "hidden"
     },
     {
       "slug": "axiom",
@@ -4417,7 +4372,7 @@
         }
       ],
       "docsUrl": "https://posthog.com/docs",
-      "home": "https://app.posthog.com",
+      "home": "https://us.posthog.com",
       "category": "data",
       "tier": "listed",
       "rank": 85,
@@ -5340,7 +5295,7 @@
           "auth": "oauth"
         }
       ],
-      "home": "https://squareup.com/dashboard",
+      "home": "https://app.squareup.com/dashboard",
       "category": "money",
       "tier": "listed",
       "rank": 57,
@@ -5353,25 +5308,18 @@
     {
       "slug": "squarespace",
       "name": "Squarespace",
-      "tagline": "Domain search and name ideas.",
-      "description": "Squarespace's MCP server covers domains and nothing else: whether a name is free, and what else is close to it.",
+      "tagline": "Websites, online stores, and domains.",
+      "description": "Squarespace's site builder. Its MCP server only checks whether a domain name is free, so Squarespace is reached on the web: the user signs in to their account in Instrument's browser.",
       "domain": "squarespace.com",
       "authMethods": [],
-      "interfaces": [
-        {
-          "format": "mcp",
-          "name": "Squarespace MCP server",
-          "endpoint": "https://mcp.squarespace.com/mcp",
-          "auth": "none"
-        }
-      ],
+      "interfaces": [],
       "home": "https://account.squarespace.com",
       "category": "stores",
       "tier": "listed",
       "examples": [
-        "Suggest domain names for a coffee shop",
-        "Is my name available as a .com?",
-        "What names are close to the one I want?"
+        "How many orders came in this week?",
+        "Which pages on my site haven't changed this year?",
+        "When does my domain renew?"
       ]
     },
     {
@@ -5517,7 +5465,7 @@
     },
     {
       "slug": "superhuman",
-      "name": "Superhuman",
+      "name": "Superhuman Mail",
       "tagline": "The inbox: search, read, and draft.",
       "description": "The inbox: search, read, and draft.",
       "domain": "superhuman.com",
@@ -5575,26 +5523,6 @@
         "How much did we spend on ads this week?",
         "Which channel brought the most traffic?"
       ]
-    },
-    {
-      "slug": "svelte",
-      "name": "Svelte",
-      "tagline": "The Svelte and SvelteKit documentation.",
-      "description": "Svelte's MCP server lists the documentation's sections and returns the one an answer needs, builds a playground link for a snippet, and checks a component against the compiler.",
-      "domain": "svelte.dev",
-      "authMethods": [],
-      "interfaces": [
-        {
-          "format": "mcp",
-          "name": "Svelte MCP server",
-          "endpoint": "https://mcp.svelte.dev/mcp",
-          "auth": "none"
-        }
-      ],
-      "home": "https://svelte.dev/docs",
-      "category": "developer",
-      "tier": "hidden",
-      "registryName": "dev.svelte/mcp"
     },
     {
       "slug": "tana",

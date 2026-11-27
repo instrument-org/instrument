@@ -229,38 +229,6 @@ export const TAB_OPS = {
   },
 
   /**
-   * A page in a group (the group on screen, unless one is named), up at once
-   * when that group is on screen, when none was named, or when asked.
-   */
-  openPage: (
-    state: WindowTabs,
-    { onScreen }: TabOpContext,
-    ask: {
-      after?: string;
-      from?: Opening;
-      group?: string;
-      page: BrowserTab;
-      replacing?: WindowTab;
-      select: boolean;
-      side?: Placing["side"];
-    },
-  ): Outcome<undefined> => {
-    const key = ask.group ?? onScreen;
-    return unchanged(
-      openPage(state, {
-        ...(ask.after === undefined ? {} : { after: ask.after }),
-        ...(ask.from === undefined ? {} : { from: ask.from }),
-        ...(ask.side === undefined ? {} : { side: ask.side }),
-        group: key,
-        page: ask.page,
-        ...(ask.replacing ? { replacing: ask.replacing } : {}),
-        select: ask.select || ask.group === undefined || key === onScreen,
-      }),
-      undefined,
-    );
-  },
-
-  /**
    * A page beside a chat's tab, for the chat's agent or a link pressed in
    * the chat (`openBesideChat`). Answers the tab that shows it and whether
    * it is up on its side; nothing for a chat's tab no group has.

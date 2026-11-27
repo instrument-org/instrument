@@ -68,7 +68,6 @@ export const WINDOW_CHANGE_ANSWERS = {
   openBeside: "open",
   openInGroup: "open",
   openOrFocusScreen: "open",
-  openPage: "open",
   openPageBesideChat: "open",
   openPageTab: "open",
   openScreen: "open",

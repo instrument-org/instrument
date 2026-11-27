@@ -385,16 +385,16 @@ export class Window {
           return undefined;
         }
         const tab = this.tab("page", group);
-        this.run(group, "openPage", {
-          after: source.id,
+        // As the pane opens a link pressed into a new tab.
+        this.run(group, "openPageTab", {
+          behind: action.behind,
           from: { reason: "link", tab: source.id },
-          group,
+          into: group,
+          newTab: true,
           page: { id: tab.id, openedAt: 0, url: `https://${tab.id}.test/` },
-          // A press focuses the side it was in before its link opens.
-          select: !action.behind,
+          show: false,
         });
-        // The operation itself brings up any page of the group on screen.
-        this.opened(group, was, tab.id, false);
+        this.opened(group, was, tab.id, action.behind);
         this.same(
           "sameSides",
           this.seeOne(group).sides.length,
@@ -744,11 +744,13 @@ export class Window {
         const name = this.tag(tab);
         const id = this.id("v");
         if (action.page) {
-          this.run(group, "openPage", {
-            group,
+          this.run(group, "openPageTab", {
+            behind: false,
+            into: group,
+            newTab: false,
             page: { id, openedAt: 0, url: `https://${id}.test/` },
             replacing: tab,
-            select: true,
+            show: false,
           });
         } else {
           this.run(group, "tabToScreen", {

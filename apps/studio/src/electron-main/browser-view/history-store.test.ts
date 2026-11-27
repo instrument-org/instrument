@@ -535,6 +535,189 @@ describe("what a write tells live readers", () => {
   });
 });
 
+describe("what an extension reads of the person's history", () => {
+  it("lists only the person's visible visits and pages, never an agent's or a hidden one", () => {
+    const history = store();
+    const typed = history.addVisit({
+      actor: "user",
+      at: 1 * HOUR,
+      transition: "typed",
+      url: "https://a.test/",
+    });
+    const hiddenStep = history.addVisit({
+      actor: "user",
+      at: 2 * HOUR,
+      fromVisit: typed,
+      transition: "link",
+      url: "https://hop.test/",
+    });
+    history.hideVisit(hiddenStep, "redirect");
+    history.addVisit({
+      actor: "user",
+      at: 2 * HOUR + 1,
+      fromVisit: hiddenStep,
+      isClientRedirect: true,
+      transition: "link",
+      url: "https://b.test/",
+    });
+    history.addVisit({
+      actor: "agent",
+      at: 3 * HOUR,
+      transition: "link",
+      url: "https://agent.test/",
+    });
+    history.addVisit({
+      actor: "agent",
+      at: 4 * HOUR,
+      transition: "link",
+      url: "https://a.test/",
+    });
+    history.addVisit({
+      actor: "user",
+      at: 5 * HOUR,
+      fromVisit: typed,
+      transition: "back_forward",
+      url: "https://a.test/",
+    });
+    history.addFileOpen({ at: 6 * HOUR, path: "/a/doc.txt", via: "tab" });
+    expect(
+      history.personPages(0, 10 * HOUR).map((page) => ({
+        url: page.url,
+        visits: page.visitCount,
+      })),
+    ).toEqual([
+      { url: "https://a.test/", visits: 2 },
+      { url: "https://b.test/", visits: 1 },
+    ]);
+    expect(
+      history.personPages(2 * HOUR, 3 * HOUR).map((page) => page.url),
+    ).toEqual(["https://b.test/"]);
+    expect(history.personPage("https://agent.test/")).toBeUndefined();
+    expect(history.personPage("https://hop.test/")).toBeUndefined();
+    expect(
+      history
+        .personVisits("https://a.test/")
+        .map(({ at, fromVisit, steppedFrom, transition }) => ({
+          at: at / HOUR,
+          fromVisit,
+          steppedFrom,
+          transition,
+        })),
+    ).toEqual([
+      {
+        at: 1,
+        fromVisit: undefined,
+        steppedFrom: undefined,
+        transition: "typed",
+      },
+      {
+        at: 5,
+        fromVisit: typed,
+        steppedFrom: "link",
+        transition: "back_forward",
+      },
+    ]);
+    // The redirect it came through is hidden, so it names no referrer.
+    expect(history.personVisits("https://b.test/")[0]).not.toHaveProperty(
+      "fromVisit",
+    );
+    expect(history.personVisits("https://agent.test/")).toEqual([]);
+  });
+
+  it("tells each visible visit of the person's, and the pages a removal or clear takes off their history", () => {
+    const history = store();
+    const told: unknown[] = [];
+    history.changes.subscribe("visited", (visit) => {
+      told.push(["visited", visit.url]);
+    });
+    history.changes.subscribe("removed", (removed) => {
+      told.push(["removed", removed]);
+    });
+    const visit = (url: string, at: number, actor: "agent" | "user" = "user") =>
+      history.addVisit({ actor, at, transition: "link", url });
+    visit("https://a.test/", 1 * HOUR);
+    visit("https://a.test/", 5 * HOUR);
+    visit("https://b.test/", 2 * HOUR);
+    visit("https://c.test/", 3 * HOUR);
+    visit("https://d.test/", 4 * HOUR);
+    visit("https://agent.test/", 2 * HOUR, "agent");
+    history.addVisit({
+      actor: "user",
+      at: 2 * HOUR,
+      hiddenBy: "error",
+      transition: "link",
+      url: "https://error.test/",
+    });
+    // a.test keeps its visit at 5 hours, so only b.test leaves the history.
+    history.clear(0, 3 * HOUR);
+    history.remove("https://c.test/");
+    // Nothing visible left at c.test to remove.
+    history.remove("https://c.test/");
+    history.removeOpenings([
+      { at: 4 * HOUR, kind: "page", since: 4 * HOUR, url: "https://d.test/" },
+    ]);
+    history.clear();
+    expect(told).toMatchInlineSnapshot(`
+      [
+        [
+          "visited",
+          "https://a.test/",
+        ],
+        [
+          "visited",
+          "https://a.test/",
+        ],
+        [
+          "visited",
+          "https://b.test/",
+        ],
+        [
+          "visited",
+          "https://c.test/",
+        ],
+        [
+          "visited",
+          "https://d.test/",
+        ],
+        [
+          "removed",
+          {
+            "allHistory": false,
+            "urls": [
+              "https://b.test/",
+            ],
+          },
+        ],
+        [
+          "removed",
+          {
+            "allHistory": false,
+            "urls": [
+              "https://c.test/",
+            ],
+          },
+        ],
+        [
+          "removed",
+          {
+            "allHistory": false,
+            "urls": [
+              "https://d.test/",
+            ],
+          },
+        ],
+        [
+          "removed",
+          {
+            "allHistory": true,
+            "urls": [],
+          },
+        ],
+      ]
+    `);
+  });
+});
+
 describe("the recent files after a move the app made", () => {
   let browserDir: string;
 

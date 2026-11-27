@@ -36,7 +36,6 @@ const FEATURES: [feature: string, permissions: string[]][] = [
   ["Controlling pages as a developer tool", ["debugger"]],
   ["Saving pages", ["pageCapture"]],
   ["Bookmarks", ["bookmarks"]],
-  ["Browsing history", ["history"]],
   ["Recently closed tabs", ["sessions"]],
   ["Most visited sites", ["topSites"]],
   ["Reading list", ["readingList"]],

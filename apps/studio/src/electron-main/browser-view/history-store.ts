@@ -7,7 +7,7 @@ import { type HistoryAction } from "@instrument-org/workspace/electron";
 import { EventPublisher } from "@orpc/server";
 import fs from "node:fs";
 import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { DatabaseSync, type SQLOutputValue } from "node:sqlite";
 
 /**
  * The person's history in the app: the in-app browser's pages, and the files
@@ -76,6 +76,41 @@ interface VisitedPage {
   at: number;
   count: number;
   url: string;
+}
+
+/** A page the person visited visibly, as `chrome.history` reads one. */
+export interface PersonPage {
+  id: number;
+  /** When they last visited it visibly, in epoch ms. */
+  lastVisit: number;
+  title: string;
+  typedCount: number;
+  url: string;
+  visitCount: number;
+}
+
+/** One of the person's visible visits to a page, as `chrome.history` reads one. */
+export interface PersonVisit {
+  at: number;
+  /** The visit the tab was on when this one came, when that one is visible too. */
+  fromVisit?: number;
+  id: number;
+  /**
+   * For a step back or forward, how the address was reached the last time
+   * before that was not a step, when history still has that visit.
+   */
+  steppedFrom?: HistoryTransition;
+  transition: HistoryTransition;
+  urlId: number;
+}
+
+/**
+ * Pages taken off the person's history: all of it, or the addresses left
+ * with no visible visit.
+ */
+export interface PagesRemoved {
+  allHistory: boolean;
+  urls: readonly string[];
 }
 
 export interface NewVisit {
@@ -172,6 +207,27 @@ UPDATE urls SET
 
 export type HistoryStore = ReturnType<typeof createHistoryStore>;
 
+const TRANSITIONS: readonly HistoryTransition[] = [
+  "back_forward",
+  "link",
+  "typed",
+];
+
+function transitionOf(value: SQLOutputValue | undefined): HistoryTransition {
+  return TRANSITIONS.find((transition) => transition === value) ?? "link";
+}
+
+function personPageOf(row: Record<string, SQLOutputValue>): PersonPage {
+  return {
+    id: Number(row.id),
+    lastVisit: Number(row.last_visit),
+    title: String(row.title),
+    typedCount: Number(row.typed_count),
+    url: String(row.url),
+    visitCount: Number(row.visit_count),
+  };
+}
+
 /**
  * A write to the pages: the addresses whose row, visits or fetched title it
  * changed, or no `urls` when it may have changed any of them.
@@ -199,7 +255,9 @@ function withoutClosingSlash(url: string) {
 /**
  * The store over one database file, or `:memory:` for tests. Every write
  * tells `changes` so live readers read again: `pages` for the browser's
- * pages and their titles, `files` for the files opened.
+ * pages and their titles, `files` for the files opened. Two more say what
+ * happened to the person's history: `visited` for each of their visible
+ * visits, `removed` for pages a removal or a clear took off it.
  */
 export function createHistoryStore(file: string) {
   if (file !== ":memory:") {
@@ -226,7 +284,12 @@ export function createHistoryStore(file: string) {
     database.exec("ALTER TABLE file_opens ADD COLUMN app TEXT");
   }
 
-  const changes = new EventPublisher<{ files: null; pages: PagesChange }>();
+  const changes = new EventPublisher<{
+    files: null;
+    pages: PagesChange;
+    removed: PagesRemoved;
+    visited: { url: string };
+  }>();
   const filesChanged = () => {
     changes.publish("files", null);
   };
@@ -266,6 +329,33 @@ export function createHistoryStore(file: string) {
     return row === undefined
       ? undefined
       : { id: Number(row.id), url: String(row.url) };
+  };
+
+  /** Which of these addresses still have a visible visit. */
+  const visibleAmong = (urls: readonly string[]): Set<string> =>
+    new Set(
+      database
+        .prepare(
+          "SELECT url FROM urls WHERE hidden = 0 AND url IN (SELECT value FROM json_each(?))",
+        )
+        .all(JSON.stringify(urls))
+        .map((row) => String(row.url)),
+    );
+  /** The addresses with a visible visit from `since` to before `before`. */
+  const visibleBetween = (since: number, before: number): string[] =>
+    database
+      .prepare(
+        `SELECT DISTINCT urls.url AS url FROM visits JOIN urls ON urls.id = visits.url_id WHERE ${VISIBLE} AND visits.at >= ? AND visits.at < ?`,
+      )
+      .all(since, before)
+      .map((row) => String(row.url));
+  /** Tells `removed` of those of `had`, addresses visible before a removal, that no longer are. */
+  const tellRemoved = (had: readonly string[], allHistory = false) => {
+    const left = visibleAmong(had);
+    const urls = had.filter((url) => !left.has(url));
+    if (allHistory || urls.length > 0) {
+      changes.publish("removed", { allHistory, urls });
+    }
   };
 
   const pagesWhere = (where: string, parameters: number[], limit: number) =>
@@ -330,6 +420,9 @@ export function createHistoryStore(file: string) {
       );
       refresh(urlId);
       pagesChanged([visit.url]);
+      if (visit.actor === "user" && visit.hiddenBy === undefined) {
+        changes.publish("visited", { url: visit.url });
+      }
       return Number(result.lastInsertRowid);
     },
 
@@ -337,15 +430,18 @@ export function createHistoryStore(file: string) {
 
     /**
      * Removes every visit, the person's and an agent's, at or after `since`
-     * (all of them without it), and every address left with none. Answers how
-     * many visits went.
+     * and before `before` (all of them without either), and every address
+     * left with none. Answers how many visits went.
      */
-    clear(since?: number): { removed: number } {
+    clear(since?: number, before?: number): { removed: number } {
+      const from = since ?? Number.MIN_SAFE_INTEGER;
+      const to = before ?? Number.MAX_SAFE_INTEGER;
+      const allHistory = since === undefined && before === undefined;
+      const had = allHistory ? [] : visibleBetween(from, to);
       const removed = Number(
-        (since === undefined
-          ? database.prepare("DELETE FROM visits").run()
-          : database.prepare("DELETE FROM visits WHERE at >= ?").run(since)
-        ).changes,
+        database
+          .prepare("DELETE FROM visits WHERE at >= ? AND at < ?")
+          .run(from, to).changes,
       );
       database.exec(
         "UPDATE visits SET from_visit = NULL WHERE from_visit IS NOT NULL AND from_visit NOT IN (SELECT id FROM visits)",
@@ -354,13 +450,14 @@ export function createHistoryStore(file: string) {
         "DELETE FROM urls WHERE id NOT IN (SELECT DISTINCT url_id FROM visits)",
       );
       database
-        .prepare("DELETE FROM fetched_titles WHERE at >= ?")
-        .run(since ?? 0);
+        .prepare("DELETE FROM fetched_titles WHERE at >= ? AND at < ?")
+        .run(from, to);
       database
-        .prepare("DELETE FROM frequent_hidden WHERE at >= ?")
-        .run(since ?? 0);
+        .prepare("DELETE FROM frequent_hidden WHERE at >= ? AND at < ?")
+        .run(from, to);
       database.exec(REFRESH);
       pagesChanged();
+      tellRemoved(had, allHistory);
       return { removed };
     },
 
@@ -418,6 +515,13 @@ export function createHistoryStore(file: string) {
       let removed = 0;
       let pages = false;
       let files = false;
+      const had = [
+        ...visibleAmong(
+          openings.flatMap((opening) =>
+            opening.kind === "page" ? [opening.url] : [],
+          ),
+        ),
+      ];
       for (const opening of openings) {
         if (opening.kind === "page") {
           pages = true;
@@ -447,6 +551,7 @@ export function createHistoryStore(file: string) {
         );
         database.exec(REFRESH);
         pagesChanged();
+        tellRemoved(had);
       }
       if (files) {
         database.exec(
@@ -611,6 +716,69 @@ export function createHistoryStore(file: string) {
       return readStartPages(database, excludedUrls, now);
     },
 
+    /**
+     * The person's visible visits to a page, oldest first. A step back or
+     * forward carries how the address was reached before, which the step
+     * itself does not say.
+     */
+    personVisits(url: string): PersonVisit[] {
+      return database
+        .prepare(
+          `SELECT visits.id AS id, visits.url_id AS url_id, visits.at AS at, visits.transition AS transition,
+            (SELECT referrer.id FROM visits AS referrer
+              WHERE referrer.id = visits.from_visit AND referrer.actor = 'user' AND referrer.hidden_by IS NULL) AS from_visit,
+            CASE WHEN visits.transition = 'back_forward' THEN
+              (SELECT earlier.transition FROM visits AS earlier
+                WHERE earlier.url_id = visits.url_id AND earlier.id < visits.id AND earlier.transition != 'back_forward'
+                ORDER BY earlier.id DESC LIMIT 1)
+            END AS stepped_from
+          FROM visits JOIN urls ON urls.id = visits.url_id
+          WHERE urls.url = ? AND ${VISIBLE}
+          ORDER BY visits.at, visits.id`,
+        )
+        .all(url)
+        .map(
+          (row): PersonVisit => ({
+            at: Number(row.at),
+            ...(row.from_visit === null
+              ? {}
+              : { fromVisit: Number(row.from_visit) }),
+            id: Number(row.id),
+            ...(row.stepped_from === null
+              ? {}
+              : { steppedFrom: transitionOf(row.stepped_from) }),
+            transition: transitionOf(row.transition),
+            urlId: Number(row.url_id),
+          }),
+        );
+    },
+
+    /** A page as the person's history has it, or undefined when they have no visible visit to it. */
+    personPage(url: string): undefined | PersonPage {
+      const row = database
+        .prepare(
+          "SELECT id, url, title, last_visit, visit_count, typed_count FROM urls WHERE url = ? AND hidden = 0",
+        )
+        .get(url);
+      return row === undefined ? undefined : personPageOf(row);
+    },
+
+    /**
+     * The pages the person visited visibly from `since` to before `before`,
+     * the one visited latest in that time first.
+     */
+    personPages(since: number, before: number): PersonPage[] {
+      return database
+        .prepare(
+          `SELECT urls.id AS id, urls.url AS url, urls.title AS title, urls.last_visit AS last_visit, urls.visit_count AS visit_count, urls.typed_count AS typed_count, max(visits.at) AS latest
+            FROM visits JOIN urls ON urls.id = visits.url_id
+            WHERE ${VISIBLE} AND visits.at >= ? AND visits.at < ?
+            GROUP BY urls.id ORDER BY latest DESC, urls.id DESC`,
+        )
+        .all(since, before)
+        .map(personPageOf);
+    },
+
     /** The person's visible pages, newest first. */
     recent(limit: number): HistoryPage[] {
       return pagesWhere("1", [], limit);
@@ -624,6 +792,7 @@ export function createHistoryStore(file: string) {
         return;
       }
       const urlId = Number(row.id);
+      const had = [...visibleAmong([url])];
       database
         .prepare("DELETE FROM visits WHERE url_id = ? AND actor = 'user'")
         .run(urlId);
@@ -634,6 +803,7 @@ export function createHistoryStore(file: string) {
         .run(urlId, urlId);
       refresh(urlId);
       pagesChanged([url]);
+      tellRemoved(had);
     },
 
     /**

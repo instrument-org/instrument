@@ -45,7 +45,11 @@ const PermissionsManifestSchema = z.object({
   permissions: z.array(z.unknown()).catch([]),
 });
 
-function asks(extension: Pick<Extension, "manifest">, permission: string) {
+/** Whether the extension's manifest asks for the permission. */
+export function asks(
+  extension: Pick<Extension, "manifest">,
+  permission: string,
+) {
   return PermissionsManifestSchema.catch({ permissions: [] })
     .parse(extension.manifest)
     .permissions.includes(permission);

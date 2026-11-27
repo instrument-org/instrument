@@ -61,6 +61,7 @@ import {
   reportedCommand,
 } from "./extension-commands";
 import { answerDownloadCalls } from "./extension-download-calls";
+import { answerHistoryCalls } from "./extension-history-calls";
 import { answerIdentityCalls } from "./extension-identity";
 import { answerSidePanelCalls } from "./extension-side-panels";
 import { unsupportedFeatures } from "./extension-support";
@@ -285,12 +286,16 @@ export function enableBrowserExtensions(
       .map((command) => reportedCommand(command, OS)),
   );
   answerDownloadCalls(extensions, guestSession);
+  answerHistoryCalls(extensions, guestSession);
   answerIdentityCalls(extensions, guestSession, () => {
     const host =
-      currentTab && !currentTab.isDestroyed() ? currentTab.hostWebContents : null;
+      currentTab && !currentTab.isDestroyed()
+        ? currentTab.hostWebContents
+        : null;
     return (
-      (host && !host.isDestroyed() ? BrowserWindow.fromWebContents(host) : null) ??
-      BrowserWindow.getFocusedWindow()
+      (host && !host.isDestroyed()
+        ? BrowserWindow.fromWebContents(host)
+        : null) ?? BrowserWindow.getFocusedWindow()
     );
   });
   answerSidePanelCalls(extensions, guestSession, () => currentTab);
@@ -396,7 +401,8 @@ function runExtensionCommand(command: ExtensionCommand, from: WebContents) {
   if (ACTION_COMMANDS.has(command.name)) {
     // A window a page opened has no host; its opener's tab is in one.
     const host = [tab, currentTab].find(
-      (contents) => contents && !contents.isDestroyed() && contents.hostWebContents,
+      (contents) =>
+        contents && !contents.isDestroyed() && contents.hostWebContents,
     )?.hostWebContents;
     const window =
       host && !host.isDestroyed() ? BrowserWindow.fromWebContents(host) : null;

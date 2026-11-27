@@ -134,10 +134,9 @@ export function RowLinesView({
         {lines.line !== "" && (
           <div className="flex h-5 min-w-0 items-center text-[12px] leading-5">
             {lines.tone === "work" ? (
-              // The chat list's working line: `brand-shiny-text` is an
-              // inline-block, which a parent's truncate cannot shrink, so it
-              // carries its own.
-              <span className="brand-shiny-text min-w-0 truncate">
+              // The chat list's working line: `shiny-text` is an inline-block,
+              // which a parent's truncate cannot shrink, so it carries its own.
+              <span className="shiny-text min-w-0 truncate [--shimmer-base:var(--muted-foreground)]">
                 {lines.line}
                 <ShimmerSweep text={lines.line} />
               </span>

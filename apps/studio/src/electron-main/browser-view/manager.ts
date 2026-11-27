@@ -9,6 +9,7 @@ import { keepsHistory } from "@/electron-main/stores/workspace/preferences";
 import {
   type BrowserGuestTarget,
   type GuestLastLoad,
+  type PopupState,
   targetIdFromPartition,
 } from "@/shared/browser";
 import {
@@ -16,6 +17,7 @@ import {
   type BrowserConfig,
   type BrowserTarget,
   type BrowserTargetId,
+  BrowserTargetIdSchema,
   lastBrowserAgentActivity,
   notePageOpenedTab,
   notePersonUsedTab,
@@ -23,7 +25,9 @@ import {
 } from "@instrument-org/workspace/electron";
 import {
   BrowserWindow,
+  type BrowserWindowConstructorOptions,
   type WebContents,
+  WebContentsView,
   type WindowOpenHandlerResponse,
 } from "electron";
 import { noop } from "radashi";
@@ -101,15 +105,13 @@ import {
 } from "./page-edits";
 import { countGuestsWith, noteLoad } from "../lib/load-note";
 import { pageKeyOfInput } from "./page-key";
+import { forwardPopupEvents, placePopupView, popupState } from "./popup-tabs";
 import { createPutAwaySound } from "./put-away-sound";
 import { stopScreencast } from "./screencast";
 import {
-  agentPopupTabOf,
   guestWindowOpenHandler,
-  hiddenBlankPopup,
   isBlankPopup,
   isFileUrl,
-  isHttpUrl,
   newTabOpenOf,
   newWindowOpenOf,
   pageAddressOfLink,
@@ -200,6 +202,17 @@ export interface BrowserViewManager {
   // guests (it can get stuck `true` after focus moves to a plain host-page
   // element).
   setGuestFocus: (targetId: BrowserTargetId, focused: boolean) => void;
+  // A popup's page, for the window's handle on it, and its state; null for a
+  // target that is not a popup.
+  popupOf: (
+    targetId: BrowserTargetId,
+  ) => null | { page: WebContents; state: PopupState };
+  // Show a popup's view over the slot showing its tab, in the window's
+  // pixels, or hide it.
+  placePopup: (
+    targetId: BrowserTargetId,
+    bounds: null | { height: number; width: number; x: number; y: number },
+  ) => void;
   // Record whether a slot in the window shows a guest or the pool parks it,
   // as the renderer pool reports each change.
   setGuestShown: (targetId: BrowserTargetId, shown: boolean) => void;
@@ -463,7 +476,12 @@ function createBrowserViewManager(): BrowserViewManager {
       });
   }
 
-  function bindGuest(entry: BrowserEntry, guest: WebContents) {
+  function bindGuest(
+    entry: BrowserEntry,
+    guest: WebContents,
+    // A popup's page, already on its way to the page that opened it.
+    { adopted = false }: { adopted?: boolean } = {},
+  ) {
     entry.webContents = guest;
     const { targetId } = entry;
     guests.bind(guest.id, entry);
@@ -508,113 +526,63 @@ function createBrowserViewManager(): BrowserViewManager {
     // guestWindowOpenHandler), so the opener/postMessage channel that
     // "Continue with Google" and similar flows complete through stays intact
     // instead of hanging.
-    // An empty popup the page opened while the agent drove it (see
-    // `hiddenBlankPopup`) becomes a tab of the chat at the first web address
-    // the page sends it to, as a popup opened at its address does, and the
-    // hidden window closes. One the page only writes into is closed after a
-    // minute, since nothing can see or reach it.
-    let hiddenPopupsAsked = 0;
-    guest.on("did-create-window", (window) => {
-      if (hiddenPopupsAsked === 0) {
-        return;
-      }
-      hiddenPopupsAsked -= 1;
-      const unused = setTimeout(() => {
-        window.destroy();
-      }, 60_000);
-      window.webContents.on("will-frame-navigate", (details) => {
-        if (!details.isMainFrame || !isHttpUrl(details.url)) {
-          return;
-        }
-        details.preventDefault();
-        clearTimeout(unused);
-        // Not from inside Chromium's decision on this navigation.
-        setImmediate(() => {
-          window.destroy();
-        });
-        if (!mayOpenFromPage(details.url)) {
-          return;
-        }
-        const tabId = StoreId.newTabId();
-        publisher.publish("browser.open-in-new-tab", {
-          background: true,
-          tabId,
-          targetId,
-          url: details.url,
-        });
-        notePageOpenedTab(targetId, { tabId, url: details.url });
-      });
-      window.on("closed", () => {
-        clearTimeout(unused);
-      });
-    });
-
     guest.setWindowOpenHandler((asked) => {
       // A link to a file in the app's own scheme opens as the page's link to
       // that file would, rather than going to the system.
       const details = { ...asked, url: pageAddressOfLink(asked.url) };
-      if (focusGuard.isGuarded(targetId) && isBlankPopup(details)) {
-        hiddenPopupsAsked += 1;
-        return hiddenBlankPopup(details);
+      // A popup is a tab of the page's group, its page drawn in a view of the
+      // window rather than a window of its own (`adoptPopup`).
+      if (
+        guestWindowOpenHandler(details).action === "allow" &&
+        (isBlankPopup(details) || mayOpenFromPage(details.url))
+      ) {
+        const byAgent = focusGuard.isGuarded(targetId);
+        return {
+          action: "allow",
+          createWindow: (options) =>
+            adoptPopup(entry, options, { byAgent, url: details.url }),
+        };
       }
-      const response: WindowOpenHandlerResponse = focusGuard.isGuarded(targetId)
-        ? { action: "deny" }
-        : guestWindowOpenHandler(details);
-      const popup = focusGuard.isGuarded(targetId)
-        ? agentPopupTabOf(details)
-        : null;
-      if (popup !== null && mayOpenFromPage(popup)) {
-        const tabId = StoreId.newTabId();
+      const response: WindowOpenHandlerResponse = { action: "deny" };
+      // A tab-open gets a tab of its own, as a browser does, while a person
+      // rather than an agent is driving the page.
+      const newTab = focusGuard.isGuarded(targetId)
+        ? null
+        : newTabOpenOf(details, pageDocument());
+      if (newTab && mayOpenFromPage(newTab.url)) {
         publisher.publish("browser.open-in-new-tab", {
-          background: true,
-          tabId,
+          ...newTab,
           targetId,
-          url: popup,
         });
-        notePageOpenedTab(targetId, { tabId, url: popup });
         return response;
       }
-      if (response.action === "deny") {
-        // A tab-open gets a tab of its own, as a browser does, while a person
-        // rather than an agent is driving the page.
-        const newTab = focusGuard.isGuarded(targetId)
-          ? null
-          : newTabOpenOf(details, pageDocument());
-        if (newTab && mayOpenFromPage(newTab.url)) {
-          publisher.publish("browser.open-in-new-tab", {
-            ...newTab,
-            targetId,
-          });
-          return response;
-        }
-        const newWindow = focusGuard.isGuarded(targetId)
-          ? null
-          : newWindowOpenOf(details, pageDocument());
-        if (newWindow && mayOpenFromPage(newWindow.url)) {
-          publisher.publish("browser.open-in-new-tab", {
-            background: false,
-            newWindow: true,
-            targetId,
-            url: newWindow.url,
-          });
-          return response;
-        }
-        // A denied open leaves the click with nowhere to go, so send the ones
-        // that mean "show me this page" to the page it came from. This runs
-        // even while the guest is agent-guarded, where it is the only way a
-        // `target=_blank` link is reachable at all: the guard withholds a
-        // window, not a navigation, and the agent's CDP connection is pinned to
-        // this one page. Deferred because the handler runs inside Chromium's
-        // decision for this navigation, and starting another from underneath it
-        // is not something Electron promises to survive.
-        const url = sameTabNavigationUrl(details);
-        if (url != null) {
-          setImmediate(() => {
-            if (!guest.isDestroyed()) {
-              void guest.loadURL(url).catch(noop);
-            }
-          });
-        }
+      const newWindow = focusGuard.isGuarded(targetId)
+        ? null
+        : newWindowOpenOf(details, pageDocument());
+      if (newWindow && mayOpenFromPage(newWindow.url)) {
+        publisher.publish("browser.open-in-new-tab", {
+          background: false,
+          newWindow: true,
+          targetId,
+          url: newWindow.url,
+        });
+        return response;
+      }
+      // A denied open leaves the click with nowhere to go, so send the ones
+      // that mean "show me this page" to the page it came from. This runs
+      // even while the guest is agent-guarded, where it is the only way a
+      // `target=_blank` link is reachable at all: the guard withholds a
+      // window, not a navigation, and the agent's CDP connection is pinned to
+      // this one page. Deferred because the handler runs inside Chromium's
+      // decision for this navigation, and starting another from underneath it
+      // is not something Electron promises to survive.
+      const url = sameTabNavigationUrl(details);
+      if (url != null) {
+        setImmediate(() => {
+          if (!guest.isDestroyed()) {
+            void guest.loadURL(url).catch(noop);
+          }
+        });
       }
       return response;
     });
@@ -900,7 +868,9 @@ function createBrowserViewManager(): BrowserViewManager {
       }, RESTORE_WAIT_MS);
     };
     guest.once("did-finish-load", settle);
-    if (returnTo) {
+    if (adopted) {
+      settleLate();
+    } else if (returnTo) {
       entry.returnTo = null;
       const { entries: pages, index } = returnTo;
       void guest.navigationHistory
@@ -910,6 +880,77 @@ function createBrowserViewManager(): BrowserViewManager {
     } else {
       void guest.loadURL("about:blank");
     }
+  }
+
+  /**
+   * A page's popup as a tab of its own beside the page that opened it. The
+   * popup's page is Chromium's own, handed over by `createWindow`, so the page
+   * keeps its link to it (`window.opener`, `postMessage`, `window.close()`);
+   * only where it is drawn is ours. It goes in a view in the opener's window,
+   * hidden until a slot shows its tab (`placePopup`), and is bound as an entry
+   * with no `<webview>` to attach, so an agent reaches it as any tab. An
+   * agent's popup opens behind, named in its next result; a person's opens in
+   * front, as a browser's does.
+   */
+  function adoptPopup(
+    opener: BrowserEntry,
+    options: BrowserWindowConstructorOptions,
+    { byAgent, url }: { byAgent: boolean; url: string },
+  ): WebContents {
+    // Electron puts the popup's page in the options it hands `createWindow`,
+    // a key its typings leave out of the window options.
+    const { webContents: page } = options as { webContents?: WebContents };
+    const view = new WebContentsView({
+      ...(page === undefined ? {} : { webContents: page }),
+      ...(options.webPreferences === undefined
+        ? {}
+        : { webPreferences: options.webPreferences }),
+    });
+    const host = hostOf(opener.targetId);
+    const window =
+      host && !host.isDestroyed() ? BrowserWindow.fromWebContents(host) : null;
+    view.setVisible(false);
+    // Sized before any slot shows it, so an agent driving it from the start
+    // has a viewport to click in, about the size a slot will give it.
+    const { height = 768, width = 1024 } = window?.getContentBounds() ?? {};
+    view.setBounds({ height, width, x: 0, y: 0 });
+    window?.contentView.addChildView(view);
+    const popup = view.webContents;
+    const tabId = StoreId.newTabId();
+    const targetId = BrowserTargetIdSchema.parse(tabId);
+    const entry = createEntry({
+      hostId: host?.id ?? null,
+      partitionDir: opener.partitionDir,
+      targetId,
+    });
+    entry.popupView = view;
+    entry.shown = !byAgent;
+    entry.disposers.add(() => {
+      window?.contentView.removeChildView(view);
+      if (!popup.isDestroyed()) {
+        popup.close();
+      }
+    });
+    entries.set(targetId, entry);
+    advanceEntry(entry, "willAttach");
+    advanceEntry(entry, "didAttach");
+    bindGuest(entry, popup, { adopted: true });
+    forwardPopupEvents(targetId, popup);
+    popup.once("destroyed", () => {
+      publisher.publish("browser.popup-closed", {
+        openerId: opener.targetId,
+        targetId,
+      });
+    });
+    notifyEntriesChanged();
+    publisher.publish("browser.open-in-new-tab", {
+      background: byAgent,
+      tabId,
+      targetId: opener.targetId,
+      url,
+    });
+    notePageOpenedTab(opener.targetId, { tabId, url });
+    return popup;
   }
 
   // A person's input, or an agent's: either leaves state a reload loses. Being sent
@@ -1178,6 +1219,27 @@ function createBrowserViewManager(): BrowserViewManager {
    * the renderer it is attached to, so this is a fresh guest that reloads its
    * page, with its history, in place of the one that goes.
    */
+  // A popup's tab going to another window: its view goes with it, keeping
+  // the page and its link to the page that opened it, where a tab's guest is
+  // loaded again there.
+  function movePopup(entry: BrowserEntry, webContentsId: number) {
+    const view = entry.popupView;
+    const to = [...liveHosts].find((host) => host.id === webContentsId);
+    const window =
+      to && !to.isDestroyed() ? BrowserWindow.fromWebContents(to) : null;
+    if (!view || !window) {
+      return;
+    }
+    const from = hostOf(entry.targetId);
+    const fromWindow =
+      from && !from.isDestroyed() ? BrowserWindow.fromWebContents(from) : null;
+    fromWindow?.contentView.removeChildView(view);
+    view.setVisible(false);
+    window.contentView.addChildView(view);
+    entry.hostId = webContentsId;
+    notifyEntriesChanged();
+  }
+
   function moveTarget(
     existing: BrowserEntry,
     partitionDir: AbsolutePath,
@@ -1217,6 +1279,10 @@ function createBrowserViewManager(): BrowserViewManager {
     if (!existing || hostIdOf(existing) === webContentsId) {
       return;
     }
+    if (existing.popupView) {
+      movePopup(existing, webContentsId);
+      return;
+    }
     const scroll = await pageScrollOf(existing.webContents);
     // Handed on again, or closed, while the page answered.
     if (entries.get(targetId) !== existing) {
@@ -1245,6 +1311,10 @@ function createBrowserViewManager(): BrowserViewManager {
         hostId !== host.webContentsId &&
         (host.take === "always" || canTakeParked(existing, host.webContentsId))
       ) {
+        if (existing.popupView) {
+          movePopup(existing, host.webContentsId);
+          return Promise.resolve();
+        }
         return moveTarget(existing, partitionDir, host.webContentsId);
       }
       // Idempotent: a tab owns at most one guest. Already bound -> reuse it;
@@ -1412,6 +1482,11 @@ function createBrowserViewManager(): BrowserViewManager {
       }),
     createTarget,
     discardTarget: async (targetId) => {
+      // A popup unloaded could never be loaded again with its link to the
+      // page that opened it, so it stays as it is.
+      if (entries.get(targetId)?.popupView) {
+        return;
+      }
       const history = historyOfGuest(targetId);
       const closed = browser.closeTarget(targetId);
       keptHistories.keep(targetId, history);
@@ -1603,6 +1678,7 @@ function createBrowserViewManager(): BrowserViewManager {
           generation: entry.generation,
           id: entry.targetId,
           navigated: entry.navigated,
+          popup: entry.popupView !== null,
         })),
     getTargetsElsewhere: (webContentsId) =>
       [...entries.values()]
@@ -1622,6 +1698,19 @@ function createBrowserViewManager(): BrowserViewManager {
       return entry !== undefined && hostIdOf(entry) === webContentsId;
     },
     handOffGuest,
+    popupOf: (targetId) => {
+      const entry = entries.get(targetId);
+      const page = entry?.popupView ? entry.webContents : null;
+      return page && !page.isDestroyed()
+        ? { page, state: popupState(page) }
+        : null;
+    },
+    placePopup: (targetId, bounds) => {
+      const view = entries.get(targetId)?.popupView;
+      if (view && !view.webContents.isDestroyed()) {
+        placePopupView(view, bounds);
+      }
+    },
     handOffGuestsOf: (fromWebContentsId, toWebContentsId, staying) => {
       // A moved page comes round again at the end of the map, in its new window.
       for (const [targetId, entry] of entries) {
@@ -1630,6 +1719,10 @@ function createBrowserViewManager(): BrowserViewManager {
           hasGuest(entry) &&
           !staying.includes(targetId)
         ) {
+          if (entry.popupView) {
+            movePopup(entry, toWebContentsId);
+            continue;
+          }
           moveTarget(entry, entry.partitionDir, toWebContentsId).catch(
             () => undefined,
           );

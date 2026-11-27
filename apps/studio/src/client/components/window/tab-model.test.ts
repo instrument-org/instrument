@@ -32,6 +32,7 @@ import {
   openOrFocusScreen,
   openPage,
   pageBecameDownload,
+  popupClosed,
   type PageTab,
   type ScreenTab,
   pageNavigated,
@@ -1054,6 +1055,41 @@ describe("pageBecameDownload", () => {
     ]);
 
     expect(pageBecameDownload(state, "s")).toBe(state);
+  });
+});
+
+describe("popupClosed", () => {
+  const tabs = [
+    pageTab("opener", "https://example.com", CHAT),
+    pageTab("other", "https://example.com/b", CHAT),
+    pageTab("popup", "https://example.com/sign-in", CHAT),
+  ];
+
+  it("closes the popup's tab and brings the opener up when the popup was up", () => {
+    const after = popupClosed(
+      selectTab(windowOf(tabs), "popup"),
+      "popup",
+      "opener",
+    );
+
+    expect(after.tabs.map((tab) => tab.id)).toEqual(["opener", "other"]);
+    expect(after.activeByGroup[CHAT]).toBe("opener");
+  });
+
+  it("leaves the tab up alone when the popup was behind", () => {
+    const after = popupClosed(
+      selectTab(windowOf(tabs), "other"),
+      "popup",
+      "opener",
+    );
+
+    expect(after.activeByGroup[CHAT]).toBe("other");
+  });
+
+  it("changes nothing for a tab already closed", () => {
+    const state = windowOf(tabs.slice(0, 2));
+
+    expect(popupClosed(state, "popup", "opener")).toBe(state);
   });
 });
 

@@ -40,6 +40,9 @@ export function mayGuestSleep(
     guest !== null &&
     !guest.isDestroyed() &&
     !entry.shown &&
+    // A popup's page is kept awake: the page that opened it may be waiting
+    // on it, as a sign-in's is.
+    entry.popupView === null &&
     !fullScreen &&
     entry.screencastInterval === null &&
     !busy

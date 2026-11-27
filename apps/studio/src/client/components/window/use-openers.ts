@@ -1713,32 +1713,44 @@ export function useOpeners({
       });
       return;
     }
-    // Only an agent's popup is named a tab by the workspace, and it never
-    // makes a group: from a page with no tab it opens nothing.
-    const place = pageOpenPlaceOf(asking, { isAgent: tabId !== undefined });
+    // A popup's page is open already, under the id its tab takes, which the
+    // workspace names to the session that worked in the page. An agent's
+    // popup never makes a group: from a page with no tab it opens nothing.
+    const popup =
+      tabId === undefined ? {} : { id: tabId, isLoaded: true as const };
+    const isAgent = tabId !== undefined && background;
+    const place = pageOpenPlaceOf(asking, { isAgent });
     if (place.kind === "free") {
-      openPage(url, { behind: background, newTab: true });
-    } else if (place.kind === "after" && background) {
-      // The workspace names a popup's tab to the session that worked in the
-      // page, so the tab opens under that id.
+      if (tabId === undefined) {
+        openPage(url, { behind: background, newTab: true });
+      } else {
+        browser?.open(url, { behind: background, newTab: true, ...popup });
+      }
+      return;
+    }
+    if (place.kind === "none") {
+      return;
+    }
+    // An agent's own popup is linked to nothing (`Opening`).
+    const from = isAgent
+      ? {}
+      : { from: { reason: "link" as const, tab: place.after } };
+    if (background) {
       browser?.openBehind(url, {
         after: place.after,
-        // An agent's own popup is linked to nothing (`Opening`).
-        ...(tabId === undefined
-          ? { from: { reason: "link", tab: place.after } }
-          : { id: tabId }),
+        ...from,
         group: place.group,
+        ...popup,
         ...(asking?.openedBy === undefined
           ? {}
           : { openedBy: asking.openedBy }),
       });
-    } else if (place.kind === "after") {
+    } else {
       browser?.open(url, {
         after: place.after,
-        ...(tabId === undefined
-          ? { from: { reason: "link", tab: place.after } }
-          : {}),
+        ...from,
         group: place.group,
+        ...popup,
       });
     }
   };
@@ -1762,6 +1774,7 @@ export function useOpeners({
     openFromPage,
     openPage,
     pageBecameDownload: windowTabs.pageBecameDownload,
+    popupClosed: windowTabs.popupClosed,
   });
   useEffect(() => {
     openers.current = {
@@ -1770,6 +1783,7 @@ export function useOpeners({
       openFromPage,
       openPage,
       pageBecameDownload: windowTabs.pageBecameDownload,
+      popupClosed: windowTabs.popupClosed,
     };
   });
   // A link in text being edited, opened from the window's native menu.
@@ -1809,6 +1823,21 @@ export function useOpeners({
         rpcClient.browser.events.openInNewTab.call(undefined, { signal }),
       onEach: (ask) => {
         openers.current.openFromPage(ask);
+      },
+    });
+    return () => {
+      controller.abort();
+    };
+  }, []);
+  // A popup that closed itself takes its tab with it.
+  useEffect(() => {
+    const controller = new AbortController();
+    void keepListening({
+      signal: controller.signal,
+      start: (signal) =>
+        rpcClient.browser.events.popupClosed.call(undefined, { signal }),
+      onEach: ({ openerId, targetId }) => {
+        openers.current.popupClosed(targetId, openerId);
       },
     });
     return () => {

@@ -77,20 +77,28 @@ export function configureGuestSession(profileDir: string): Session {
         registerExtensionWindow(window);
       });
       if (record.role === "popup") {
-        record.contents.setWindowOpenHandler(guestWindowOpenHandler);
         refuseLocalFilesIn(record.contents);
-        // The menu a tab's page has, for the popup itself: it has no tab to
-        // open a link in, and steps through its own history.
-        attachGuestInteractions(record.contents, {
-          mayOpen: isHttpUrl,
-          step: (direction) => {
-            const history = record.contents.navigationHistory;
-            if (direction === "back") {
-              history.goBack();
-            } else {
-              history.goForward();
-            }
-          },
+        // A page's popup becomes a tab as it is made (`adoptPopup` in
+        // manager.ts), in this same task, and has a tab's open policy and
+        // menu from then on. One left a window of its own gets the open
+        // policy, and the menu a tab's page has, for the window itself: it
+        // has no tab to open a link in, and steps through its own history.
+        setImmediate(() => {
+          if (record.entry !== null || record.contents.isDestroyed()) {
+            return;
+          }
+          record.contents.setWindowOpenHandler(guestWindowOpenHandler);
+          attachGuestInteractions(record.contents, {
+            mayOpen: isHttpUrl,
+            step: (direction) => {
+              const history = record.contents.navigationHistory;
+              if (direction === "back") {
+                history.goBack();
+              } else {
+                history.goForward();
+              }
+            },
+          });
         });
       } else {
         followPageEdits(record.contents);

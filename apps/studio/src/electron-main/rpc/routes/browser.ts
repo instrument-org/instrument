@@ -113,6 +113,24 @@ const events = {
       }
     }
   }),
+  popupChanged: base.handler(async function* ({ context, signal }) {
+    for await (const event of publisher.subscribe("browser.popup-changed", {
+      signal,
+    })) {
+      if (isForHost(context.webContentsId, event.targetId)) {
+        yield event;
+      }
+    }
+  }),
+  popupClosed: base.handler(async function* ({ context, signal }) {
+    for await (const event of publisher.subscribe("browser.popup-closed", {
+      signal,
+    })) {
+      if (isForHost(context.webContentsId, event.openerId)) {
+        yield event;
+      }
+    }
+  }),
   pageBecameDownload: base.handler(async function* ({ context, signal }) {
     for await (const event of publisher.subscribe(
       "browser.page-became-download",
@@ -602,6 +620,165 @@ const searchSuggestions = base
     });
   });
 
+// A popup's tab, which has no `<webview>`: the window places its view, reads
+// its state and drives it through main (`popup-pool.ts`).
+const popupInput = z.object({ targetId: BrowserTargetIdSchema });
+const popupPage = (webContentsId: number, targetId: BrowserTargetId) =>
+  isForHost(webContentsId, targetId)
+    ? (getBrowserViewManager().popupOf(targetId)?.page ?? null)
+    : null;
+const popup = {
+  place: base
+    .input(
+      popupInput.extend({
+        bounds: z
+          .object({
+            height: z.number(),
+            width: z.number(),
+            x: z.number(),
+            y: z.number(),
+          })
+          .nullable(),
+      }),
+    )
+    .handler(({ context, input }) => {
+      if (isForHost(context.webContentsId, input.targetId)) {
+        getBrowserViewManager().placePopup(input.targetId, input.bounds);
+      }
+    }),
+  state: base
+    .input(popupInput)
+    .handler(
+      ({ context, input }) =>
+        (isForHost(context.webContentsId, input.targetId)
+          ? getBrowserViewManager().popupOf(input.targetId)?.state
+          : undefined) ?? null,
+    ),
+  act: base
+    .input(
+      popupInput.extend({
+        act: z.enum([
+          "allowSound",
+          "back",
+          "clearHistory",
+          "devTools",
+          "forward",
+          "print",
+          "reload",
+          "reloadIgnoringCache",
+          "stop",
+        ]),
+      }),
+    )
+    .handler(({ context, input }) => {
+      const popupContents = popupPage(context.webContentsId, input.targetId);
+      if (!popupContents) {
+        return;
+      }
+      const history = popupContents.navigationHistory;
+      switch (input.act) {
+        case "allowSound": {
+          popupContents.setAudioMuted(false);
+          return;
+        }
+        case "back": {
+          history.goBack();
+          return;
+        }
+        case "clearHistory": {
+          history.clear();
+          return;
+        }
+        case "devTools": {
+          popupContents.openDevTools({ mode: "detach" });
+          return;
+        }
+        case "forward": {
+          history.goForward();
+          return;
+        }
+        case "print": {
+          popupContents.print();
+          return;
+        }
+        case "reload": {
+          popupContents.reload();
+          return;
+        }
+        case "reloadIgnoringCache": {
+          popupContents.reloadIgnoringCache();
+          return;
+        }
+        case "stop": {
+          popupContents.stop();
+          return;
+        }
+      }
+    }),
+  load: base
+    .input(popupInput.extend({ url: z.string() }))
+    .handler(async ({ context, input }) => {
+      await popupPage(context.webContentsId, input.targetId)?.loadURL(
+        input.url,
+      );
+    }),
+  run: base
+    .input(popupInput.extend({ code: z.string() }))
+    .handler(
+      async ({ context, input }): Promise<unknown> =>
+        popupPage(context.webContentsId, input.targetId)?.executeJavaScript(
+          input.code,
+        ),
+    ),
+  find: base
+    .input(
+      popupInput.extend({
+        findNext: z.boolean().optional(),
+        forward: z.boolean().optional(),
+        text: z.string(),
+      }),
+    )
+    .handler(({ context, input }) => {
+      const { findNext, forward, targetId, text } = input;
+      popupPage(context.webContentsId, targetId)?.findInPage(text, {
+        ...(findNext === undefined ? {} : { findNext }),
+        ...(forward === undefined ? {} : { forward }),
+      });
+    }),
+  stopFind: base
+    .input(
+      popupInput.extend({
+        action: z.enum([
+          "activateSelection",
+          "clearSelection",
+          "keepSelection",
+        ]),
+      }),
+    )
+    .handler(({ context, input }) => {
+      popupPage(context.webContentsId, input.targetId)?.stopFindInPage(
+        input.action,
+      );
+    }),
+  setZoom: base
+    .input(popupInput.extend({ factor: z.number().positive() }))
+    .handler(({ context, input }) => {
+      popupPage(context.webContentsId, input.targetId)?.setZoomFactor(
+        input.factor,
+      );
+    }),
+  capture: base.input(popupInput).handler(async ({ context, input }) => {
+    const popupContents = popupPage(context.webContentsId, input.targetId);
+    if (!popupContents) {
+      return null;
+    }
+    const image = await popupContents.capturePage(undefined, {
+      stayHidden: true,
+    });
+    return image.isEmpty() ? null : image.toDataURL();
+  }),
+};
+
 export const browser = {
   allowPageCapture,
   answerPageCapture,
@@ -618,6 +795,7 @@ export const browser = {
   live,
   page,
   pageMarks,
+  popup,
   rememberPageIcon,
   searchSuggestions,
   setEmulatedDevice,

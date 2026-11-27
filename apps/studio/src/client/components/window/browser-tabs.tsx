@@ -86,6 +86,8 @@ interface BehindPlace {
   from?: Opening;
   group: string;
   id?: StoreId.Tab;
+  /** The guest is already at the address, so nothing loads again. */
+  isLoaded?: boolean;
   openedBy?: ChatId;
 }
 
@@ -250,6 +252,10 @@ interface OpenOptions {
   from?: Opening;
   /** The group the page belongs to; the group on screen when left out. */
   group?: string;
+  /** The id it opens under, for a page that already has one: a popup. */
+  id?: StoreId.Tab;
+  /** The guest is already at the address, so nothing loads again. */
+  isLoaded?: boolean;
   /** A tab of its own right after the one its group has up, as a link opened in a new tab lands. */
   newTab?: boolean;
   replacing?: WindowTab;
@@ -270,6 +276,8 @@ function openTab(
     behind = false,
     from,
     group: into,
+    id: given,
+    isLoaded = false,
     newTab = false,
     replacing,
     returnAs,
@@ -277,7 +285,7 @@ function openTab(
     side,
   }: OpenOptions = {},
 ) {
-  const id = returnAs ?? StoreId.newTabId();
+  const id = returnAs ?? given ?? StoreId.newTabId();
   const page = {
     id,
     openedAt: Date.now(),
@@ -305,7 +313,7 @@ function openTab(
   void rpcClient.workspace.browser.open
     .call({
       targetId: browserTargetOf(id),
-      ...(url ? (returnAs ? { restoreUrl: url } : { url }) : {}),
+      ...(url && !isLoaded ? (returnAs ? { restoreUrl: url } : { url }) : {}),
     })
     .then(() => {
       if (audible) {
@@ -694,7 +702,10 @@ export function BrowserTabs({
         });
       },
       open: (url, options) => openTab(change, url, options),
-      openBehind: (url, { after, from, group, id: given, openedBy }) => {
+      openBehind: (
+        url,
+        { after, from, group, id: given, isLoaded = false, openedBy },
+      ) => {
         const id = given ?? StoreId.newTabId();
         change(
           "addPages",
@@ -714,7 +725,7 @@ export function BrowserTabs({
         );
         void rpcClient.workspace.browser.open.call({
           targetId: browserTargetOf(id),
-          ...(url ? { url } : {}),
+          ...(url && !isLoaded ? { url } : {}),
         });
         return id;
       },

@@ -78,6 +78,7 @@ export const WINDOW_CHANGE_ANSWERS = {
   pageNavigated: FOLLOWING,
   pageNavigatedUp: FOLLOWING,
   pageTakesOver: FOLLOWING,
+  popupClosed: FOLLOWING,
   patchPage: FOLLOWING,
   pickTab: "show",
   putUpBack: { not: "puts tabs back after a canceled drag" },

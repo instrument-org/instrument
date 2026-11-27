@@ -492,6 +492,10 @@ export function useWindowTabs() {
     pageBecameDownload: (id: string) => {
       run("pageBecameDownload", id);
     },
+    /** A popup closed itself: its tab closes, and the opener's comes up when the popup's was up (`popupClosed`). */
+    popupClosed: (id: string, opener: string) => {
+      run("popupClosed", id, opener);
+    },
     /** A group's pin, its project, the left side's share of two, its lead tab, or when it last came up, set (`withGroupOwn`). */
     setGroupOwn: (group: string, change: GroupOwn) => {
       run("withGroupOwn", group, change);

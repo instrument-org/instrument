@@ -2,6 +2,7 @@ import { type ChatId } from "@instrument-org/workspace/electron";
 import { type AppUpdaterStatus } from "@/electron-main/lib/update-status";
 import { type AppWindowAsk } from "@/electron-main/windows/app-window-asks";
 import { type AppCommand } from "@/shared/app-command";
+import { type PopupEvent, type PopupState } from "@/shared/browser";
 import { type ConnectProvider } from "@/shared/connect-outcome";
 import { type PageKey } from "@/shared/page-key";
 import {
@@ -72,10 +73,23 @@ interface PublisherEvents {
     into?: "group" | "split" | "window";
     /** A Shift-click, whose tab opens in front like any other not opened behind. */
     newWindow?: boolean;
-    /** The id the tab opens under, for a popup an agent's page opened, which its result names. */
+    /** The id the tab opens under, for a popup, whose page is open already and which an agent's result names. */
     tabId?: StoreId.Tab;
     targetId: BrowserTargetId;
     url: string;
+  };
+  // What a popup's page did, with its state after, for the window's handle on
+  // it (`popup-pool.ts`): a popup has no `<webview>` to hear it from.
+  "browser.popup-changed": {
+    event: PopupEvent | null;
+    state: PopupState;
+    targetId: BrowserTargetId;
+  };
+  // A page's popup closed itself, or went with the page that opened it. The
+  // window closes its tab, putting the opener's tab up if the popup's was.
+  "browser.popup-closed": {
+    openerId: BrowserTargetId;
+    targetId: BrowserTargetId;
   };
   // A link a person kept from a page's menu (Bookmark Link), named by its
   // text; the window keeps it and says so.

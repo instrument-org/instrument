@@ -46,6 +46,9 @@ export interface BrowserGuestTarget {
   // BrowserEntry.navigated). What the UI shows a browser for: an attached guest
   // that has only ever held `about:blank` is one nothing asked to see.
   navigated: boolean;
+  // Whether the target is a page's popup, drawn in a view main places over
+  // the tab's slot (`placePopup`), so the pool mounts no `<webview>` for it.
+  popup: boolean;
 }
 
 /**
@@ -153,3 +156,51 @@ export interface GuestCapture {
   targetId: BrowserTargetId;
   using: CaptureDevices;
 }
+
+/** What the window shows of a popup's page, sent with each thing it does. */
+export interface PopupState {
+  canGoBack: boolean;
+  canGoForward: boolean;
+  loading: boolean;
+  title: string;
+  url: string;
+  webContentsId: number;
+  zoom: number;
+}
+
+/** What a popup's page did, in the shape a `<webview>`'s own event carries. */
+export type PopupEvent =
+  | {
+      detail: {
+        errorCode: number;
+        errorDescription: string;
+        isMainFrame: boolean;
+        validatedURL: string;
+      };
+      name: "did-fail-load";
+    }
+  | { detail: { favicons: string[] }; name: "page-favicon-updated" }
+  | { detail: { httpResponseCode: number; url: string }; name: "did-navigate" }
+  | {
+      detail: { isInPlace: boolean; isMainFrame: boolean; url: string };
+      name: "did-start-navigation";
+    }
+  | {
+      detail: { isMainFrame: boolean; url: string };
+      name: "did-navigate-in-page";
+    }
+  | {
+      detail: {
+        result: {
+          activeMatchOrdinal: number;
+          finalUpdate: boolean;
+          matches: number;
+        };
+      };
+      name: "found-in-page";
+    }
+  | { detail: { title: string }; name: "page-title-updated" }
+  | {
+      detail: object;
+      name: "did-start-loading" | "did-stop-loading" | "dom-ready";
+    };

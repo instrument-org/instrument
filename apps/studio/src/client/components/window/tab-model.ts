@@ -1463,6 +1463,30 @@ export function pageBecameDownload(state: WindowTabs, id: string): WindowTabs {
   return strip.length > 1 ? closeTab(state, id) : state;
 }
 
+/**
+ * A popup that closed itself, as a sign-in does once it's done: its tab closes, and the opener's tab comes up when the
+ * popup's was up, as a browser shows the opener again. The close is not the
+ * person's, so it puts nothing on the closed list.
+ */
+export function popupClosed(
+  state: WindowTabs,
+  id: string,
+  opener: string,
+): WindowTabs {
+  const tab = state.tabs.find((entry) => entry.id === id);
+  if (!tab) {
+    return state;
+  }
+  const wasUp =
+    tab.group !== undefined &&
+    (state.activeByGroup[tab.group] === id ||
+      state.besideByGroup?.[tab.group] === id);
+  const isOpenerThere = state.tabs.some(
+    (entry) => entry.id === opener && entry.group === tab.group,
+  );
+  return closeTab(state, id, wasUp && isOpenerThere ? { up: opener } : {});
+}
+
 /** A group gone with everything in it, what it keeps of its own with it. */
 export function dropGroup(state: WindowTabs, group: string): WindowTabs {
   if (

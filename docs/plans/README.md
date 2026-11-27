@@ -56,6 +56,7 @@ Each entry is the plan's title and the opening of its status.
 - [The onboarding setup assistant](onboarding-setup-assistant.md): Building.
 - [One tab for a local file](one-tab-for-a-local-file.md): Steps 1 to 5 built and checked in the app through the agent's own commands;
 - [Plugins](plugins.md): Phase 1 landed under another shape, phase 2 not adopted, phase 3 overtaken, phase 4 not started.
+- [A page's popup is a tab of its group](popups-as-tabs.md): open
 - [How the agent presents files, data, and artifacts](presentation-syntax.md): The file group is built and measured;
 - [Privacy-first diagnostics and feedback](privacy-first-diagnostics-and-feedback.md): In progress.
 - [Radashi → es-toolkit migration (Instrument monorepo)](radashi-to-es-toolkit-migration.md): Planned, not started (checked 2026-10-29: radashi is imported in 148 files, es-toolkit in none).

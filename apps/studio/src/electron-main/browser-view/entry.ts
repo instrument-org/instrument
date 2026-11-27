@@ -1,4 +1,4 @@
-import type { NavigationEntry, WebContents } from "electron";
+import type { NavigationEntry, WebContents, WebContentsView } from "electron";
 
 import {
   type AbsolutePath,
@@ -168,6 +168,10 @@ export interface BrowserEntry {
   // identifier in BrowserConfig. Independent of webContents.id (which becomes
   // undefined after destruction in Electron 41+, electron/electron#50249).
   targetId: BrowserTargetId;
+  // The view a page's popup is drawn in, in its opener's window: a tab whose
+  // page is a popup has no `<webview>`, and main places the view where the
+  // renderer shows the tab (`placePopup`). Null for every other tab.
+  popupView: null | WebContentsView;
   // The guest `<webview>`'s WebContents, bound in `did-attach-webview`. Null
   // between createTarget (which records the entry + asks the renderer to mount
   // a guest) and the attach completing.
@@ -222,6 +226,7 @@ export function createEntry({
     pendingDownloadGuids: new Map(),
     agentDownloads: new Set(),
     phase: "pending",
+    popupView: null,
     putAway: false,
     returnTo,
     screencastInterval: null,

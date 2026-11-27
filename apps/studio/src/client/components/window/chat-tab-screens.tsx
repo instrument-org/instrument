@@ -11,6 +11,7 @@ import { ChatScreen } from "./chat-screen";
 import { useGroupTab } from "./group-tab";
 import { NewChatView } from "./new-chat-view";
 import { useShell } from "./shell-context";
+import { useSidePanel } from "./side-panel-state";
 import { useWindowTabs } from "./window-tabs";
 
 /**
@@ -59,8 +60,8 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
 }
 
 /**
- * The head over a chat in its tab: the project it is in, which opens in a tab
- * after it, its title, which renames it, and the caret that opens its menu at
+ * The head over a chat in its tab: the project it is in, whose chats its
+ * press shows in the group's side panel, its title, which renames it, and the caret that opens its menu at
  * the left; at the right, the folders the
  * chat saved files in, each opened beside the chat as a click in the chat
  * opens a folder.
@@ -72,6 +73,7 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
   const windowTabs = useWindowTabs();
   const chat = useListedChat(chatId);
   const writtenFolders = useChatWrittenFolders(chatId);
+  const sidePanel = useSidePanel(groupTab?.group);
   const tabId = groupTab?.id;
   const beside = tabId === undefined ? undefined : windowTabs.besideOf(tabId);
   const shownFolder = writtenFolders.find(
@@ -103,6 +105,7 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
       onSetProject={(next) => {
         shell.setChatProject(chatId, next);
       }}
+      onShowChats={sidePanel.showChats}
       projects={shell.projects}
       trailing={
         <ChatFolderButton

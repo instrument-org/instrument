@@ -19,7 +19,8 @@ const SEGMENT =
 
 /**
  * What a chat is under, ahead of its title as a step of a path: its project,
- * or Chats for one in none. A press on the name opens that page. The slash
+ * or Chats for one in none. A press on the name shows those chats in the side
+ * panel, and a Command or middle click opens their page in a tab behind. The slash
  * after it turns into a caret under the pointer or the keyboard, in the same
  * space, and opens the list that files the chat elsewhere. On a narrow head
  * the mark stands alone.
@@ -30,6 +31,7 @@ export function ChatCrumb({
   onOpenPage,
   onPickingChange,
   onSetProject,
+  onShowChats,
   project,
   projects,
 }: {
@@ -39,6 +41,8 @@ export function ChatCrumb({
   onOpenPage: (href: string, options: { behind: boolean }) => void;
   onPickingChange: (isPicking: boolean) => void;
   onSetProject: (project: null | string) => void;
+  /** Shows the chats the name stands for, the project's or every chat, in the side panel. */
+  onShowChats: (project: string | undefined) => void;
   /** The project the chat is filed under. */
   project: Project | undefined;
   projects: Project[];
@@ -53,7 +57,7 @@ export function ChatCrumb({
   return (
     <div className="group/crumb mr-1.5 -ml-1.5 flex h-8 max-w-1/2 min-w-0 shrink-0 items-center">
       <button
-        aria-label={project ? `Open ${name}` : "Open all chats"}
+        aria-label={project ? `Show chats in ${name}` : "Show all chats"}
         className={cn(
           SEGMENT,
           "min-w-0 gap-1.5 rounded-l-lg pr-1 pl-1.5 text-sm",
@@ -67,7 +71,11 @@ export function ChatCrumb({
           }
         }}
         onClick={(event) => {
-          onOpenPage(href, { behind: commandKeyHeld(event) });
+          if (commandKeyHeld(event)) {
+            onOpenPage(href, { behind: true });
+          } else {
+            onShowChats(project?.id);
+          }
         }}
         style={project ? projectTint(projectColor(project)) : undefined}
         title={name}

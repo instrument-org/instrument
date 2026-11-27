@@ -956,7 +956,7 @@ function SideCard({
           split.onCloseSplit?.();
         }}
       />
-    ) : sidePanel.isOpen ? null : (
+    ) : sidePanel.isShown ? null : (
       <ShowSidePanelControl
         onClick={() => {
           sidePanel.setOpen(true);

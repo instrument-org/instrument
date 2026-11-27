@@ -237,6 +237,7 @@ import { sitesLeaving, sitesNoLongerHere, sitesPutAway } from "./site-let-go";
 import { useBootMarks } from "./boot-marks";
 import { setStudioDriveOpenPage } from "@/client/lib/studio-drive";
 import {
+  SidePanelFloat,
   SidePanelRail,
   sidePanelRoomOf,
   sidesFitBesidePanel,
@@ -1934,7 +1935,7 @@ function WindowShell({
         setSidebarOpen((isOpen) => !isOpen);
       },
       toggleSidePanel: () => {
-        sidePanel.setOpen(!sidePanel.isOpen);
+        sidePanel.setOpen(!sidePanel.isShown);
       },
       selectChat: (direction) => {
         const next = groupAlong(groupsHere(), groupUp, direction);
@@ -2158,14 +2159,25 @@ function WindowShell({
         <PageOpenContext value={ways.openPage}>
           <WindowFrame
             aside={
-              <SidePanelRail
-                group={groupUp}
-                isOpen={sidePanel.isOpen}
-                onCollapse={() => {
-                  sidePanel.setOpen(false);
-                }}
-                width={sidePanelRow}
-              />
+              <>
+                <SidePanelRail
+                  group={groupUp}
+                  isOpen={sidePanel.isOpen}
+                  onCollapse={() => {
+                    sidePanel.setOpen(false);
+                  }}
+                  width={sidePanelRow}
+                />
+                {sidePanel.isFloating && (
+                  <SidePanelFloat
+                    group={groupUp}
+                    onClose={() => {
+                      sidePanel.setOpen(false);
+                    }}
+                    onDismiss={sidePanel.dismissFloat}
+                  />
+                )}
+              </>
             }
             corner={<WindowCorner />}
             hasBar={false}

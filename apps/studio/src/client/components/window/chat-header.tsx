@@ -63,6 +63,7 @@ export function ChatHeader({
   onNewProject,
   onOpenPage,
   onSetProject,
+  onShowChats,
   projects,
   trailing,
 }: {
@@ -80,6 +81,8 @@ export function ChatHeader({
   /** Opens the page of what the chat is under, behind when asked. */
   onOpenPage: (href: string, options: { behind: boolean }) => void;
   onSetProject: (project: null | string) => void;
+  /** Shows the chats of what the chat is under in the side panel. */
+  onShowChats: (project: string | undefined) => void;
   projects: Project[];
   /** What sits at the head's right. */
   trailing?: ReactNode;
@@ -117,6 +120,7 @@ export function ChatHeader({
               onNewProject={onNewProject}
               onOpenPage={onOpenPage}
               onSetProject={onSetProject}
+              onShowChats={onShowChats}
               titleClassName="text-sm font-medium"
               projects={projects}
             />
@@ -147,7 +151,8 @@ function layoutWidthOf(element: HTMLElement | null) {
 
 /**
  * What a chat is under and its title, as the chat's head draws them: the
- * project leads to its page and is changed there (`ChatCrumb`), a press on the
+ * project shows its chats in the side panel and is changed there
+ * (`ChatCrumb`), a press on the
  * title puts a field in its place, and the caret after it opens the chat's
  * menu.
  */
@@ -158,6 +163,7 @@ function ChatHeading({
   onNewProject,
   onOpenPage,
   onSetProject,
+  onShowChats,
   titleClassName,
   projects,
 }: {
@@ -170,6 +176,8 @@ function ChatHeading({
   /** Opens the page of what the chat is under, behind when asked. */
   onOpenPage: (href: string, options: { behind: boolean }) => void;
   onSetProject: (project: null | string) => void;
+  /** Shows the chats of what the chat is under in the side panel. */
+  onShowChats: (project: string | undefined) => void;
   /** The type the title is set in, which its rename field takes too. */
   titleClassName: string;
   projects: Project[];
@@ -230,6 +238,7 @@ function ChatHeading({
         onOpenPage={onOpenPage}
         onPickingChange={setPickingProject}
         onSetProject={onSetProject}
+        onShowChats={onShowChats}
         project={filed}
         projects={projects}
       />

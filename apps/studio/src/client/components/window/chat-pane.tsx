@@ -16,8 +16,8 @@ import { groupByDayAtom, rowDensityAtom } from "./chat-list-view";
 import {
   byLastUserMessage,
   type Chat,
-  type ChatFilters,
   draftTitle,
+  emptyLineFor,
   hasWords,
   matchesFilters,
   outsideFilters,
@@ -388,31 +388,3 @@ export function ChatPane({
 }
 
 const NO_IDS: ReadonlySet<string> = new Set();
-
-/** What the list says when it has nothing to show, by where the column stands. */
-function emptyLineFor(
-  filters: ChatFilters,
-  total: number,
-  project: Project | undefined,
-): string {
-  const search = filters.search.trim();
-  if (search !== "") {
-    return `No chats match “${search}”`;
-  }
-  if (filters.place === "drafts") {
-    return "You don't have any drafts right now";
-  }
-  if (filters.tags.includes("unread")) {
-    return "You're all caught up";
-  }
-  if (filters.tags.includes("starred")) {
-    return "Chats you star will show up here";
-  }
-  if (filters.place === "archived") {
-    return "Chats you archive will show up here";
-  }
-  if (project) {
-    return `Chats you file under ${project.name} will show up here`;
-  }
-  return total === 0 ? "Press New to start a chat" : "There's nothing here yet";
-}

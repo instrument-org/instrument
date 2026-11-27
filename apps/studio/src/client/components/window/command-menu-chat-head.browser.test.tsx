@@ -122,6 +122,7 @@ async function renderChatWithMenu() {
         onNewProject={() => undefined}
         onOpenPage={() => undefined}
         onSetProject={() => undefined}
+        onShowChats={() => undefined}
         projects={[HOUSE]}
       />
       <input aria-label="Reply" />

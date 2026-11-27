@@ -492,6 +492,7 @@ function chatHead() {
       onNewProject={none}
       onOpenPage={none}
       onSetProject={none}
+      onShowChats={none}
       projects={[PROJECT]}
     />,
   );

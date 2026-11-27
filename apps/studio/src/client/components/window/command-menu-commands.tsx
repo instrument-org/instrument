@@ -122,9 +122,9 @@ export function useMenuCommands({
             chord: WINDOW_SHORTCUTS.toggleSidePanel.accelerator,
             icon: <SidebarSimpleIcon className="size-4 -scale-x-100" />,
             id: "toggle-side-panel",
-            label: sidePanel.isOpen ? "Hide Side Panel" : "Show Side Panel",
+            label: sidePanel.isShown ? "Hide Side Panel" : "Show Side Panel",
             run: () => {
-              sidePanel.setOpen(!sidePanel.isOpen);
+              sidePanel.setOpen(!sidePanel.isShown);
             },
           },
         ]),

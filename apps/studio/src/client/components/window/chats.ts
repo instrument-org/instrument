@@ -21,7 +21,7 @@ export interface ChatFilters {
   place?: ChatPlace;
   /** Words that all have to turn up somewhere on a chat's row, whatever their case. */
   search: string;
-  /** Project ids a chat has to be filed under one of. */
+  /** Project ids a chat has to be filed under one of, `NO_PROJECT` for none. */
   projects: string[];
   /** Marks a chat has to carry every one of, standing in the search as tokens: on top of whatever view the column is. */
   tags: ChatTag[];
@@ -35,6 +35,9 @@ export type ChatTag = "starred" | "unread";
 
 /** A project as the workspace keeps it: a tag with a name, a mark, and a tint. */
 export type Project = RPCOutput["workspace"]["projects"]["list"][number];
+
+/** What `ChatFilters.projects` names for the chats filed under no project, an id no project has. */
+export const NO_PROJECT = "";
 
 export const NO_FILTERS: ChatFilters = {
   apps: [],
@@ -171,7 +174,7 @@ export function matchesFilters(
   return (
     matchesPlace(chat, filters) &&
     filters.tags.every((tag) => chat[tag]) &&
-    anyOf(filters.projects, chat.project ? [chat.project] : []) &&
+    anyOf(filters.projects, [chat.project ?? NO_PROJECT]) &&
     anyOf(filters.apps, chat.holds.apps) &&
     matchesSearch(chat, filters.search, projectNames)
   );
@@ -477,4 +480,32 @@ export function dayHeading(date: Date, now: Date): string {
     return format(date, "EEEE");
   }
   return format(date, isSameYear(date, now) ? "MMMM d" : "MMMM d, yyyy");
+}
+
+/** What the list says when it has nothing to show, by where the column stands. */
+export function emptyLineFor(
+  filters: ChatFilters,
+  total: number,
+  project: Project | undefined,
+): string {
+  const search = filters.search.trim();
+  if (search !== "") {
+    return `No chats match “${search}”`;
+  }
+  if (filters.place === "drafts") {
+    return "You don't have any drafts right now";
+  }
+  if (filters.tags.includes("unread")) {
+    return "You're all caught up";
+  }
+  if (filters.tags.includes("starred")) {
+    return "Chats you star will show up here";
+  }
+  if (filters.place === "archived") {
+    return "Chats you archive will show up here";
+  }
+  if (project) {
+    return `Chats you file under ${project.name} will show up here`;
+  }
+  return total === 0 ? "Press New to start a chat" : "There's nothing here yet";
 }

@@ -37,7 +37,7 @@ Read one section, `sed -n '/^## Tabs/,/^## /p'` on this file; the sections are S
 
 ## A chat
 
-- Its top: Open <project>, Change project, <chat>, Chat menu
+- Its top: Show chats in <project>, Change project, <chat>, Chat menu
 - Its menu, on the caret after the title or a right-click on its tab: Stop; Mark as Unread, Star; Rename, Project › [No project, <project>, New project…]; Export as Markdown…, Copy › [Work Folder Path; For an Agent]; Send Feedback…; Archive; Delete Chat…
 - On a message of yours, pointing at it: Edit message, Copy message
 - Under a reply: Branch from here

@@ -45,7 +45,7 @@ import { type SearchToken, SearchField } from "./search-field";
 const SEARCH_ASK_MS = ms("10 seconds");
 
 /** The marks the search offers as tokens, in the order it offers them. */
-const TAGS: SearchToken<ChatTag>[] = [
+export const TAGS: SearchToken<ChatTag>[] = [
   {
     icon: <NotificationIcon weight="fill" />,
     id: "unread",

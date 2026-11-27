@@ -10,7 +10,11 @@ const HOUSE: Project = { created: new Date(0), id: "house", name: "House" };
 const TAXES: Project = { created: new Date(0), id: "taxes", name: "Taxes" };
 
 async function renderCrumb(project?: Project) {
-  const calls = { onOpenPage: vi.fn(), onSetProject: vi.fn() };
+  const calls = {
+    onOpenPage: vi.fn(),
+    onSetProject: vi.fn(),
+    onShowChats: vi.fn(),
+  };
   function Held() {
     const [isPicking, setPicking] = useState(false);
     return (
@@ -35,24 +39,32 @@ const pick = async (name: string) => {
 };
 
 it.each([
-  ["a project's page", HOUSE, "Open House", "/chat-list?project=house"],
+  [
+    "a project's chats",
+    HOUSE,
+    "Show chats in House",
+    "house",
+    "/chat-list?project=house",
+  ],
   [
     "every chat, for a chat in no project",
     undefined,
-    "Open all chats",
+    "Show all chats",
+    undefined,
     "/chat-list",
   ],
-])("opens %s from its name", async (_case, project, name, href) => {
-  const { onOpenPage } = await renderCrumb(project);
-  await userEvent.click(page.getByRole("button", { name }));
-  await userEvent.click(page.getByRole("button", { name }), {
-    button: "middle",
-  });
-  expect(onOpenPage.mock.calls).toEqual([
-    [href, { behind: false }],
-    [href, { behind: true }],
-  ]);
-});
+])(
+  "shows %s from its name, and opens their page behind on a middle click",
+  async (_case, project, name, shown, href) => {
+    const { onOpenPage, onShowChats } = await renderCrumb(project);
+    await userEvent.click(page.getByRole("button", { name }));
+    await userEvent.click(page.getByRole("button", { name }), {
+      button: "middle",
+    });
+    expect(onShowChats.mock.calls).toEqual([[shown]]);
+    expect(onOpenPage.mock.calls).toEqual([[href, { behind: true }]]);
+  },
+);
 
 it("files the chat under one project or none, and leaves it alone on the one it is in", async () => {
   const { onSetProject } = await renderCrumb(HOUSE);

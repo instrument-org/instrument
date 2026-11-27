@@ -45,6 +45,12 @@ import { noteTypedPage } from "@/client/hooks/use-browser-history";
 import { useWindowPlaces } from "@/client/hooks/use-open-target";
 import { cn, isMacOS, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { applyDraftOpsAtom } from "@/client/drafts/store";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/client/components/ui/popover";
 import {
   type BarItem,
   type BookmarkFolder,
@@ -64,6 +70,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ArrowSquareInIcon } from "@phosphor-icons/react/ArrowSquareIn";
+import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { CloudIcon } from "@phosphor-icons/react/Cloud";
@@ -72,18 +79,18 @@ import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { HardDriveIcon } from "@phosphor-icons/react/HardDrive";
 import { HouseIcon } from "@phosphor-icons/react/House";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
-import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
-import { atom, useAtomValue, useSetAtom, useStore } from "jotai";
+import { atom, useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import {
   type ComponentProps,
   type ReactElement,
   type ReactNode,
   type RefObject,
   useEffect,
+  useEffectEvent,
   useRef,
   useState,
 } from "react";
@@ -115,7 +122,15 @@ import { RecentChatRow } from "./chats-mark";
 import {
   byLastUserMessage,
   type Chat,
+  type ChatFilters,
+  type ChatPlace,
+  draftTitle,
+  emptyLineFor,
   hasWords,
+  matchesFilters,
+  NO_PROJECT,
+  outsideFilters,
+  type Project,
   shortActivityLabel,
 } from "./chats";
 import { useShowChatGroup } from "./chat-group";
@@ -127,7 +142,8 @@ import {
   pressShortcut,
 } from "./drag/press-bookmark";
 import { DROP_TONE } from "./drag/tone";
-import { ViewButton } from "./filter-head";
+import { DraftRow } from "./draft-row";
+import { TAGS, ViewButton } from "./filter-head";
 import { GROUP_WIDTH_MIN } from "./group-sidebar";
 import { SIDE_WIDTH_MIN } from "./side-widths";
 import {
@@ -139,11 +155,24 @@ import { type Place, useFilesPlaces } from "./files-places";
 import { PlaceItems } from "./place-items";
 import { TabRowControl } from "./tab-location-row";
 import { useOwnApps } from "./use-own-apps";
-import { useSidePanel } from "./side-panel-state";
+import {
+  sidePanelChatFiltersAtom,
+  type SidePanelView,
+  sidePanelViewAtom,
+  useSidePanel,
+} from "./side-panel-state";
 import { useWindowTabs } from "./window-tabs";
 import { isChatTab } from "./tab-model";
 import { useProjectShift } from "./use-project-shift";
-import { chatHref, matchScreen } from "./window-href";
+import { PickList } from "./pick-list";
+import { projectColor } from "./project-colors";
+import { ProjectMark } from "./project-mark";
+import { NoProjectMark } from "./project-menu";
+import { projectTint } from "./project-tint";
+import { SearchField } from "./search-field";
+import { useShell } from "./shell-context";
+import { useMinuteClock } from "./use-minute-clock";
+import { chatHref, matchScreen, newChatHref } from "./window-href";
 
 /** How many chats the panel lists before All chats, newest first. */
 const RECENT_CHATS_SHOWN = 4;
@@ -260,6 +289,62 @@ export function SidePanelRail({
 }
 
 /**
+ * The side panel floating over the group's far edge, in a window with no
+ * room for it beside the group: shown by the person all the same, by its
+ * chord or a chat's crumb. Escape puts it away, and a pick that changes the
+ * tab up or another group coming up takes it off the group.
+ */
+export function SidePanelFloat({
+  group,
+  onClose,
+  onDismiss,
+}: {
+  group: string | undefined;
+  onClose: () => void;
+  onDismiss: () => void;
+}) {
+  const setSlot = useSetAtom(sidePanelSlotAtom);
+  const width = useAtomValue(sidePanelWidthAtom);
+  const windowTabs = useWindowTabs();
+  const layout = group === undefined ? undefined : windowTabs.layoutOf(group);
+  const side = layout?.sides[layout.focused];
+  const up = side?.tabs.find((tab) => tab.id === side.up);
+  const where = [
+    group ?? "",
+    up?.id ?? "",
+    up === undefined ? "" : up.kind === "screen" ? up.href : up.url,
+  ].join("\n");
+  const was = useRef(where);
+  const dismiss = useEffectEvent(onDismiss);
+  useEffect(() => {
+    if (was.current !== where) {
+      dismiss();
+    }
+  }, [where]);
+  const close = useEffectEvent(onClose);
+  useEffect(() => {
+    // Whatever in the panel takes Escape first (the search, a menu) keeps it.
+    const keyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) {
+        close();
+      }
+    };
+    window.addEventListener("keydown", keyDown);
+    return () => {
+      window.removeEventListener("keydown", keyDown);
+    };
+  }, []);
+  return (
+    <aside
+      aria-label="Side Panel"
+      className="absolute right-3 bottom-3 z-30 flex min-h-0 flex-col rounded-xl bg-ground pr-1 pb-1 pl-1 shadow-xl ring-1 ring-foreground/10"
+      ref={setSlot}
+      style={{ top: windowCardTop(isMacOS()) + 4, width }}
+    />
+  );
+}
+
+/**
  * Ground that moves the window, as the sidebar's does; from a press until a
  * drag lets go it is the page's alone, so nothing carried onto it can be
  * taken for moving the window.
@@ -313,8 +398,6 @@ export function SidePanelHere({
   );
 }
 
-type View = "apps" | "bookmarks" | "chats" | "files" | "home";
-
 /**
  * Apps, Chats, Files and Bookmarks, each opening in the tab as a bookmark
  * does (`bookmarkClicks`): a click in place, Back returning, a Cmd-click in
@@ -334,7 +417,7 @@ function SidePanel({
   onOpen: (url: string) => void;
   onVisit: (href: string) => void;
 }) {
-  const [view, setView] = useState<View>("home");
+  const [view, setView] = useAtom(sidePanelViewAtom(group));
   // The list and its name slide in from the right as a whole list opens,
   // and back from the left to the rest, as the sidebar steps into a
   // project; the close button stays put.
@@ -917,47 +1000,302 @@ const VIEW_TITLES = {
   bookmarks: "Bookmarks",
   chats: "Chats",
   files: osConventions().computer,
-} satisfies Record<Exclude<View, "home">, string>;
+} satisfies Record<Exclude<SidePanelView, "home">, string>;
 
-/** Every chat not archived, newest first, narrowed by what is typed above them. */
+/**
+ * The chats, newest first, narrowed by the search and its marks, by Drafts or
+ * Archived, and by one project (or none) from the selector at the row's end.
+ * Nothing picked is every chat not archived. A search that finds chats the
+ * filters keep out counts them on a rule under the list, which shows them
+ * under it when pressed.
+ */
 function AllChats({ group, open }: { group: string; open: OpenAddress }) {
-  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useAtom(sidePanelChatFiltersAtom(group));
   const density = useAtomValue(sidePanelRowDensityAtom);
-  const chats = useListedChats().filter((chat) =>
-    hasWords(search, [chat.title]),
+  const shell = useShell();
+  const keepDraft = useSetAtom(applyDraftOpsAtom);
+  const now = useMinuteClock();
+  const { data } = useQuery(chatListOptions());
+  const chats = data ?? [];
+  const projects =
+    useQuery(rpcClient.workspace.projects.list.queryOptions()).data ?? [];
+  const projectNames = new Map(
+    projects.map((project) => [project.id, project.name]),
   );
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    searchRef.current?.focus();
+  }, []);
+  const matched = byLastUserMessage(
+    chats.filter((chat) => matchesFilters(chat, filters, projectNames)),
+  );
+  const outside = outsideFilters(chats, filters, projectNames);
+  // The matches outside the filters, once asked for, show under the list
+  // while the same view is searched.
+  const viewKey = JSON.stringify({ ...filters, search: "" });
+  const [widenedIn, setWidenedIn] = useState<string>();
+  if (
+    widenedIn !== undefined &&
+    (filters.search.trim() === "" || widenedIn !== viewKey)
+  ) {
+    setWidenedIn(undefined);
+  }
+  const shownOutside = widenedIn === viewKey ? byLastUserMessage(outside) : [];
+  const isDrafts = filters.place === "drafts";
+  const drafts = isDrafts
+    ? shell.drafts.filter(
+        (draft) =>
+          (filters.projects.length === 0 ||
+            filters.projects.includes(draft.projectId ?? NO_PROJECT)) &&
+          hasWords(filters.search, [
+            draftTitle(draft.words),
+            draft.words,
+            projectNames.get(draft.projectId ?? "") ?? "",
+          ]),
+      )
+    : [];
+  // A mark is offered while the view, before any mark narrows it, has a chat
+  // carrying it; a draft carries neither.
+  const unmarked = { ...filters, search: "", tags: [] };
+  const offered = isDrafts
+    ? []
+    : TAGS.filter((tag) =>
+        chats.some(
+          (chat) =>
+            chat[tag.id] && matchesFilters(chat, unmarked, projectNames),
+        ),
+      );
+  const chosenProject = projects.find(
+    (project) => project.id === filters.projects[0],
+  );
+  const isEmpty = isDrafts
+    ? drafts.length === 0
+    : matched.length === 0 && shownOutside.length === 0;
   return (
     <>
       <div className="mb-1 flex shrink-0 items-center gap-1 pl-1 [&_button]:[-webkit-app-region:no-drag]">
-        <label className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-lg bg-foreground/5 px-2.5 text-[13px] [-webkit-app-region:no-drag] focus-within:bg-card focus-within:ring-1 focus-within:ring-foreground/20">
-          <MagnifyingGlassIcon className="size-3.5 shrink-0 text-muted-foreground" />
-          <input
-            autoFocus
-            className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
-            onChange={(event) => {
-              setSearch(event.target.value);
-            }}
-            placeholder="Search chats"
-            type="search"
-            value={search}
-          />
-        </label>
+        <SearchField
+          className="h-8 pl-7 text-[13px] [-webkit-app-region:no-drag] [&>svg]:left-2.5"
+          inputRef={searchRef}
+          offered={offered}
+          onChange={(search) => {
+            setFilters({ ...filters, search });
+          }}
+          onTokensChange={(tags) => {
+            setFilters({ ...filters, tags });
+          }}
+          placeholder={
+            filters.place === "drafts"
+              ? "Search Drafts"
+              : filters.place === "archived"
+                ? "Search Archived"
+                : "Search chats"
+          }
+          tokens={TAGS.filter((tag) => filters.tags.includes(tag.id))}
+          value={filters.search}
+        />
         <ViewButton
           className="size-8"
           densityAtom={sidePanelRowDensityAtom}
           hasDayHeadings={false}
         />
       </div>
+      <div
+        aria-label="Filters"
+        className="mb-1.5 flex shrink-0 items-center gap-1 pl-1 [-webkit-app-region:no-drag]"
+        role="group"
+      >
+        {PLACES.map((place) => {
+          const isOn = filters.place === place.id;
+          return (
+            <button
+              aria-pressed={isOn}
+              className={cn(
+                "flex h-7 shrink-0 cursor-default items-center rounded-md px-2 text-[13px]",
+                isOn
+                  ? "bg-foreground/10 font-medium text-foreground"
+                  : "bg-foreground/4 text-foreground/65 hover:bg-foreground/7 hover:text-foreground",
+              )}
+              key={place.id}
+              onClick={() => {
+                setFilters(withPlace(filters, isOn ? undefined : place.id));
+              }}
+              type="button"
+            >
+              {place.label}
+            </button>
+          );
+        })}
+        <span className="flex-1" />
+        <ProjectFilter
+          chosen={filters.projects[0]}
+          onPick={(id) => {
+            setFilters({ ...filters, projects: id === undefined ? [] : [id] });
+          }}
+          projects={projects}
+        />
+      </div>
       <PanelScroll>
-        {chats.length === 0 ? (
+        {isEmpty ? (
           <p className="px-2 py-1.5 text-[13px] text-muted-foreground">
-            No chats match.
+            {emptyLineFor(filters, chats.length, chosenProject)}
           </p>
+        ) : isDrafts ? (
+          drafts.map((draft) => (
+            <DraftRow
+              draft={draft}
+              key={draft.id}
+              now={now}
+              onDelete={() => {
+                shell.discardDraft(draft.id);
+              }}
+              onOpen={() => {
+                void keepDraft([{ id: draft.id, type: "keep" }]);
+                shell.showDraft(draft.id, () => {
+                  open(newChatHref(draft.id));
+                });
+              }}
+              projects={projects}
+            />
+          ))
         ) : (
-          <ChatRows chats={chats} density={density} group={group} open={open} />
+          <ChatRows
+            chats={matched}
+            density={density}
+            group={group}
+            open={open}
+          />
+        )}
+        {outside.length > 0 && shownOutside.length === 0 && (
+          <div className="my-1 flex shrink-0 items-center gap-2 px-2">
+            <span className="h-px flex-1 bg-foreground/10" />
+            <button
+              className="flex h-6 cursor-default items-center rounded-full bg-foreground/5 px-2.5 text-xs text-foreground/70 hover:bg-foreground/8 hover:text-foreground"
+              onClick={() => {
+                setWidenedIn(viewKey);
+              }}
+              type="button"
+            >
+              {outside.length} more outside this filter
+            </button>
+            <span className="h-px flex-1 bg-foreground/10" />
+          </div>
+        )}
+        {shownOutside.length > 0 && (
+          <>
+            <Heading>Outside this filter</Heading>
+            <ChatRows
+              chats={shownOutside}
+              density={density}
+              group={group}
+              open={open}
+            />
+          </>
         )}
       </PanelScroll>
     </>
+  );
+}
+
+/** Drafts and Archived, the places a chat can be apart from the rest, as the panel's filter row names them. */
+const PLACES: { id: ChatPlace; label: string }[] = [
+  { id: "drafts", label: "Drafts" },
+  { id: "archived", label: "Archived" },
+];
+
+/**
+ * The filters standing in `place`, or in none: the project and the search
+ * stay, and the marks too, except in Drafts, where a draft carries neither.
+ */
+function withPlace(
+  filters: ChatFilters,
+  place: ChatPlace | undefined,
+): ChatFilters {
+  const { place: _place, ...rest } = filters;
+  return {
+    ...rest,
+    ...(place === undefined ? {} : { place }),
+    tags: place === "drafts" ? [] : filters.tags,
+  };
+}
+
+/** The selector's id for every project, which no project has. */
+const ALL_PROJECTS = "all";
+
+/**
+ * The one project the panel's chats are narrowed to, or none of them, picked
+ * from a list that finds a project by name: All projects, each project, then
+ * No project for the chats filed under none. The one picked stands in the
+ * button in its tint.
+ */
+function ProjectFilter({
+  chosen,
+  onPick,
+  projects,
+}: {
+  /** The project picked, `NO_PROJECT` for none; every project without it. */
+  chosen: string | undefined;
+  onPick: (id: string | undefined) => void;
+  projects: Project[];
+}) {
+  const [isOpen, setOpen] = useState(false);
+  const project = projects.find((entry) => entry.id === chosen);
+  return (
+    <Popover onOpenChange={setOpen} open={isOpen}>
+      <PopoverTrigger asChild>
+        <button
+          className={cn(
+            "flex h-7 min-w-0 cursor-default items-center gap-1.5 rounded-md px-2 text-[13px]",
+            project
+              ? "project-tint bg-(--project-tint-surface)/70 font-medium text-(--project-tint-ink) hover:bg-(--project-tint-surface)"
+              : chosen === NO_PROJECT
+                ? "bg-foreground/10 font-medium text-foreground"
+                : "bg-foreground/4 text-foreground/65 hover:bg-foreground/7 hover:text-foreground data-[state=open]:bg-foreground/10",
+          )}
+          style={project ? projectTint(projectColor(project)) : undefined}
+          type="button"
+        >
+          {project && <ProjectMark project={project} />}
+          <span className="min-w-0 truncate">
+            {project?.name ??
+              (chosen === NO_PROJECT ? "No project" : "All projects")}
+          </span>
+          <CaretDownIcon className="size-3 shrink-0 opacity-70" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="flex w-60 flex-col p-1"
+        role="menu"
+        side="bottom"
+        sideOffset={4}
+      >
+        <PickList
+          chosen={chosen ?? ALL_PROJECTS}
+          entries={[
+            {
+              icon: <span className="size-3 shrink-0" />,
+              id: ALL_PROJECTS,
+              isNone: true,
+              label: "All projects",
+            },
+            ...projects
+              .filter((entry) => !entry.retired)
+              .map((entry) => ({
+                icon: <ProjectMark project={entry} />,
+                id: entry.id,
+                label: entry.name,
+              })),
+            { icon: <NoProjectMark />, id: NO_PROJECT, label: "No project" },
+          ]}
+          findPlaceholder="Find a project"
+          onPick={(id) => {
+            onPick(id === ALL_PROJECTS ? undefined : id);
+            setOpen(false);
+          }}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
 

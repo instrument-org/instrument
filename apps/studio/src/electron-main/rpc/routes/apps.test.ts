@@ -461,22 +461,27 @@ describe("markWebSignedIn", () => {
   });
 
   it("writes the other sites the sign-in left cookies on, the app's own left out", async () => {
-    await writeApp("Grok", "grok", {
-      signIn: "https://accounts.x.ai/sign-in",
-      type: "web",
-      url: "https://grok.com",
-    });
+    // Set up before the directory named Grok's sign-in page.
+    await writeApp("Grok", "grok", { type: "web", url: "https://grok.com" });
     mocks.finishSignInCookies.mockResolvedValueOnce([
       { cookies: 7, site: "x.com" },
     ]);
 
-    await call(apps.startWebSignIn, { slug: "grok", tab: "tab-1" }, options);
+    await call(
+      apps.startWebSignIn,
+      { loadsSignIn: true, slug: "grok", tab: "tab-1" },
+      options,
+    );
     await call(apps.markWebSignedIn, { slug: "grok" }, options);
 
-    expect(mocks.startSignInCookies).toHaveBeenCalledWith("grok", "tab-1");
+    expect(mocks.startSignInCookies).toHaveBeenCalledWith("grok", "tab-1", {
+      loadsSignIn: true,
+    });
+    // The directory's home and sign-in page with the app's own site.
     expect(mocks.finishSignInCookies).toHaveBeenCalledWith("grok", [
       "https://grok.com",
-      "https://accounts.x.ai/sign-in",
+      "https://grok.com",
+      "https://grok.com/sign-in",
     ]);
     expect(mocks.recordConnection).toHaveBeenCalledWith(
       "grok",

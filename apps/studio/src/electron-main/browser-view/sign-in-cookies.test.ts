@@ -5,6 +5,7 @@ import {
   cookieSnapshot,
   dropSignInCookies,
   finishSignInCookies,
+  noteSignInCommit,
   noteSignInPage,
   noteSignInPopup,
   signInCookieSites,
@@ -31,8 +32,14 @@ function cookie(
   return { domain, name, path, sameSite: "lax", value };
 }
 
-/** Grok, signed in to at accounts.x.ai. */
-const GROK = ["https://grok.com", "https://accounts.x.ai/sign-in"];
+/** Grok's own addresses: its site, and the sign-in page the directory names. */
+const GROK = ["https://grok.com", "https://grok.com/sign-in"];
+
+/** Grok's sign-in page as the window loads it, which the server sends on to xAI's. */
+const FIRST_LOAD = [
+  "https://grok.com/sign-in",
+  "https://accounts.x.ai/check-login?redirect=grok-com",
+];
 
 /** What the browser held as the sign-in started: a search earlier, and the agent's look at grok.com. */
 const BEFORE = [
@@ -44,7 +51,7 @@ const BEFORE = [
 
 /** Grok's sign-in through X's authorize page and back, as the tab's main frame went. */
 const THROUGH_X = [
-  "https://accounts.x.ai/sign-in?redirect=grok-com",
+  ...FIRST_LOAD,
   "https://x.com/i/oauth2/authorize?response_type=code&client_id=Z3J",
   "https://x.com/i/flow/login?redirect_after_login=%2Fi%2Foauth2%2Fauthorize",
   "https://accounts.x.ai/oauth2/callback?code=c0de&state=5tate",
@@ -85,16 +92,19 @@ const hash = (value: string) => `#${value}`;
 function sites({
   after,
   before,
+  firstLoad = FIRST_LOAD,
   pages,
 }: {
   after: Cookie[];
   before: Cookie[];
+  firstLoad?: string[];
   pages: string[];
 }) {
   return signInCookieSites({
     after: cookieSnapshot(after, hash),
     appAddresses: GROK,
     before: cookieSnapshot(before, hash),
+    firstLoad,
     pages,
   });
 }
@@ -139,12 +149,31 @@ describe("signInCookieSites", () => {
       sites({
         after: [...GROK_SIGNED_IN, ...FROM_FRAMES],
         before: BEFORE,
-        pages: [
-          "https://accounts.x.ai/sign-in?redirect=grok-com",
-          "https://grok.com/",
-        ],
+        pages: [...FIRST_LOAD, "https://grok.com/"],
       }),
     ).toEqual([]);
+  });
+
+  it("names xAI's site when the window's load never went there, as a page's own link took the tab", () => {
+    expect(
+      sites({
+        after: [...X_SIGNED_IN, ...GROK_SIGNED_IN],
+        before: BEFORE,
+        firstLoad: ["https://grok.com/"],
+        pages: ["https://grok.com/", ...THROUGH_X],
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "cookies": 7,
+          "site": "x.com",
+        },
+        {
+          "cookies": 1,
+          "site": "x.ai",
+        },
+      ]
+    `);
   });
 
   it("counts a changed value on a cookie x.com already had, and none of those that stayed", () => {
@@ -210,12 +239,72 @@ describe("a sign-in's cookies, from its start to Done", () => {
     vi.useRealTimers();
   });
 
+  /** The window loads Grok's sign-in page in tab-1, and the server sends it on to xAI's. */
+  function loadSignIn() {
+    noteSignInPage("tab-1", "https://grok.com/sign-in");
+    noteSignInPage("tab-1", FIRST_LOAD[1] ?? "");
+    noteSignInCommit("tab-1", FIRST_LOAD[1] ?? "");
+  }
+
+  /** The page's own Sign in with X, through X's authorize page and back to Grok. */
+  function signInWithX(tab: string) {
+    for (const [start, ...redirects] of [
+      THROUGH_X.slice(2, 4),
+      THROUGH_X.slice(4),
+    ]) {
+      for (const url of [start ?? "", ...redirects]) {
+        noteSignInPage(tab, url);
+      }
+      noteSignInCommit(tab, redirects.at(-1) ?? start ?? "");
+    }
+  }
+
+  it("names x.com after Grok's sign-in through X, the site the window's load was sent to left out", async () => {
+    mocks.cookies.mockResolvedValueOnce(BEFORE);
+    startSignInCookies("grok", "tab-1", { loadsSignIn: true });
+    loadSignIn();
+    signInWithX("tab-1");
+
+    mocks.cookies.mockResolvedValueOnce([...X_SIGNED_IN, ...GROK_SIGNED_IN]);
+    expect(await finishSignInCookies("grok", GROK)).toMatchInlineSnapshot(`
+      [
+        {
+          "cookies": 7,
+          "site": "x.com",
+        },
+      ]
+    `);
+  });
+
+  it("names xAI's site too for a sign-in in a tab already open, where every load was the page's", async () => {
+    mocks.cookies.mockResolvedValueOnce(BEFORE);
+    startSignInCookies("grok", "tab-1", { loadsSignIn: false });
+    noteSignInPage("tab-1", "https://grok.com/sign-in");
+    noteSignInPage("tab-1", FIRST_LOAD[1] ?? "");
+    noteSignInCommit("tab-1", FIRST_LOAD[1] ?? "");
+    signInWithX("tab-1");
+
+    mocks.cookies.mockResolvedValueOnce([...X_SIGNED_IN, ...GROK_SIGNED_IN]);
+    expect(await finishSignInCookies("grok", GROK)).toMatchInlineSnapshot(`
+      [
+        {
+          "cookies": 7,
+          "site": "x.com",
+        },
+        {
+          "cookies": 1,
+          "site": "x.ai",
+        },
+      ]
+    `);
+  });
+
   it("names the sites the sign-in's tab and its popups loaded, and no other tab's", async () => {
     mocks.cookies.mockResolvedValueOnce(BEFORE);
-    startSignInCookies("grok", "tab-1");
+    startSignInCookies("grok", "tab-1", { loadsSignIn: true });
     expect(mocks.cookies).toHaveBeenCalledOnce();
 
-    noteSignInPage("tab-1", "https://accounts.x.ai/sign-in?redirect=grok-com");
+    loadSignIn();
     noteSignInPopup(
       "tab-1",
       "tab-9",
@@ -247,7 +336,7 @@ describe("a sign-in's cookies, from its start to Done", () => {
 
   it("names nothing for a sign-in that ended without connecting", async () => {
     mocks.cookies.mockResolvedValue(BEFORE);
-    startSignInCookies("grok", "tab-1");
+    startSignInCookies("grok", "tab-1", { loadsSignIn: true });
     noteSignInPage("tab-1", THROUGH_X[1] ?? "");
     dropSignInCookies("grok");
 
@@ -258,7 +347,7 @@ describe("a sign-in's cookies, from its start to Done", () => {
   it("names nothing once a sign-in has waited an hour", async () => {
     vi.useFakeTimers({ now: 0, toFake: ["Date"] });
     mocks.cookies.mockResolvedValue(BEFORE);
-    startSignInCookies("grok", "tab-1");
+    startSignInCookies("grok", "tab-1", { loadsSignIn: true });
     noteSignInPage("tab-1", THROUGH_X[1] ?? "");
 
     vi.setSystemTime(60 * 60_000 + 1);
@@ -268,7 +357,7 @@ describe("a sign-in's cookies, from its start to Done", () => {
 
   it("names nothing when the cookies could not be read", async () => {
     mocks.cookies.mockRejectedValueOnce(new Error("session gone"));
-    startSignInCookies("grok", "tab-1");
+    startSignInCookies("grok", "tab-1", { loadsSignIn: true });
     noteSignInPage("tab-1", THROUGH_X[1] ?? "");
 
     mocks.cookies.mockResolvedValue([...BEFORE, ...X_SIGNED_IN]);

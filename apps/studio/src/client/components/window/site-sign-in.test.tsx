@@ -227,6 +227,7 @@ describe("opening a site's sign-in", () => {
     expect(marked(store).map((tab) => tab.id)).toEqual(["tab-2"]);
     await waitFor(() => {
       expect(mocks.startWebSignIn.mock.calls[0]?.[0]).toEqual({
+        loadsSignIn: false,
         slug: "notes",
         tab: "tab-2",
       });
@@ -243,6 +244,7 @@ describe("opening a site's sign-in", () => {
     expect(showTab).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(mocks.startWebSignIn.mock.calls[0]?.[0]).toEqual({
+        loadsSignIn: true,
         slug: "notes",
         tab: "tab-new",
       });

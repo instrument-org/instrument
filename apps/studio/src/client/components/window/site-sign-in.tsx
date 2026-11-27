@@ -83,9 +83,9 @@ export function useSiteSignIn({
   /**
    * Notes the tab the app's site opened in, from which the bar and the
    * row's Done follow, and has main read the browser's cookies as the
-   * sign-in starts.
+   * sign-in starts. `loadsSignIn` when the tab is loading the sign-in page.
    */
-  const opened = (tab: string | undefined) => {
+  const opened = (tab: string | undefined, loadsSignIn = false) => {
     if (tab === undefined) {
       return;
     }
@@ -95,7 +95,7 @@ export function useSiteSignIn({
       ...(from === undefined ? {} : { from }),
       slug,
     });
-    start.mutate({ slug, tab });
+    start.mutate({ loadsSignIn, slug, tab });
   };
   return {
     canOpen: Boolean(appWindow?.browser) && signInPage !== undefined,
@@ -129,7 +129,7 @@ export function useSiteSignIn({
         opened(onSite.id);
         return;
       }
-      opened(appWindow?.openPage(signInPage));
+      opened(appWindow?.openPage(signInPage), true);
     },
     opened,
   };

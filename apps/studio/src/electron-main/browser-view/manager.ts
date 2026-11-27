@@ -122,7 +122,11 @@ import { pageKeyOfInput } from "./page-key";
 import { forwardPopupEvents, placePopupView, popupState } from "./popup-tabs";
 import { createPutAwaySound } from "./put-away-sound";
 import { stopScreencast } from "./screencast";
-import { noteSignInPage, noteSignInPopup } from "./sign-in-cookies";
+import {
+  noteSignInCommit,
+  noteSignInPage,
+  noteSignInPopup,
+} from "./sign-in-cookies";
 import {
   guestWindowOpenHandler,
   isBlankPopup,
@@ -698,6 +702,7 @@ function createBrowserViewManager(): BrowserViewManager {
         status: httpResponseCode,
         url,
       });
+      noteSignInCommit(targetId, url);
       if (url !== "about:blank") {
         dropBlankStart(guest);
       }

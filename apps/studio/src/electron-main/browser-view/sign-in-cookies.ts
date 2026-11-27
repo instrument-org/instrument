@@ -13,7 +13,11 @@ import { log } from "./log";
  * store in between. Only sites whose pages the sign-in's tab, or a popup
  * it opened, loaded in its main frame count, each hop of a server redirect
  * included, so an ad or analytics site that set cookies from inside
- * another page is left out, and so is the app's own site.
+ * another page is left out, and so are the app's own sites: those its
+ * setup and the directory name, and those the load Studio started in a tab
+ * opened for the sign-in was redirected to before its first page (grok.com
+ * sends its sign-in to accounts.x.ai). Where a page's own navigation goes,
+ * redirects and all, is never the app's.
  *
  * A snapshot lives in memory for its sign-in alone and holds a hash of each
  * value, keyed for that sign-in, never a value; what leaves is each site and
@@ -61,16 +65,24 @@ export function signInCookieSites({
   after,
   appAddresses,
   before,
+  firstLoad,
   pages,
 }: {
   after: CookieSnapshot;
-  /** The app's own addresses, its site and its sign-in page. */
+  /** The app's own addresses: its site and sign-in page, its setup's and the directory's. */
   appAddresses: readonly string[];
   before: CookieSnapshot;
+  /**
+   * The addresses the load Studio started in a tab opened for the sign-in
+   * went through before its first page, which are the app's own too.
+   */
+  firstLoad: Iterable<string>;
   /** The addresses the sign-in's tabs loaded in their main frame. */
   pages: Iterable<string>;
 }): SignInCookieSite[] {
-  const own = new Set(appAddresses.flatMap(siteOfAddress));
+  const own = new Set(
+    [...appAddresses, ...firstLoad].flatMap(siteOfAddress),
+  );
   const loaded = new Set(
     [...pages].flatMap(siteOfAddress).filter((site) => !own.has(site)),
   );
@@ -95,6 +107,13 @@ export function signInCookieSites({
 interface SignIn {
   /** The cookies as the sign-in's page opened, or undefined when they could not be read. */
   before: Promise<CookieSnapshot | undefined>;
+  /**
+   * The tab whose page Studio is loading for the sign-in, until that load
+   * commits its first page.
+   */
+  firstLoad: string | undefined;
+  /** The origins that load went through. */
+  firstLoadPages: Set<string>;
   hash: (value: string) => string;
   /** The origins of the pages its tabs loaded. */
   pages: Set<string>;
@@ -132,15 +151,23 @@ function underWay(): SignIn[] {
 
 /**
  * A web app's sign-in opened its page in `tab`: the browser's cookies are
- * read now, for `finishSignInCookies` to compare with. A sign-in started
+ * read now, for `finishSignInCookies` to compare with. `loadsSignIn` when
+ * Studio is loading the sign-in page there, so where that load is
+ * redirected before its first page is the app's own. A sign-in started
  * again starts over.
  */
-export function startSignInCookies(slug: string, tab: string): void {
+export function startSignInCookies(
+  slug: string,
+  tab: string,
+  { loadsSignIn }: { loadsSignIn: boolean },
+): void {
   const key = randomBytes(32);
   const hash = (value: string) =>
     createHmac("sha256", key).update(value).digest("base64");
   signIns.set(slug, {
     before: readSnapshot(hash),
+    firstLoad: loadsSignIn ? tab : undefined,
+    firstLoadPages: new Set(),
     hash,
     pages: new Set(),
     tabs: new Set([tab]),
@@ -160,6 +187,29 @@ export function noteSignInPage(tab: string, url: string): void {
   for (const signIn of underWay()) {
     if (signIn.tabs.has(tab)) {
       signIn.pages.add(page.origin);
+    }
+    if (signIn.firstLoad === tab) {
+      signIn.firstLoadPages.add(page.origin);
+    }
+  }
+}
+
+/**
+ * A tab's main frame committed a page at `url`: a sign-in's first load
+ * there is over, and where the tab goes from here is its page's doing.
+ */
+export function noteSignInCommit(tab: string, url: string): void {
+  if (signIns.size === 0) {
+    return;
+  }
+  const page = URL.parse(url);
+  // The blank page a tab is born on is not the load's first page.
+  if (page?.protocol !== "https:" && page?.protocol !== "http:") {
+    return;
+  }
+  for (const signIn of underWay()) {
+    if (signIn.firstLoad === tab) {
+      signIn.firstLoad = undefined;
     }
   }
 }
@@ -204,6 +254,7 @@ export async function finishSignInCookies(
     after,
     appAddresses,
     before,
+    firstLoad: signIn.firstLoadPages,
     pages: signIn.pages,
   });
 }

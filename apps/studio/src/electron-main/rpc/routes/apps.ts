@@ -1069,9 +1069,18 @@ const allow = base
  * other sites it left cookies on.
  */
 const startWebSignIn = base
-  .input(z.object({ slug: AppSlugSchema, tab: z.string() }))
+  .input(
+    z.object({
+      /** Whether the window is loading the app's sign-in page in the tab; false for a tab already on its site. */
+      loadsSignIn: z.boolean(),
+      slug: AppSlugSchema,
+      tab: z.string(),
+    }),
+  )
   .handler(({ input }) => {
-    startSignInCookies(input.slug, input.tab);
+    startSignInCookies(input.slug, input.tab, {
+      loadsSignIn: input.loadsSignIn,
+    });
   });
 
 /**
@@ -1097,10 +1106,15 @@ const markWebSignedIn = base
         message: `${input.slug} is not a web app.`,
       });
     }
-    const cookieSites = await finishSignInCookies(input.slug, [
-      manifest.url,
-      ...(manifest.signIn === undefined ? [] : [manifest.signIn]),
-    ]);
+    // The directory's addresses too, for an app set up before it named a
+    // sign-in page.
+    const entry = catalogEntryForApp(input.slug, manifest);
+    const cookieSites = await finishSignInCookies(
+      input.slug,
+      [manifest.url, manifest.signIn, entry?.home, entry?.signIn].filter(
+        (address) => address !== undefined,
+      ),
+    );
     await settleConnection(input.slug, {
       manifestHash: loaded.value.manifestHash,
       ...(cookieSites.length === 0 ? {} : { signInCookieSites: cookieSites }),

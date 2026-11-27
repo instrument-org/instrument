@@ -478,7 +478,10 @@ describe("an admin command's card", () => {
     expect(
       screen.getByText("Changes the time zone to Eastern Time."),
     ).toBeDefined();
-    expect(screen.getByText(command).tagName).toBe("PRE");
+    // Highlighted, the command is split into a span per token; read it whole.
+    expect(
+      document.querySelector("[data-admin-command] pre")?.textContent,
+    ).toBe(command);
     expect(screen.getByRole("button", { name: "Copy command" })).toBeDefined();
     expect(
       screen.getByRole("button", { name: "Run as administrator" }),
@@ -507,7 +510,10 @@ describe("an admin command's card", () => {
   it("waits on the system's prompt with nothing to answer", async () => {
     showAsks([{ kind: "admin", status: "admin-prompt", target: command }]);
 
-    expect(await screen.findByText(command)).toBeDefined();
+    await screen.findByText("Run as administrator?");
+    expect(
+      document.querySelector("[data-admin-command] pre")?.textContent,
+    ).toBe(command);
     expect(
       screen.queryByRole("button", { name: /allow|administrator/ }),
     ).toBeNull();

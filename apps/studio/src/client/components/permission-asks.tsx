@@ -394,9 +394,15 @@ function AdminAskCard({
         </p>
       ) : null}
       <div className="group/command relative mt-2.5 rounded-xl bg-muted/50">
-        <pre className="max-h-40 scroll-fade-y overflow-auto py-2 pr-10 pl-3 font-mono text-[13px] leading-5 break-all whitespace-pre-wrap">
-          {ask.target}
-        </pre>
+        <div
+          className="max-h-40 scroll-fade-y overflow-auto py-2 pr-10 pl-3"
+          data-admin-command=""
+        >
+          <BashCommandPreview
+            className="text-[13px] leading-5 [&_pre]:break-all [&_pre]:whitespace-pre-wrap"
+            command={ask.target}
+          />
+        </div>
         <CopyButton
           className="absolute top-1 right-1 grid size-7 place-items-center rounded-md bg-card text-muted-foreground opacity-0 shadow-xs ring-1 ring-border group-hover/command:opacity-100 hover:text-foreground focus-visible:opacity-100"
           iconSize={16}

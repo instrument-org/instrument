@@ -51,6 +51,7 @@ import {
 import { folderItemCount, folderSize } from "@/electron-main/lib/folder-size";
 import { folderWalkSkips, walkFolder } from "@/electron-main/lib/folder-walk";
 import { spotlightMatches } from "@/electron-main/lib/spotlight-matches";
+import { askFolder, folderAsks } from "@/electron-main/lib/folder-asks";
 import { probeMedia } from "@/electron-main/lib/media-probe";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
@@ -1188,6 +1189,14 @@ const walkFolderRoute = base
   .output(
     z
       .object({
+        asks: z.array(
+          z.object({
+            name: z.string(),
+            path: z.string(),
+            refused: z.literal(true).optional(),
+            searchIn: z.literal(true).optional(),
+          }),
+        ),
         entries: z.array(WalkedEntrySchema),
         notSearched: z.array(z.string()),
         stalledAt: z.string().optional(),
@@ -1200,8 +1209,28 @@ const walkFolderRoute = base
     if (await isClosed(input.path, folderPath)) {
       return null;
     }
-    return walkFolder(folderPath, { signal });
+    const [walk, root, home] = await Promise.all([
+      walkFolder(folderPath, { signal }),
+      fs.realpath(folderPath).catch(() => folderPath),
+      fs.realpath(os.homedir()).catch(() => os.homedir()),
+    ]);
+    return (
+      walk && {
+        ...walk,
+        asks: folderAsks({ home, notSearched: walk.notSearched, root }),
+      }
+    );
   });
+
+/**
+ * Opens a folder a search stepped over, which on a Mac is when macOS asks
+ * the person about it, once: allowed, a search then reaches it through
+ * Spotlight.
+ */
+const askFolderRoute = base
+  .input(z.object({ path: HostPathSchema }))
+  .output(z.enum(["allowed", "refused"]))
+  .handler(async ({ input }) => askFolder(input.path));
 
 /**
  * What Spotlight finds by name in the folders a search of a folder stepped
@@ -1324,6 +1353,7 @@ export const files = {
   storyboard,
   trash,
   undo,
+  askFolder: askFolderRoute,
   spotlightMatches: spotlightMatchesRoute,
   walkFolder: walkFolderRoute,
   write,

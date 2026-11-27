@@ -175,9 +175,7 @@ function BrokenSkills({ ask }: { ask: ((words: string) => void) | undefined }) {
   }
   return (
     <section className="space-y-2">
-      <h4 className="text-sm font-medium text-muted-foreground">
-        Can’t load
-      </h4>
+      <h4 className="text-sm font-medium text-muted-foreground">Can’t load</h4>
       <p className="text-sm text-muted-foreground">
         Chats can’t use these skills until they’re fixed.
       </p>
@@ -238,26 +236,28 @@ function SkillMenu({ skill }: { skill: Skill }) {
   };
 
   const confirmTrash = async () => {
+    let journalId: string | null;
     try {
-      const { journalId } = await trash.mutateAsync({ path: skill.path });
+      ({ journalId } = await trash.mutateAsync({ path: skill.path }));
       await refreshSkills(queryClient);
-      setConfirming(false);
-      toastWithUndo(
-        `Moved “${skill.title}” to the ${trashName}`,
-        journalId === null
-          ? null
-          : {
-              journalIds: [journalId],
-              undo: () => {
-                void putBack(journalId);
-              },
-            },
-      );
     } catch (error) {
       toast.error(`Couldn't move “${skill.title}” to the ${trashName}`, {
         cause: error,
       });
+      return;
     }
+    setConfirming(false);
+    toastWithUndo(
+      `Moved “${skill.title}” to the ${trashName}`,
+      journalId === null
+        ? null
+        : {
+            journalIds: [journalId],
+            undo: () => {
+              void putBack(journalId);
+            },
+          },
+    );
   };
 
   return (

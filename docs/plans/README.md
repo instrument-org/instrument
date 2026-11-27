@@ -43,7 +43,7 @@ Each entry is the plan's title and the opening of its status.
 - [Dependency sweep: what upstream has fixed for us](dependency-upgrade-sweep.md): Two passes landed;
 - [Dependency work behind the PR queue](dependency-work-behind-the-pr-queue.md): Items 1 and 2 done, 3 to 5 partly.
 - [Drive Studio a sequence at a time, not a command at a time](driving-studio-in-batches.md): The session runner landed (`studio-drive.mjs run` over `.agents/skills/studio-chrome-devtools/scripts/studio-app.mjs`), with saved recipes beside it (`sweep-...
-- [Files searches everything under the folder you're in](files-folder-search.md): Wireframes drawn;
+- [Files searches everything under the folder you're in](files-folder-search.md): Built: flat results, Folder column, name and kind matching, status lines.
 - [Moving files in the Finder](finder-moving-files.md): Accepted, 2026-10-02: undo-backed drag-to-move.
 - [Run the transcript scrollbar the full height of the pane](full-height-transcript-scrollbar.md): Proposed, not started: the composer is still a flex sibling below the `MessageScroller` in `task/chat.tsx`.
 - [Grouping a run of tool calls under what it is for](grouped-activities.md): In progress -- the `activity` field, the heading, and collapsing groups are built;

@@ -82,11 +82,12 @@ describe("ProjectChangesCard", () => {
     const { container } = renderWithProviders(
       <ProjectChangesCard changes={recorded} />,
     );
+    // A project with no icon or emoji is marked with its initial.
     const marks = () =>
-      [...container.querySelectorAll("[title]")].map((mark) =>
-        mark.getAttribute("title"),
+      [...container.querySelectorAll("li [aria-hidden]")].map(
+        (mark) => mark.textContent,
       );
-    expect(marks()).toEqual(["Houseplants"]);
+    expect(marks()).toEqual(["H"]);
     expect(screen.getByText(/Renamed from/).textContent).toBe(
       "Renamed from “Plants”",
     );
@@ -95,7 +96,7 @@ describe("ProjectChangesCard", () => {
       expect(screen.getByText("Undone")).toBeTruthy();
     });
     expect(screen.getByText("Plants")).toBeTruthy();
-    expect(marks()).toEqual(["Plants"]);
+    expect(marks()).toEqual(["P"]);
     expect(screen.getByText(/Renamed to/).textContent).toBe(
       "Renamed to “Houseplants”",
     );

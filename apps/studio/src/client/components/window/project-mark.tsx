@@ -51,7 +51,6 @@ export function ProjectMark({
           : { background: "var(--project-tint-surface, var(--card))" }),
         ...projectTint(projectColor(project)),
       }}
-      title={project.name}
     >
       <ProjectFace plain={plain} project={project} />
     </span>

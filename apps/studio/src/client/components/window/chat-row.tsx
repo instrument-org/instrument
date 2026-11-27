@@ -30,6 +30,11 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { contextMenuComponents } from "@/client/components/ui/menu-components";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { ProjectMenuItems } from "./chat-header";
 import { ChatCopyMenu } from "./chat-copy-menu";
 import { chatMenuGroups } from "./chat-actions";
@@ -738,24 +743,25 @@ function ProjectControl({
     // right click on the control is the row's, and raises the row's menu
     // like a right click on the words.
     <span className="flex shrink-0" onAuxClick={stopHere} onClick={stopHere}>
-      <ProjectPicker
-        align="end"
-        chosen={chat.project}
-        isOpen={isOpen}
-        onNew={onNewProject}
-        onOpenChange={onOpenChange}
-        onPick={onPick}
-        projects={projects}
-      >
-        <button
-          aria-label="Project"
-          className={ROW_CONTROL}
-          title="Project"
-          type="button"
+      {/* As the bar's other controls name themselves (`RowActionBar`). */}
+      <Tooltip disableHoverableContent>
+        <ProjectPicker
+          align="end"
+          chosen={chat.project}
+          isOpen={isOpen}
+          onNew={onNewProject}
+          onOpenChange={onOpenChange}
+          onPick={onPick}
+          projects={projects}
         >
-          <CardsThreeIcon />
-        </button>
-      </ProjectPicker>
+          <TooltipTrigger asChild>
+            <button aria-label="Project" className={ROW_CONTROL} type="button">
+              <CardsThreeIcon />
+            </button>
+          </TooltipTrigger>
+        </ProjectPicker>
+        <TooltipContent side="bottom">Project</TooltipContent>
+      </Tooltip>
     </span>
   );
 }

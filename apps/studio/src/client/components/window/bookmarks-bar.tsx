@@ -481,7 +481,6 @@ function FilesMark({ group, open }: { group: string; open: OpenAddress }) {
           setOpen(false);
         });
       }}
-      title={place.path}
     >
       <span className="flex size-4 shrink-0 items-center justify-center">
         {place.icon}

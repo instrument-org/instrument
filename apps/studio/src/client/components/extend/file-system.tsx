@@ -68,8 +68,7 @@ import {
 import { Spinner } from "@/client/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { useFileDragArea } from "@/client/hooks/use-file-drag";
-import { formatAcceleratorText } from "@/client/lib/format-accelerator";
-import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
+import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { useFindTarget } from "@/client/hooks/use-find-target";
 import {
   folderGlyphUrl,
@@ -3554,19 +3553,19 @@ export function FileSystem({
           well the choices sit in against the toolbar's own tint. */}
       <TabsList className="h-8 rounded-xl bg-foreground/8 p-0.5">
         {VIEW_OPTIONS.map((option) => (
-          <TabsTrigger
-            aria-label={`${option.label} view`}
-            className={VIEW_TAB_CLASSNAME}
-            key={option.value}
-            // Picked, a view hands the keyboard back to the listing,
-            // the way the Finder's toolbar never keeps it: the next arrow
-            // walks the folder rather than the views.
-            onClick={focusListing}
-            title={option.label}
-            value={option.value}
-          >
-            <option.icon className="size-4" />
-          </TabsTrigger>
+          <ToolbarTooltip key={option.value} label={option.label}>
+            <TabsTrigger
+              aria-label={`${option.label} view`}
+              className={VIEW_TAB_CLASSNAME}
+              // Picked, a view hands the keyboard back to the listing,
+              // the way the Finder's toolbar never keeps it: the next arrow
+              // walks the folder rather than the views.
+              onClick={focusListing}
+              value={option.value}
+            >
+              <option.icon className="size-4" />
+            </TabsTrigger>
+          </ToolbarTooltip>
         ))}
       </TabsList>
     </Tabs>
@@ -3979,7 +3978,6 @@ const TOOLBAR_SELECT_TRIGGER_CLASSNAME = cn(
 type ToolbarLayout = "full" | "compact" | "narrow" | "minimal";
 // macOS Finder-style toolbar search: a field at the toolbar's end wherever it
 // fits, and where it does not, a magnifying glass that opens it.
-const SEARCH_TITLE = `Search (${formatAcceleratorText(WINDOW_SHORTCUTS.findInPage.accelerator)})`;
 function FileSystemSearchField({
   className,
   inputRef,
@@ -4158,29 +4156,29 @@ function FileSystemSearchField({
     // Searched, the button says for what, so a folder showing less than it
     // has says why at a glance.
     return isSearched ? (
-      <button
-        aria-label={`Search: ${searchedLabel}`}
-        className={cn(
-          TOOLBAR_CONTROL_CLASSNAME,
-          "flex max-w-32 min-w-0 shrink items-center gap-1.5 bg-primary/10 px-2 text-sm text-primary outline-none not-disabled:hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary/15 dark:not-disabled:hover:bg-primary/20",
-        )}
-        onClick={() => onExpandedChange(true)}
-        title={`Search: ${searchedLabel}`}
-        type="button"
-      >
-        <Search className="size-3.5 shrink-0" />
-        <span className="truncate">{searchedLabel}</span>
-      </button>
+      <ToolbarTooltip label={`Search: ${searchedLabel}`}>
+        <button
+          className={cn(
+            TOOLBAR_CONTROL_CLASSNAME,
+            "flex max-w-32 min-w-0 shrink items-center gap-1.5 bg-primary/10 px-2 text-sm text-primary outline-none not-disabled:hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring dark:bg-primary/15 dark:not-disabled:hover:bg-primary/20",
+          )}
+          onClick={() => onExpandedChange(true)}
+          type="button"
+        >
+          <Search className="size-3.5 shrink-0" />
+          <span className="truncate">{searchedLabel}</span>
+        </button>
+      </ToolbarTooltip>
     ) : (
-      <button
-        aria-label="Search"
-        className={TOOLBAR_ICON_BUTTON_CLASSNAME}
-        onClick={() => onExpandedChange(true)}
-        title={SEARCH_TITLE}
-        type="button"
-      >
-        <Search className="size-4" />
-      </button>
+      <ToolbarTooltip chord="findInPage" label="Search">
+        <button
+          className={TOOLBAR_ICON_BUTTON_CLASSNAME}
+          onClick={() => onExpandedChange(true)}
+          type="button"
+        >
+          <Search className="size-4" />
+        </button>
+      </ToolbarTooltip>
     );
   }
   return (
@@ -4249,19 +4247,19 @@ function FileSystemSortMenu({
   const { group } = props;
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          aria-label={group === null ? "Sort by" : "Group by"}
-          className={TOOLBAR_SELECT_TRIGGER_CLASSNAME}
-          size="sm"
-          title={group === null ? "Sort by" : "Group by"}
-          type="button"
-          variant="outline"
-        >
-          <ArrowUpDown className="size-4" />
-          <ChevronDown className="opacity-50" />
-        </Button>
-      </DropdownMenuTrigger>
+      <ToolbarTooltip label={group === null ? "Sort by" : "Group by"}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            className={TOOLBAR_SELECT_TRIGGER_CLASSNAME}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <ArrowUpDown className="size-4" />
+            <ChevronDown className="opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+      </ToolbarTooltip>
       <DropdownMenuContent
         align="end"
         className="min-w-44"

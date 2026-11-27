@@ -137,6 +137,8 @@ export function AppIcon({
               label={site}
             />
           }
+          // An app goes by its name, never its site's host.
+          hasTooltip={false}
           url={site}
         />
       ) : (

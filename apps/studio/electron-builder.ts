@@ -140,6 +140,16 @@ const config: Configuration = {
   // covered, not app.asar.unpacked. Anything that edits the asar after
   // packaging makes the app exit at launch; afterPack only reads it.
   electronFuses: {
+    // Cookie values on disk are encrypted with the key safeStorage already
+    // keeps (the Keychain's "Instrument Safe Storage" on macOS, DPAPI on
+    // Windows). A cookie written before stays plain text until its site sets
+    // it again, and is read as it is meanwhile. Turning this off again would
+    // sign people out, since Chromium drops every cookie of a site with one it
+    // cannot decrypt. Linux stays off: an unlocked keyring guards nothing per
+    // app, and a launch that can't reach it would drop every site's cookies
+    // for good. Each OS is packaged on its own runner, so the platform here
+    // is the one being packaged.
+    enableCookieEncryption: process.platform !== "linux",
     enableEmbeddedAsarIntegrityValidation: true,
     enableNodeCliInspectArguments: false,
     onlyLoadAppFromAsar: true,

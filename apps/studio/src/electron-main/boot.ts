@@ -5,7 +5,7 @@
 // `ready`, the first window, then the rest. Whatever this file imports
 // statically loads before the cache is on, so it imports nothing of the app's
 // but the launch's clock.
-import { app } from "electron";
+import { app, safeStorage } from "electron";
 import module from "node:module";
 import path from "node:path";
 
@@ -33,6 +33,13 @@ if (gotTheLock) {
   void app
     .whenReady()
     .then(async () => {
+      // On a first launch, safeStorage and the cookie store can each find no
+      // Keychain key and each make one, the second replacing the first, so
+      // what the first encrypted can't be read on the next launch. Asking
+      // safeStorage first makes the one key before any cookie is read.
+      if (process.platform === "darwin" && app.isPackaged) {
+        safeStorage.isEncryptionAvailable();
+      }
       try {
         showEarlyWindow();
       } catch (error) {

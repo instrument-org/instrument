@@ -46,8 +46,12 @@ export function SkillsSection() {
   const ask = useAsk();
   return (
     <div className="space-y-8">
-      <div className="flex items-start gap-4" {...settingAnchor("new-skill")}>
-        <div className="min-w-0 flex-1">
+      {/* New skill drops under the words when both don't fit. */}
+      <div
+        className="flex flex-wrap items-start gap-x-4 gap-y-3"
+        {...settingAnchor("new-skill")}
+      >
+        <div className="min-w-0 flex-1 basis-56">
           <h3 className="text-base font-semibold">Skills</h3>
           <p className="mt-1 text-sm text-muted-foreground">
             {`What ${APP_NAME} knows how to do beyond the basics, and where each skill comes from`}

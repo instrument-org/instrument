@@ -77,7 +77,8 @@ function RouteComponent() {
       tabIndex={-1}
     >
       <div className="mx-auto w-full max-w-3xl px-4 pt-10 pb-8 @xl/app-content:px-6 @5xl/app-content:px-8 @5xl/app-content:pt-14">
-        <div className="flex items-center justify-between gap-6 pb-10">
+        {/* Check for updates drops under the title when both don't fit. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 pb-10">
           <h1 className="font-serif text-3xl leading-10 font-normal">
             What's new
           </h1>

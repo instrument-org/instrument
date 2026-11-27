@@ -157,7 +157,10 @@ export async function sendCommand({
 }): Promise<unknown> {
   const entry = entries.get(targetId);
   if (!entry) {
-    log.error(
+    // A tab closing as an agent leaves it gets the connection's resets after
+    // its guest is gone, a burst of these, so they are not errors here; a
+    // caller that needed the page has the thrown error.
+    log.info(
       `sendCommand: target not found targetId=${targetId} method=${method}`,
     );
     throw new Error(`Browser target not found: ${targetId}`);

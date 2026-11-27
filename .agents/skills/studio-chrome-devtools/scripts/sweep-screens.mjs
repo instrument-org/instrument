@@ -1,5 +1,6 @@
 // Walk every screen of the app window and report the console errors, warnings
-// and uncaught exceptions each one produced.
+// and uncaught exceptions each one produced, and each control a press cannot
+// reach because it lies in the window's drag area (`drag-audit.mjs`).
 //
 //   node studio-drive.mjs run <this file>
 //   node studio-drive.mjs run <this file> --args '{"reload":true}'
@@ -28,6 +29,7 @@ import {
   releaseNotesHref,
   taskHref,
 } from "../../../../apps/studio/scripts/drive-routes.ts";
+import { blockedByWindowDrag } from "./drag-audit.mjs";
 import { sleep } from "./studio-app.mjs";
 
 /** How long a screen is given to mount and settle before moving on. */
@@ -119,6 +121,13 @@ export default async (app, args = {}) => {
     // found" screen that logs nothing and reads as clean.
     await app.goto(route);
     await sleep(args.settleMs ?? SETTLE_MS);
+    // A control the window takes a press on as a move logs nothing.
+    for (const blocked of await blockedByWindowDrag(app)) {
+      note(
+        "window drag",
+        `"${blocked.control}" is in the drag area of ${blocked.dragArea}`,
+      );
+    }
   }
   screen = "(after the walk)";
 

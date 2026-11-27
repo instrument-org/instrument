@@ -232,6 +232,8 @@ Enabling the `Runtime` domain replays the console buffer, so a run would otherwi
 
 The event subscription behind it (`app.cdp.on`) is available to any sequence; the domain that emits them still has to be enabled (`app.cdp.send("Runtime.enable")`).
 
+It also reports each control a press cannot reach because it lies in the window's drag area, which neither a screenshot nor `click` shows: Electron takes every `drag` box in the page whatever is drawn over it. `scripts/drag-audit.mjs` runs that check alone, on the screen up now, or with `--args '{"setup":true}'` on each setup step in turn (boot a `--scenario` that opens setup with a workspace behind it, such as `quit-after-chatgpt`). Run it after changing a drag area or anything drawn over one.
+
 ## Measuring the renderer
 
 Count before timing. This machine is usually busy, so a frame time from one run says little about the next, while a count of what happened does not move with load: how many commits, which components rendered and why, how many RPC messages and bytes each procedure sent. `perf-probe-page.js` records those from ahead of the renderer's first script, and two sequences install it and report per scenario:

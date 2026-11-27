@@ -9,6 +9,7 @@ import { CHAT_HIDDEN_TAB_CAP, type OpenedTab } from "../../schemas/chat-state";
 import { StoreId } from "../../schemas/store-id";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { type BrowserTargetId, browserTargetOf } from "../../types";
+import { noteBrowserAgentActivity } from "../browser-agent-activity";
 import { getChatState, setChatState } from "../chat-record";
 import { chatDir } from "../record-folders";
 import { closeChatTabs, closeTabsOverCap } from "./tab-cap";
@@ -156,6 +157,24 @@ describe("closeTabsOverCap", () => {
     expect(state.closedTabs).toEqual([
       { id: oldest.id, reason: "tabCap", url: "" },
     ]);
+  });
+
+  it("closes a tab an agent is working in behind the chat last", async () => {
+    const workedIn = openedTab(500);
+    const idle = openedTab(400);
+    noteBrowserAgentActivity(workedIn.id);
+    const tabs = [
+      ...Array.from({ length: CHAT_HIDDEN_TAB_CAP - 1 }, (_, i) =>
+        openedTab(i),
+      ),
+      workedIn,
+      idle,
+    ];
+    await setChatState(chatDir(chatId), { openedTabs: tabs });
+
+    await closeTabsOverCap(chatId);
+
+    expect(closes).toEqual([idle.id]);
   });
 
   it("never closes a tab on screen", async () => {

@@ -81,9 +81,9 @@ describe("agent-browser's tab list", () => {
     });
   });
 
-  it("names the tab `tab new` opened, which is the active one", () => {
+  it("names the tab `tab new` opened, which is the active one, and counts the tabs open", () => {
     expect(newTabLine(JSON_LIST)).toBe(
-      "Opened as tab tab_01M5Q2CY3JB5G7KJVE1QA1HK0B.\n",
+      "Opened as tab tab_01M5Q2CY3JB5G7KJVE1QA1HK0B, one of 2 tabs open.\n",
     );
     expect(newTabLine("not json")).toBe("");
   });

@@ -45,7 +45,11 @@ import {
   lastActOf,
   tabsActedInBy,
 } from "../tab-activity";
-import { pageOpenedTabsNote, tabNewsNote } from "./agent-browser-tab-news";
+import {
+  closedTabsNote,
+  pageOpenedTabsNote,
+  tabNewsNote,
+} from "./agent-browser-tab-news";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
   hostPathOf,
@@ -1543,6 +1547,7 @@ export function createAgentBrowserCommand({
         ? [
             pageOpenedTabsNote(sessionId),
             await tabNewsNote({ chatId, sessionId }),
+            await closedTabsNote({ chatId, sessionId }),
           ]
         : []),
     ].filter((note) => note !== undefined);

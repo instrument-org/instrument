@@ -1047,7 +1047,7 @@ describe("agent-browser routing", () => {
     [
       ["tab", "new", "https://example.com/bottle"],
       "https://example.com/bottle\n",
-      "https://example.com/bottle\nOpened as tab tab_01M5Q2CY3JB5G7KJVE1QA1HK0B.\n",
+      "https://example.com/bottle\nOpened as tab tab_01M5Q2CY3JB5G7KJVE1QA1HK0B, one of 2 tabs open.\n",
     ],
   ])("names tabs by the window's id after %j", async (args, printed, shown) => {
     const json = JSON.stringify({

@@ -41,8 +41,8 @@ export const CHAT_HIDDEN_TAB_CAP = 20;
 
 /**
  * A tab an agent opened that the app closed on its own, waiting for the
- * session that worked in it to be told: its next browser note says so, and
- * takes it from here.
+ * session that worked in it to be told: its next `agent-browser` result or
+ * browser note, whichever comes first, says so and takes it from here.
  */
 const ClosedTabSchema = z.object({
   id: z.string().transform(tabIdOfEarlierBuilds),

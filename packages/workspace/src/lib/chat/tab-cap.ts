@@ -1,4 +1,5 @@
 import { tabLifetime } from "../../machines/window-browser";
+import { lastBrowserAgentActivity } from "../browser-agent-activity";
 import { type ChatId } from "../../schemas/chat-id";
 import {
   CHAT_HIDDEN_TAB_CAP,
@@ -15,13 +16,15 @@ import { askWindow } from "./window-tab";
 
 /**
  * Closes the tabs a chat's agents opened that are out of sight past
- * `CHAT_HIDDEN_TAB_CAP`, the one hidden longest first, and leaves a word for
- * the session that worked in each, which its next browser note says. Only
- * tabs the person never used count and close: one they used is theirs to
- * keep, and never makes room for itself by closing the tab an agent just
- * opened. A tab whose page is unloaded counts as hidden longer than any
- * with a page. A tab the window no longer lists is gone already and is
- * forgotten.
+ * `CHAT_HIDDEN_TAB_CAP`, the one left alone longest first, and leaves a word
+ * for the session that worked in each, which its next browser command or
+ * message says. A tab is left alone from when it went out of sight or an
+ * agent last sent it a command, whichever came later, so a tab an agent is
+ * working in behind the chat closes last. Only tabs the person never used
+ * count and close: one they used is theirs to keep, and never makes room for
+ * itself by closing the tab an agent just opened. A tab whose page is
+ * unloaded counts as left alone longer than any with a page. A tab the
+ * window no longer lists is gone already and is forgotten.
  */
 export async function closeTabsOverCap(chatId: ChatId): Promise<void> {
   await inTurn(chatId, async () => {
@@ -32,13 +35,9 @@ export async function closeTabsOverCap(chatId: ChatId): Promise<void> {
     const listed = await chatPageTabs(chatId);
     const hidden = openedTabs
       .filter((tab) => listed?.some((entry) => entry.id === tab.id) ?? true)
-      .map((tab) => ({ life: tabLifetime(tab.id), tab }))
-      .filter(({ tab }) => isUnused(tab))
-      .toSorted(
-        (a, b) =>
-          (b.life?.hiddenForMs ?? Number.POSITIVE_INFINITY) -
-          (a.life?.hiddenForMs ?? Number.POSITIVE_INFINITY),
-      );
+      .filter((tab) => isUnused(tab))
+      .map((tab) => ({ aloneForMs: aloneForMs(tab.id), tab }))
+      .toSorted((a, b) => b.aloneForMs - a.aloneForMs);
     const over = hidden
       .slice(0, Math.max(0, hidden.length - CHAT_HIDDEN_TAB_CAP))
       .map(({ tab }) => tab);
@@ -76,6 +75,18 @@ export async function closeChatTabs(
       });
     }
   });
+}
+
+/**
+ * How long a tab has been out of sight with no agent's command, or forever
+ * for one whose page is unloaded.
+ */
+function aloneForMs(id: OpenedTab["id"]): number {
+  const hiddenForMs = tabLifetime(id)?.hiddenForMs ?? Number.POSITIVE_INFINITY;
+  const agentAt = lastBrowserAgentActivity(id);
+  return agentAt === undefined
+    ? hiddenForMs
+    : Math.min(hiddenForMs, Date.now() - agentAt);
 }
 
 /** Whether a tab is one the person never used, and not on screen. */

@@ -68,6 +68,11 @@ export function browserStatusChangesModelNote(before: Status, now: Status) {
   `;
 }
 
+/** What a session is told of tabs the app closed, for the end of a browser command's result. */
+export function closedTabsModelText(closed: NonNullable<Status["closed"]>) {
+  return closedNote(closed).trim();
+}
+
 function closedNote(closed: NonNullable<Status["closed"]>) {
   const named = (tabs: typeof closed) =>
     tabs
@@ -81,7 +86,7 @@ function closedNote(closed: NonNullable<Status["closed"]>) {
   return [
     overCap.length === 0
       ? ""
-      : ` The app closed ${overCap.length === 1 ? "a tab" : "tabs"} this chat's agents opened, ${named(overCap)}: the chat had more than ${CHAT_HIDDEN_TAB_CAP} tabs its agents opened out of the user's sight, and the one hidden longest that the user never used closes first.`,
+      : ` The app closed ${overCap.length === 1 ? "a tab" : "tabs"} this chat's agents opened, ${named(overCap)}: the chat had more than ${CHAT_HIDDEN_TAB_CAP} tabs its agents opened out of the user's sight, and the one left alone longest that the user never used closes first.`,
     atTurnEnd.length === 0
       ? ""
       : ` The app closed ${atTurnEnd.length === 1 ? "a tab" : "tabs"} this chat's agents opened that nobody was working in and the user never used, ${named(atTurnEnd)}, as your last turn ended. Open the address again if the work needs it.`,

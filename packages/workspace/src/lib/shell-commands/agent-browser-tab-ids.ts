@@ -113,10 +113,17 @@ export function withTabLabel(
     : args.map((arg, i) => (i === index ? label : arg));
 }
 
-/** The line `tab new` ends with: the id of the tab it opened, which is the active one. */
+/**
+ * The line `tab new` ends with: the id of the tab it opened, which is the
+ * active one, and how many tabs are open now, since each one an agent opens
+ * stays in the user's tab group until someone closes it.
+ */
 export function newTabLine(json: string): string {
-  const id = activeTabId(json);
-  return id === undefined ? "" : `Opened as tab ${id}.\n`;
+  const tabs = parseTabList(json)?.data.tabs ?? [];
+  const id = tabs.find((tab) => tab.active)?.targetId;
+  return id === undefined
+    ? ""
+    : `Opened as tab ${id}, one of ${tabs.length} tabs open.\n`;
 }
 
 /** The window's id for the tab `tab list --json` marks active, the one commands act on. */

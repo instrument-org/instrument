@@ -1,6 +1,10 @@
 import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
+import { closedTabsModelText } from "../../model-text/notes/browser-status-model-text";
 import { listChildTasks } from "../chat/children";
+import { takeClosedTabs } from "../chat/chat-tabs";
+import { agentSpellingOfFileUrls } from "../local-page-address";
+import { sessionLayout } from "../session-layout";
 import { sessionOfChat } from "../record-folders";
 import { type TabNews, takePopups, takeTabNews } from "../tab-activity";
 
@@ -71,4 +75,31 @@ export function pageOpenedTabsNote(
         `The page in tab ${tab.from} opened ${tab.url} as a popup, which is a new tab of this chat, ${tab.tabId}: \`agent-browser tab ${tab.tabId}\` switches to it.`,
     )
     .join("\n")}\n`;
+}
+
+/**
+ * The line a result ends with when the app closed tabs this session worked
+ * in since it was last told, as the hidden-tab cap does when another tab
+ * opens: taken, so the next message's browser note does not say it again.
+ */
+export async function closedTabsNote({
+  chatId,
+  sessionId,
+}: {
+  chatId: ChatId;
+  sessionId: StoreId.Session;
+}): Promise<string | undefined> {
+  const closed = await takeClosedTabs(chatId, sessionId);
+  if (closed.length === 0) {
+    return undefined;
+  }
+  const layout = await sessionLayout({ chatId, sessionId });
+  return `${closedTabsModelText(
+    closed.map(({ id, reason, title, url }) => ({
+      id,
+      reason,
+      ...(title ? { title } : {}),
+      url: agentSpellingOfFileUrls(url, layout),
+    })),
+  )}\n`;
 }

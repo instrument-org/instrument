@@ -63,7 +63,7 @@ describe("browserStatusModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      The user's tab group has no pages open now. The app closed a tab this chat's agents opened, t9 at https://example.com/old ("Old results"): the chat had more than 20 tabs its agents opened out of the user's sight, and the one hidden longest that the user never used closes first. Tabs the user used stay until someone closes them, so close the tabs you opened once you are done with them.
+      The user's tab group has no pages open now. The app closed a tab this chat's agents opened, t9 at https://example.com/old ("Old results"): the chat had more than 20 tabs its agents opened out of the user's sight, and the one left alone longest that the user never used closes first. Tabs the user used stay until someone closes them, so close the tabs you opened once you are done with them.
       </instrument-system-note>"
     `);
   });

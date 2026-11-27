@@ -17,7 +17,7 @@ import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { type BrowserTargetId, browserTargetOf } from "../../types";
 import { sessionLayout } from "../session-layout";
-import { getChatState } from "../chat-record";
+import { getChatState, setChatState } from "../chat-record";
 import { chatDir } from "../record-folders";
 import { notePageOpenedTab } from "../chat/popup-tabs";
 import { noteTabCommand, registerTabCloser } from "../tab-activity";
@@ -221,6 +221,29 @@ describe("a task's tab", () => {
     expect(result.stdout).toContain(
       `The page in tab ${shop} opened https://help.example/ as a popup, which is a new tab of this chat, ${popup}: \`agent-browser tab ${popup}\` switches to it.`,
     );
+  });
+
+  it("ends its next result with the tabs the app closed for the cap, told once", async () => {
+    const closed = browserTargetOf(StoreId.newTabId());
+    await setChatState(chatDir(CHAT_ID), {
+      closedTabs: [
+        {
+          id: closed,
+          reason: "tabCap",
+          session: TASK_SESSION,
+          title: "Cart",
+          url: "https://example.com/cart",
+        },
+      ],
+    });
+
+    const result = await run(["snapshot", "-i"]);
+
+    expect(result.stdout).toContain(
+      `The app closed a tab this chat's agents opened, ${closed} at https://example.com/cart ("Cart")`,
+    );
+    expect((await getChatState(chatDir(CHAT_ID))).closedTabs).toEqual([]);
+    expect((await run(["snapshot", "-i"])).stdout).toBe("");
   });
 
   describe("closing a tab", () => {

@@ -1214,12 +1214,20 @@ const walkFolderRoute = base
       fs.realpath(folderPath).catch(() => folderPath),
       fs.realpath(os.homedir()).catch(() => os.homedir()),
     ]);
-    return (
-      walk && {
-        ...walk,
-        asks: folderAsks({ home, notSearched: walk.notSearched, root }),
-      }
+    if (!walk) {
+      return null;
+    }
+    // Looking a folder up never raises macOS's prompt; listing it would.
+    const asks = folderAsks({ home, notSearched: walk.notSearched, root });
+    const present = await Promise.all(
+      asks.map((ask) =>
+        fs.stat(ask.path).then(
+          (stats) => stats.isDirectory(),
+          () => false,
+        ),
+      ),
     );
+    return { ...walk, asks: asks.filter((_, at) => present[at]) };
   });
 
 /**

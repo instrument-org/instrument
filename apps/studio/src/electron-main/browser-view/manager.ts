@@ -91,6 +91,7 @@ import { getHistoryStore } from "./history-store";
 import { noteFrameSession } from "./keyboard-without-focus";
 import { mayPageNavigateTo } from "./local-file-policy";
 import { log } from "./log";
+import { readMemoryLevel } from "./memory-level";
 import { isCapturing } from "./page-capture";
 import {
   isEdited,
@@ -1425,6 +1426,7 @@ function createBrowserViewManager(): BrowserViewManager {
     },
     guestCost: (targetId) => guestCost(entries, targetId),
     isGuestAsleep: (targetId) => entries.get(targetId)?.asleep ?? false,
+    memoryLevel: readMemoryLevel,
     isGuestEdited: (targetId) => isEdited(liveGuestOf(targetId)),
     personInputAt: (targetId) => {
       const guestId = entries.get(targetId)?.webContents?.id;

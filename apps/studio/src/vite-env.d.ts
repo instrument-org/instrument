@@ -70,6 +70,12 @@ declare namespace NodeJS {
        */
       INSTRUMENT_NETWORK_STATUS: string | undefined;
       /**
+       * Development builds only: a file whose text, `normal`, `low` or
+       * `critical`, is read as the system's memory level in its place. See
+       * electron-main/browser-view/memory-level.ts.
+       */
+      INSTRUMENT_MEMORY_LEVEL_FILE: string | undefined;
+      /**
        * Development builds only: a folder of the instance's own for its crash
        * and hang diagnostics, set by studio-drive for an instance on the
        * developer's application data. See electron-main/lib/diagnostics-dir.ts.

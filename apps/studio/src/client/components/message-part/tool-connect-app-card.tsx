@@ -20,6 +20,7 @@ import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
+  type ChatId,
   type ConnectAppResult,
   type SignInAsk,
 } from "@instrument-org/workspace/client";
@@ -458,7 +459,7 @@ function ConnectRow({
             weight="bold"
           />
         ) : actionable && row.plan !== undefined ? (
-          <GrokPlanSignIn slug={row.slug} />
+          <GrokPlanSignIn askedIn={askedIn} slug={row.slug} />
         ) : actionable &&
           (kind === "sign-in" ||
             kind === "web" ||
@@ -537,8 +538,18 @@ function useGrokPlanRow(enabled: boolean) {
   };
 }
 
-/** The Grok plan's sign-in, from a row asking for it, which opens in a tab of the window where it can. */
-function GrokPlanSignIn({ slug }: { slug: string }) {
+/**
+ * The Grok plan's sign-in, from a row asking for it, which opens in a tab of
+ * the window where it can. The chat it was asked in hears how it went, the
+ * card folded or not.
+ */
+function GrokPlanSignIn({
+  askedIn,
+  slug,
+}: {
+  askedIn: ChatId | undefined;
+  slug: string;
+}) {
   const shell = useContext(WindowContext);
   const signIn = useOptionalPlanSignIns()?.grok;
   if (shell === null || signIn === undefined) {
@@ -554,6 +565,7 @@ function GrokPlanSignIn({ slug }: { slug: string }) {
       onStart={(where) => {
         signIn.start({
           accountId: undefined,
+          ...(askedIn === undefined ? {} : { askedIn }),
           forApp: slug,
           openPage: shell.openPage,
           where: shell.browser === null ? "external" : where,

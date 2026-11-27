@@ -683,6 +683,29 @@ describe("a card's row asking for X's Grok plan", () => {
     ]);
   });
 
+  it("waits again for the plan signed in from the folded card's row", async () => {
+    const { chatId } = await chatAskingForPlan();
+    publisher.publish("app.event", {
+      event: "declined",
+      name: "X",
+      plan: "grok",
+      slug: "x",
+    });
+    await vi.waitFor(async () => {
+      expect(await openAsks(chatId)).toEqual([]);
+    });
+
+    // A sign-in to X's site is no answer to the plan's row.
+    await waitInChat("x", chatId);
+    expect(await openAsks(chatId)).toEqual([]);
+    await waitInChat("x", chatId, { plan: "grok" });
+    expect(await openAsks(chatId)).toEqual([
+      expect.objectContaining({
+        apps: [{ name: "X", plan: "grok", slug: "x", standing: "waiting" }],
+      }),
+    ]);
+  });
+
   it("takes Not now from another computer as the plan turned down, and leaves X's site", async () => {
     const { chatId, sessionId } = await chatAskingForPlan();
     const phone = new ChatRecords({

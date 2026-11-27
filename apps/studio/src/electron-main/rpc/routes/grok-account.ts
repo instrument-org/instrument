@@ -1,7 +1,9 @@
 import {
   appChanged,
+  ChatIdSchema,
   grokPlanSignedInHere,
   liveRead,
+  waitInChat,
 } from "@instrument-org/workspace/electron";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import {
@@ -36,11 +38,14 @@ const live = {
  * it failed. A plan signed in is what X's search runs on, so X hears of it
  * (`grokPlanSignedInHere`); one turned down on xAI's page turns down the
  * plan row of the app that asked for it, if one did, and leaves that app's
- * own connection, which is its site's.
+ * own connection, which is its site's. A chat whose card no longer waits on
+ * that row waits on it again, to hear how it went.
  */
 const signIn = base
   .input(
     z.object({
+      /** The chat whose card the row is on. */
+      chatId: ChatIdSchema.optional(),
       /** The app whose sign-in card row asked for the plan. */
       forApp: z.string().optional(),
       opensIn: PlanSignInOpensInSchema,
@@ -48,9 +53,12 @@ const signIn = base
   )
   .handler(
     async ({
-      input: { forApp, opensIn },
+      input: { chatId, forApp, opensIn },
     }): Promise<GrokSignInResult | { error: string; outcome: "failed" }> => {
       try {
+        if (forApp !== undefined && chatId !== undefined) {
+          await waitInChat(forApp, chatId, { plan: "grok" });
+        }
         const result = await signInWithGrok({ opensIn });
         if (
           result.outcome === "signed-in" &&

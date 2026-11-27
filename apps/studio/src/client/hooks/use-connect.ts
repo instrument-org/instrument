@@ -1,5 +1,6 @@
 import { rpcClient } from "@/client/rpc/client";
 import { type ConnectOutcome } from "@/shared/connect-outcome";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useRef } from "react";
 
@@ -189,10 +190,12 @@ export function useClaudeConnect() {
  * browser page asks for, while it waits. xAI names the plan at sign-in, so an
  * account without an eligible paid plan answers at once. `forApp` is the app
  * whose card row asked for the plan, which a sign-in turned down on xAI's
- * page turns down too.
+ * page turns down too, and `chatId` the chat whose card it is on.
  */
 export function useGrokConnect() {
-  const flow = useConnectFlow<(SignInPlace & { forApp?: string }) | void>({
+  const flow = useConnectFlow<
+    (SignInPlace & { chatId?: ChatId; forApp?: string }) | void
+  >({
     onCancel: (phase) => {
       void (phase === "checking"
         ? rpcClient.accountCheck.cancel.call({ provider: "grok" })
@@ -200,7 +203,14 @@ export function useGrokConnect() {
     },
     run: async (input, { onPhase, signal }) => {
       const result = await rpcClient.grokAccount.signIn
-        .call({ forApp: input?.forApp, opensIn: input?.opensIn }, { signal })
+        .call(
+          {
+            chatId: input?.chatId,
+            forApp: input?.forApp,
+            opensIn: input?.opensIn,
+          },
+          { signal },
+        )
         .catch((error: unknown) => ({
           error: error instanceof Error ? error.message : String(error),
           outcome: "failed" as const,

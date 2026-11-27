@@ -1,3 +1,4 @@
+import { ChatIdSchema } from "@instrument-org/workspace/electron";
 import { call, os } from "@orpc/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   appChanged: vi.fn(() => Promise.resolve()),
   grokPlanSignedInHere: vi.fn(() => Promise.resolve(undefined)),
   signInWithGrok: vi.fn(),
+  waitInChat: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock("@/electron-main/rpc/base", () => ({
@@ -29,6 +31,7 @@ vi.mock(
     ...(await importOriginal()),
     appChanged: mocks.appChanged,
     grokPlanSignedInHere: mocks.grokPlanSignedInHere,
+    waitInChat: mocks.waitInChat,
   }),
 );
 
@@ -80,6 +83,25 @@ describe("grokAccount.signIn", () => {
       event: "declined",
       plan: "grok",
     });
+  });
+
+  it("has the chat whose card the row is on wait on the plan again", async () => {
+    mocks.signInWithGrok.mockResolvedValue({ outcome: "canceled" });
+
+    await call(
+      grokAccount.signIn,
+      {
+        chatId: ChatIdSchema.parse("2026-11-27-x"),
+        forApp: "x",
+        opensIn: "app",
+      },
+      options,
+    );
+    await call(grokAccount.signIn, { opensIn: "app" }, options);
+
+    expect(mocks.waitInChat.mock.calls).toEqual([
+      ["x", "2026-11-27-x", { plan: "grok" }],
+    ]);
   });
 
   it("turns down nothing for a sign-in no row asked for, or one canceled", async () => {

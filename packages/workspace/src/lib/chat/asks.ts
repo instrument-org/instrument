@@ -381,14 +381,21 @@ export async function recordSignIn(
  * settled or after they wrote past it): a one-app sign-in on the same
  * call, which the answer then settles and wakes the chat with. Nothing
  * when a live card already has the app, or no card of this computer's in
- * the chat ever asked for it.
+ * the chat ever asked for it. `plan` is for a row asking for X's Grok
+ * plan, which only a row asking for the plan matches.
  */
-export async function waitInChat(slug: string, chatId: ChatId): Promise<void> {
+export async function waitInChat(
+  slug: string,
+  chatId: ChatId,
+  { plan }: { plan?: "grok" } = {},
+): Promise<void> {
+  const isRow = (app: { plan?: "grok"; slug: string }) =>
+    app.slug === slug && app.plan === plan;
   const states = await chatAskStates(chatId);
   const own = states.flatMap(({ ask, live }) =>
     ask.kind === "sign-in" &&
     ask.device === thisDevice() &&
-    ask.apps.some((app) => app.slug === slug)
+    ask.apps.some(isRow)
       ? [{ ask, live }]
       : [],
   );
@@ -397,7 +404,7 @@ export async function waitInChat(slug: string, chatId: ChatId): Promise<void> {
     return;
   }
   const [asker] = asked.askers;
-  const app = asked.apps.find((row) => row.slug === slug);
+  const app = asked.apps.find(isRow);
   if (asker === undefined || app === undefined) {
     return;
   }

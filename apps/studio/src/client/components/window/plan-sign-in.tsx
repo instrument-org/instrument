@@ -15,6 +15,7 @@ import { CONNECT_NAMES } from "@/client/lib/connect-copy";
 import { showConnectToast } from "@/client/lib/connect-toast";
 import { rpcClient } from "@/client/rpc/client";
 import { type ConnectOutcome } from "@/shared/connect-outcome";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -35,6 +36,8 @@ import { useWindowTabs } from "./window-tabs";
 /** One attempt at a plan's sign-in, as it was pressed. */
 interface Attempt {
   accountId: string | undefined;
+  /** The chat whose card the row asking for the plan is on. */
+  askedIn?: ChatId;
   /** The app whose sign-in card row asked for the plan. */
   forApp?: string;
   openPage: WindowContextValue["openPage"];
@@ -155,6 +158,7 @@ function usePlanSignIn(
   provider: PlanProvider,
   flow: ConnectFlow<{
     accountId?: string;
+    chatId?: ChatId;
     forApp?: string;
     opensIn?: SignInDestination;
   } | void>,
@@ -177,6 +181,7 @@ function usePlanSignIn(
       opensIn: next.where,
       ...(next.accountId === undefined ? {} : { accountId: next.accountId }),
       ...(next.forApp === undefined ? {} : { forApp: next.forApp }),
+      ...(next.askedIn === undefined ? {} : { chatId: next.askedIn }),
     });
   };
   const cancel = () => {

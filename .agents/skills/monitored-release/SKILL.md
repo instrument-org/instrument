@@ -24,7 +24,7 @@ Add `--version <x.y.z[-beta.n]>` to any of them to tag that exact version instea
 
 ## Before you tag
 
-Five checks. Skipping one is how a release ships another agent's work, or fails twelve minutes in.
+Six checks. Skipping one is how a release ships another agent's work, or fails twelve minutes in.
 
 **1. Other agents are working in this checkout.** `ListAgents`, then message whoever is busy: how long, and is their work shippable. Expect at least one to ask to be tagged around, and honor it. The tag takes HEAD's tree, so uncommitted work stays out on its own and you never touch their files. If an agent lands work in stages, ask it to tell you which commit is a shippable point; you cannot tell a coherent stage from a half-finished one by reading the log.
 
@@ -66,7 +66,19 @@ cd <scratch>/verify && pnpm check-and-test:ci --force
 
 When a change adds something people will ask about, add a question in the same shape. Keep the set to questions a person would ask, with answers that can be read off the code.
 
-Booting the packaged app is CI's job, not yours. Boot locally only when the release turns on something a boot would expose, and then use `studio-drive.mjs boot --purpose <purpose> --workspace <fixture>` for a disposable instance. Never drive an instance you did not start; someone is using it.
+**6. Check that every button takes a press.** A drag area under a control moves the window instead of pressing it, and neither a screenshot nor CI's smoke test shows that (`docs/findings/a-drag-area-under-a-screen-still-takes-the-press.md`). From the verify worktree, so it reads what you are about to tag, walk setup over a workspace and sweep the app's screens, about two minutes:
+
+```bash
+DRIVE=.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs
+node $DRIVE boot --purpose "release drag" --scenario quit-after-chatgpt
+node $DRIVE run $(dirname $DRIVE)/drag-audit.mjs --args '{"setup":true}' --scenario quit-after-chatgpt --quiet
+node $DRIVE run $(dirname $DRIVE)/sweep-screens.mjs --scenario quit-after-chatgpt --quiet
+node $DRIVE stop --scenario quit-after-chatgpt
+```
+
+`clean: false` from the audit, or a `window drag` problem from the sweep, names the control and the drag area over it, and holds the tag: a button nobody can press is a broken release.
+
+Booting the packaged app is CI's job, not yours. Past step 6, boot locally only when the release turns on something a boot would expose, and then use `studio-drive.mjs boot --purpose <purpose> --workspace <fixture>` for a disposable instance. Never drive an instance you did not start; someone is using it.
 
 ## Write the notes
 

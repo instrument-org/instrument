@@ -6,7 +6,13 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { renderWithProviders } from "@/tests/render";
 import { installWindowStubs } from "@/tests/window-stubs";
-import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import * as React from "react";
 import {
   afterEach,
@@ -966,7 +972,9 @@ describe("FileSystem", () => {
       expect(names()).toEqual(["plan.md", "plan.txt"]);
       expect(
         document.querySelector("[data-file-system-status]")?.textContent,
-      ).toMatchInlineSnapshot(`"2 found in the first 2 items under FilesDesktop, Documents, and Downloads not searched"`);
+      ).toMatchInlineSnapshot(
+        `"2 found in the first 2 items under FilesDesktop, Documents, and Downloads not searched"`,
+      );
 
       fireEvent.click(screen.getByRole("button", { name: "Search: plan" }));
       fireEvent.change(screen.getByRole("searchbox"), {
@@ -1010,7 +1018,9 @@ describe("FileSystem", () => {
       expect(
         await screen.findByText(/^Searching .* and its folders…$/),
       ).toBeTruthy();
-      expect(status()).toMatchInlineSnapshot(`"Searching Files and its folders…"`);
+      expect(status()).toMatchInlineSnapshot(
+        `"Searching Files and its folders…"`,
+      );
     });
 
     it("lists a kind picked alone from every folder the caller read", () => {
@@ -1043,7 +1053,9 @@ describe("FileSystem", () => {
           "Plain Text",
         ]
       `);
-      fireEvent.click(within(kinds).getByRole("option", { name: "Plain Text" }));
+      fireEvent.click(
+        within(kinds).getByRole("option", { name: "Plain Text" }),
+      );
 
       expect(onSearchKindsChange).toHaveBeenLastCalledWith(["Plain Text"]);
       expect(names()).toEqual(["notes.txt", "plan.txt"]);

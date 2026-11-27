@@ -17,7 +17,7 @@ import {
   finderPlacesOpenAtom,
   finderPlacesWidthAtom,
 } from "@/client/atoms/window";
-import { windowHoldsAtom } from "@/client/atoms/tab-navigation-block";
+import { isWindowHeld } from "@/client/atoms/tab-navigation-block";
 import {
   FileSystem,
   type FileSystemFileItem,
@@ -113,12 +113,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "@/client/lib/toast";
-import {
-  drivePage,
-  giveKeyboardTo,
-  onPageEdge,
-  pageHasLayer,
-} from "@/client/lib/browser-pool";
+import { drivePage, onPageEdge, pageHasLayer } from "@/client/lib/browser-pool";
+import { giveKeyboardTo } from "@/client/lib/page-keyboard";
 import { pictureHoldingKeyboard } from "@/client/lib/picture-keys";
 
 import { openInNewWindow } from "./app-tabs";
@@ -1806,7 +1802,7 @@ export function ComputerPage({
       !isQuickLookPress(event, currentOs()) ||
       isTypingTarget(event.target) ||
       // A dialog over the folder keeps its own Space.
-      getDefaultStore().get(windowHoldsAtom).length > 0
+      isWindowHeld()
     ) {
       return;
     }

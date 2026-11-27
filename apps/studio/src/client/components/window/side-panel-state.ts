@@ -24,11 +24,18 @@ function isSidePanelOpen(
 
 /**
  * Whether the window has room for the side panel beside the group up, which
- * the window decides as a resize or a zoom crosses the line
+ * the window decides as a resize, a zoom or the sidebar crosses the line
  * (`sidePanelRoomOf`). Without room an open panel steps out of the way and
  * comes back once there is room again.
  */
 const sidePanelRoomAtom = atom(true);
+
+/**
+ * Whether the group up's sides fit at their narrowest beside the side panel
+ * (`sidesFitBesidePanel`), kept as the window, the sidebar or the group up
+ * changes. A panel without it is not shown, even one the person showed.
+ */
+export const sidesFitAtom = atom(true);
 
 /** A panel the person showed while the window had no room for it, shown until the room changes. */
 const shownWithoutRoomAtom = atom(false);
@@ -53,11 +60,13 @@ const pickingIn = new Set<string>();
 export function useSidePanel(group: string | undefined) {
   const windowTabs = useWindowTabs();
   const hasRoom = useAtomValue(sidePanelRoomAtom);
+  const sidesFit = useAtomValue(sidesFitAtom);
   const [isShownWithoutRoom, setShownWithoutRoom] =
     useAtom(shownWithoutRoomAtom);
   const isOpen =
     group !== undefined &&
     isSidePanelOpen(windowTabs.groupOwn[group], windowTabs.layoutOf(group)) &&
+    sidesFit &&
     (hasRoom || isShownWithoutRoom);
   return {
     isOpen,

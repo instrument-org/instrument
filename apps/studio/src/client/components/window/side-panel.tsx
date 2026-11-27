@@ -55,7 +55,7 @@ import {
   siblingsIn,
 } from "@/shared/bookmarks";
 import { folderHref } from "@/shared/computer-href";
-import { windowCardTop } from "@/shared/constants";
+import { WINDOW_CARD_GAP, windowCardTop } from "@/shared/constants";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ArrowSquareInIcon } from "@phosphor-icons/react/ArrowSquareIn";
@@ -121,6 +121,7 @@ import {
 import { DROP_TONE } from "./drag/tone";
 import { ViewButton } from "./filter-head";
 import { GROUP_WIDTH_MIN } from "./group-sidebar";
+import { SIDE_WIDTH_MIN } from "./side-widths";
 import {
   useAllBookmarksTarget,
   useOutlineDrop,
@@ -182,6 +183,20 @@ export function sidePanelRoomOf(
 ): boolean {
   const group =
     sides > 1 ? sides * SPLIT_SIDE_BESIDE_PANEL : ONE_SIDE_BESIDE_PANEL;
+  return width >= group + panelWidth;
+}
+
+/**
+ * Whether the group's `sides` fit at their narrowest beside the panel at
+ * `panelWidth`, in a window whose group and panel share `width`. Past this
+ * the sides would scroll sideways, so the panel steps away.
+ */
+export function sidesFitBesidePanel(
+  width: number,
+  panelWidth: number,
+  sides: number,
+): boolean {
+  const group = sides * SIDE_WIDTH_MIN + (sides - 1) * WINDOW_CARD_GAP;
   return width >= group + panelWidth;
 }
 

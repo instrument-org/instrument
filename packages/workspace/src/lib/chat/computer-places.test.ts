@@ -30,13 +30,13 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it("lists a Windows drive whose root never answers by its letter, without waiting on it", async () => {
+it("lists a Windows drive whose root never answers by its root, without waiting on it", async () => {
   const places = computerPlaces();
   await vi.advanceTimersByTimeAsync(500);
   await expect(places).resolves.toMatchObject({
     volumes: [
-      { kind: "drive", name: "C:", path: "C:\\" },
-      { kind: "drive", name: "Z:", path: "Z:\\" },
+      { kind: "drive", name: "C:\\", path: "C:\\" },
+      { kind: "drive", name: "Z:\\", path: "Z:\\" },
     ],
   });
 
@@ -95,10 +95,35 @@ it("lists a Windows drive whose space never comes back without its space", async
   await vi.advanceTimersByTimeAsync(1000);
   await expect(drives).resolves.toEqual([
     {
-      name: "C:",
+      name: "C:\\",
       path: "C:\\",
       space: { free: 25 * 4096, total: 100 * 4096 },
     },
-    { name: "Z:", path: "Z:\\" },
+    { name: "Z:\\", path: "Z:\\" },
   ]);
+});
+
+it("lists OneDrive only once something is in its folder", async () => {
+  vi.stubEnv("OneDrive", "C:\\Users\\windows-user\\OneDrive");
+  vi.mocked(fs.stat).mockImplementation(((target: string) =>
+    target === "C:\\" || target.endsWith("OneDrive")
+      ? Promise.resolve({ isDirectory: () => true })
+      : Promise.reject(
+          Object.assign(new Error("not there"), { code: "ENOENT" }),
+        )) as unknown as typeof fs.stat);
+  const inside = vi.spyOn(fs, "readdir");
+  const cloud = async () => {
+    const places = computerPlaces();
+    await vi.advanceTimersByTimeAsync(500);
+    return (await places).volumes.filter((place) => place.kind === "cloud");
+  };
+
+  inside.mockResolvedValue(["desktop.ini"] as never);
+  expect(await cloud()).toEqual([]);
+
+  inside.mockResolvedValue(["desktop.ini", "Documents"] as never);
+  expect(await cloud()).toMatchObject([
+    { path: "C:\\Users\\windows-user\\OneDrive" },
+  ]);
+  vi.unstubAllEnvs();
 });

@@ -8,6 +8,7 @@ import { unique } from "radashi";
 import { z } from "zod";
 
 import { type KnownFolder } from "../../types";
+import { isSystemClutter } from "../system-clutter";
 import { hasWorkspaceConfig, getWorkspaceConfig } from "../workspace-config";
 import { iCloudContainersPath, iCloudDrivePath } from "./icloud-drive";
 import { outputFolderPath } from "./output-folder";
@@ -246,7 +247,7 @@ async function cloudPlaces(home: string): Promise<ComputerPlace[]> {
     process.platform === "darwin" ? await cloudStoragePlaces(home) : [];
   const fromEnvironment =
     process.platform === "win32"
-      ? [
+      ? await usedOneDrives([
           process.env.OneDriveConsumer,
           process.env.OneDriveCommercial,
           process.env.OneDrive,
@@ -258,7 +259,7 @@ async function cloudPlaces(home: string): Promise<ComputerPlace[]> {
               name: path.basename(folder),
               path: folder,
             }),
-          )
+          ))
       : [];
   const inHome: ComputerPlace[] = [
     { kind: "cloud", name: "Dropbox", path: path.join(home, "Dropbox") },
@@ -352,7 +353,7 @@ async function drivePlaces(home: string): Promise<ComputerPlace[]> {
       letters.map(async (letter): Promise<ComputerPlace | undefined> => {
         const root = `${letter}:\\`;
         return (await hasDrive(root))
-          ? { kind: "drive", name: `${letter}:`, path: root }
+          ? { kind: "drive", name: root, path: root }
           : undefined;
       }),
     );
@@ -510,6 +511,25 @@ async function realFolders(folder: string): Promise<ComputerPlace[]> {
       }),
   );
   return found.filter((place) => place !== undefined);
+}
+
+/**
+ * The OneDrive folders with something in them. Windows makes the folder,
+ * holding only its `desktop.ini`, before anyone signs in to OneDrive, and
+ * lists it in File Explorer either way; one nobody uses is left out.
+ */
+async function usedOneDrives(
+  places: ComputerPlace[],
+): Promise<ComputerPlace[]> {
+  const used = await Promise.all(
+    places.map(async (place) => {
+      const names = await fs.readdir(place.path).catch(() => []);
+      return names.some((name) => !isSystemClutter(name))
+        ? place
+        : undefined;
+    }),
+  );
+  return used.filter((place) => place !== undefined);
 }
 
 /** The places that are there, in the order given. */

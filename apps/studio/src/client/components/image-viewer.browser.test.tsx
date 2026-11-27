@@ -1,5 +1,4 @@
 import { renderInBrowser } from "@/tests/render-browser";
-import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -22,13 +21,10 @@ function Viewer({
   url?: string;
   width?: number;
 }) {
-  const [slot, setSlot] = useState<HTMLElement | null>(null);
   return (
     <div>
-      <div data-testid="row" ref={setSlot} />
       <div data-testid="pane" style={{ height, width }}>
         <ImageViewer
-          controlsInto={slot}
           file={{ filename: "large.svg", url }}
           onError={() => {
             throw new Error("the image should load");
@@ -61,16 +57,22 @@ const scaleOf = (image: Element) =>
   Number(/scale\(([\d.]+)\)/.exec(transformOf(image))?.[1] ?? 1);
 
 describe("ImageViewer", () => {
-  it("puts its zoom in the row and nothing over the picture", async () => {
+  it("puts its zoom in a bar under the picture and nothing over it", async () => {
     const screen = await renderInBrowser(<Viewer />);
     const trigger = screen.getByRole("button", { name: "Zoom: Fit" });
     await expect.element(trigger).toBeVisible();
-    expect(
-      screen.getByTestId("row").element().contains(trigger.element()),
-    ).toBe(true);
-    expect(
-      screen.getByTestId("pane").element().querySelector("button"),
-    ).toBeNull();
+    const image = screen.getByRole("img").element().getBoundingClientRect();
+    for (const control of [
+      trigger.element(),
+      screen.getByRole("slider", { name: "Zoom" }).element(),
+      screen.getByRole("button", { name: "Zoom in" }).element(),
+    ]) {
+      expect(control.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+        image.bottom,
+      );
+    }
+    // How far in a picture at Fit is, rather than the word.
+    await expect.element(trigger).toMatchTextContent(/^\d+%$/);
   });
 
   it("offers Actual size again when the file comes back larger", async () => {
@@ -128,7 +130,10 @@ describe("ImageViewer", () => {
     await new Promise(requestAnimationFrame);
     await new Promise(requestAnimationFrame);
     const box = image.getBoundingClientRect();
-    const view = screen.getByTestId("pane").element().getBoundingClientRect();
+    const view = image.closest("[data-picture-keys]")?.getBoundingClientRect();
+    if (!view) {
+      throw new Error("the picture should be in its viewport");
+    }
     expect(box.right).toBeGreaterThanOrEqual(view.right - 1);
     expect(box.bottom).toBeGreaterThanOrEqual(view.bottom - 1);
   });
@@ -237,22 +242,35 @@ describe("ImageViewer", () => {
     });
   });
 
-  // A width held for the longest reading left a gap between the glass and
-  // "Fit", and a shorter, differently styled button than the row's others.
-  it("sizes the zoom button to its reading at the row's button height", async () => {
+  it("moves the slider with a pinch, and zooms when the slider moves", async () => {
     const screen = await renderInBrowser(<Viewer />);
-    const fit = screen.getByRole("button", { name: "Zoom: Fit" });
-    await expect.element(fit).toBeVisible();
-    const atFit = fit.element().getBoundingClientRect();
+    await expect
+      .element(screen.getByRole("button", { name: "Zoom: Fit" }))
+      .toBeVisible();
+    const slider = screen.getByRole("slider", { name: "Zoom" });
+    await expect.element(slider).toHaveAttribute("aria-valuenow", "0");
+    await expect
+      .element(screen.getByRole("button", { name: "Zoom out" }))
+      .toBeDisabled();
     const image = screen.getByRole("img").element();
 
     pinch(image, 3);
-    const zoomed = screen.getByRole("button", { name: /^Zoom: \d+%$/ });
-    await expect.element(zoomed).toBeVisible();
-    expect(zoomed.element().getBoundingClientRect().width).toBeGreaterThan(
-      atFit.width,
-    );
-    expect(atFit.height).toBe(32);
+    await expect
+      .element(screen.getByRole("button", { name: /^Zoom: \d+%$/ }))
+      .toBeVisible();
+    const pinched = Number(slider.element().getAttribute("aria-valuenow"));
+    expect(pinched).toBeGreaterThan(0);
+
+    slider.element().focus();
+    slider
+      .element()
+      .dispatchEvent(
+        new KeyboardEvent("keydown", { bubbles: true, key: "End" }),
+      );
+    await expect.poll(() => scaleOf(image)).toBeGreaterThan(3);
+    await expect
+      .element(screen.getByRole("button", { name: "Zoom in" }))
+      .toBeDisabled();
   });
 
   it("answers the zoom chords only while it has the keyboard", async () => {

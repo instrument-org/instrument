@@ -69,11 +69,13 @@ export function useImagePanzoom({
     actualSize: () => void;
     fit: () => void;
     zoom: (direction: "in" | "out") => void;
+    zoomTo: (scale: number, moving: boolean) => void;
   }>(null);
   const [scale, setScale] = useState(FIT_VIEW.scale);
   const [canPan, setCanPan] = useState(false);
   // The scale at which one image pixel fills one device pixel, once it is known.
   const [actualScale, setActualScale] = useState<null | number>(null);
+  const [maxScale, setMaxScale] = useState(MAX_ZOOM);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -100,7 +102,7 @@ export function useImagePanzoom({
       return reach.x > 0 || reach.y > 0;
     };
 
-    // A move under way (a wheel, a drag, a pinch) renders the row's zoom word
+    // A move under way (a wheel, a drag, a pinch) renders the bar's zoom reading
     // and the cursor behind the transform, so its frames never wait on React.
     const show = (next: PictureView, transition = "none", moving = false) => {
       view = settleView(next, boxNow());
@@ -165,6 +167,16 @@ export function useImagePanzoom({
       },
       fit,
       zoom: zoomStep,
+      // About the pane's center, as the steps zoom; a drag on a slider moves
+      // with the pointer rather than easing after it.
+      zoomTo: (scale, moving) => {
+        const next = zoomedAt(view, scale, { x: 0, y: 0 }, boxNow());
+        if (moving) {
+          showMoving(next);
+        } else {
+          show(next, ANIMATED_TRANSITION);
+        }
+      },
     };
 
     const keys: PictureKeys = {
@@ -206,6 +218,7 @@ export function useImagePanzoom({
     const readSizes = () => {
       lastImageWidth = img?.clientWidth ?? 0;
       setActualScale(img && getActualScale(img, viewport));
+      setMaxScale(boxNow().maxScale);
       show(view);
     };
     if (img?.complete) {
@@ -476,12 +489,18 @@ export function useImagePanzoom({
       controlsRef.current?.fit();
     },
     isZoomed: scale > ZOOMED_IN_THRESHOLD,
+    /** The furthest in it zooms, as a scale of its fit size. */
+    maxScale,
     scale,
     zoomIn: () => {
       controlsRef.current?.zoom("in");
     },
     zoomOut: () => {
       controlsRef.current?.zoom("out");
+    },
+    /** To `scale` times its fit size; `moving` while a drag is still under way. */
+    zoomTo: (scale: number, moving = false) => {
+      controlsRef.current?.zoomTo(scale, moving);
     },
   };
 }

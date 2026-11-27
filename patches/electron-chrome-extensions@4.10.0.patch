@@ -1,5 +1,5 @@
 diff --git a/dist/chrome-extension-api.preload.js b/dist/chrome-extension-api.preload.js
-index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..689481ac5fd2a9ce1c2370a01885512ccd47c24d 100644
+index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..f1534e7f3ed1ad70915ec157db465d29b1840f1a 100644
 --- a/dist/chrome-extension-api.preload.js	
 +++ b/dist/chrome-extension-api.preload.js
 @@ -55,12 +55,11 @@
@@ -80,7 +80,41 @@ index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..689481ac5fd2a9ce1c2370a01885512c
        class ExtensionEvent {
          constructor(name) {
            this.name = name;
-@@ -319,24 +362,25 @@
+@@ -258,6 +301,33 @@
+           shouldInject: () => manifest.manifest_version === 3 && !!manifest.action,
+           factory: browserActionFactory
+         },
++        // Answered by the app over its own bookmarks.
++        bookmarks: {
++          shouldInject: () => manifest.permissions?.includes("bookmarks"),
++          factory: (base) => {
++            return {
++              ...base,
++              create: invokeExtension2("bookmarks.create"),
++              get: invokeExtension2("bookmarks.get"),
++              getChildren: invokeExtension2("bookmarks.getChildren"),
++              getRecent: invokeExtension2("bookmarks.getRecent"),
++              getSubTree: invokeExtension2("bookmarks.getSubTree"),
++              getTree: invokeExtension2("bookmarks.getTree"),
++              move: invokeExtension2("bookmarks.move"),
++              remove: invokeExtension2("bookmarks.remove"),
++              removeTree: invokeExtension2("bookmarks.removeTree"),
++              search: invokeExtension2("bookmarks.search"),
++              update: invokeExtension2("bookmarks.update"),
++              onChanged: new ExtensionEvent("bookmarks.onChanged"),
++              onChildrenReordered: new ExtensionEvent("bookmarks.onChildrenReordered"),
++              onCreated: new ExtensionEvent("bookmarks.onCreated"),
++              onImportBegan: new ExtensionEvent("bookmarks.onImportBegan"),
++              onImportEnded: new ExtensionEvent("bookmarks.onImportEnded"),
++              onMoved: new ExtensionEvent("bookmarks.onMoved"),
++              onRemoved: new ExtensionEvent("bookmarks.onRemoved")
++            };
++          }
++        },
+         browserAction: {
+           shouldInject: () => manifest.manifest_version === 2 && !!manifest.browser_action,
+           factory: browserActionFactory
+@@ -319,24 +389,25 @@
              };
            }
          },
@@ -118,7 +152,7 @@ index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..689481ac5fd2a9ce1c2370a01885512c
                onChanged: new ExtensionEvent("downloads.onChanged"),
                onCreated: new ExtensionEvent("downloads.onCreated"),
                onDeterminingFilename: new ExtensionEvent("downloads.onDeterminingFilename"),
-@@ -361,6 +405,53 @@
+@@ -361,6 +432,53 @@
              };
            }
          },
@@ -172,7 +206,7 @@ index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..689481ac5fd2a9ce1c2370a01885512c
          i18n: {
            shouldInject: () => manifest.manifest_version === 3,
            factory: (base) => {
-@@ -442,6 +533,9 @@
+@@ -442,6 +560,9 @@
                  electron.connectNative(extensionId, application, receive, disconnect, callback);
                  return port;
                },
@@ -182,7 +216,7 @@ index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..689481ac5fd2a9ce1c2370a01885512c
                openOptionsPage: invokeExtension2("runtime.openOptionsPage"),
                sendNativeMessage: invokeExtension2("runtime.sendNativeMessage")
              };
-@@ -568,6 +662,14 @@
+@@ -568,6 +689,14 @@
        });
        delete globalThis.electron;
        Object.freeze(chrome);

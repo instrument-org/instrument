@@ -60,6 +60,8 @@ import {
   type ExtensionCommand,
   reportedCommand,
 } from "./extension-commands";
+import { answerBookmarkCalls } from "./extension-bookmark-calls";
+import { opensInApp } from "./extension-bookmarks";
 import { answerDownloadCalls } from "./extension-download-calls";
 import { answerHistoryCalls } from "./extension-history-calls";
 import { answerIdentityCalls } from "./extension-identity";
@@ -285,6 +287,7 @@ export function enableBrowserExtensions(
       .filter((command) => command.extensionId === extension.id)
       .map((command) => reportedCommand(command, OS)),
   );
+  answerBookmarkCalls(extensions, guestSession);
   answerDownloadCalls(extensions, guestSession);
   answerHistoryCalls(extensions, guestSession);
   answerIdentityCalls(extensions, guestSession, () => {
@@ -1287,7 +1290,9 @@ export function activateExtensionTab(guest: WebContents): void {
  * own new-tab link does, beside the tab a person is looking at, and resolves
  * with the guest the window mounts for it. The agent working in that page
  * hears of it as of a popup (`notePageOpenedTab`). Given an extension's
- * window, the tab counts as that window's.
+ * window, the tab counts as that window's. A file's, a folder's or the
+ * app's own address (`opensInApp`) opens as its bookmark would, with no
+ * page for the extension, whose ask fails.
  */
 function openTabAsked(
   details: { active?: boolean; url?: string },
@@ -1301,6 +1306,17 @@ function openTabAsked(
     return Promise.reject(new Error("no tab is shown to open one beside"));
   }
   const url = details.url ?? "about:blank";
+  // A file's, a folder's or the app's own address has no page to give the
+  // extension: it opens as its bookmark would.
+  if (opensInApp(url)) {
+    publisher.publish("browser.open-in-new-tab", {
+      asBookmark: true,
+      background: details.active === false,
+      targetId: opener.targetId,
+      url,
+    });
+    return Promise.reject(new Error("Opened in Instrument, not as a web page"));
+  }
   const tabId = StoreId.newTabId();
   const targetId = BrowserTargetIdSchema.parse(tabId);
   const opened = new Promise<[WebContents, BaseWindow]>((resolve, reject) => {

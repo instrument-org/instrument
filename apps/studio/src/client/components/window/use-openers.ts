@@ -7,6 +7,10 @@ import {
   useAddBookmark,
 } from "@/client/bookmarks/actions";
 import { bookmarkChangesBetween } from "@/client/bookmarks/agent-changes";
+import {
+  askedOfBookmark,
+  openAddressBy,
+} from "@/client/bookmarks/open-address";
 import { bookmarksRead, bookmarksStateAtom } from "@/client/bookmarks/store";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
@@ -1692,6 +1696,7 @@ export function useOpeners({
    * makes a group.
    */
   const openFromPage = ({
+    asBookmark = false,
     background,
     byAgent = false,
     into,
@@ -1700,6 +1705,7 @@ export function useOpeners({
     targetId,
     url,
   }: {
+    asBookmark?: boolean;
     background: boolean;
     byAgent?: boolean;
     into?: "group" | "split" | "window";
@@ -1709,6 +1715,16 @@ export function useOpeners({
     targetId: string;
     url: string;
   }) => {
+    // An address an extension asked for that the app opens itself, as a
+    // bookmark of it opens in a tab of its own.
+    if (asBookmark) {
+      openAddressBy(
+        url,
+        askedOfBookmark({ behind: background, newTab: true }),
+        { openPage, openScreen },
+      );
+      return;
+    }
     // A place the page's menu picked, the split across from the page's tab.
     const asking = windowTabs.allTabs.find((tab) => tab.id === targetId);
     if (into) {

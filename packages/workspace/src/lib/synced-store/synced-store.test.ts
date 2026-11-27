@@ -56,6 +56,15 @@ describe("openSyncedStore", () => {
     expect(heard).toEqual([["bookmark/a", "bookmark/b"], ["bookmark/a"]]);
     expect(store.entries()).toEqual(new Map([["bookmark/b", { title: "B" }]]));
     expect(
+      ["bookmark/a", "bookmark/b", "bookmark/none"].map((key) =>
+        store.changedAt(key)?.toISOString(),
+      ),
+    ).toEqual([
+      "2026-10-19T12:00:00.001Z",
+      "2026-10-19T12:00:00.000Z",
+      undefined,
+    ]);
+    expect(
       fs.readFileSync(path.join(dir.path, DEVICE_A, "bookmarks.jsonl"), "utf8"),
     ).toMatchInlineSnapshot(`
       "{"t":"set","seq":0,"at":"2026-10-19T12:00:00.000Z","device":"dev_AAAAAAAA","key":"bookmark/a","value":{"title":"A"}}

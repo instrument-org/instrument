@@ -83,6 +83,12 @@ describe("unsupportedFeatures", () => {
     `);
   });
 
+  it("says nothing of bookmarks, which the app's own answer", () => {
+    expect(
+      unsupportedFeatures({ permissions: ["bookmarks", "storage", "tabs"] }),
+    ).toMatchInlineSnapshot(`[]`);
+  });
+
   it.each([null, "manifest", { permissions: "tabs", commands: [] }])(
     "answers nothing for a manifest it cannot read (%j)",
     (manifest) => {

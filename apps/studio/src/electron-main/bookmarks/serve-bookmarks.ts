@@ -3,6 +3,7 @@ import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import {
   BOOKMARKS_CHANNEL,
   type BookmarkOp,
+  type Bookmarks,
   type BookmarksSnapshot,
 } from "@/shared/bookmarks";
 import {
@@ -24,6 +25,12 @@ let store: null | ReturnType<typeof createBookmarkStore> = null;
 /** The read of the workspace's bookmarks under way, which a change waits for. */
 let opening: Promise<void> | undefined;
 let isReading = false;
+
+/** Main's own readers of every change (`watchBookmarks`). */
+const mainListeners = new Set<Parameters<typeof watchBookmarks>[0]>();
+
+/** The number of main's own last batch, which it sends as a window does. */
+let mainSeq = 0;
 
 /** What a window loading before the workspace opens reads. */
 const NO_BOOKMARKS: BookmarksSnapshot = {
@@ -115,9 +122,59 @@ async function open(device: DeviceId): Promise<void> {
 }
 
 function tellWindows(snapshot: BookmarksSnapshot) {
+  for (const listener of mainListeners) {
+    listener(snapshot, (id) => store?.changedAt(id));
+  }
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) {
       window.webContents.send(BOOKMARKS_CHANNEL.changed, snapshot);
     }
   }
+}
+
+/**
+ * The bookmarks as main reads them for itself, once the workspace's are
+ * read, with when each bookmark or folder last changed, in ms.
+ */
+export async function readBookmarks(): Promise<{
+  bookmarks: Bookmarks;
+  changedAt: (id: string) => number | undefined;
+}> {
+  await opening;
+  if (!store) {
+    throw new Error("Bookmarks are not available yet");
+  }
+  const { bookmarks, folders } = store.snapshot();
+  return { bookmarks: { bookmarks, folders }, changedAt: store.changedAt };
+}
+
+/**
+ * Changes the bookmarks from main, as a batch a window sends is applied:
+ * written through, then told to every window. Answers once on disk.
+ */
+export async function applyBookmarkOpsFromMain(
+  ops: BookmarkOp[],
+): Promise<void> {
+  await opening;
+  if (!store) {
+    throw new Error("Bookmarks are not available yet");
+  }
+  mainSeq += 1;
+  await store.apply({ client: "main", ops, seq: mainSeq });
+}
+
+/**
+ * Hears every change to the bookmarks, from anywhere, as the windows do,
+ * with when each bookmark or folder last changed; returns the stop.
+ */
+export function watchBookmarks(
+  listener: (
+    snapshot: BookmarksSnapshot,
+    changedAt: (id: string) => number | undefined,
+  ) => void,
+): () => void {
+  mainListeners.add(listener);
+  return () => {
+    mainListeners.delete(listener);
+  };
 }

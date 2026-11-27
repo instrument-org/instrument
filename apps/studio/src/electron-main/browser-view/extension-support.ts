@@ -35,7 +35,6 @@ const FEATURES: [feature: string, permissions: string[]][] = [
   ["Recording tabs or the screen", ["tabCapture", "desktopCapture"]],
   ["Controlling pages as a developer tool", ["debugger"]],
   ["Saving pages", ["pageCapture"]],
-  ["Bookmarks", ["bookmarks"]],
   ["Recently closed tabs", ["sessions"]],
   ["Most visited sites", ["topSites"]],
   ["Reading list", ["readingList"]],

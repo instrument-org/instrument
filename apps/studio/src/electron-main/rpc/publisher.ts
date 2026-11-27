@@ -79,6 +79,8 @@ interface PublisherEvents {
   // app window opens it in a tab of its own, behind
   // the one up when `background`.
   "browser.open-in-new-tab": {
+    /** A file's, a folder's or the app's own address an extension asked for, which opens as its bookmark would. */
+    asBookmark?: boolean;
     background: boolean;
     /** A popup an agent's click opened, whose tab is linked to nothing and never makes a group. */
     byAgent?: boolean;

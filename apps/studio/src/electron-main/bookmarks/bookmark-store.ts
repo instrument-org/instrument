@@ -137,6 +137,12 @@ export function createBookmarkStore({
       queue = applied.catch(() => undefined);
       return applied;
     },
+    /** When a bookmark or folder last changed, on any device, in ms; undefined for one never kept. */
+    changedAt: (id: string): number | undefined =>
+      (
+        store.changedAt(`${PREFIX.bookmark}${id}`) ??
+        store.changedAt(`${PREFIX.folder}${id}`)
+      )?.getTime(),
     close: stop,
     snapshot,
   };

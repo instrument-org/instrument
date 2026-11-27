@@ -46,6 +46,8 @@ export interface SyncedStore {
    * one, it would take back what another device changed.
    */
   caughtUp(): Promise<void>;
+  /** When a key last changed, by its newest record on any device (a delete's included), or undefined for a key never written. */
+  changedAt(key: string): Date | undefined;
   /** Stops watching. Writes already asked for still land. */
   close(): void;
   /** Every key that has a value, under `prefix` when one is given. */
@@ -271,6 +273,7 @@ export async function openSyncedStore({
       }
       throw new SyncedStoreBehindError();
     },
+    changedAt: (key) => fold.newest(key)?.at,
     close: () => {
       closed = true;
       stopWatch?.();

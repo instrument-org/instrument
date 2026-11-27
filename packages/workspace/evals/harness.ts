@@ -99,6 +99,8 @@ import {
   setSharedChrome,
 } from "./lib/shared-chrome";
 import { serveSiteStandIns, type SitePage } from "./lib/site-stand-ins";
+import { serveGrokStandIn, type StandInPost } from "./lib/grok-stand-in";
+import { grokPlanSignedInHere } from "../src/lib/apps/x-app";
 import { type SignInCookieSite } from "../src/schemas/session/message-data-part";
 import {
   createStandInWindow,
@@ -561,6 +563,14 @@ export interface EvalCase {
    * case reaches these, as every fork reaches the chat's apps.
    */
   apps?: AppFixture[];
+  /**
+   * A Grok plan signed in for the run, as Studio's sign-in leaves one: its
+   * account config, its search served on loopback answering with `posts`
+   * (`lib/grok-stand-in.ts`), and the X app the sign-in sets up. Like
+   * `apps`, one plan serves every case in a run, with every such case's
+   * posts.
+   */
+  grokPlan?: { posts: StandInPost[] };
   assertions?: Assertion[];
   /**
    * The Mac's own apps connected before the run, by their bundled server's
@@ -1030,6 +1040,12 @@ export async function runEvals(
       ? { oauth: cardOnlySignIns() }
       : {}),
   };
+  const grokPlans = evals.flatMap((evalCase) => evalCase.grokPlan ?? []);
+  if (grokPlans.length > 0) {
+    providerConfigs.push(
+      await serveGrokStandIn(grokPlans.flatMap((plan) => plan.posts)),
+    );
+  }
   const sites: Record<string, SitePage> = {};
   for (const evalCase of evals) {
     if (evalCase.sharedBrowser) {
@@ -1194,6 +1210,12 @@ export async function runEvals(
     for (const app of declaredApps) {
       write(
         `${c.dim}App       :${c.reset} ${app.slug} ${c.dim}connected${c.reset}\n`,
+      );
+    }
+    if (grokPlans.length > 0) {
+      const slug = (await grokPlanSignedInHere()) ?? "an app on X's site";
+      write(
+        `${c.dim}App       :${c.reset} ${slug} ${c.dim}searching on the Grok stand-in${c.reset}\n`,
       );
     }
     for (const server of _.unique(

@@ -19,6 +19,7 @@ import { APP_SIGN_IN_LOST_EVALS } from "./app-sign-in-lost";
 import { APP_SIGN_IN_REFUSED_EVALS } from "./app-sign-in-refused";
 import { APP_WEB_SIGNED_IN_EVALS } from "./app-web-signed-in";
 import { SIGN_IN_COOKIE_SITES_EVALS } from "./sign-in-cookie-sites";
+import { X_SEARCH_EVALS } from "./x-search";
 import { BACKGROUND_PROCESS_EVALS } from "./background-processes";
 import { PROCESS_CONTROL_EVALS } from "./process-control";
 import { BROWSER_DATA_EVALS } from "./browser-data";
@@ -110,6 +111,7 @@ export const EVALS = [
   ...APP_SIGN_IN_REFUSED_EVALS,
   ...APP_WEB_SIGNED_IN_EVALS,
   ...SIGN_IN_COOKIE_SITES_EVALS,
+  ...X_SEARCH_EVALS,
   ...BACKGROUND_PROCESS_EVALS,
   ...PROCESS_CONTROL_EVALS,
   ...BROWSER_DATA_EVALS,

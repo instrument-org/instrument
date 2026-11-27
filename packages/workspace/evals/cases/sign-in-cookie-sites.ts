@@ -115,7 +115,12 @@ function shown(found: { input: string; type: string }[]): string {
   );
 }
 
-/** Every app `connect_app` reported, with whether the agent saw it signed in. */
+/**
+ * Every app `connect_app` reported, with whether the agent saw it signed in.
+ * An X app put in `signedIn` with no Grok plan signed in, which none of
+ * these runs has, comes back as a row asking for the plan, its site's
+ * sign-in recorded all the same: that counts as recorded and seen.
+ */
 function connected(sessions: Session.WithMessagesAndParts[]) {
   return sessions
     .filter((session) => !session.parentId)
@@ -123,7 +128,18 @@ function connected(sessions: Session.WithMessagesAndParts[]) {
     .flatMap((message) => message.parts)
     .flatMap((part) =>
       part.type === "tool-connect_app" && part.state === "output-available"
-        ? connectAppResults(part.output)
+        ? connectAppResults(part.output).map((result) =>
+            result.state === "asked" &&
+            result.plan === "grok" &&
+            part.input.signedIn?.includes(result.slug)
+              ? {
+                  name: result.name,
+                  seen: true as const,
+                  slug: result.slug,
+                  state: "connected" as const,
+                }
+              : result,
+          )
         : [],
     );
 }

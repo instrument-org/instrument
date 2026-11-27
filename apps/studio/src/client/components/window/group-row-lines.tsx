@@ -231,7 +231,7 @@ function SecondLine({ lines }: { lines: RowLines }) {
   }
   if (lines.tone === "work") {
     return (
-      <FadeTitle className="shiny-text min-w-0 [--shimmer-base:var(--muted-foreground)]">
+      <FadeTitle className="brand-shiny-text min-w-0">
         {lines.line}
         <ShimmerSweep text={lines.line} />
       </FadeTitle>

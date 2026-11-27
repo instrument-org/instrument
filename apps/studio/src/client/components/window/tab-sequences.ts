@@ -40,6 +40,7 @@ const CHAT_HREF = `/chats/${CHAT}`;
 /** The rules a sequence is checked against, by name. */
 export const RULES = {
   agentId: "A tab keeps the id agents name it by through every change",
+  agentIdUnique: "No two tabs go by one id agents name them by",
   backThenForward: "Back then Forward leaves a tab where it was",
   behindMovesNothing: "Opening behind leaves what is up alone",
   bystanders: "An action in one group leaves the other groups alone",
@@ -254,7 +255,16 @@ export class Window {
     }
     const after = this.see();
     this.always();
+    const named = new Map<string, WindowTab>();
     for (const tab of this.listed()) {
+      const other = named.get(agentIdOf(tab));
+      if (other !== undefined) {
+        this.fail(
+          "agentIdUnique",
+          `${this.tag(tab)} and ${this.tag(other)} both go by ${agentIdOf(tab)}`,
+        );
+      }
+      named.set(agentIdOf(tab), tab);
       const was = agentIds.get(openerKeyOf(tab));
       if (was !== undefined && was !== agentIdOf(tab)) {
         this.fail(

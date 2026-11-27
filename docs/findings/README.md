@@ -37,6 +37,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [Apple's Foundation Models cannot run the product](apple-foundation-models-cannot-run-the-product.md): closed, measured 2026-10-07 on macOS 27.0.1 with the on-device model ("AFM 3 Core Advanced", 8,192-token context).
 - [The asset origin is readable by anything that can name a task](asset-origin-is-open-to-any-local-reader.md): moot: the asset origin was removed in 631709f88 (landed with 8958cbab6), 2026-09-26;
 - [`target=_blank` links are dead clicks](blank-target-links-are-dead-clicks.md): fixed (f7dab2700, 2026-08-28), then overtaken for the person by real tabs: since a603285fc a `_blank` link or a middle- or Cmd-click the person makes opens a...
+- [Boxed transcript turns: known gaps](boxed-transcript-turns-known-gaps.md): open, checked 2026-11-27.
 - [Browser identity: the client hints are ours, not Chromium's](browser-client-hints-are-ours-not-chromium-s.md): current, with one section overtaken.
 - [A browser guest can be shown as a scaled-down live tile](browser-guest-as-a-scaled-tile.md): verified, not built: `browser-pool.ts` still has no tile mode.
 - [In-app browser: the guest's rasterized surface is capped at 1.3x the viewport](browser-guest-raster-cap.md): open — mechanism traced to Blink source, bound confirmed on macOS, Linux and Windows.

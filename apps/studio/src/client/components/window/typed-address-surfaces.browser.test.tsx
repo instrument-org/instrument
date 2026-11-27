@@ -336,24 +336,24 @@ describe("typed words across the menu, the field and the box", () => {
         field: “Go to chrome://extensions” (no site icon); Return: page chrome://extensions/
         box:   no row; Return: sends a message
       /tmp
-        menu:  “/tmp” (no site icon); Return: path /tmp
-        field: “/tmp” (no site icon); Return: path /tmp
+        menu:  “/tmp” (no site icon); Return: path /tmp, screen /files?path=&root=%2Ftmp
+        field: “/tmp” (no site icon); Return: path /tmp, screen /files?path=&root=%2Ftmp
         box:   “/tmp” (no site icon); Return: path /tmp
       /Users
-        menu:  “/Users” (no site icon); Return: path /Users
-        field: “/Users” (no site icon); Return: path /Users
+        menu:  “/Users” (no site icon); Return: path /Users, screen /files?path=&root=%2FUsers
+        field: “/Users” (no site icon); Return: path /Users, screen /files?path=&root=%2FUsers
         box:   “/Users” (no site icon); Return: path /Users
       /Applications
-        menu:  “/Applications” (no site icon); Return: path /Applications
-        field: “/Applications” (no site icon); Return: path /Applications
+        menu:  “/Applications” (no site icon); Return: path /Applications, screen /files?path=&root=%2FApplications
+        field: “/Applications” (no site icon); Return: path /Applications, screen /files?path=&root=%2FApplications
         box:   “/Applications” (no site icon); Return: path /Applications
       file:///tmp/notes.md
-        menu:  “/tmp/notes.md” (no site icon); Return: path /tmp/notes.md
-        field: “/tmp/notes.md” (no site icon); Return: path /tmp/notes.md
+        menu:  “/tmp/notes.md” (no site icon); Return: path /tmp/notes.md, screen /files?file=%2Ftmp%2Fnotes.md&path=&root=~
+        field: “/tmp/notes.md” (no site icon); Return: path /tmp/notes.md, screen /files?file=%2Ftmp%2Fnotes.md&path=&root=~
         box:   “/tmp/notes.md” (no site icon); Return: path /tmp/notes.md
       file:///Users/mac-user/My%20Folder/
-        menu:  “/Users/mac-user/My Folder” (no site icon); Return: path /Users/mac-user/My Folder
-        field: “/Users/mac-user/My Folder” (no site icon); Return: path /Users/mac-user/My Folder
+        menu:  “/Users/mac-user/My Folder” (no site icon); Return: path /Users/mac-user/My Folder, screen /files?path=&root=%2FUsers%2Fmac-user%2FMy+Folder
+        field: “/Users/mac-user/My Folder” (no site icon); Return: path /Users/mac-user/My Folder, screen /files?path=&root=%2FUsers%2Fmac-user%2FMy+Folder
         box:   “/Users/mac-user/My Folder” (no site icon); Return: path /Users/mac-user/My Folder
       file:///tmp/page.html#top
         menu:  “Go to /tmp/page.html#top” (no site icon); Return: page file:///tmp/page.html#top

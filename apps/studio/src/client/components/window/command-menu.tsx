@@ -18,7 +18,7 @@ import {
 } from "@/client/components/extend/file-system";
 import { settingsTabTitle } from "@/client/components/settings/settings-index";
 import { useSettingsTabs } from "@/client/components/settings/use-settings-tabs";
-import { fileHref, folderHref } from "@/shared/computer-href";
+import { fileHref, folderHref, missingPathHref } from "@/shared/computer-href";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { useTheme } from "@/client/components/theme-provider";
 import { CommandShortcut } from "@/client/components/ui/command";
@@ -682,7 +682,9 @@ export function useCommandMenuRows({
       : undefined;
   // Where a typed path goes once the menu is out of the way: a folder, or a
   // place the system would not let the app read, to the folder view, which
-  // says so and is where it is undone; a file to its own view.
+  // says so and is where it is undone; a file to its own view; a path with
+  // nothing at it to a tab at it that says it can't find it, unless the
+  // words may as well be a search.
   const openTypedPath = async () => {
     if (!typedPath) {
       return;
@@ -696,15 +698,20 @@ export function useCommandMenuRows({
       },
     });
     setLooking(undefined);
-    if (located.kind === "failed" || located.kind === "missing") {
+    if (
+      located.kind === "failed" ||
+      (located.kind === "missing" && typedPath.alsoSearch)
+    ) {
       setMissedAt({ outcome: located, typed: typedPath.typed });
       return;
     }
     done(() => {
       openScreen(
-        located.kind === "file"
-          ? fileHref(located.path)
-          : folderHref(located.path),
+        located.kind === "missing"
+          ? missingPathHref(located.path, typedPath.written)
+          : located.kind === "file"
+            ? fileHref(located.path)
+            : folderHref(located.path),
       );
     })();
   };

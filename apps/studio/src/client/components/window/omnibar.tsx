@@ -56,7 +56,11 @@ import { cn } from "@/client/lib/utils";
 import { computerFolderOptions } from "@/client/lib/live-computer-folder";
 import { rpcClient } from "@/client/rpc/client";
 import { type Bookmark, inOrder } from "@/shared/bookmarks";
-import { COMPUTER_ROOT, fileHref } from "@/shared/computer-href";
+import {
+  COMPUTER_ROOT,
+  fileHref,
+  missingPathHref,
+} from "@/shared/computer-href";
 import {
   type BuiltInPage,
   builtInPages,
@@ -336,7 +340,10 @@ export function Omnibar({
    * Opens a typed path where the field is: a folder in this tab, a file as
    * its tab, and a place the system would not let the app read as the folder
    * view saying so, which is where it is undone. A path with nothing at it
-   * stays in the field, which says so under the words.
+   * opens a tab at it that says it can't find it, as a browser's tab does for
+   * a `file://` address with nothing there, unless the words may as well be
+   * a search; that one, and a path whose look failed, stay in the field,
+   * which says so under the words.
    */
   const openPath = async (path: TypedPath) => {
     if (looking === path.typed) {
@@ -359,8 +366,17 @@ export function Omnibar({
         openFolder(located.path);
         return;
       }
-      case "failed":
       case "missing": {
+        if (!path.alsoSearch) {
+          visit(missingPathHref(located.path, path.written));
+          leave();
+          return;
+        }
+        setMissed({ outcome: located, typed: path.typed });
+        send({ index: 0, type: "highlight" });
+        return;
+      }
+      case "failed": {
         setMissed({ outcome: located, typed: path.typed });
         send({ index: 0, type: "highlight" });
       }

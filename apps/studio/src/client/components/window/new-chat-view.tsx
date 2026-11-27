@@ -8,7 +8,7 @@ import {
   useDraftStaging,
   useFolderItems,
 } from "@/client/components/draft-staging";
-import { fileHref, folderHref } from "@/shared/computer-href";
+import { fileHref, folderHref, missingPathHref } from "@/shared/computer-href";
 import {
   PromptInput,
   type PromptInputRef,
@@ -441,16 +441,19 @@ export function NewChatView({
   };
   const openPath = async (path: TypedPath) => {
     const located = await locateTypedPath(path);
-    if (located.kind === "failed" || located.kind === "missing") {
+    if (located.kind === "failed") {
       toast.error(missedPathNotice(located));
       return;
     }
     takeBackWords();
+    // A path with nothing at it opens a tab at it that says it can't find it.
     windowTabs.visitHref(
       tabId,
-      located.kind === "file"
-        ? fileHref(located.path)
-        : folderHref(located.path),
+      located.kind === "missing"
+        ? missingPathHref(located.path, path.written)
+        : located.kind === "file"
+          ? fileHref(located.path)
+          : folderHref(located.path),
     );
   };
   const go = (to: BoxOpens) => {

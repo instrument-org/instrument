@@ -36,7 +36,7 @@ import {
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { expandHomePath } from "@instrument-org/shared";
 import { type TypedPath, typedFileName } from "@/client/lib/typed-path";
-import { fileHref, folderHref } from "@/shared/computer-href";
+import { fileHref, folderHref, missingPathHref } from "@/shared/computer-href";
 import { type ReactElement, type ReactNode, useContext } from "react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -123,14 +123,17 @@ export function PathChip({ path }: { path: TypedPath }) {
   }
   const open = (options?: OpenOptions) => {
     void locateTypedPath(path).then((located) => {
-      if (located.kind === "failed" || located.kind === "missing") {
+      if (located.kind === "failed") {
         toast(missedPathNotice(located));
         return;
       }
+      // A path with nothing at it opens a tab at it that says it can't find it.
       appWindow.openScreen(
-        located.kind === "file"
-          ? fileHref(located.path)
-          : folderHref(located.path),
+        located.kind === "missing"
+          ? missingPathHref(located.path, path.written)
+          : located.kind === "file"
+            ? fileHref(located.path)
+            : folderHref(located.path),
         options,
       );
     });

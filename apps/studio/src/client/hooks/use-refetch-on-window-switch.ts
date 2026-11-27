@@ -3,8 +3,8 @@ import { focusManager, useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 /**
- * What another window changed reaches this one as it comes to the front. React
- * Query refetches when a page comes back into view, which clicking from one
+ * What another window changed reaches this one's stale reads as it comes to
+ * the front. React Query refetches when a page comes back into view, which clicking from one
  * window to another beside it never is, so with other windows open a window's
  * own focus counts as well. Only then: a person coming back from another app
  * has changed nothing here, and every open tab's queries would go again.

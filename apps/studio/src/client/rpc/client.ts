@@ -52,7 +52,13 @@ const baseClient: RouterClient<typeof router> = createORPCClient(link);
 // A request only a server can answer waits out being offline, unlike one this
 // computer answers (`local-rpc-defaults.ts`): trying could only replace what
 // the window shows with a failure, or cache an empty answer as the server's.
-const REMOTE = { networkMode: "online" } as const;
+// The server's answer can change at any time, so a mount reads it again.
+const REMOTE = { networkMode: "online", staleTime: 0 } as const;
+
+// Read again on each mount: what these answer changes with nothing in the app
+// to invalidate them, where a one-shot read otherwise stays as first read
+// (`local-rpc-defaults.ts`).
+const ON_EACH_MOUNT = { queryOptions: { staleTime: 0 } } as const;
 
 export const rpcClient = createTanstackQueryUtils(baseClient, {
   // retry: 3 below are to because our default retry is 0 because most RPC calls
@@ -72,6 +78,11 @@ export const rpcClient = createTanstackQueryUtils(baseClient, {
       status: { queryOptions: REMOTE },
     },
     browser: { searchSuggestions: { queryOptions: REMOTE } },
+    // Whether a capture's original is still there, and the captures taken
+    // in other windows (developer tools).
+    captures: { hasOriginal: ON_EACH_MOUNT, list: ON_EACH_MOUNT },
+    // A folder that grew, a file rewritten at the same path.
+    files: { folderSize: ON_EACH_MOUNT, probeMedia: ON_EACH_MOUNT },
     providerConfig: { credits: { queryOptions: REMOTE } },
     releases: {
       list: {
@@ -82,6 +93,31 @@ export const rpcClient = createTanstackQueryUtils(baseClient, {
       },
       notesFor: { queryOptions: REMOTE },
     },
+    // The log's tail, each time the viewer opens.
+    utils: { readDiagnosticLog: ON_EACH_MOUNT },
+    workspace: {
+      // Files moved or trashed outside the app, a page's title rewritten.
+      computer: { describe: ON_EACH_MOUNT, titles: ON_EACH_MOUNT },
+      // An AI app installed since.
+      memory: { sources: ON_EACH_MOUNT },
+      // Matches in messages that arrived since Find last searched the text.
+      message: { find: ON_EACH_MOUNT },
+      // Folders granted from a chat's card, and what macOS allows since
+      // System Settings.
+      permissions: { get: ON_EACH_MOUNT, macos: ON_EACH_MOUNT },
+      // Zoom, kept outside the preferences that key the query.
+      settings: { values: ON_EACH_MOUNT },
+      // Skills in home folders no watch covers.
+      skill: { list: ON_EACH_MOUNT },
+      // An office download an agent made, a broken chat folder another window
+      // trashed or a sync brought in.
+      storage: {
+        invalidFolders: { list: ON_EACH_MOUNT },
+        office: { get: ON_EACH_MOUNT },
+      },
+    },
+    // A workspace's size as it grows (developer tools).
+    workspaces: { sizes: ON_EACH_MOUNT },
   },
 });
 

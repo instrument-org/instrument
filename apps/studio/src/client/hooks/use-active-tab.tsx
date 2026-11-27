@@ -47,8 +47,7 @@ export function useIsActiveTab() {
 /**
  * Query options for a read kept fresh on a clock that matters only while its
  * tab is up. A tab behind another makes its first read and then waits, and
- * coming back up reads again at once, since what it has is stale by then
- * (with the default `staleTime` of 0).
+ * coming back up reads again at once, since what it has is stale by then.
  */
 export function refreshWhileShown(
   isShown: boolean,
@@ -58,6 +57,7 @@ export function refreshWhileShown(
     enabled: (query: { state: { data: unknown } }) =>
       isShown || query.state.data === undefined,
     refetchInterval: isShown ? refetchInterval : false,
+    staleTime: 0,
   };
 }
 

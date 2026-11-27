@@ -102,6 +102,8 @@ function messagesOf(script: Act[]): SessionMessage.WithParts[] {
 const asked: (() => void)[] = [];
 /** Gives pages as they are asked for, a moment later, or only on `arrive`. */
 let givesPages = true;
+/** How long a page given as asked takes, in ms. */
+let pageMs = 30;
 /** A page asked for fails, as a read the server could not make. */
 let failsPages = false;
 /** Every time the transcript asked for a page. */
@@ -114,8 +116,12 @@ function arrive() {
 }
 
 /** Pages given as asked for, none failing, none asked for yet. */
-function resetPages({ gives = true }: { gives?: boolean } = {}) {
+function resetPages({
+  gives = true,
+  ms = 30,
+}: { gives?: boolean; ms?: number } = {}) {
   givesPages = gives;
+  pageMs = ms;
   failsPages = false;
   asks = 0;
   asked.length = 0;
@@ -178,7 +184,7 @@ function Paged({
     };
     asked.push(give);
     if (givesPages) {
-      window.setTimeout(arrive, 30);
+      window.setTimeout(arrive, pageMs);
     }
   };
   return (
@@ -431,6 +437,27 @@ it("ends a drag to the very top on the first turn, with nothing on screen moving
       viewport().getBoundingClientRect().top,
   ).toBeCloseTo(0, 0);
   expect(wholeSpan()).toBeGreaterThan(viewport().clientHeight);
+});
+
+it("keeps the spinner up through a drag's run of pages, each quicker than a spinner waits to show", async () => {
+  resetPages({ ms: 150 });
+  await renderInBrowser(<Paged messages={unevenChat()} />);
+  await expect.poll(() => room()?.offsetHeight ?? 0).toBeGreaterThan(VIEW);
+
+  viewport().dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+  viewport().scrollTop = 0;
+  // Each frame until the last page lands: whether the spinner shows.
+  const shown: boolean[] = [];
+  for (let frame = 0; frame < 600 && room() !== null; frame++) {
+    await frames(1);
+    const shows = room()?.querySelector("[role=status]");
+    if (shows !== undefined) {
+      shown.push(shows !== null);
+    }
+  }
+  const first = shown.indexOf(true);
+  expect(first).toBeGreaterThan(-1);
+  expect(shown.slice(first).filter((isShown) => !isShown)).toEqual([]);
 });
 
 it("leaves no room above a chat with nothing older to load", async () => {

@@ -320,6 +320,23 @@ function OlderTurns({
       element.style.height = `${roomFor(element, count, latest.current.held).toString()}px`;
     }
   }, [count]);
+  // Pages load one after another, each quicker than a spinner waits to show,
+  // so the spinner stays up from the first until 200 ms pass with none loading.
+  const [isLoadingPages, setIsLoadingPages] = useState(isLoading);
+  if (isLoading && !isLoadingPages) {
+    setIsLoadingPages(true);
+  }
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      setIsLoadingPages(false);
+    }, 200);
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [isLoading]);
   // How many turns were held when it last asked.
   const askedAt = useRef<number | undefined>(undefined);
   useEffect(() => {
@@ -356,7 +373,7 @@ function OlderTurns({
       data-older-turns=""
       ref={ref}
     >
-      {isLoading && (
+      {isLoadingPages && (
         // Mid-view while the room covers it, at its foot otherwise.
         <div className="sticky bottom-1/2 flex h-6 items-center justify-center">
           <Spinner className="size-3.5 text-muted-foreground" />

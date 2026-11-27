@@ -1,6 +1,7 @@
 // What the React Compiler skips in the files named, over the skips recorded
-// here. The whole client takes the compiler 20 seconds, so a turn's end asks
-// about the files it edited (scripts/turn-end.ts) and the test asks about all.
+// here, and the scopes it lets go of in the components named in PRUNED. The
+// whole client takes the compiler 20 seconds, so a turn's end asks about the
+// files it edited (scripts/turn-end.ts) and the test asks about all.
 //
 //   node scripts/react-compiler-skips.ts [file under src/client, or a path to it]...
 //
@@ -30,6 +31,24 @@ export const SKIPPED: Record<string, string> = {
   "routes/_app/route.tsx#SiteView": "Suppression",
 };
 
+/**
+ * The scopes the React Compiler works out in a component and then lets go of,
+ * which is silent where a skip is loud: a value made ahead of a later hook
+ * call, a value built inline in the returned tree beside one that changes on
+ * every render, each is made anew on every render, and everything it reaches
+ * renders again. The count also takes in scopes let go of harmlessly, one
+ * inside a loop or one whose value nothing reads, so a rise is a scope to
+ * look at, not always a value made anew. These components hand values to
+ * every screen of the window or every turn of a chat, so each is held to the
+ * count it has, which only ever gets lower. Only these: elsewhere such scopes
+ * come and go with ordinary edits, perf fixes among them.
+ */
+export const PRUNED: Record<string, number> = {
+  "components/task/chat.tsx#ChatConversation": 8,
+  "components/transcript/transcript.tsx#Transcript": 2,
+  "components/window/app-window.tsx#WindowShell": 1,
+};
+
 const CLIENT = path.join(import.meta.dirname, "../src/client");
 const require = createRequire(import.meta.url);
 
@@ -37,6 +56,8 @@ type CompilerEvent = {
   detail?: { category?: string; options?: { category?: string } };
   fnLoc?: { start?: { index?: number } } | null;
   kind: string;
+  /** On `CompileSuccess`: the scopes worked out and then let go. */
+  prunedMemoBlocks?: number;
 };
 type BabelPath = {
   node: { id?: { name?: string } | null; start?: null | number };
@@ -68,19 +89,28 @@ function nameOf(fn: BabelPath) {
   );
 }
 
-/** What the compiler skips in a client file, named from src/client, by `file#function`. */
-export function skipsIn(file: string) {
+/**
+ * What the compiler skips in a client file, named from src/client, and how
+ * many scopes it lets go of in each function it compiles, by `file#function`.
+ */
+export function compilerReport(file: string) {
   const code = fs.readFileSync(path.join(CLIENT, file), "utf8");
   const names = new Map<number, string>();
   const events: CompilerEvent[] = [];
+  // Every function's name, read ahead of the compiler, which replaces each
+  // function it compiles as it goes.
   const recordNames = {
     visitor: {
-      "ArrowFunctionExpression|FunctionDeclaration|FunctionExpression"(
-        fn: BabelPath,
-      ) {
-        if (typeof fn.node.start === "number") {
-          names.set(fn.node.start, nameOf(fn));
-        }
+      Program(program: { traverse: (visitor: object) => void }) {
+        program.traverse({
+          "ArrowFunctionExpression|FunctionDeclaration|FunctionExpression"(
+            fn: BabelPath,
+          ) {
+            if (typeof fn.node.start === "number") {
+              names.set(fn.node.start, nameOf(fn));
+            }
+          },
+        });
       },
     },
   };
@@ -105,24 +135,49 @@ export function skipsIn(file: string) {
     ],
   });
   const skipped = new Map<string, string>();
+  const pruned = new Map<string, number>();
   for (const event of events) {
-    if (event.kind !== "CompileError") {
-      continue;
-    }
     const start = event.fnLoc?.start?.index;
     const name =
       (start === undefined ? undefined : names.get(start)) ?? "(unknown)";
+    const key = `${file}#${name}`;
+    if (event.kind === "CompileSuccess") {
+      pruned.set(key, (pruned.get(key) ?? 0) + (event.prunedMemoBlocks ?? 0));
+    }
+    if (event.kind !== "CompileError") {
+      continue;
+    }
     const category =
       event.detail?.options?.category ?? event.detail?.category ?? "Unknown";
-    skipped.set(`${file}#${name}`, category);
+    skipped.set(key, category);
   }
-  return skipped;
+  return { pruned, skipped };
 }
 
-/** The skips no one recorded, and the recorded ones that compile. */
+/**
+ * The skips no one recorded and the recorded ones that compile, and the
+ * components in PRUNED letting go of more scopes or fewer than recorded.
+ */
 export function skipDifferences(files: string[]) {
-  const skipped = new Map(files.flatMap((file) => [...skipsIn(file)]));
+  const reports = files.map((file) => compilerReport(file));
+  const skipped = new Map(reports.flatMap((report) => [...report.skipped]));
+  const pruned = new Map(reports.flatMap((report) => [...report.pruned]));
+  const prunedNow = (bound: (now: number, recorded: number) => boolean) =>
+    Object.entries(PRUNED).flatMap(([key, recorded]) => {
+      const now = pruned.get(key);
+      return now !== undefined && bound(now, recorded)
+        ? [{ key, now, recorded }]
+        : [];
+    });
   return {
+    fewerPruned: prunedNow((now, recorded) => now < recorded),
+    missingPruned: Object.keys(PRUNED).filter(
+      (key) =>
+        files.includes(key.slice(0, key.indexOf("#"))) &&
+        !pruned.has(key) &&
+        !skipped.has(key),
+    ),
+    morePruned: prunedNow((now, recorded) => now > recorded),
     newlySkipped: [...skipped]
       .filter(([key]) => !(key in SKIPPED))
       .map(([key, category]) => `${key} (${category})`),
@@ -147,7 +202,8 @@ if (import.meta.main) {
         isCompiled(file) &&
         fs.existsSync(path.join(CLIENT, file)),
     );
-  const { newlySkipped, nowCompiled } = skipDifferences(files);
+  const { fewerPruned, missingPruned, morePruned, newlySkipped, nowCompiled } =
+    skipDifferences(files);
   for (const skip of newlySkipped) {
     console.log(
       `${skip}: the React Compiler skips this, so it memoizes nothing. Fix what the category names (a disable of a hooks rule is Suppression; reach for useEffectEvent).`,
@@ -158,5 +214,28 @@ if (import.meta.main) {
       `${key}: this compiles now; take it off SKIPPED in apps/studio/scripts/react-compiler-skips.ts.`,
     );
   }
-  process.exitCode = newlySkipped.length + nowCompiled.length > 0 ? 1 : 0;
+  for (const { key, now, recorded } of morePruned) {
+    console.log(
+      `${key}: the React Compiler lets go of ${now.toString()} of its scopes, past the ${recorded.toString()} recorded, so a value it made once may be made on every render, and whatever reads it renders again. Move the hook calls above the values worked out before them, or make the value a hook of its own; if the new scope is in a loop, reads nothing that changes or has to go, raise its count in PRUNED in apps/studio/scripts/react-compiler-skips.ts and say why in the commit.`,
+    );
+  }
+  for (const { key, now } of fewerPruned) {
+    console.log(
+      `${key}: the React Compiler lets go of ${now.toString()} of its scopes now; lower its count in PRUNED in apps/studio/scripts/react-compiler-skips.ts to ${now.toString()}.`,
+    );
+  }
+  for (const key of missingPruned) {
+    console.log(
+      `${key}: the React Compiler compiles no such function; move or remove its entry in PRUNED in apps/studio/scripts/react-compiler-skips.ts.`,
+    );
+  }
+  process.exitCode =
+    newlySkipped.length +
+      nowCompiled.length +
+      morePruned.length +
+      fewerPruned.length +
+      missingPruned.length >
+    0
+      ? 1
+      : 0;
 }

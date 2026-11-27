@@ -76,7 +76,7 @@ const SERIES_STROKES = [
   "text-brand-200",
   "text-gray-500",
 ];
-const NEUTRAL_BAR = "bg-gray-300 dark:bg-gray-600";
+const NEUTRAL_BAR = "bg-gray-300 dark:bg-gray-500";
 const HIGHLIGHT_BAR = "bg-brand-500 dark:bg-brand-400";
 const NEUTRAL_LINE = "text-gray-500 dark:text-gray-400";
 
@@ -426,11 +426,12 @@ function Column({
                   }}
                 />
                 {/* Over the bar's end, or over the baseline for a bar that
-                    goes down from it. */}
+                    goes down from it. Gone while the column's tooltip,
+                    which says the same and stands over it, is up. */}
                 {valueSize && (
                   <span
                     className={cn(
-                      "absolute left-1/2 mb-[3px] -translate-x-1/2 leading-none whitespace-nowrap tabular-nums",
+                      "absolute left-1/2 mb-[3px] -translate-x-1/2 leading-none whitespace-nowrap tabular-nums transition-opacity group-hover/column:opacity-0",
                       row === chart.highlight && chart.series.length === 1
                         ? "font-medium text-foreground"
                         : "text-muted-foreground",

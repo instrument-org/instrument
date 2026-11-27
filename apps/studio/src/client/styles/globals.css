@@ -2829,6 +2829,12 @@ span[data-unbroken] > * {
   }
 }
 
+/* A total row (`tableShape`) is bold at every width, as its record is under
+   the table's fit. */
+.markdown-table-frame > table tr[data-total] {
+  font-weight: 600;
+}
+
 /* Under its fit, a table of a few rows becomes one record per row: the
    first cell as its title, then each value beside its column's name, an
    empty one left out, with one label column for the whole block on a
@@ -3059,6 +3065,7 @@ span[data-unbroken] > * {
    and never to a line alone. */
 .dark .reply-pick-tag {
   background-color: color-mix(in oklab, var(--brand-400) 20%, transparent);
+  color: var(--brand-200);
 }
 
 .reply-pick-tag {

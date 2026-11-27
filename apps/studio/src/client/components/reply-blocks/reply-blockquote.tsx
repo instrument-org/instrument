@@ -28,7 +28,7 @@ const ALERTS: Record<
     className: "bg-brand-500/[0.07] dark:bg-brand-500/[0.14]",
     icon: <WarningCircleIcon />,
     label: "Important",
-    titleClassName: "text-brand-text",
+    titleClassName: "text-brand-text dark:text-brand-300",
   },
   note: {
     className: "bg-muted",

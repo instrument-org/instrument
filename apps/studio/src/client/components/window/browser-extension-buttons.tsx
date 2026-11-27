@@ -32,7 +32,7 @@ import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
 import { PowerIcon } from "@phosphor-icons/react/Power";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
-import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
+import { CloseSidePanelIcon } from "@/client/components/icons/close-side-panel-icon";
 import { SlidersHorizontalIcon } from "@phosphor-icons/react/SlidersHorizontal";
 import { StorefrontIcon } from "@phosphor-icons/react/Storefront";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
@@ -341,7 +341,7 @@ export function BrowserExtensionButtons({
                 }}
                 type="button"
               >
-                <SidebarSimpleIcon className="size-4 -scale-x-100" />
+                <CloseSidePanelIcon className="size-4" />
               </button>
             </ToolbarTooltip>
           )}

@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   existsSync,
   lstatSync,
@@ -69,6 +70,14 @@ describe.skipIf(onWindows)("seatbeltProfile", () => {
   it.runIf(process.platform === "darwin")(
     "closes the disk and home to changes, then applies rules shallow to deep",
     () => {
+      // turbo runs tests without TMPDIR, which leaves os.tmpdir() at /tmp,
+      // so the Mac's own per-user temp folder is set here.
+      vi.stubEnv(
+        "TMPDIR",
+        execFileSync("getconf", ["DARWIN_USER_TEMP_DIR"], {
+          encoding: "utf8",
+        }).trim(),
+      );
       const profile = seatbeltProfile(
         reachOver("/nope/home", [
           {
@@ -86,6 +95,7 @@ describe.skipIf(onWindows)("seatbeltProfile", () => {
           { level: "never", path: '/nope/home/with "quote"', source: "place" },
         ]),
       );
+      vi.unstubAllEnvs();
       expect(
         profile.split("\n").filter(
           (line) =>

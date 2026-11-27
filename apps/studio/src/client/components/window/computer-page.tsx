@@ -2819,6 +2819,10 @@ export function ComputerPage({
                                 .replaceAll("\\", "/")}/`,
                             }),
                           ),
+                          stalledAt:
+                            folderWalk.data.stalledAt === undefined
+                              ? undefined
+                              : nameOf(folderWalk.data.stalledAt),
                           truncated: folderWalk.data.truncated,
                         },
                       }

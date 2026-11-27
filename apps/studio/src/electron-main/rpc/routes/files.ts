@@ -1189,6 +1189,7 @@ const walkFolderRoute = base
           }),
         ),
         notSearched: z.array(z.string()),
+        stalledAt: z.string().optional(),
         truncated: z.boolean(),
       })
       .nullable(),

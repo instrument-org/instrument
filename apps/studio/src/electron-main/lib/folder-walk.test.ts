@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { walkFolder } from "./folder-walk";
+import { folderWalkSkips, walkFolder } from "./folder-walk";
 
 describe("walkFolder", () => {
   let root: string;
@@ -144,5 +144,20 @@ describe("walkFolder", () => {
     await expect(
       walkFolder(root, { signal: AbortSignal.abort() }),
     ).rejects.toThrow();
+  });
+});
+
+describe("folderWalkSkips", () => {
+  it("steps over AppData from a Windows home folder", () => {
+    const skips = folderWalkSkips({
+      home: String.raw`C:\Users\windows-user`,
+      platform: "win32",
+    });
+    expect([...skips]).toEqual([String.raw`C:\Users\windows-user\AppData`]);
+    expect(
+      folderWalkSkips({ home: "/Users/mac-user", platform: "darwin" }).has(
+        "/Users/mac-user/AppData",
+      ),
+    ).toBe(false);
   });
 });

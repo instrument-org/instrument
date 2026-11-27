@@ -488,12 +488,14 @@ export type FileSystemProps = {
   /**
    * Everything under the folder the browser lists from, which a search
    * matches against, as items with paths the way `items` has them:
-   * `truncated` when that is not all of it, and `notSearched` the folders
-   * the folders left unread. Left out, a search matches what is listed.
+   * `truncated` when that is not all of it, `stalledAt` the name of the
+   * folder that stopped responding when that is why, and `notSearched` the
+   * folders left unread. Left out, a search matches what is listed.
    */
   searchResults?: {
     items: readonly FileSystemItem[];
     notSearched: ReadonlyArray<{ name: string; path: string }>;
+    stalledAt?: string | undefined;
     truncated: boolean;
   };
   /**
@@ -4771,7 +4773,9 @@ function FileSystemStatusBar({
     );
   }
   const found = search
-    ? search.results?.truncated
+    ? search.results?.stalledAt !== undefined
+      ? `${counted} found before ${search.results.stalledAt} stopped responding`
+      : search.results?.truncated
       ? `${counted} found in the first ${search.results.items.length.toLocaleString()} items under ${search.folderName}`
       : `${counted} found in ${search.folderName} and its folders`
     : null;

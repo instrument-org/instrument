@@ -38,8 +38,10 @@ const TWO_COLUMNS = "grid grid-cols-1 gap-3 @xl/apps:grid-cols-2";
 const THREE_COLUMNS =
   "grid grid-cols-1 gap-3 @lg/apps:grid-cols-2 @4xl/apps:grid-cols-3";
 
-/** Room left between the head and a section its chip goes to. */
-const SECTION_GAP = 12;
+/** Room left between the head and a section its chip goes to, past the fade. */
+const SECTION_GAP = 20;
+/** The row of chips under the stuck head: a chip and the room beneath it. */
+const CHIP_ROW_HEIGHT = 40;
 
 /** The AIs at the top, in the order most people would look for them. */
 const AI_ORDER = ["chatgpt", "gemini", "claude", "grok", "microsoft-copilot"];
@@ -184,6 +186,13 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
 
   const pageRef = useRef<HTMLDivElement>(null);
   const headRef = useRef<HTMLDivElement>(null);
+  const chipsRef = useRef<HTMLDivElement>(null);
+  const hasChips = typed === "" && categories.length > 0;
+  // The head has reached the top and the page scrolls beneath it.
+  const [isStuck, setIsStuck] = useState(false);
+  // The chips in the page have scrolled under the head, so the head shows
+  // them as one row of its own.
+  const [isChipRowShown, setIsChipRowShown] = useState(false);
   const sectionOf = (id: AppCategory) =>
     pageRef.current?.querySelector<HTMLElement>(`[data-category="${id}"]`);
   // The category whose section is under the head, which its chip says.
@@ -194,7 +203,15 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
     if (!page || !head) {
       return;
     }
-    const line = head.getBoundingClientRect().bottom + SECTION_GAP * 2;
+    const { bottom: headBottom, top: headTop } = head.getBoundingClientRect();
+    setIsStuck(
+      page.scrollTop > 0 && headTop <= page.getBoundingClientRect().top + 1,
+    );
+    const chipsBottom = chipsRef.current?.getBoundingClientRect().bottom;
+    const isRowShown = chipsBottom !== undefined && chipsBottom <= headBottom;
+    setIsChipRowShown(isRowShown);
+    const line =
+      headBottom + (isRowShown ? CHIP_ROW_HEIGHT : 0) + SECTION_GAP * 2;
     const passed = categories.filter(({ id }) => {
       const top = sectionOf(id)?.getBoundingClientRect().top;
       return top !== undefined && top <= line;
@@ -211,9 +228,38 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
         section.getBoundingClientRect().top -
         page.getBoundingClientRect().top -
         head.offsetHeight -
+        CHIP_ROW_HEIGHT -
         SECTION_GAP;
     }
   };
+
+  const chip = (
+    { id, label }: { id: AppCategory; label: string },
+    inHeadRow = false,
+  ) => (
+    <button
+      aria-pressed={lit === id}
+      className={cn(
+        "h-7 shrink-0 rounded-full px-2.5 text-[12px]",
+        lit === id ? "bg-foreground/10" : "bg-card shadow-xs hover:bg-accent",
+      )}
+      key={id}
+      onClick={() => {
+        goTo(id);
+      }}
+      // The row under the stuck head scrolls its lit chip into view.
+      ref={
+        inHeadRow && lit === id
+          ? (button: HTMLButtonElement | null) => {
+              button?.scrollIntoView({ block: "nearest", inline: "nearest" });
+            }
+          : undefined
+      }
+      type="button"
+    >
+      {categoryLabel(id, label)}
+    </button>
+  );
 
   const searchRef = useRef<HTMLInputElement>(null);
   useFindTarget({
@@ -250,7 +296,7 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
 
         {/* Stays at the top as the page scrolls, over the page's own surface. */}
         <div
-          className="sticky top-0 z-10 -mx-3 mt-3 space-y-3 bg-background px-3 py-4"
+          className="sticky top-0 z-10 -mx-3 mt-3 bg-background px-3 pt-4 pb-3"
           ref={headRef}
         >
           <form
@@ -279,29 +325,28 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
             />
             {query === "" ? <FieldKeys className="right-4" /> : null}
           </form>
-          {typed === "" && categories.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {categories.map(({ id, label }) => (
-                <button
-                  aria-pressed={lit === id}
-                  className={cn(
-                    "h-7 rounded-full px-2.5 text-[12px]",
-                    lit === id
-                      ? "bg-foreground/10"
-                      : "bg-card shadow-xs hover:bg-accent",
-                  )}
-                  key={id}
-                  onClick={() => {
-                    goTo(id);
-                  }}
-                  type="button"
-                >
-                  {categoryLabel(id, label)}
-                </button>
-              ))}
+          {/* Laid over the page below the head, so showing it moves
+              nothing: the chips as one row once the page's own have scrolled
+              away, then a fade the page scrolls under. */}
+          {isStuck ? (
+            <div className="pointer-events-none absolute inset-x-0 top-full">
+              {hasChips && isChipRowShown ? (
+                <div className="pointer-events-auto animate-in bg-background pb-3 duration-150 fade-in-0">
+                  <div className="flex gap-1.5 overflow-x-auto mask-x-from-[calc(100%-0.75rem)] px-3 [scrollbar-width:none]">
+                    {categories.map((category) => chip(category, true))}
+                  </div>
+                </div>
+              ) : null}
+              <div className="h-4 bg-linear-to-b from-background" />
             </div>
           ) : null}
         </div>
+
+        {hasChips ? (
+          <div className="flex flex-wrap gap-1.5 pb-1" ref={chipsRef}>
+            {categories.map((category) => chip(category))}
+          </div>
+        ) : null}
 
         <div className="mt-4 space-y-10">
           {typed !== "" ? null : listData === undefined ? (
@@ -447,8 +492,7 @@ function useDirectory() {
       byService.set(app.service, [...(byService.get(app.service) ?? []), app]);
     }
   }
-  const mineOf = (entry: CatalogEntry) =>
-    byService.get(entry.slug) ?? NO_APPS;
+  const mineOf = (entry: CatalogEntry) => byService.get(entry.slug) ?? NO_APPS;
   // Every service the directory lists stays in its place, the ones already
   // here included, so a search finds an app whoever forgot it was set up;
   // most used first, and the documentation servers and the like left out

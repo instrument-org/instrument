@@ -113,6 +113,10 @@ import {
   typedAddressName,
 } from "@/client/components/window/typed-address-row";
 import { rpcClient } from "@/client/rpc/client";
+import { NEW_SKILL_ASK } from "@/client/lib/new-skill-ask";
+import { showInFolder } from "@/client/lib/show-in-files";
+import { isProvidedSource, skillSourceLabel } from "@/client/lib/skill-source";
+import { WindowContext } from "@/client/components/window/context";
 import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { SHORTCUTS, type ShortcutAccelerator } from "@/shared/shortcuts";
 import {
@@ -122,6 +126,7 @@ import {
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowsInIcon } from "@phosphor-icons/react/ArrowsIn";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
+import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
@@ -142,6 +147,7 @@ import {
   type MouseEvent,
   type ReactNode,
   type Ref,
+  useContext,
   useDeferredValue,
   useEffect,
   useEffectEvent,
@@ -303,6 +309,13 @@ export function useCommandMenuRows({
   const installed = useQuery(
     rpcClient.apps.live.list.experimental_liveOptions(),
   );
+  // The skills a person keeps, theirs and other agents', which open as
+  // folders the way Settings' rows do; the ones Instrument ships have no
+  // folder to open.
+  const skillList = useQuery(
+    rpcClient.workspace.skill.list.queryOptions({ enabled: active }),
+  );
+  const appWindow = useContext(WindowContext);
   // Read only while the menu is up, which is mounted in every window.
   const sources = useSearchSources({ enabled: active });
   const { bookmarkPages, chats, chatTitles, recentPages } = sources;
@@ -377,6 +390,18 @@ export function useCommandMenuRows({
         shell.newTab();
       },
     },
+    ...(appWindow
+      ? [
+          {
+            icon: <CubeIcon />,
+            id: "new-skill",
+            label: "New Skill",
+            run: () => {
+              appWindow.ask(NEW_SKILL_ASK);
+            },
+          },
+        ]
+      : []),
     {
       chord: WINDOW_MENU_SHORTCUTS.newWindow.accelerator,
       icon: <AppWindowIcon />,
@@ -793,6 +818,27 @@ export function useCommandMenuRows({
           value: (ranges) => appItem(slug, app, ranges),
         })),
       label: "Apps",
+    },
+    {
+      entries: (skillList.data ?? [])
+        .filter((skill) => !isProvidedSource(skill.source))
+        .map((skill) => ({
+          also: { atBest: MATCH_STEPS.inside, name: skill.name },
+          id: `skill:${skill.id}`,
+          name: skill.title,
+          value: (ranges) => ({
+            detail: skillSourceLabel(skill.source),
+            icon: <CubeIcon />,
+            id: `skill:${skill.id}`,
+            label: skill.title,
+            ranges,
+            run: () => {
+              void showInFolder(skill.path, { kind: "folder" });
+            },
+            type: "item",
+          }),
+        })),
+      label: "Skills",
     },
     {
       entries: [

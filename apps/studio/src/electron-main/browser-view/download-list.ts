@@ -74,25 +74,32 @@ function update(id: string, patch: Partial<BrowserDownload>) {
 }
 
 /**
- * Puts a person's download on the list and follows it to the end.
- * `savePath` is where the file is being written, or null for a download with
- * none yet: one the system is asking the person where to put (`asked`),
- * whose path the list reads off the transfer once they have picked, and
- * otherwise one that failed before it began because no folder took it.
+ * Puts a download on the list and follows it to the end. `savePath` is
+ * where the file is being written, or null for a download with none yet:
+ * one the system is asking the person where to put (`asked`), whose path
+ * the list reads off the transfer once they have picked, and otherwise one
+ * that failed before it began because no folder took it. `agent` marks one
+ * an agent saved in its work folder, which is not the person's own.
  */
 export function trackDownload(
   item: DownloadItem,
   savePath: null | string,
   {
+    agent = false,
     asked = false,
     origin = null,
-  }: { asked?: boolean; origin?: DownloadOrigin | null } = {},
+  }: {
+    agent?: boolean;
+    asked?: boolean;
+    origin?: DownloadOrigin | null;
+  } = {},
 ) {
   const id = crypto.randomUUID();
   if (origin) {
     origins.set(id, origin);
   }
   const download: BrowserDownload = {
+    ...(agent ? { agent } : {}),
     filename: item.getFilename(),
     id,
     path: savePath,
@@ -248,7 +255,7 @@ function endedAt(download: BrowserDownload): number {
 
 /**
  * The files the person downloaded whole from `since` to `until`, both
- * included, as Activity reads them, newest first, at most `limit` (all
+ * included, an agent's left out, as Activity reads them, newest first, at most `limit` (all
  * without one): where the file landed and the address it came from without
  * its query, which a signed download link keeps its key in.
  */
@@ -264,6 +271,7 @@ export function downloadsBetween({
   const done = list().flatMap((download): HistoryAction[] => {
     const at = endedAt(download);
     if (
+      download.agent === true ||
       download.state !== "completed" ||
       download.path === null ||
       at < since ||

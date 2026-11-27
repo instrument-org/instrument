@@ -156,6 +156,24 @@ describe("applyDownloadBehavior", () => {
     },
   );
 
+  it.each([
+    { fileName: "report.csv", named: "report.csv" },
+    { fileName: "../report.csv", named: null },
+    { fileName: "out/report.csv", named: null },
+    { fileName: "..", named: null },
+  ])("takes the file's name $fileName only bare", ({ fileName, named }) => {
+    const entry = makeEntry();
+    applyDownloadBehavior(entry, {
+      behavior: "allow",
+      downloadPath: "/tmp/dl",
+      fileName,
+    });
+    expect([
+      entry.authorizedDownloadPath,
+      entry.authorizedDownloadName,
+    ]).toEqual(named === null ? [null, null] : ["/tmp/dl", named]);
+  });
+
   it.each([{ behavior: "deny" as const }, { behavior: "default" as const }])(
     "clears authorization when behavior=$behavior",
     ({ behavior }) => {
@@ -797,6 +815,36 @@ describe("routeGuestDownloads", () => {
   // agent-browser authorizes ahead of each `download` and never rescinds, so
   // the authorization ends with the transfer it was for: the person's next
   // click on the same guest is theirs, not a GUID in the agent's folder.
+  it("saves a download the agent named under that name, and lists it as the agent's", () => {
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
+    const entry = makeEntry();
+    const folder = path.join(home.dir, "work", "downloads");
+    applyDownloadBehavior(entry, {
+      behavior: "allow",
+      downloadPath: folder,
+      fileName: "q3.csv",
+    });
+    entries.set(TARGET_ID, entry);
+    const { session, trigger } = makeSession();
+    routeGuestDownloads(session, lookupIn(entries));
+
+    const item = makeFakeItem();
+    trigger(item, entry);
+    item.emit("done", {}, "completed");
+
+    expect(item.setSavePath).toHaveBeenCalledWith(path.join(folder, "q3.csv"));
+    expect(listDownloads()[0]).toMatchObject({
+      agent: true,
+      filename: "report.pdf",
+      path: path.join(folder, "q3.csv"),
+      state: "completed",
+    });
+    expect([
+      entry.authorizedDownloadPath,
+      entry.authorizedDownloadName,
+    ]).toEqual([null, null]);
+  });
+
   it("spends the agent's authorization on the one download", () => {
     const entries = new Map<BrowserTargetId, BrowserEntry>();
     const entry = makeEntry();

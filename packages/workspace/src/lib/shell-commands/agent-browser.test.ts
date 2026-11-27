@@ -1136,6 +1136,79 @@ describe("agent-browser routing", () => {
     expect(env.LOCALAPPDATA).toBeUndefined();
   });
 
+  it.each([
+    {
+      args: ["download", "@e1", "report.csv"],
+      clicked: ["click", "@e1"],
+      saved: path.join(workRoot, "downloads", "report.csv"),
+    },
+    {
+      args: [
+        "--json",
+        "download",
+        "--",
+        "@e1",
+        `${shellPath(workRoot)}/out/report.csv`,
+      ],
+      clicked: ["--json", "click", "--", "@e1"],
+      saved: path.join(workRoot, "out", "report.csv"),
+    },
+  ])(
+    "saves $args through the tab, the CLI only clicking",
+    async ({ args, clicked, saved }) => {
+      const targetId = "tab_01M5Q2CY3JB5G7KJVE1QA1HK0B";
+      const tabs = JSON.stringify({
+        data: { tabs: [{ active: true, tabId: "t1", targetId }] },
+        success: true,
+      });
+      const sent: unknown[] = [];
+      let emit: (method: string, params: unknown) => void = () => undefined;
+      const { browser } = getWorkspaceConfig();
+      browser.subscribeEvents = (_targetId, _onDetach, onEvent) => {
+        emit = onEvent;
+        return () => undefined;
+      };
+      // The fake answers every command alike, which its overloads cannot say.
+      browser.sendCommand = ((
+        _targetId: string,
+        _method: string,
+        params: unknown,
+      ) => {
+        sent.push(params);
+        return Promise.resolve({});
+      }) as typeof browser.sendCommand;
+      await answerAgentBrowser((given) => {
+        if (given.includes("click")) {
+          mkdirSync(path.dirname(saved), { recursive: true });
+          writeFileSync(saved, "a,b\n");
+          emit("Page.downloadWillBegin", { guid: "g1" });
+          emit("Page.downloadProgress", { guid: "g1", state: "completed" });
+        }
+        return {
+          exitCode: 0,
+          stderr: "",
+          stdout: given.includes("--json") ? tabs : "",
+        };
+      });
+
+      const result = await command.execute(args, commandCtx);
+
+      expect(result.exitCode).toBe(0);
+      expect(result.stdout).toContain(shellPath(saved));
+      expect(sent[0]).toEqual({
+        behavior: "allow",
+        downloadPath: path.dirname(saved),
+        eventsEnabled: true,
+        fileName: "report.csv",
+      });
+      const runs = (await agentBrowserRunsOfItsOwn()).map((run) =>
+        run.args.slice(run.args.indexOf(sessionId) + 1),
+      );
+      expect(runs.some((run) => run.includes("download"))).toBe(false);
+      expect(runs).toContainEqual(clicked);
+    },
+  );
+
   it("gives a network-idle wait the harness's timeout and reports when the network stayed busy", async () => {
     const { args } = await spawnedWith(["wait", "--load", "networkidle"]);
     expect(args.slice(-5)).toEqual([

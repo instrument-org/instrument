@@ -4,8 +4,10 @@ import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
 import Store from "@/electron-main/stores/store";
 import { z } from "zod";
 
-/** A download a person started in the in-app browser, as its list keeps it. */
+/** A download in the in-app browser, as its list keeps it. */
 const BrowserDownloadSchema = z.object({
+  // Set on one an agent saved in its work folder rather than the person's.
+  agent: z.boolean().optional(),
   filename: z.string(),
   id: z.string(),
   // Where the file is saved; null when no folder would take it.

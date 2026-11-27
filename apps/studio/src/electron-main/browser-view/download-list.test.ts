@@ -213,6 +213,25 @@ describe("downloads as Activity reads them", () => {
     ).toMatchObject([{ path: "/Users/mac-user/Downloads/w9.pdf" }]);
   });
 
+  it("leaves out a download an agent saved, which the list still shows", async () => {
+    const list = await launch();
+    finishedAt(list, "w9.pdf", 10);
+    const agents = makeItem("q3.csv");
+    list.trackDownload(agents.item, "/work/chat/downloads/q3.csv", {
+      agent: true,
+    });
+    agents.finish();
+
+    expect(list.downloadsBetween({ since: 0, until: NOW })).toMatchObject([
+      { path: "/Users/mac-user/Downloads/w9.pdf" },
+    ]);
+    expect(list.downloadsBetween({ since: 0, until: NOW })).toHaveLength(1);
+    expect(list.listDownloads().map((d) => [d.path, d.agent])).toEqual([
+      ["/work/chat/downloads/q3.csv", true],
+      ["/Users/mac-user/Downloads/w9.pdf", undefined],
+    ]);
+  });
+
   it("clears the downloads that ended from a time on, keeping those before it", async () => {
     const list = await launch();
     finishedAt(list, "old.pdf", 90);

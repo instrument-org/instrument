@@ -12,7 +12,7 @@ import { cdpBridgeUrl } from "../../logic/server/cdp-bridge-path";
 import { getWorkspaceServerPort } from "../../logic/server/url";
 import { type StoreId } from "../../schemas/store-id";
 import { type ChatId } from "../../schemas/chat-id";
-import { type BrowserConfig } from "../../types";
+import { type BrowserConfig, parseBrowserTargetId } from "../../types";
 import { WebSearch } from "../../tools/web-search";
 import {
   AGENT_BROWSER_IDLE_TIMEOUT_MS,
@@ -91,6 +91,7 @@ import {
   AFTER_ACTION_PAUSE_TIMEOUT_MS,
 } from "./agent-browser-loading";
 import { cutScreenshotNote } from "./agent-browser-screenshot-cut";
+import { downloadInTab, downloadsFolderPath } from "./agent-browser-download";
 import { typedTextRuns } from "./agent-browser-typed-text";
 import { cappedWaitResult, capWait, uncappedWait } from "./agent-browser-wait";
 import { tabStanding } from "../capabilities/window";
@@ -110,6 +111,7 @@ import {
 import { recordProgramStart } from "./command-runs";
 import { hostPathArgs, resolveCommandContext, subprocessStdin } from "./utils";
 import { workDir } from "../work-dir";
+import { shellPath } from "../shell-path";
 
 const AGENT_BROWSER_SKILL_NAME = "agent-browser";
 
@@ -675,6 +677,23 @@ function fileOperandsOf(
   }
 }
 
+/** Where `download`'s file operand is in `args`; undefined for any other command. */
+function downloadFileIndex(args: string[]): number | undefined {
+  const { subArgs, subcommand } = parseAgentBrowserArgs(args);
+  return subcommand === "download"
+    ? fileOperandsOf(subcommand, subArgs.slice(1))[0]?.index
+    : undefined;
+}
+
+/**
+ * The `click` that starts a `download`: the same words with the command
+ * named `click` and the file left out.
+ */
+function downloadClickArgs(args: string[], fileIndex: number): string[] {
+  const at = parseAgentBrowserArgs(args).subArgs[0]?.index ?? 0;
+  return args.with(at, "click").toSpliced(fileIndex, 1);
+}
+
 /** What `wait` takes out of its words, each with its value, before reading the rest. */
 const WAIT_VALUE_FLAGS = ["--timeout", "--state"];
 
@@ -1115,8 +1134,20 @@ export function createAgentBrowserCommand({
         stdout: "",
       };
     }
+    // A file `download` names by a bare name goes in the downloads folder.
+    const namedDownload = downloadFileIndex(navigationArgs.args);
+    const placedArgs =
+      namedDownload === undefined
+        ? navigationArgs.args
+        : navigationArgs.args.with(
+            namedDownload,
+            downloadsFolderPath(
+              navigationArgs.args[namedDownload] ?? "",
+              shellPath(getDownloadsDir(workDir(chatId))),
+            ),
+          );
     const bridgedArgs = await resolveAgentBrowserPathArgs(
-      navigationArgs.args,
+      placedArgs,
       ctx,
       layout,
     );
@@ -1365,8 +1396,31 @@ export function createAgentBrowserCommand({
     // When the command began, which the follow-up reads the page's messages
     // from.
     const startedAtEpoch = Date.now();
+    // The CLI saves a download only from a browser it launched, so in the
+    // window's tabs the app saves it.
+    const downloadFile = drivesChatTabs
+      ? downloadFileIndex(resolvedArgs)
+      : undefined;
     try {
-      if (typedRuns === undefined) {
+      if (downloadFile !== undefined) {
+        result = await downloadThroughTab({
+          args: resolvedArgs,
+          browser: workspaceConfig.browser,
+          fileIndex: downloadFile,
+          run: (runArgs) =>
+            runAgentBrowser({
+              ...spawnOptions,
+              args: [...connectionArgs, ...runArgs],
+              cancelSignal: ctx.signal,
+              input: undefined,
+            }).then(({ exitCode, stderr, stdout }) => ({
+              exitCode,
+              stderr,
+              stdout,
+            })),
+          signal: ctx.signal,
+        });
+      } else if (typedRuns === undefined) {
         result = await runAgentBrowser({
           ...spawnOptions,
           args: commandArgs,
@@ -1585,6 +1639,57 @@ export function createAgentBrowserCommand({
       );
     }
     return answer;
+  });
+}
+
+/**
+ * `download <selector> <path>` in the active tab of the chat's, saved by the
+ * app (`downloadInTab`). `args` are resolved, the file at `fileIndex` named
+ * as this computer names it.
+ */
+async function downloadThroughTab({
+  args,
+  browser,
+  fileIndex,
+  run,
+  signal,
+}: {
+  args: string[];
+  browser: BrowserConfig;
+  fileIndex: number;
+  run: (args: string[]) => Promise<{
+    exitCode: number | undefined;
+    stderr: string;
+    stdout: string;
+  }>;
+  signal: AbortSignal | undefined;
+}) {
+  const json = parseAgentBrowserArgs(args).globalFlags.some(
+    ({ name, value }) => name === "--json" && value !== "false",
+  );
+  const tabs = await run(FOLLOW_UP_TABS_ARGS);
+  const targetId =
+    tabs.exitCode === 0
+      ? parseBrowserTargetId(activeTabId(tabs.stdout) ?? "")
+      : null;
+  if (targetId === null) {
+    return tabs.exitCode === 0
+      ? {
+          exitCode: 1,
+          stderr: "✗ No page is open to download from\n",
+          stdout: "",
+        }
+      : tabs;
+  }
+  const savePath = args[fileIndex] ?? "";
+  return downloadInTab({
+    browser,
+    click: () => run(downloadClickArgs(args, fileIndex)),
+    json,
+    savePath,
+    shownPath: shellPath(savePath),
+    ...(signal ? { signal } : {}),
+    targetId,
   });
 }
 

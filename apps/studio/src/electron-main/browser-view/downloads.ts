@@ -19,13 +19,26 @@ import { log } from "./log";
 /**
  * The part of `Browser.setDownloadBehavior` an agent's downloads follow. A
  * folder that is not absolute would be read against this process's own
- * working folder, so it allows nothing.
+ * working folder, so it allows nothing. `fileName` is this app's own
+ * addition, which the agent's `download` command sends: the name the file
+ * is saved under in the folder, a bare name and nothing more.
  */
 const DownloadBehaviorSchema = z.object({
   behavior: z.enum(["allow", "allowAndName", "default", "deny"]),
   downloadPath: z
     .string()
     .refine((folder) => path.isAbsolute(folder))
+    .optional(),
+  fileName: z
+    .string()
+    .refine(
+      (name) =>
+        name !== "." &&
+        name !== ".." &&
+        name !== "" &&
+        !/[\\/]/.test(name) &&
+        !name.includes("\0"),
+    )
     .optional(),
 });
 
@@ -34,13 +47,17 @@ export function applyDownloadBehavior(
   params: unknown,
 ): Record<string, never> {
   const parsed = DownloadBehaviorSchema.safeParse(params);
-  entry.authorizedDownloadAt = Date.now();
-  entry.authorizedDownloadPath =
+  const allowed =
     parsed.success &&
     (parsed.data.behavior === "allow" ||
-      parsed.data.behavior === "allowAndName")
-      ? (parsed.data.downloadPath ?? null)
-      : null;
+      parsed.data.behavior === "allowAndName");
+  entry.authorizedDownloadAt = Date.now();
+  entry.authorizedDownloadPath = allowed
+    ? (parsed.data.downloadPath ?? null)
+    : null;
+  entry.authorizedDownloadName = allowed
+    ? (parsed.data.fileName ?? null)
+    : null;
   return {};
 }
 
@@ -84,9 +101,11 @@ function takeAskedSave(webContentsId: number, item: DownloadItem) {
 // The guest session's one will-download listener. Every guest shares the
 // session, so the event names only the contents a download came from, and the
 // guest registry says which tab's entry that is. With a path the agent
-// authorized via setDownloadBehavior, the file lands there under the GUID as
-// filename (what agent-browser's `download` command expects from
-// "allowAndName"), with a fresh GUID when no downloadWillBegin captured one.
+// authorized via setDownloadBehavior, the file lands there under the name the
+// agent gave, and goes on the download list beside the person's own;
+// without a name, under the GUID as filename (what agent-browser's own
+// `download` command expects from "allowAndName"), with a fresh GUID when no
+// downloadWillBegin captured one.
 // Without one, the download is the person's own, from a click in the browser
 // panel, and lands in their Downloads folder under its own name, or wherever
 // they say when that folder takes no file. Only a download from a contents no
@@ -209,6 +228,7 @@ export function routeGuestDownloads(
       saveForAgent(entry, item, {
         authorizedDownloadPath: entry.authorizedDownloadPath,
         marked,
+        origin,
         stillOwned,
       });
     } else {
@@ -379,13 +399,14 @@ function personDownloadsDir(): null | string {
 }
 
 // A download the agent asked for and the page may not make: told as begun and
-// canceled at once, so agent-browser's `download` errors now rather than
+// canceled at once, so the agent's `download` errors now rather than
 // waiting out its timeout for an event that never comes.
 function refuseForAgent(entry: BrowserEntry, item: DownloadItem) {
   const guid =
     entry.pendingDownloadGuids.get(item.getURL()) ?? crypto.randomUUID();
   entry.pendingDownloadGuids.delete(item.getURL());
   entry.authorizedDownloadPath = null;
+  entry.authorizedDownloadName = null;
   const willBegin: Protocol.Browser.DownloadWillBeginEvent = {
     frameId: entry.targetId,
     guid,
@@ -407,17 +428,20 @@ function refuseForAgent(entry: BrowserEntry, item: DownloadItem) {
 // `stillOwned` says whether the guest the download came from is still this
 // entry's when it finishes; a guest gone by then has nobody left to tell.
 // `marked` settles once the finished file carries its download mark, or the
-// mark failed.
+// mark failed. A download the agent named goes on the download list, where
+// the person sees it beside their own and opens it where it was saved.
 function saveForAgent(
   entry: BrowserEntry,
   item: DownloadItem,
   {
     authorizedDownloadPath,
     marked,
+    origin,
     stillOwned,
   }: {
     authorizedDownloadPath: string;
     marked: Promise<void>;
+    origin: DownloadOrigin;
     stillOwned: () => boolean;
   },
 ) {
@@ -426,11 +450,19 @@ function saveForAgent(
   const guid =
     entry.pendingDownloadGuids.get(item.getURL()) ?? crypto.randomUUID();
   entry.pendingDownloadGuids.delete(item.getURL());
-  item.setSavePath(`${authorizedDownloadPath}/${guid}`);
+  const name = entry.authorizedDownloadName;
+  const savePath =
+    name === null
+      ? `${authorizedDownloadPath}/${guid}`
+      : path.join(authorizedDownloadPath, name);
+  item.setSavePath(savePath);
+  if (name !== null) {
+    trackDownload(item, savePath, { agent: true, origin });
+  }
   entry.agentDownloads.add(guid);
 
-  // Synthesize Page.downloadWillBegin so agent-browser's download command
-  // can capture the GUID and start waiting for completion.
+  // Synthesize Page.downloadWillBegin so the agent's `download` can capture
+  // the GUID and start waiting for completion.
   const willBegin: Protocol.Browser.DownloadWillBeginEvent = {
     frameId: targetId,
     guid,
@@ -446,12 +478,14 @@ function saveForAgent(
       entry.agentDownloads.delete(guid);
       return;
     }
-    // The authorization was for this one transfer: agent-browser sends a
-    // fresh setDownloadBehavior ahead of every `download` and never rescinds
-    // one, so left in place it would claim the person's next click on this
-    // guest too, saving it under a GUID where they cannot find it.
+    // The authorization was for this one transfer: the agent's `download`
+    // sends a fresh setDownloadBehavior ahead of every click, so left in
+    // place it would claim the person's next click on this guest too, saving
+    // it in the agent's folder where they would not look.
     entry.authorizedDownloadPath = null;
-    // Synthesize Page.downloadProgress so agent-browser resolves or errors.
+    entry.authorizedDownloadName = null;
+    // Synthesize Page.downloadProgress so the agent's `download` resolves or
+    // errors.
     const progress: Protocol.Browser.DownloadProgressEvent = {
       guid,
       receivedBytes: item.getReceivedBytes(),

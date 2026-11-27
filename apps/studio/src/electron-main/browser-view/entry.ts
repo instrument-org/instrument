@@ -87,6 +87,12 @@ export interface BrowserEntry {
   closing: boolean;
   authorizedDownloadPath: null | string;
   /**
+   * The name the agent's authorized download is saved under in
+   * `authorizedDownloadPath`; null for the GUID agent-browser's own
+   * `download` names it by.
+   */
+  authorizedDownloadName: null | string;
+  /**
    * When the agent last authorized a download (`Date.now()`). A person's input
    * in the guest after it makes the next download theirs: agent-browser sends
    * the authorization ahead of its own click, and a click of theirs that
@@ -208,6 +214,7 @@ export function createEntry({
     attach: createAttachSignal(),
     closing: false,
     authorizedDownloadAt: 0,
+    authorizedDownloadName: null,
     authorizedDownloadPath: null,
     capturesRunning: 0,
     destructionListeners: new Set(),

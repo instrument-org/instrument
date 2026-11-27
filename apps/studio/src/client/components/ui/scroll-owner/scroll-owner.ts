@@ -89,6 +89,8 @@ export class ScrollOwner {
   private pendingJump: { messageId: string; options?: ScrollOptions } | null =
     null;
   private hasOpened = false;
+  /** The first message row and its top, as last seen with the view at the very top. */
+  private atTop: { row: HTMLElement; top: number } | null = null;
   /**
    * Taking the end is an arrival, and what arrived lays out for a while after
    * (images size themselves, cards fetch what they show), so the end is held
@@ -431,6 +433,7 @@ export class ScrollOwner {
     }
     this.keepPlaceAtTop(records);
     this.reconcile();
+    this.noteTop();
   }
 
   /**
@@ -438,43 +441,46 @@ export class ScrollOwner {
    * where it was. The browser's scroll anchoring keeps the reader's place
    * anywhere else, but anchors nothing at a scroll position of 0, so the page
    * of history that loads as the reader reaches the top would push what they
-   * were reading down by its height. When the first rows are new, with
-   * nothing but rows that are not messages (the loader) above them, the
-   * first row that was there before goes back to where the first new row
-   * starts, which is where it was.
+   * were reading down by its height. The first message row as last seen
+   * there goes back to where it was, whatever else came or went above it
+   * (the loader goes with the last page).
    */
   private keepPlaceAtTop(records: readonly MutationRecord[]) {
     const viewport = this.viewport;
-    const content = this.content;
+    const at = this.atTop;
     if (
       !viewport ||
-      !content ||
+      !at?.row.isConnected ||
       this.mode.kind !== "keep" ||
       viewport.scrollTop > SAME_POSITION / 2
     ) {
       return;
     }
-    const added = new Set(records.flatMap((record) => [...record.addedNodes]));
-    const rows = [...content.children].filter(
-      (row): row is HTMLElement =>
-        row instanceof HTMLElement && row !== this.spacer,
+    const isAbove = records.some((record) =>
+      [...record.addedNodes].some(
+        (node) =>
+          node.compareDocumentPosition(at.row) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
     );
-    const first = rows.findIndex((row) => added.has(row));
-    const kept = rows.slice(first + 1).find((row) => !added.has(row));
-    const drawnIn = rows[first];
-    if (
-      first === -1 ||
-      !drawnIn ||
-      !kept ||
-      rows
-        .slice(0, first)
-        .some((row) => row.hasAttribute("data-message-scroller-item"))
-    ) {
-      return;
+    if (isAbove) {
+      this.writeScroll(
+        viewport.scrollTop + scrollTopOf(at.row, viewport) - at.top,
+      );
     }
-    this.writeScroll(
-      scrollTopOf(kept, viewport) - scrollTopOf(drawnIn, viewport),
-    );
+  }
+
+  /** Notes the first message row's place while the view is at the very top. */
+  private noteTop() {
+    const viewport = this.viewport;
+    const row =
+      viewport && viewport.scrollTop <= SAME_POSITION / 2
+        ? this.content?.querySelector<HTMLElement>(
+            ":scope > [data-message-scroller-item]",
+          )
+        : null;
+    this.atTop =
+      viewport && row ? { row, top: scrollTopOf(row, viewport) } : null;
   }
 
   private onResize = () => {
@@ -506,6 +512,7 @@ export class ScrollOwner {
       // behind them, so the end is never further than what is there.
       this.writeSpacer(settle(this.mode, geometry, this.settings).spacer);
     }
+    this.noteTop();
     this.publish(geometry);
   };
 

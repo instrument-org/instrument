@@ -161,7 +161,10 @@ export const memorySave = defineCapability({
       after: memory.text,
       before: before?.text ?? null,
     });
-    return `${replaced ? "Replaced" : "Saved"} "${memory.name}": ${memoryHeadline(memory.text)}`;
+    if (replaced && before) {
+      return `Replaced "${memory.name}" (was: ${memoryHeadline(before.text)}): ${memoryHeadline(memory.text)}`;
+    }
+    return `Saved "${memory.name}": ${memoryHeadline(memory.text)}`;
   },
   summary: "Keep something for every chat to come.",
   surfaces: {

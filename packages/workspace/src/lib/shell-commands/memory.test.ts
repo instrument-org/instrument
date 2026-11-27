@@ -127,7 +127,7 @@ describe("memory", () => {
     expect(await listMemories(memoryDir())).toEqual([]);
   });
 
-  it("replaces under the same name, and says so", async () => {
+  it("replaces under the same name, and says what it held", async () => {
     await run(["save", "sweetener"], "No stevia.");
 
     const corrected = await run(
@@ -135,9 +135,10 @@ describe("memory", () => {
       "Stevia is fine; sucralose gives you headaches.",
     );
 
-    expect(corrected.stdout).toBe(
-      'Replaced "sweetener": Stevia is fine; sucralose gives you headaches.\n',
-    );
+    expect(corrected.stdout).toMatchInlineSnapshot(`
+      "Replaced "sweetener" (was: No stevia.): Stevia is fine; sucralose gives you headaches.
+      "
+    `);
     const listed = await listMemories(memoryDir());
     expect(listed.map((memory) => memory.text)).toEqual([
       "Stevia is fine; sucralose gives you headaches.",

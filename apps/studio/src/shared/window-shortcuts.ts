@@ -61,6 +61,9 @@ export const WINDOW_SHORTCUTS = {
     accelerator: { darwin: "Alt+CmdOrCtrl+W", default: "Alt+Shift+W" },
     label: "Close Split",
   },
+  // A tab group is this app's window: ⌘N makes one, so the chord a browser
+  // closes its window with closes one.
+  closeGroup: { accelerator: "Shift+CmdOrCtrl+W", label: "Close Tab Group" },
   closeTab: { accelerator: "CmdOrCtrl+W", label: "Close Tab" },
   // The system's file manager's own key: Get Info's on a Mac, and Properties'
   // in File Explorer, GNOME's Files and Dolphin.
@@ -95,6 +98,12 @@ export const WINDOW_SHORTCUTS = {
   nextTab: { accelerator: "Ctrl+Tab", label: "Show Next Tab" },
   previousChat: { accelerator: chatChord("Up"), label: "Previous Tab Group" },
   previousTab: { accelerator: "Ctrl+Shift+Tab", label: "Show Previous Tab" },
+  // Slack's and Google Docs' key for their shortcut list; a code editor's
+  // Toggle Comment too (`CODE_EDITOR_SHORTCUTS`).
+  openShortcutGuide: {
+    accelerator: "CmdOrCtrl+/",
+    label: "Keyboard Shortcuts",
+  },
   printPage: { accelerator: "CmdOrCtrl+P", label: "Print…" },
   reloadPage: { accelerator: "CmdOrCtrl+R", label: "Reload Page" },
   reopenTab: { accelerator: "Shift+CmdOrCtrl+T", label: "Reopen Closed Tab" },
@@ -139,7 +148,8 @@ export type WindowShortcutId = keyof typeof WINDOW_SHORTCUTS;
  * over a syntax node elsewhere, and Next and Previous Chat add a cursor above
  * or below on a Mac and copy the line elsewhere, Focus Left and Right Side
  * select over a syntax node off the Mac, Find Next and Previous
- * step its own search, and Bookmark This Tab selects the next match. While a
+ * step its own search, Bookmark This Tab selects the next match, and
+ * Keyboard Shortcuts toggles a comment. While a
  * code editor holds
  * the keyboard these reach it first, and the menu answers only a press it
  * leaves alone. Find is its too, and the window already hands that to the
@@ -154,6 +164,7 @@ export const CODE_EDITOR_SHORTCUTS: ReadonlySet<WindowShortcutId> = new Set([
   "focusRightSide",
   "forward",
   "nextChat",
+  "openShortcutGuide",
   "previousChat",
 ]);
 
@@ -189,7 +200,12 @@ export const WINDOW_SHORTCUT_ALIASES: {
  */
 export const WINDOW_MENU_SHORTCUTS = {
   actualSize: { accelerator: "CmdOrCtrl+0", label: "Actual Size" },
-  closeWindow: { accelerator: "Shift+CmdOrCtrl+W", label: "Close Window" },
+  // Close Tab Group's chord with Control on a Mac, since that one takes
+  // Shift+Cmd+W; elsewhere the system's own Alt+F4.
+  closeWindow: {
+    accelerator: { darwin: "Control+Shift+Command+W", default: "Alt+F4" },
+    label: "Close Window",
+  },
   // Stands for nine chords, one per sidebar row, which the menu spells out
   // itself: Control on a Mac, beside Command's tabs, and Alt elsewhere, where
   // Ctrl is the tab key. macOS gives Control and a number to Spaces only for

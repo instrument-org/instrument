@@ -117,7 +117,6 @@ import { NEW_SKILL_ASK } from "@/client/lib/new-skill-ask";
 import { showInFolder } from "@/client/lib/show-in-files";
 import { isProvidedSource, skillSourceLabel } from "@/client/lib/skill-source";
 import { WindowContext } from "@/client/components/window/context";
-import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { SHORTCUTS, type ShortcutAccelerator } from "@/shared/shortcuts";
 import {
   WINDOW_MENU_SHORTCUTS,
@@ -424,7 +423,7 @@ export function useCommandMenuRows({
       },
     },
     {
-      chord: SHORTCUT_GUIDE.accelerator,
+      chord: WINDOW_SHORTCUTS.openShortcutGuide.accelerator,
       icon: <KeyboardIcon />,
       id: "shortcuts",
       label: "Keyboard Shortcuts",

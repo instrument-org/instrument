@@ -1,6 +1,5 @@
 import { windowHoldsAtom } from "@/client/atoms/tab-navigation-block";
 import { composerWithKeyboard } from "@/client/lib/keyboard-home";
-import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { getDefaultStore } from "jotai";
 
 import { isTypingInto } from "./is-typing-into";
@@ -62,8 +61,7 @@ function composerFor(target: EventTarget | null) {
  * ordinary press. A paste already has its target, so it is made again on the
  * composer, which reads files, pictures and long text as it always does.
  *
- * Space stays a button's press and the transcript's scroll, and `?` the
- * shortcut guide's.
+ * Space stays a button's press and the transcript's scroll.
  */
 export function installTypeToCompose() {
   const onKeyDown = (event: KeyboardEvent) => {
@@ -76,8 +74,7 @@ export function installTypeToCompose() {
       ((event.ctrlKey || event.altKey) &&
         !event.getModifierState("AltGraph")) ||
       event.key.length !== 1 ||
-      event.key === " " ||
-      event.key === SHORTCUT_GUIDE.accelerator
+      event.key === " "
     ) {
       return;
     }

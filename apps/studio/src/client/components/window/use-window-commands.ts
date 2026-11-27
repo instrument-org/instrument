@@ -137,6 +137,8 @@ export function useWindowCommands(
     newTabInSplit: () => void;
     /** The side with the keyboard of the group on screen closed whole, where the group has two. */
     closeSplit: () => void;
+    /** The tab group on screen closed, as its row's Close Tab Group does. */
+    closeGroup: () => void;
     /** A tab another window handed over, up here at a point along the strip. */
     receiveTab: (tab: Tab, index?: number) => void;
     /** A tab group's tab another window let go over this one, into a group here by where it landed. */
@@ -309,6 +311,10 @@ export function useWindowCommands(
         }
         case "closeSplit": {
           latest.current.closeSplit();
+          break;
+        }
+        case "closeGroup": {
+          latest.current.closeGroup();
           break;
         }
         case "closeTab": {

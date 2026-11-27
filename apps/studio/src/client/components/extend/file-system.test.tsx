@@ -1614,24 +1614,6 @@ describe("the keyboard", () => {
       expect(onMoveHere).toHaveBeenCalledOnce();
       expect(onNewFolder).toHaveBeenCalledOnce();
     });
-
-    it("leaves the window's own key to it", () => {
-      const heard = vi.fn();
-      const onKeyDown = (event: KeyboardEvent) => {
-        if (!event.defaultPrevented) heard(event.key);
-      };
-      window.addEventListener("keydown", onKeyDown);
-      onTestFinished(() => {
-        window.removeEventListener("keydown", onKeyDown);
-      });
-      const { reported, row } = renderList();
-
-      fireEvent.click(row("a.txt"));
-      fireEvent.keyDown(row("a.txt"), { key: "?", shiftKey: true });
-
-      expect(heard).toHaveBeenCalledWith("?");
-      expect(reported()).toEqual(["a.txt"]);
-    });
   });
 
   it("keeps one empty stripe past the last row, where a press lets go", () => {

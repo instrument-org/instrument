@@ -61,6 +61,7 @@ const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
   back: "chevron.backward",
   bookmarkAllTabs: "star.square.on.square",
   bookmarkTab: "star",
+  closeGroup: "xmark.square.fill",
   closeSplit: "xmark.rectangle",
   closeTab: "xmark.square",
   commandMenu: "command",
@@ -77,6 +78,7 @@ const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
   newTab: "plus.square.on.square",
   nextChat: "arrow.down",
   nextTab: "chevron.right",
+  openShortcutGuide: "keyboard",
   previousChat: "arrow.up",
   previousTab: "chevron.left",
   printPage: "printer",
@@ -156,13 +158,25 @@ const FILE_INFO_CHORDS: WindowChord[] = [
 
 /**
  * Cmd+W closes the tab on screen and never the window, which has tabs the
- * user may be keeping; the window closes on Shift+Cmd+W, a role below.
+ * user may be keeping; Shift+Cmd+W closes the tab group on screen, as it
+ * closes a browser's window, and the window has its own chord, a role below.
  */
 const TAB_CHORDS: WindowChord[] = [
   chord("newTab"),
   chord("closeTab"),
+  chord("closeGroup"),
   chord("reopenTab"),
 ];
+
+/**
+ * The shortcut guide, drawn in the Help menu (`createHelpMenu`) and answered
+ * here ahead of the page like every window chord. The guide's search field is
+ * the window's, so a page guest holding the keyboard gives it back first.
+ */
+const SHORTCUT_GUIDE_CHORD = chord("openShortcutGuide", (window) => {
+  window.webContents.focus();
+  commandWindow(window, "openShortcutGuide");
+});
 
 /**
  * The bookmarks bar shown or hidden in every window at once, a preference the
@@ -302,6 +316,7 @@ const WINDOW_CHORDS = [
   ...BOOKMARK_MANAGER_CHORDS,
   ...BOOKMARK_CHORDS,
   ...SIDE_CHORDS,
+  SHORTCUT_GUIDE_CHORD,
 ];
 
 /**
@@ -398,7 +413,10 @@ export function createAppWindowMenu(
         label: "Reopen Closed Window",
         ...menuSymbol("arrow.uturn.backward.square"),
       },
-      { ...WINDOW_MENU_SHORTCUTS.closeWindow, role: "close" as const },
+      {
+        ...resolvedMenuShortcut(WINDOW_MENU_SHORTCUTS.closeWindow),
+        role: "close" as const,
+      },
     ],
   };
 
@@ -522,15 +540,7 @@ export function createAppWindowMenu(
           commandWindow(window, "reportProblem");
         }
       },
-      shortcutGuide: () => {
-        // A focused page guest holds the keyboard, and the guide's search
-        // field is the window's, so the window takes the keyboard back first.
-        const window = BrowserWindow.getFocusedWindow();
-        window?.webContents.focus();
-        if (window) {
-          commandWindow(window, "openShortcutGuide");
-        }
-      },
+      shortcutGuide: menuItem(SHORTCUT_GUIDE_CHORD, windows),
     }),
     ...(isDeveloperMode() ? createDevToolsMenu({ windowCommands: true }) : []),
   ]);
@@ -582,7 +592,14 @@ function menuItems(
   chords: WindowChord[],
   windows: WindowMenuActions,
 ): MenuItemConstructorOptions[] {
-  return chords.map(({ accelerator, id, label, run, symbol, visible }) => ({
+  return chords.map((each) => menuItem(each, windows));
+}
+
+function menuItem(
+  { accelerator, id, label, run, symbol, visible }: WindowChord,
+  windows: WindowMenuActions,
+): MenuItemConstructorOptions {
+  return {
     accelerator,
     click: () => {
       const window = BrowserWindow.getFocusedWindow();
@@ -594,5 +611,5 @@ function menuItems(
     },
     label,
     ...(visible === false ? { visible } : symbol ? menuSymbol(symbol) : {}),
-  }));
+  };
 }

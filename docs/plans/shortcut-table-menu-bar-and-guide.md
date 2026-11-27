@@ -16,15 +16,15 @@ One declaration per shortcut, read by every surface that shows or runs it:
 
 - the native menu (macOS, and Windows/Linux until the in-app bar ships),
 - an in-app menu bar drawn by us on Windows/Linux,
-- a shortcut guide the user opens with `?`,
+- a shortcut guide the user opens with Cmd+/ (Ctrl+/ elsewhere),
 - the `before-input-event` binder that runs the app's own chords ahead of the page.
 
 ### Success criteria
 
 - Adding a shortcut means adding one entry. No second edit to make it appear in a menu, the guide, or the binder.
 - The in-app menu bar on Windows/Linux offers the same items and chords as the native menu, and firing one runs the identical action.
-- `?` with no editable focused opens a grouped, searchable list of every shortcut, with chords rendered per platform.
-- Typing `?` into the prompt editor inserts a question mark and does not open the guide.
+- Cmd+/ (Ctrl+/ elsewhere) opens a grouped, searchable list of every shortcut, with chords rendered per platform, wherever the keyboard is, a page guest included.
+- In a code editor, Cmd+/ toggles a comment and the Help menu still opens the guide.
 - Changing a chord in the table updates the menu, the bar, and the guide together.
 
 ## Current building blocks (reuse, don't rebuild)
@@ -45,8 +45,7 @@ One declaration per shortcut, read by every surface that shows or runs it:
 - **`AppCommand` is the action vocabulary.** Most items already resolve to one (`toggleSidebar`, `navigate`, `selectByIndex`...). Entries whose action is main-only (`reload`, `goBack`, zoom, `Close Tab`'s focused-window branch) keep a main-side handler and are dispatched over RPC when the in-app bar fires them.
 - **Roles stay roles.** Undo/Redo/Cut/Copy/Paste/Select All are `role:` items Chromium implements against the focused editable. The in-app bar must invoke them through `webContents` role equivalents rather than re-implementing editing. They are out of the table until the bar needs to draw them: their chords diverge by platform in ways the Edit role already handles (Windows redo is `Ctrl+Y`), so listing them would mean asserting a chord we don't own.
 - **Accelerator strings stay Electron-shaped** (`CmdOrCtrl+Shift+T`), with one formatter for display (`⌘⇧T` vs `Ctrl+Shift+T`) and one matcher for raw key events ([match-accelerator.ts](../../apps/studio/src/electron-main/menus/match-accelerator.ts)). The matcher reads any modifier set and decides a character key on `key`, the character the layout typed, because that is what the native menu decides on as well -- an accelerator becomes a Cocoa key equivalent matched against what the key types, and a layout-mapped VKEY elsewhere. Matching the physical `code` instead reads as equivalent on QWERTY and lands the app's chords on top of the user's editing keys everywhere else: on AZERTY, Cmd+Z arrives at the position QWERTY calls W. `code` is kept only for keys no character can decide -- the numpad, whose `+` is the same character as a shifted `=`, and the named keys. An accelerator outside the vocabulary parses to `null` and matches nothing, and a table entry that lands there fails the suite.
-- **The guide's `?` is not a menu accelerator.** It has no modifier, is layout-dependent (Shift+/ on US), and must yield to any editable. It is a renderer keydown gated on the active element, not a main-process chord. The Help menu item is the modifier-free way in, and carries no accelerator.
-- **`?` yields to every modal.** It is cheap to press by accident, so the handler no-ops while anything holds the window (`windowHoldsAtom`) rather than replacing whatever the user is mid-way through. `studioModalAtom`'s `replaceable: false` is the backstop for the paths that don't go through the key (the Help menu item, `openShortcutGuide`).
+- **The guide's chord is a window chord, not a bare key.** A bare `?` had to yield to every editable and never reached a page guest, which holds its own keys, so it worked only while the keyboard was on the app's chrome. Cmd+/ is answered ahead of the page like every window chord, and is a code editor's own key (`CODE_EDITOR_SHORTCUTS`).
 
 ## Implementation phases
 
@@ -60,7 +59,7 @@ Descriptors are a static shared import; actions are a main-side `Record<Shortcut
 
 ### Phase 3 - Shortcut guide (done)
 
-[shortcut-guide-modal.tsx](../../apps/studio/src/client/components/studio-modals/shortcut-guide-modal.tsx): an app-wide modal, grouped and searchable through the same uFuzzy + `FuzzyHighlight` pairing the command menu and skill search use ([shortcut-search.ts](../../apps/studio/src/client/lib/shortcut-search.ts)), with chords rendered per platform into `Kbd` caps. Opened by `?` ([use-shortcut-guide-hotkey.ts](../../apps/studio/src/client/hooks/use-shortcut-guide-hotkey.ts)), by Help > Keyboard Shortcuts, or by the `openShortcutGuide` app command.
+[shortcut-guide-modal.tsx](../../apps/studio/src/client/components/studio-modals/shortcut-guide-modal.tsx): an app-wide modal, grouped and searchable through the same uFuzzy + `FuzzyHighlight` pairing the command menu and skill search use ([shortcut-search.ts](../../apps/studio/src/client/lib/shortcut-search.ts)), with chords rendered per platform into `Kbd` caps. Opened by its chord ([window-shortcuts.ts](../../apps/studio/src/shared/window-shortcuts.ts)), by Help > Keyboard Shortcuts, or by the command menu.
 
 ### Phase 4 - In-app menu bar
 

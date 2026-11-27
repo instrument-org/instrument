@@ -65,6 +65,7 @@ const handlers = {
   moveTabToNewWindow: vi.fn(),
   newTabInSplit: vi.fn(),
   closeSplit: vi.fn(),
+  closeGroup: vi.fn(),
   receiveGroupTab: vi.fn(),
   receiveTab: vi.fn(),
   showActivity: vi.fn(),

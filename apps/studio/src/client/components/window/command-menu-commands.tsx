@@ -378,6 +378,7 @@ export function useMenuCommands({
             () => {
               closeGroups([group]);
             },
+            WINDOW_SHORTCUTS.closeGroup.accelerator,
           ),
           action(
             "close-other-tab-groups",

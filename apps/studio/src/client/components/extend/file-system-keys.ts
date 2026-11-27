@@ -11,7 +11,6 @@ import {
   OS_CONVENTIONS,
   type OsConventions,
 } from "@/shared/os-conventions";
-import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { resolveAccelerator } from "@/shared/shortcuts";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 
@@ -239,8 +238,8 @@ export function listingCommandOf(
   }
   if (press.key === " ") return { type: "space" };
   // One character a name could have in it. `key` is a word for everything
-  // else (Tab, F5, Dead, Process), and the window keeps the guide's own key.
-  if (/^\P{C}$/u.test(press.key) && press.key !== SHORTCUT_GUIDE.accelerator) {
+  // else (Tab, F5, Dead, Process).
+  if (/^\P{C}$/u.test(press.key)) {
     return { char: press.key, type: "type-ahead" };
   }
   return null;

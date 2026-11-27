@@ -10,7 +10,6 @@ import { Input } from "@/client/components/ui/input";
 import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
-import { useShortcutGuideHotkey } from "@/client/hooks/use-shortcut-guide-hotkey";
 import { currentOs } from "@/client/lib/utils";
 import { ShortcutKeys } from "@/client/components/shortcut-keys";
 import {
@@ -28,8 +27,8 @@ import { useState } from "react";
 
 /**
  * The guide to every chord the window answers to, mounted once at the window
- * root, which is also where `?` is listened for. Reads
- * `shortcutGuideModalAtom` (opened by `?` or the Help menu).
+ * root. Reads `shortcutGuideModalAtom` (opened by its chord, the Help menu or
+ * the command menu).
  * Rows are grouped and searchable; chords are drawn for this platform from the
  * same tables the native menu builds its accelerators from, so nothing here
  * can go stale. Traps tab navigation while open.
@@ -39,7 +38,6 @@ export function ShortcutGuideModal() {
   const isOpen = state !== null;
   const { content, onExitComplete, openKey } = useDeferredModalState(state);
 
-  useShortcutGuideHotkey();
   useModalBack(() => {
     setState(null);
   }, isOpen);

@@ -98,7 +98,6 @@ describe("formatAcceleratorFor", () => {
       ),
     ).toMatchInlineSnapshot(`
       [
-        "shortcutGuide: ?  /  ?  /  ?",
         "pasteAsText: ⇧ ⌘ V  /  Ctrl Shift V  /  Ctrl Shift V",
         "stopChat: Esc  /  Esc  /  Esc",
         "pageForward: →  /  →  /  →",
@@ -113,6 +112,7 @@ describe("formatAcceleratorFor", () => {
         "bookmarkAllTabs: ⇧ ⌘ D  /  Ctrl Shift D  /  Ctrl Shift D",
         "bookmarkTab: ⌘ D  /  Ctrl D  /  Ctrl D",
         "closeSplit: ⌥ ⌘ W  /  Alt Shift W  /  Alt Shift W",
+        "closeGroup: ⇧ ⌘ W  /  Ctrl Shift W  /  Ctrl Shift W",
         "closeTab: ⌘ W  /  Ctrl W  /  Ctrl W",
         "fileInfo: ⌘ I  /  Alt Enter  /  Alt Enter",
         "commandMenu: ⌘ K  /  Ctrl K  /  Ctrl K",
@@ -130,6 +130,7 @@ describe("formatAcceleratorFor", () => {
         "nextTab: ⌃ Tab  /  Ctrl Tab  /  Ctrl Tab",
         "previousChat: ⌥ ⌘ ↑  /  Alt Shift ↑  /  Alt Shift ↑",
         "previousTab: ⌃ ⇧ Tab  /  Ctrl Shift Tab  /  Ctrl Shift Tab",
+        "openShortcutGuide: ⌘ /  /  Ctrl /  /  Ctrl /",
         "printPage: ⌘ P  /  Ctrl P  /  Ctrl P",
         "reloadPage: ⌘ R  /  Ctrl R  /  Ctrl R",
         "reopenTab: ⇧ ⌘ T  /  Ctrl Shift T  /  Ctrl Shift T",
@@ -141,7 +142,7 @@ describe("formatAcceleratorFor", () => {
         "toggleSidebar: ⌘ B  /  Ctrl B  /  Ctrl B",
         "toggleSidePanel: ⌃ ⌘ S  /  Ctrl Shift S  /  Ctrl Shift S",
         "actualSize: ⌘ 0  /  Ctrl 0  /  Ctrl 0",
-        "closeWindow: ⇧ ⌘ W  /  Ctrl Shift W  /  Ctrl Shift W",
+        "closeWindow: ⌃ ⇧ ⌘ W  /  Alt F4  /  Alt F4",
         "groupByPlace: ⌃ 1…9  /  Alt 1…9  /  Alt 1…9",
         "lastTab: ⌘ 9  /  Ctrl 9  /  Ctrl 9",
         "newWindow: ⇧ ⌘ N  /  Ctrl Shift N  /  Ctrl Shift N",

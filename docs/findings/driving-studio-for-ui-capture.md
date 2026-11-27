@@ -53,7 +53,7 @@ The dev panel's Updates submenu simulates download, error, no-updates, and the b
 
 ### Tooling gaps in the CDP CLI
 
-- The subcommand list is long enough to be worth reading to the end. `press_key`, `type_text`, `handle_dialog`, `upload_file` and `screencast_start` are all there and easy to miss, and reaching for a synthetic `KeyboardEvent` instead only works when the handler is a document-level listener, as the `?` shortcut guide happens to be.
+- The subcommand list is long enough to be worth reading to the end. `press_key`, `type_text`, `handle_dialog`, `upload_file` and `screencast_start` are all there and easy to miss, and reaching for a synthetic `KeyboardEvent` instead only works when the handler is a document-level listener.
 - `click_at` is behind `--experimentalVision`.
 - The daemon does not notice when the app it was pointed at dies. The resulting error names Chrome, not Studio, which sends you to look at the wrong process.
 - `take_screenshot` writes device pixels while `getBoundingClientRect()` returns CSS pixels. Documented in the studio-chrome-devtools repro recipes, but every run still rebuilds the same crop arithmetic.

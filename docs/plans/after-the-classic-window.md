@@ -21,7 +21,7 @@ The app window lists the tasks its chats started (`workspace.chats.live.tasks`),
 - **Task search.** Cmd+K searched tasks, projects and debug pages by name. Not coming back as a palette; [chat-search-in-the-omnibar.md](chat-search-in-the-omnibar.md) proposed finding chats and tasks from the omnibar, superseded once each tab's omnibar was scoped to what that tab holds.
 - **Tasks list** with filters and bulk delete. Not coming back: tasks are the chat's to manage, and the Tasks screen lists a chat's tasks, or every chat's.
 - **Branch from a message.** Deleted, and not coming back: `workspace.task.branch` and `lib/branch-task.ts`.
-- **Keyboard shortcut guide.** Back: `?`, Help > Keyboard Shortcuts, and the omnibar open a searchable guide generated from `shared/window-shortcuts.ts` and `shared/shortcuts.ts`.
+- **Keyboard shortcut guide.** Back: Cmd+/, Help > Keyboard Shortcuts, and the omnibar open a searchable guide generated from `shared/window-shortcuts.ts` and `shared/shortcuts.ts`.
 - **Welcome modal and tutorial task.** Deleted, and not migrated; to be replaced by a first run designed for the app window.
 - **Transcript viewer** (developer mode). Deleted, with `transcript.content`, the route that rendered a transcript for it. A transcript is rendered from the chat's records with `script:dump-session-transcript`; `/debug/components/transcript` is the chat transcript's component gallery, not a viewer.
 - **Chat replay** (developer mode). Deleted: `workspace.debug.replaySession`, `workspace.replay.*`, `lib/session-replay.ts`, and the replay sessions a task's activity reported. The seeder inserts recorded transcripts without re-running them.

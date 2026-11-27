@@ -124,7 +124,7 @@ it.each(["field", "menu", "finds-names"])(
   },
 );
 
-it.each([" ", "?", "{Enter}", "{ArrowDown}", "{Control>}b{/Control}"])(
+it.each([" ", "{Enter}", "{ArrowDown}", "{Control>}b{/Control}"])(
   "leaves %s alone",
   async (keys) => {
     const { value } = await draw();

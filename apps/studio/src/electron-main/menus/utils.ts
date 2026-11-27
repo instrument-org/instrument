@@ -3,7 +3,6 @@ import { publisher, type WindowCommand } from "@/electron-main/rpc/publisher";
 import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
 import { getAppZoom } from "@/electron-main/stores/workspace/window-state";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
-import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { resolveAccelerator } from "@/shared/shortcuts";
 import { WINDOW_MENU_SHORTCUTS } from "@/shared/window-shortcuts";
 import { SUPPORT_URL } from "@instrument-org/shared";
@@ -260,7 +259,7 @@ export function createEditMenu(): MenuItemConstructorOptions {
 }
 
 /**
- * `shortcutGuide` opens the keyboard shortcut guide and `reportProblem` the
+ * `shortcutGuide` is the row that opens the keyboard shortcut guide and `reportProblem` opens the
  * report dialog, which only the app window draws once setup is done; a
  * window without them leaves both out, and Support is its way to reach us.
  * The order matches the app rail's Help menu.
@@ -270,7 +269,8 @@ export function createHelpMenu({
   shortcutGuide,
 }: {
   reportProblem?: () => void;
-  shortcutGuide?: () => void;
+  /** Its menu row, chord and all, which the app window draws from its own chords. */
+  shortcutGuide?: MenuItemConstructorOptions;
 } = {}): MenuItemConstructorOptions {
   return {
     label: "Help",
@@ -295,13 +295,7 @@ export function createHelpMenu({
       ...(shortcutGuide
         ? ([
             { type: "separator" },
-            // No accelerator: the guide's `?` is the renderer's to answer,
-            // since a bare key has to yield to whatever is being typed into.
-            {
-              click: shortcutGuide,
-              label: SHORTCUT_GUIDE.label,
-              ...menuSymbol("keyboard"),
-            },
+            shortcutGuide,
           ] satisfies MenuItemConstructorOptions[])
         : []),
     ],

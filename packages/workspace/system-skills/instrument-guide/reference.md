@@ -121,7 +121,7 @@ Link one as `[Label](instrument://screen/<name>)`. A row listed under one is lin
 On a Mac these are the menu bar's menus, the first named for Instrument; on Windows and Linux the same menus open from the Menu button in the window's bar, with Settings and Quit at the end of File and updates and About at the end of Help.
 
 - **Instrument**: Check for Updates…, Settings…
-- **File**: New Tab Group, Command Menu, Open Location…, Find, Find Next, Find Previous, Search Chats, Print…, Info, New Window, New Tab, Close Tab, Reopen Closed Tab, Reopen Closed Window, Close Window
+- **File**: New Tab Group, Command Menu, Open Location…, Find, Find Next, Find Previous, Search Chats, Print…, Info, New Window, New Tab, Close Tab, Close Tab Group, Reopen Closed Tab, Reopen Closed Window, Close Window
 - **View**: Toggle Sidebar, Toggle Side Panel, Show Bookmarks Bar, Edit Page, Reload Page, Next Tab Group, Previous Tab Group, Actual Size, Zoom In, Zoom Out
 - **History**: Back, Forward, Show History, Clear Browsing Data…
 - **Bookmarks**: Bookmark Manager, Bookmark This Tab…, Bookmark All Tabs…
@@ -136,12 +136,12 @@ Each is written as on a Mac, then as on Windows and Linux.
 ### General
 
 - Bookmark Manager: ⌥⌘B / Ctrl+Shift+O
-- Close Window: ⇧⌘W / Ctrl+Shift+W
+- Close Window: ⌃⇧⌘W / Alt+F4
 - Command Menu: ⌘K / Ctrl+K
 - Find: ⌘F / Ctrl+F
 - Find Next: ⌘G / Ctrl+G
 - Find Previous: ⇧⌘G / Ctrl+Shift+G
-- Keyboard Shortcuts: ? / ?
+- Keyboard Shortcuts: ⌘/ / Ctrl+/
 - New Tab Group: ⌘N / Ctrl+N
 - New Window: ⇧⌘N / Ctrl+Shift+N
 - Open Location…: ⌘L / Ctrl+L
@@ -154,6 +154,7 @@ Each is written as on a Mac, then as on Windows and Linux.
 
 ### Tab Groups
 
+- Close Tab Group: ⇧⌘W / Ctrl+Shift+W
 - Next Tab Group: ⌥⌘↓ / Alt+Shift+↓
 - Previous Tab Group: ⌥⌘↑ / Alt+Shift+↑
 - Tab Group 1 to 9: ⌃1…9 / Alt+1…9

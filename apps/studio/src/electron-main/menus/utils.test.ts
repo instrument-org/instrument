@@ -191,7 +191,10 @@ describe("the Help menu", () => {
       return Array.isArray(submenu) ? rows(submenu) : [];
     };
     expect({
-      appWindow: help({ reportProblem: vi.fn(), shortcutGuide: vi.fn() }),
+      appWindow: help({
+        reportProblem: vi.fn(),
+        shortcutGuide: { label: "Keyboard Shortcuts" },
+      }),
       otherWindow: help(),
     }).toMatchInlineSnapshot(`
       {

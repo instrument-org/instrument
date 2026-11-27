@@ -209,6 +209,7 @@ export type WindowCommand =
   | "moveTabToNewWindow"
   | "newTabInSplit"
   | "closeSplit"
+  | "closeGroup"
   | AppWindowAsk
   /** A chat a phone started here: into a tab group behind the one up, and say so (`window.phoneChatListed`). */
   | { chat: ChatId; type: "listChat" }

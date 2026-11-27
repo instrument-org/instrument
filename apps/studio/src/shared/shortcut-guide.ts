@@ -6,16 +6,6 @@ import {
   type WindowShortcutId,
 } from "@/shared/window-shortcuts";
 
-/**
- * The guide's own chord and name. `?` carries no modifier and depends on the
- * keyboard layout, so the renderer answers it, yielding to a field being typed
- * into; the Help menu offers the guide under this name with no accelerator.
- */
-export const SHORTCUT_GUIDE = {
-  accelerator: "?",
-  label: "Keyboard Shortcuts",
-} as const;
-
 export type ShortcutGuideGroup =
   | "Developer"
   | "Files"
@@ -57,6 +47,7 @@ const WINDOW_GROUPS: Record<
   back: "Pages",
   bookmarkAllTabs: "Pages",
   bookmarkTab: "Pages",
+  closeGroup: "Tab Groups",
   closeSplit: "Tabs",
   closeTab: "Tabs",
   closeWindow: "General",
@@ -77,6 +68,7 @@ const WINDOW_GROUPS: Record<
   newWindow: "General",
   nextChat: "Tab Groups",
   nextTab: "Tabs",
+  openShortcutGuide: "General",
   previousChat: "Tab Groups",
   previousTab: "Tabs",
   printPage: "Pages",
@@ -190,7 +182,6 @@ const PICTURE_KEYS: ShortcutGuideEntry[] = [
  * rows itself.
  */
 export const SHORTCUT_GUIDE_ENTRIES: ShortcutGuideEntry[] = [
-  { ...SHORTCUT_GUIDE, group: "General", id: "shortcutGuide" },
   { ...PASTE_AS_TEXT, group: "General", id: "pasteAsText" },
   { ...STOP_CHAT, group: "General", id: "stopChat" },
   ...LIST_KEYS,

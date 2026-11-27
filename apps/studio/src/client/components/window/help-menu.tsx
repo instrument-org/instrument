@@ -11,6 +11,8 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { feedbackReport } from "@/client/lib/problem-reports";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { SUPPORT_URL } from "@instrument-org/shared";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { ChatTeardropTextIcon } from "@phosphor-icons/react/ChatTeardropText";
@@ -77,7 +79,11 @@ export function HelpMenu({ chatId }: { chatId?: ChatId }) {
         <DropdownMenuItem onSelect={openShortcutGuide}>
           <KeyboardIcon className="size-4" />
           Keyboard shortcuts
-          <DropdownMenuShortcut>?</DropdownMenuShortcut>
+          <DropdownMenuShortcut>
+            {formatAcceleratorText(
+              WINDOW_SHORTCUTS.openShortcutGuide.accelerator,
+            )}
+          </DropdownMenuShortcut>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

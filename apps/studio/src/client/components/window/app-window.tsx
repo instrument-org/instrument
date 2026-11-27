@@ -1851,6 +1851,14 @@ function WindowShell({
           askToCloseSide(first.id);
         }
       },
+      // The tab group on screen closed, asking first when a chat in it is
+      // working, as its row's Close Tab Group does.
+      closeGroup: () => {
+        const group = windowTabs.groupOnScreen;
+        if (group !== undefined) {
+          askToCloseGroups([group]);
+        }
+      },
       receiveGroupTab: groupTabMoves.receive,
       receiveTab,
       reopenTab,

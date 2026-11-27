@@ -51,6 +51,7 @@ describe("listingCommandOf", () => {
     [".", { char: ".", type: "type-ahead" }],
     ["⇧(", { char: "(", type: "type-ahead" }],
     ["🙂", { char: "🙂", type: "type-ahead" }],
+    ["⇧?", { char: "?", type: "type-ahead" }],
     // Left to whoever else wants them.
     ["⇧⌘ArrowUp", null],
     ["⌃ArrowDown", null],
@@ -60,8 +61,6 @@ describe("listingCommandOf", () => {
     ["⌥Enter", null],
     ["⌘v", null],
     ["⌥q", null],
-    // The window's own, for its shortcut guide.
-    ["⇧?", null],
     // Words for a key, which type nothing.
     ["Tab", null],
     ["Escape", null],

@@ -9,7 +9,7 @@ import {
   isDirectorySync,
   type LayoutMarkStore,
   rewriteStoredPaths,
-} from "@instrument-org/workspace/electron";
+} from "@instrument-org/workspace/launch";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";

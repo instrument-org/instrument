@@ -4,7 +4,8 @@
 // the build's entry chunks plus the chunks of `roots`: modules the entry
 // imports dynamically but awaits before the app is up, such as main's
 // `index.ts` behind `boot.ts`. Each build emits `<name>.startup-bundle.json`
-// beside its output; electron-builder.ts keeps the manifests out of the
+// beside its output, and `<name>.<part>.startup-bundle.json` for each stretch
+// of startup measured apart; electron-builder.ts keeps the manifests out of the
 // packaged app, and `scripts/check-startup-bundle.ts` reads them.
 
 import type { Plugin, Rolldown } from "vite";
@@ -126,31 +127,51 @@ export function measureStartup(
   };
 }
 
+/** A manifest's file name: the build's, or one part of its startup path's. */
+function manifestName(name: BundleName, part?: string) {
+  return `${name}${part === undefined ? "" : `.${part}`}${MANIFEST_SUFFIX}`;
+}
+
 /**
  * A Vite plugin that writes the startup manifest for the build named
  * `name`. `roots` names the modules whose chunks start the startup path;
- * without it, every entry chunk does.
+ * without it, every entry chunk does. Each of `parts` is measured from its
+ * own roots into a manifest of its own, for a stretch of startup with a
+ * budget of its own.
  */
 export function recordStartupBundle(
   name: BundleName,
-  { roots }: { roots?: RegExp[] } = {},
+  {
+    parts = {},
+    roots,
+  }: { parts?: Record<string, RegExp[]>; roots?: RegExp[] } = {},
 ): Plugin {
   return {
     apply: "build",
     generateBundle(_options, bundle) {
-      this.emitFile({
-        fileName: `${name}${MANIFEST_SUFFIX}`,
-        source: `${JSON.stringify(measureStartup(bundle, roots), null, 2)}\n`,
-        type: "asset",
-      });
+      const measured: [string | undefined, RegExp[] | undefined][] = [
+        [undefined, roots],
+        ...Object.entries(parts),
+      ];
+      for (const [part, partRoots] of measured) {
+        this.emitFile({
+          fileName: manifestName(name, part),
+          source: `${JSON.stringify(measureStartup(bundle, partRoots), null, 2)}\n`,
+          type: "asset",
+        });
+      }
     },
     name: "record-startup-bundle",
   };
 }
 
 /** The startup manifest a build wrote, or `undefined` when it wrote none. */
-export function readStartupBundle(name: BundleName, outDir: string) {
-  const file = path.join(outDir, BUNDLES[name], `${name}${MANIFEST_SUFFIX}`);
+export function readStartupBundle(
+  name: BundleName,
+  outDir: string,
+  part?: string,
+) {
+  const file = path.join(outDir, BUNDLES[name], manifestName(name, part));
   if (!existsSync(file)) {
     return undefined;
   }

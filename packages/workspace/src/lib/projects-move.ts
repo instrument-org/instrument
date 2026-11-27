@@ -28,7 +28,7 @@ import { type FolderMoved, moveOutOfDataDir } from "./move-out-of-data-dir";
 import { readOldFile } from "./read-old-file";
 import { rewriteFileSync } from "./rewrite-file";
 import { isSystemClutter } from "./system-clutter";
-import { isRecord } from "./skills";
+import { isRecord } from "./is-record";
 import { workspaceLayout } from "./workspace-layout";
 
 export type ProjectsMoved = FolderMoved;

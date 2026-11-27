@@ -4,9 +4,9 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { type LayoutMarks } from "./layout-marks";
 import { migrateLegacyTasks } from "./migrate-legacy-tasks";
 import {
-  type LayoutMarks,
   migrateWorkspaceLayout,
   renameChatDatabases,
 } from "./migrate-workspace-layout";

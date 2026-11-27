@@ -1,5 +1,5 @@
 import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
-import { registerStoredPaths } from "@instrument-org/workspace/electron";
+import { registerStoredPaths } from "@instrument-org/workspace/launch";
 import path from "node:path";
 
 import { rewriteRecentFiles } from "../browser-view/history-store";

@@ -41,7 +41,7 @@ import { workDir } from "../../src/lib/work-dir";
 import { updateJsonRecord } from "../../src/lib/json-record-file";
 import { addChildTask } from "../../src/lib/chat/children";
 import { grantFolder } from "../../src/lib/chat/grants";
-import { WORKSPACE_LAYOUT_VERSION } from "../../src/lib/migrate-workspace-layout";
+import { WORKSPACE_LAYOUT_VERSION } from "../../src/lib/layout-marks";
 import { StorageKey } from "../../src/lib/storage-key";
 import { writeStoreRowsSync } from "../../src/lib/store-table";
 import { claimWorkFolders } from "../../src/lib/work-folders";

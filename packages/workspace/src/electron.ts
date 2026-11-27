@@ -1,3 +1,6 @@
+// What the desktop app's main process loads from the workspace once its first
+// window is up, with what it loads before that (`./launch`).
+export * from "./launch";
 export { actionLog, recordAction } from "./lib/actions/log";
 export {
   readActions,
@@ -132,15 +135,11 @@ export {
   isKnownCdpMethod,
 } from "./lib/cdp-methods";
 export { MAX_SCREENSHOT_PIXELS } from "./lib/shell-commands/agent-browser-screenshot-cut";
-export { installAISDKWarningLogger } from "./lib/log-ai-sdk-warnings";
-export { startLoginShellPath } from "./lib/login-shell-path";
 export { FFMPEG_PATH, FFPROBE_PATH } from "./lib/ffmpeg";
 export { findAvailableName } from "./lib/find-available-name";
 export {
-  type LayoutMarkStore,
   migrateWorkspaceLayout,
   renameChatDatabases,
-  WORKSPACE_LAYOUT_VERSION,
   type WorkspaceLayoutMigration,
 } from "./lib/migrate-workspace-layout";
 export { type ChatRecordsSplit } from "./lib/split-chat-records";
@@ -162,7 +161,6 @@ export { settleWorkspaceDb } from "./lib/settle-workspace-db";
 export {
   BROWSER_FOLDER_NAMES,
   CHAT_DB_FILE_NAME,
-  CHAT_FOLDER_NAMES,
   FILES_FOLDER_NAME,
   KEY_FOLDER_NAMES,
   type KeyFolderName,
@@ -257,35 +255,13 @@ export {
   withholdChats,
 } from "./lib/record-folders";
 export { workDir } from "./lib/work-dir";
-export {
-  ASIDE_INFIX,
-  asidesOf,
-  entryExists,
-  isDirectorySync,
-  mergeEntrySync,
-  moveEntrySync,
-  placeEntrySync,
-  removeEntrySync,
-  removeIfEmptySync,
-  setAsideSync,
-} from "./lib/move-entry";
-export {
-  type PathMove,
-  registerStoredPaths,
-  rewriteStoredPaths,
-} from "./lib/rewrite-stored-paths";
-export {
-  instrumentFolderInDocuments,
-  instrumentFolderUnchosen,
-  outputFolderPath,
-} from "./lib/chat/output-folder";
+export { outputFolderPath } from "./lib/chat/output-folder";
 export {
   chatDeveloperDetailsText,
   chatForAgentText,
   chatPlaces,
 } from "./lib/chat/chat-for-agent";
 export { watchFolder } from "./lib/folder-watch";
-export { placePaths, startupPaths } from "./lib/permissions/places";
 export { chatSessions, chatStartedWithApp, chatTitle } from "./lib/chat-info";
 export { osName } from "./lib/get-system-info";
 export { serveStaticFile } from "./logic/server/serve-static";

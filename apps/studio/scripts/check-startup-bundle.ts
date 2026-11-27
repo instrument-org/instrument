@@ -28,8 +28,9 @@ const OUT_DIR = path.join(STUDIO_DIR, "out", "startup-check");
 const MB = 1024 * 1024;
 
 const STARTUP = {
-  // Everything main evaluates before `ready`. just-bash is not banned yet:
-  // the workspace's file layers import it throughout.
+  // Everything main evaluates to start: `boot.ts`, `before-ready.ts` and
+  // `index.ts`. just-bash is not banned yet: the workspace's file layers
+  // import it throughout.
   main: {
     banned: [
       "@anthropic-ai/claude-agent-sdk",
@@ -41,6 +42,16 @@ const STARTUP = {
       "parse5",
     ],
     budgetBytes: 9.2 * MB,
+  },
+  // What main evaluates before its first window is up: `boot.ts` and
+  // `before-ready.ts`, which settle the workspace's folders and make the
+  // window, and none of the agent. Code there imports the workspace from
+  // `@instrument-org/workspace/launch` and reaches the rest through
+  // `index.ts`, which loads once the window is up.
+  "main before-window": {
+    banned: ["@modelcontextprotocol/sdk", "ai", "just-bash"],
+    budgetBytes: 1.1 * MB,
+    hint: "Load it from `index.ts` or with `import()` once the window is up, or import the workspace from `@instrument-org/workspace/launch`.",
   },
   preload: {
     banned: [],
@@ -61,14 +72,21 @@ const STARTUP = {
     budgetBytes: 10.8 * MB,
   },
 } satisfies Partial<
-  Record<BundleName, { banned: string[]; budgetBytes: number }>
+  Record<
+    BundleName | `${BundleName} ${string}`,
+    { banned: string[]; budgetBytes: number; hint?: string }
+  >
 >;
 
 /** What is wrong with one build's startup path, one line per problem. */
 export function startupProblems(
   name: string,
   startup: StartupBundle,
-  { banned, budgetBytes }: { banned: string[]; budgetBytes: number },
+  {
+    banned,
+    budgetBytes,
+    hint = "Import it with `import()` where it is first used.",
+  }: { banned: string[]; budgetBytes: number; hint?: string },
 ) {
   const problems: string[] = [];
   if (startup.bytes > budgetBytes) {
@@ -86,9 +104,7 @@ export function startupProblems(
   ]);
   for (const pkg of banned) {
     if (loaded.has(pkg)) {
-      problems.push(
-        `${name}: ${pkg} loads at startup. Import it with \`import()\` where it is first used.`,
-      );
+      problems.push(`${name}: ${pkg} loads at startup. ${hint}`);
     }
   }
   return problems;
@@ -101,12 +117,13 @@ if (import.meta.main) {
     stdio: "inherit",
   });
   const problems: string[] = [];
-  for (const name of ["main", "preload", "renderer"] as const) {
+  for (const name of Object.keys(STARTUP) as (keyof typeof STARTUP)[]) {
     const limits = STARTUP[name];
-    const startup = readStartupBundle(name, OUT_DIR);
+    const [bundle, part] = name.split(" ") as [BundleName, string?]; // The keys above.
+    const startup = readStartupBundle(bundle, OUT_DIR, part);
     if (!startup) {
       problems.push(
-        `${name}: no startup manifest under ${OUT_DIR}. Keep recordStartupBundle("${name}") in electron.vite.config.ts.`,
+        `${name}: no startup manifest under ${OUT_DIR}. Keep recordStartupBundle("${bundle}") in electron.vite.config.ts.`,
       );
       continue;
     }

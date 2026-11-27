@@ -5,7 +5,7 @@ import {
 } from "@instrument-org/shared";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
-import { isRecord } from "../skills";
+import { isRecord } from "../is-record";
 import { utcStamp } from "../utc-stamp";
 import { pastedPathOf } from "./context-line";
 

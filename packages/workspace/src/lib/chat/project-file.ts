@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { splitFrontMatter } from "@instrument-org/shared";
 
-import { isRecord } from "../skills";
+import { isRecord } from "../is-record";
 
 /**
  * A project's `AGENTS.md`: the standing instructions every chat under the

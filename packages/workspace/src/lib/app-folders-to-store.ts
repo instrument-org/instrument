@@ -18,7 +18,7 @@ import { appIconKey, appKey, appsStore } from "./apps/store";
 import { type SyncedStore } from "./synced-store/synced-store";
 import { type DeviceId } from "./records/device-id";
 import { readOldFile } from "./read-old-file";
-import { isRecord } from "./skills";
+import { isRecord } from "./is-record";
 import { isSystemClutter } from "./system-clutter";
 import { type SyncedOp } from "./synced-store/synced-record";
 import { WORKSPACE_DATA_ENTRIES, workspaceLayout } from "./workspace-layout";

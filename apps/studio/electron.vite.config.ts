@@ -516,8 +516,14 @@ export default defineConfig(({ command }) => {
               recordBundledPackages("main"),
               // `boot.ts` awaits `before-ready.ts` before `ready` and loads
               // `index.ts` once the first window is up, so all three are
-              // startup.
+              // startup, and the first two are what comes before the window.
               recordStartupBundle("main", {
+                parts: {
+                  "before-window": [
+                    /electron-main\/boot\.ts$/,
+                    /electron-main\/before-ready\.ts$/,
+                  ],
+                },
                 roots: [
                   /electron-main\/boot\.ts$/,
                   /electron-main\/before-ready\.ts$/,

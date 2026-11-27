@@ -11,7 +11,7 @@ import {
 import {
   AIGatewayModelURI,
   ModelChoiceSchema,
-} from "@instrument-org/ai-gateway";
+} from "@instrument-org/ai-gateway/schemas";
 import { APP_FLAVOR } from "@instrument-org/shared";
 import {
   DEFAULT_SEARCH_ENGINE,

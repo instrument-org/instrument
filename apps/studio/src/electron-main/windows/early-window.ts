@@ -6,7 +6,6 @@ import { applyNativeThemeFromPreferences } from "@/electron-main/lib/theme-utils
 import { isSetupSettled } from "@/electron-main/lib/setup-state";
 import { getWorkspaceRefusal } from "@/electron-main/lib/workspace-refusal";
 import { peekRelaunchMarker } from "@/electron-main/stores/machine/state";
-import { FIRST_APP_WINDOW_ID } from "@/electron-main/stores/workspace/kept-state";
 import {
   getAppZoom,
   rememberedWindowIds,
@@ -15,6 +14,7 @@ import {
   appWindowOptions,
   rememberedStateOf,
 } from "@/electron-main/windows/app-window-options";
+import { FIRST_APP_WINDOW_ID } from "@/electron-main/windows/app-window-ids";
 import { holdThroughBoot } from "@/electron-main/windows/early-window-hold";
 import { loadLaunchPage } from "@/electron-main/windows/launch-page";
 import {

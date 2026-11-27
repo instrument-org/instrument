@@ -23,7 +23,6 @@ import { bindAppWindowChords } from "@/electron-main/menus/app-window";
 import { bindShortcutAccelerators } from "@/electron-main/menus/shortcuts";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
-  FIRST_APP_WINDOW_ID,
   forgetWindowKeptState,
   getKeptState,
   getWindowKeptState,
@@ -80,6 +79,7 @@ import {
   tabHrefOfAsk,
 } from "@/electron-main/windows/app-window-asks";
 import {
+  FIRST_APP_WINDOW_ID,
   forgetAppWindowName,
   nameAppWindow,
 } from "@/electron-main/windows/app-window-ids";

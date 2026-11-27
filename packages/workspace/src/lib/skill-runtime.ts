@@ -1,7 +1,7 @@
 import fsSync from "node:fs";
 import path from "node:path";
 
-import { isRecord } from "./skills";
+import { isRecord } from "./is-record";
 import { readText } from "./workspace-files";
 
 /**

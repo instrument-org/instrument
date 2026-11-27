@@ -24,7 +24,6 @@ import path from "node:path";
 import { z } from "zod";
 
 import { logger } from "../../lib/electron-logger";
-import { changesOfAsk, tabMembersIn, TabsAskSchema } from "./tab-service";
 
 /** How long writes gather before a file is written: a burst of navigation is one write. */
 const WRITE_DELAY_MS = 250;
@@ -354,9 +353,6 @@ function getStore() {
 
 const windowStores = new Map<string, ReturnType<typeof createKeptStateStore>>();
 
-/** The first window of a workspace. */
-export const FIRST_APP_WINDOW_ID = "app";
-
 /** What one window keeps for itself, in a file named for it. */
 function windowStoreOf(windowId: string) {
   const known = windowStores.get(windowId);
@@ -629,6 +625,34 @@ export function flushKeptState() {
 }
 
 /**
+ * The tabs a window's ask applies to, as they are kept now: the groups every
+ * window shares and the window's own.
+ */
+export function keptTabsOf(windowId: string | undefined) {
+  return {
+    groups: getStore().snapshot().groups ?? {},
+    own:
+      windowId === undefined
+        ? {}
+        : (windowStoreOf(windowId).snapshot()[WINDOW_KEPT_FILE] ?? {}),
+  };
+}
+
+/** Keeps what an ask changed, the window's own tabs in the window's file. */
+export function keepTabChanges(
+  windowId: string | undefined,
+  changes: TabsChanged["changes"],
+) {
+  for (const [file, key, value] of changes) {
+    if (file !== WINDOW_KEPT_FILE) {
+      getStore().set(file, key, value);
+    } else if (windowId !== undefined) {
+      windowStoreOf(windowId).set(file, key, value);
+    }
+  }
+}
+
+/**
  * Answers the windows: every file, synchronously, for a preload that is
  * loading; and each write, which goes to the other windows too so a window
  * already open keeps up, unless it is what that window keeps for itself. A
@@ -677,55 +701,4 @@ export function serveKeptState() {
       tellWindowsKept(file, key, value, event.sender);
     },
   );
-  // One change asked of the tabs (`tab-service.ts`): applied to them as they
-  // are kept now, each ask after the one before it. Every window hears what
-  // changed in the groups, and the window that asked hears its own pages'
-  // too, with the ask this answers, changes or none.
-  ipcMain.on(KEPT_STATE_CHANNEL.tabs, (event, sent: unknown) => {
-    const ask = TabsAskSchema.safeParse(sent).data;
-    if (ask === undefined) {
-      return;
-    }
-    const windowId = appWindowIdOf(event.sender.id);
-    const own =
-      windowId === undefined
-        ? {}
-        : (windowStoreOf(windowId).snapshot()[WINDOW_KEPT_FILE] ?? {});
-    const members = new Map([
-      ...tabMembersIn("groups", getStore().snapshot().groups ?? {}),
-      ...tabMembersIn(WINDOW_KEPT_FILE, own),
-    ]);
-    let changes: TabsChanged["changes"] = [];
-    try {
-      changes = changesOfAsk(members, ask);
-    } catch (error) {
-      logger.error(`Could not apply the tab change ${ask.command.op}`, error);
-    }
-    for (const [file, key, value] of changes) {
-      if (file !== WINDOW_KEPT_FILE) {
-        getStore().set(file, key, value);
-      } else if (windowId !== undefined) {
-        windowStoreOf(windowId).set(file, key, value);
-      }
-    }
-    const shared = changes.filter(([file]) => file !== WINDOW_KEPT_FILE);
-    if (shared.length > 0) {
-      publisher.publish("window.tab-groups-changed", null);
-    }
-    for (const window of BrowserWindow.getAllWindows()) {
-      if (window.isDestroyed()) {
-        continue;
-      }
-      if (window.webContents === event.sender) {
-        window.webContents.send(KEPT_STATE_CHANNEL.tabsChanged, {
-          answers: ask.id,
-          changes,
-        } satisfies TabsChanged);
-      } else if (shared.length > 0) {
-        window.webContents.send(KEPT_STATE_CHANNEL.tabsChanged, {
-          changes: shared,
-        } satisfies TabsChanged);
-      }
-    }
-  });
 }

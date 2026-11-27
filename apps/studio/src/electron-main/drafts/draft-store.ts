@@ -34,6 +34,7 @@ import { z } from "zod";
 
 import { logger } from "../lib/electron-logger";
 import { draftFileOf, draftOf, withFolderOf } from "./draft-record";
+import { freeNameIn } from "./free-name";
 
 /**
  * How often a workspace a phone has used reads its drafts folder whatever
@@ -677,23 +678,4 @@ function unreachable(id: string): never {
 function textOf(file: DraftFile): string {
   const { others: _others, ...own } = file;
   return renderDraftFile(own);
-}
-
-/**
- * A new name for a file going into a folder, beside the ones already there:
- * the name itself when it is free, otherwise numbered the way Finder numbers
- * a copy (`image 2.png`).
- */
-export function freeNameIn(dir: string, name: string): string {
-  if (!fs.existsSync(path.join(dir, name))) {
-    return name;
-  }
-  const extension = path.extname(name);
-  const stem = name.slice(0, name.length - extension.length);
-  for (let n = 2; ; n++) {
-    const candidate = `${stem} ${n.toString()}${extension}`;
-    if (!fs.existsSync(path.join(dir, candidate))) {
-      return candidate;
-    }
-  }
 }

@@ -1,3 +1,6 @@
+/** The first window of a workspace. */
+export const FIRST_APP_WINDOW_ID = "app";
+
 const idsByContents = new Map<number, string>();
 
 /**

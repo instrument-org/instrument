@@ -4,7 +4,7 @@ import { STACK_FRAME_LIMIT } from "@instrument-org/shared/exceptions";
 import {
   installAISDKWarningLogger,
   startLoginShellPath,
-} from "@instrument-org/workspace/electron";
+} from "@instrument-org/workspace/launch";
 import { app, systemPreferences } from "electron";
 import path from "node:path";
 

@@ -23,7 +23,6 @@ import {
   FREEZE_MARKER_FILE,
   readFreezeMarker,
 } from "./main-thread-freezes";
-import { recordEndedSession } from "./problem-reports";
 import { createRepeatLimiter } from "./repeat-limiter";
 
 const log = createScopedLogger("CrashDiagnostics");
@@ -100,10 +99,13 @@ export function registerCrashDiagnostics(app: Electron.App) {
   const dumps = reportNewCrashDumps(app);
   const endedAt = Date.now();
   // Once ready, because the report is redacted with the accounts signed in,
-  // and the stores naming them can only be decrypted then.
+  // and the stores naming them can only be decrypted then. Imported then too,
+  // since problem reports read the workspace, which loads after the first
+  // window.
   void app
     .whenReady()
-    .then(() => {
+    .then(async () => {
+      const { recordEndedSession } = await import("./problem-reports");
       recordEndedSession({
         crashRecord,
         dumps,

@@ -6,7 +6,7 @@ import {
   CHAT_FOLDER_NAMES,
   entryExists,
   moveEntrySync,
-} from "@instrument-org/workspace/electron";
+} from "@instrument-org/workspace/launch";
 import {
   MACHINE_PREFERENCES_NAME,
   MACHINE_STATE_NAME,

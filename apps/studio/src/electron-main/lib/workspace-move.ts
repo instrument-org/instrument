@@ -15,7 +15,7 @@ import {
   removeIfEmptySync,
   setAsideSync,
   WORKSPACE_LAYOUT_VERSION,
-} from "@instrument-org/workspace/electron";
+} from "@instrument-org/workspace/launch";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";

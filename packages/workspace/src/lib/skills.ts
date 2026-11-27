@@ -14,6 +14,7 @@ import { pathExists } from "./path-exists";
 import { SKILL_ARTIFACT_IGNORE } from "./skill-artifact-ignore";
 import { AGENT_BROWSER_GUIDE_NAME } from "../model-text/guides/agent-browser-guide";
 import { getSkillPackageFingerprint } from "./skill-package-fingerprint";
+import { isRecord } from "./is-record";
 import { runtimeLayout } from "./runtime-dir";
 import {
   noteSkippedSkillFolders,
@@ -383,10 +384,6 @@ export function skillSourceRoots(
     roots.set(root, { dir: root, readOnly: id !== "workspace" });
   }
   return [...roots.values()];
-}
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export async function listSkillFiles(

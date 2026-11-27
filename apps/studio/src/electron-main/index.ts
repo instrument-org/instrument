@@ -47,7 +47,7 @@ import { finishPlacingLeftovers } from "@/electron-main/rpc/routes/files";
 import {
   checkRecentVersionBump,
   takeRelaunchMarker,
-} from "@/electron-main/stores/machine/state";
+} from "@/electron-main/lib/launch-notes";
 import { canSaveKeys, KEY_FILE_EXTENSION } from "@/electron-main/lib/key-file";
 import { rememberStoreReads } from "@/electron-main/stores/store";
 import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
@@ -89,6 +89,7 @@ import module from "node:module";
 
 import { serveDrafts } from "./drafts/serve-drafts";
 import { serveKeptState } from "./stores/workspace/kept-state";
+import { serveTabAsks } from "./stores/workspace/serve-tab-asks";
 import { serveSetupState } from "./lib/serve-setup-state";
 import { adoptSystemSidebarOnce } from "./lib/system-sidebar";
 import { serveBookmarks } from "./bookmarks/serve-bookmarks";
@@ -336,6 +337,7 @@ async function bootstrapPrimaryInstance() {
   serveResolvedTheme();
   serveSetupState();
   serveKeptState();
+  serveTabAsks();
   serveDrafts();
   serveBookmarks();
   serveRendererExceptions();

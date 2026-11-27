@@ -1,5 +1,5 @@
 import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
-import { entryExists, moveEntrySync } from "@instrument-org/workspace/electron";
+import { entryExists, moveEntrySync } from "@instrument-org/workspace/launch";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { FeatureNameSchema } from "@/shared/features";
 import fs from "node:fs";

@@ -1,5 +1,5 @@
 import { HOME_DATA_FOLDER_NAMES } from "@instrument-org/shared";
-import { placePaths, startupPaths } from "@instrument-org/workspace/electron";
+import { placePaths, startupPaths } from "@instrument-org/workspace/launch";
 import os from "node:os";
 import path from "node:path";
 

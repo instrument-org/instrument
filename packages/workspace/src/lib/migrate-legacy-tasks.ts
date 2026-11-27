@@ -34,7 +34,7 @@ import {
 import { addProjectFoldersSync } from "./permissions/project-folders";
 import { readStoreCopy } from "./read-store-copy";
 import { forgetChatFolders } from "./record-folders";
-import { isRecord } from "./skills";
+import { isRecord } from "./is-record";
 import { STORE_TABLE, writeStoreRowsSync } from "./store-table";
 import { StorageKey } from "./storage-key";
 import { projectsStore } from "./chat/project-records";

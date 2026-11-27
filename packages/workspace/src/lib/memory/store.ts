@@ -15,7 +15,7 @@ import { readText } from "../workspace-files";
 import { utcStamp } from "../utc-stamp";
 import { chatIdNamedBy, splitFrontMatter } from "@instrument-org/shared";
 
-import { isRecord } from "../skills";
+import { isRecord } from "../is-record";
 import { getWorkspaceConfig } from "../workspace-config";
 import { workspaceLayout } from "../workspace-layout";
 import {

@@ -17,11 +17,6 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import {
-  handleComputerFileRequest,
-  isComputerFileHost,
-} from "./computer-files";
-import { handleDirectoryIconRequest } from "./directory-icons";
 import { handleLivePageRequest } from "./live-page-frame";
 import { getResourcePath } from "./resource-path";
 import { type Deps as SiteIconDeps, siteIconFor } from "./site-icons";
@@ -69,6 +64,10 @@ const IMMUTABLE_CACHE_SECONDS = 365 * 24 * 60 * 60;
 /**
  * Serve `app:` on a session. The default session and the workspace's app
  * session each need it: protocol handlers belong to a session, not to the app.
+ * The handlers that read the workspace (directory icons, the person's files)
+ * are imported on their first request, since the first window is made on the
+ * app session before the workspace loads, and no page asks for either until
+ * then.
  */
 export function registerAppProtocol(ses: Session) {
   ses.protocol.handle(APP_PROTOCOL, async (request) => {
@@ -78,6 +77,8 @@ export function registerAppProtocol(ses: Session) {
         return handleCaptureRequest({ request, url });
       }
       case DIRECTORY_ICON_HOST: {
+        const { handleDirectoryIconRequest } =
+          await import("./directory-icons");
         return handleDirectoryIconRequest({ request, url });
       }
       case RENDERER_HOST: {
@@ -100,6 +101,8 @@ export function registerAppProtocol(ses: Session) {
       }
       default: {
         // The person's file channel, whose host carries a per-launch token.
+        const { handleComputerFileRequest, isComputerFileHost } =
+          await import("./computer-files");
         if (isComputerFileHost(url.hostname)) {
           return handleComputerFileRequest(request);
         }

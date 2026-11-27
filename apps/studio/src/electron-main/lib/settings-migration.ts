@@ -10,7 +10,7 @@ import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import path from "node:path";
 
-import { freeNameIn } from "../drafts/draft-store";
+import { freeNameIn } from "../drafts/free-name";
 import { pathWithin } from "./path-identity";
 
 import {

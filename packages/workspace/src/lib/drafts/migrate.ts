@@ -6,7 +6,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { readOldFile } from "../read-old-file";
-import { isRecord } from "../skills";
+import { isRecord } from "../is-record";
 import { workspaceLayout } from "../workspace-layout";
 import { contextLineOf } from "./context-line";
 import { type DraftFile, isDraftFileName } from "./draft-file";

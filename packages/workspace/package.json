@@ -18,6 +18,7 @@
     "./drafts": "./src/lib/drafts/index.ts",
     "./electron": "./src/electron.ts",
     "./host-path": "./src/lib/host-path.ts",
+    "./launch": "./src/launch.ts",
     "./layout": "./src/lib/workspace-layout.ts",
     "./mac-apps-server": "./src/lib/mac-apps/main.ts",
     "./page-title": "./src/lib/page-title.ts",

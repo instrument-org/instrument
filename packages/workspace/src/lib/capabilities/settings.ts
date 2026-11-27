@@ -117,6 +117,6 @@ export const settingsSet = defineCapability({
   text: ({ after, before }) =>
     after.value.value === before.value.value
       ? `${after.title} was ${valueWords(after.value)} already.`
-      : `${after.title} is ${valueWords(after.value)}. It was ${valueWords(before.value)}.`,
+      : `${after.title} is ${valueWords(after.value)}. It was ${valueWords(before.value)}.${after.afterChange ? `\n${after.afterChange}` : ""}`,
   where: { roleRefusal: SETTINGS_ARE_THE_CHATS, roles: ["chat"] },
 });

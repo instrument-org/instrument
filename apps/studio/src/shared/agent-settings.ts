@@ -63,6 +63,7 @@ export const AGENT_SETTINGS = {
     title: "Suggest searches",
   },
   "block-ads": {
+    afterChange: "Pages already open change once reloaded.",
     changeable: true,
     detail: `Ads and trackers are blocked on every page in ${APP_NAME}'s browser. A page already open follows once it is reloaded. For your own tabs alone, use agent-browser adblock.`,
     row: false,
@@ -100,6 +101,8 @@ export const AGENT_SETTINGS = {
 } as const satisfies Record<
   string,
   {
+    /** Said after a change, where the change does not show everywhere at once. */
+    afterChange?: string;
     changeable: boolean;
     detail: string;
     row?: false | string;

@@ -283,10 +283,12 @@ function linkOf(id: AgentSettingId) {
 }
 
 async function settingOf(id: AgentSettingId): Promise<AppSetting> {
-  const { changeable, detail, title } = AGENT_SETTINGS[id];
+  const setting = AGENT_SETTINGS[id];
+  const { changeable, detail, title } = setting;
   const { choices, read, takes } = ACCESS[id];
   const link = linkOf(id);
   return {
+    ...("afterChange" in setting && { afterChange: setting.afterChange }),
     changeable,
     ...(choices && { choices: await choices() }),
     detail,

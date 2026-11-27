@@ -119,6 +119,27 @@ describe("instrument settings", () => {
     ).toEqual([]);
   });
 
+  it("says what a change leaves for later, only where the setting says", () => {
+    const blockAds = (value: string) =>
+      ({
+        afterChange: "Pages already open change once reloaded.",
+        changeable: true,
+        detail: "Ads are blocked.",
+        id: "block-ads",
+        title: "Block ads",
+        value: { label: value, value },
+      }) satisfies AppSetting;
+    expect(
+      settingsSet.text({ after: blockAds("on"), before: blockAds("off") }),
+    ).toMatchInlineSnapshot(`
+      "Block ads is on. It was off.
+      Pages already open change once reloaded."
+    `);
+    expect(
+      settingsSet.text({ after: blockAds("on"), before: blockAds("on") }),
+    ).toMatchInlineSnapshot(`"Block ads was on already."`);
+  });
+
   it("goes back to the value the person set between two changes", async () => {
     const changes = await turn(async () => {
       await set("theme", "dark");

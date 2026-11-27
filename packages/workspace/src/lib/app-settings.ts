@@ -5,6 +5,8 @@ const SettingValueSchema = z.object({ label: z.string(), value: z.string() });
 
 /** One of the app's settings, as the agent reads it. */
 export const AppSettingSchema = z.object({
+  /** Said after a change, where the change does not show everywhere at once. */
+  afterChange: z.string().optional(),
   /** Whether a chat may change it. Off, the person does, at `link`. */
   changeable: z.boolean(),
   /** The values it takes, where they are few enough to name. */

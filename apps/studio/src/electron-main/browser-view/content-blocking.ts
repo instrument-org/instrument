@@ -342,7 +342,7 @@ function sitesOff(): ReadonlySet<string> {
  * registrable domain, so `www.` and a site's other hosts go together, or the
  * host itself where it has none (an IP address, `localhost`).
  */
-export function adBlockingSiteOf(url: string): string {
+function adBlockingSiteOf(url: string): string {
   const { domain, hostname } = parse(url);
   return domain ?? hostname ?? "";
 }

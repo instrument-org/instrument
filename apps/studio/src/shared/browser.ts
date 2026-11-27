@@ -152,7 +152,7 @@ export interface CaptureDevices {
 export type SiteCaptureSetting = "allow" | "ask" | "block";
 
 /** What ad blocking did on a tab's page. */
-export interface AdBlockingPage {
+interface AdBlockingPage {
   /** An agent turned blocking off in the tab. */
   agentOff: boolean;
   /** The hosts refused since the page began, in the order they were. */

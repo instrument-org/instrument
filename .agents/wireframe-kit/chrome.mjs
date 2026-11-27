@@ -114,7 +114,7 @@ export async function launch() {
     try {
       proc.kill("SIGKILL");
     } catch {}
-    fs.rmSync(profile, { recursive: true, force: true });
+    fs.rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   };
   let stderr = "";
   let wsUrl;

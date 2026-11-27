@@ -23,7 +23,6 @@ const TabGroupMemberSchema = z.object({
     .catch(undefined),
   focused: z.number().int().min(0),
   lead: z.string().optional(),
-  linkColor: z.string().optional(),
   linkGroup: z.string().optional(),
   pinned: z.boolean().optional(),
   project: z.string().optional(),
@@ -136,9 +135,6 @@ export function joinTabGroups(members: Map<string, unknown>): WindowTabs {
       ...(member.linkGroup === undefined
         ? {}
         : { linkGroup: member.linkGroup }),
-      ...(member.linkColor === undefined
-        ? {}
-        : { linkColor: member.linkColor }),
       ...(member.pinned === true ? { pinned: true } : {}),
       ...(member.project === undefined ? {} : { project: member.project }),
       ...(member.share === undefined || isEarlier

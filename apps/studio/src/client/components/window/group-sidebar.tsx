@@ -91,7 +91,6 @@ import { groupsInProject, isPinnedGroup, type TabGroup } from "./tab-groups";
 import {
   useGroupLayout,
   useGroupLead,
-  useLinkColor,
   useLinkGroup,
   useWindowTabs,
 } from "./window-tabs";
@@ -243,10 +242,7 @@ export function GroupSidebar({
         groupOwn[entry.group]?.linkGroup === undefined
           ? undefined
           : () => {
-              setGroupOwn(entry.group, {
-                linkColor: undefined,
-                linkGroup: undefined,
-              });
+              setGroupOwn(entry.group, { linkGroup: undefined });
             },
       onTogglePin: () => {
         onPin(entry.group, !entry.pinned);
@@ -832,7 +828,6 @@ export function GroupRow({
   const names = useTabNames(chatTitles);
   const held = useGroupLead(entry.group);
   const linkGroup = useLinkGroup(entry.group);
-  const linkColor = useLinkColor(entry.group);
   const layout = useGroupLayout(entry.group);
   const sides = rowSidesOf(layout);
   // Named as a group, by the name its row shows, so a row whose tab is a
@@ -852,7 +847,6 @@ export function GroupRow({
       held={held}
       isCloseShown={isCloseShown}
       isOnScreen={isUp}
-      linkColor={linkColor}
       linkGroup={linkGroup}
       sides={sides}
     />

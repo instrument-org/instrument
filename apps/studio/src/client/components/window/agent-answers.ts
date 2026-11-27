@@ -98,9 +98,6 @@ export const WINDOW_CHANGE_ANSWERS = {
 
   "group.chatSide": FOLLOWING,
   "group.lead": FOLLOWING,
-  "group.linkColor": {
-    not: "given as an outside link makes a group, the color its label wears",
-  },
   "group.linkGroup": {
     not: "set as an outside link makes a group, from the group word the link names",
   },

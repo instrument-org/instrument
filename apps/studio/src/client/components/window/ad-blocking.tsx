@@ -262,7 +262,7 @@ function BlockedHosts({ hosts }: { hosts: string[] }) {
       <p className="px-4 pb-1 text-xs text-muted-foreground">
         Blocked on this page
       </p>
-      <ul className="max-h-48 overflow-y-auto">
+      <ul className="max-h-48 overflow-y-auto scroll-fade-y">
         {hosts.map((host) => (
           <li className="truncate px-4 py-0.5 text-[13px]" key={host}>
             {host}
@@ -367,7 +367,7 @@ function OffSites({ sites }: { sites: string[] }) {
         <p className="px-3 pt-3 pb-1 text-xs text-muted-foreground">
           Ads and trackers load on these sites.
         </p>
-        <ul className="max-h-64 overflow-y-auto pb-1.5">
+        <ul className="max-h-64 overflow-y-auto scroll-fade-y pb-1.5">
           {sites.map((site) => (
             <li
               className="flex items-center justify-between gap-2 px-3 py-1"

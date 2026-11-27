@@ -83,8 +83,10 @@ export function MessageKeys({
     const measure = () => {
       setBox(ringBoxOf(stop, within));
     };
-    // A reply still arriving grows under its ring.
+    // A reply still arriving grows under its ring, and older turns loading
+    // above move it down.
     const observer = new ResizeObserver(measure);
+    observer.observe(within);
     for (const element of stop) {
       observer.observe(element);
     }

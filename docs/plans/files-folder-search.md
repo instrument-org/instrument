@@ -1,6 +1,6 @@
 # Plan: Files searches everything under the folder you're in
 
-Status: open. Built: flat results, Folder column, name and kind matching, status lines. Checked on a clean macOS VM; Windows not yet checked.
+Status: open. Built: flat results, Folder column, name and kind matching, status lines. Checked on a clean macOS VM and on the Windows ARM test VM.
 
 ## What we want
 
@@ -67,9 +67,27 @@ A signed preview on a freshly cloned macOS 27 test VM with no privacy answers, w
 
 Two gaps this leaves. A search from the home folder never enters a guarded folder, even one the person has allowed, because the walk can't tell an allowed folder from one never asked about without reading it; Spotlight can, since it answers only for folders the app may read ([finding](../findings/spotlight-search-follows-folder-permissions.md)). And a search from the disk's top level spends its cap on the system's own folders.
 
+## Checked on the Windows ARM test VM
+
+The x64 preview, running under emulation on the Windows ARM test VM, as a new local user with `pricing-*` files planted in Desktop, Documents, Downloads and a `Projects` folder (seven in all). OneDrive was installed but not signed in, so nothing was redirected to it.
+
+| Search for "pricing" in | Found | Windows prompt |
+| --- | --- | --- |
+| The home folder | all 7, with the right Folder for each | none |
+| Documents | both under it | none |
+| `C:` | none, ending at "0 found in the first 5,054 items under C:" | none |
+
+Two things it turned up, both fixed since:
+
+- **A home search walked AppData.** About 18,600 of the home folder's 18,700 entries were in `AppData`, and every one went to the window. A walk from the home folder now steps over `AppData` on Windows and offers it under "not searched", as macOS's guarded folders are.
+- **A step that stopped responding read as the cap.** The `C:` walk ended at `C:\Windows\System32` (4,526 entries) when one step there took longer than the 10-second limit. The same walk run on its own, by the app's own binary, read 33,500 entries in 2.7 seconds, so the slow step was the app under emulation, not the disk. The status bar now names the folder: "0 found before System32 stopped responding".
+
+Typing was slow there: seven keystrokes took up to two minutes to show while the window matched the 18,700 names it had been sent. That run was under x64 emulation with a busy main process, so it says little about a native machine, but it is the case the AppData skip removes.
+
 ## Measure before calling it done
 
-- The same walk in the main process on Windows and Linux: the skips are macOS-specific, so check what the equivalent noise folders are (`AppData`, `.cache`) and that nothing raises a prompt.
+- The same walk on Linux: check what its noise folders are (`.cache` is already left out as a dot folder) and that nothing raises a prompt.
+- Typing latency on a native Windows machine with a home search, now that AppData is stepped over.
 - Typing latency while matching 30k names on the renderer thread.
 
 ## Out of scope

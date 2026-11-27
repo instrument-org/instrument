@@ -46,9 +46,12 @@ import {
   loadApp,
   readAppGuide,
 } from "../apps/store";
-import { standingElsewhere } from "../apps/context";
+import { appStanding, standingElsewhere } from "../apps/context";
 import { connectedElsewhere } from "../apps/elsewhere";
-import { signsInDirectly, webInsteadUrl } from "../apps/site";
+import { webInsteadUrl } from "../apps/site";
+import { grokPlanSignedIn, isXApp } from "../apps/x-site";
+import { xToolsGuide } from "../../model-text/guides/x-guide";
+import { X_TOOLS } from "./x";
 import { webInsteadCommand } from "../apps/web-instead";
 import { INSTRUCTIONS_MAX } from "../instructions-in-context";
 import { baselineRecorded } from "../last-told";
@@ -125,12 +128,52 @@ function webAppRefusal(slug: string, url: string): string {
   return `"${slug}" is a web app: the user is signed in to it in ${APP_NAME}'s browser, and no \`${APP_COMMAND.name}\` call reaches it. Work it in a tab: open ${url}, where the sign-in holds, or use a tab already open there.`;
 }
 
+/**
+ * What a call reaches an app by: `api` its requests, `mcp` its server's
+ * documents, `tools` its tools, an MCP server's or, for X, the X tools.
+ */
+type Reach = "api" | "mcp" | "tools";
+
+/** Why `request`, `resources` and `read` refuse an X app, and what it has instead. */
+function xAppRefusal(slug: string, url: string): string {
+  return `"${slug}" is X: ${APP_NAME}'s own X tools search it (\`${APP_COMMAND.name} tools ${slug}\`), and the rest is worked on ${url} in a tab, signed in in ${APP_NAME}'s browser.`;
+}
+
+/**
+ * An X app a call names, which needs no connection of its own: its tools
+ * run on the Grok plan, and its site is worked in a tab. Undefined for any
+ * other app, which the connection decides.
+ */
+async function xAppFor(
+  slug: string,
+  reach: Reach,
+): Promise<AppInfo | Extract<Gate, { kind: "refused" }> | undefined> {
+  const loaded = await loadApp(slug);
+  if (loaded.isErr() || !isXApp(loaded.value.manifest)) {
+    return undefined;
+  }
+  const app = loaded.value;
+  return reach === "tools"
+    ? app
+    : {
+        kind: "refused",
+        message: xAppRefusal(
+          app.slug,
+          app.manifest.type === "web" ? app.manifest.url : "x.com",
+        ),
+      };
+}
+
 /** The connected app a call names, or the refusal that says what to do instead. */
 async function connectedApp(
   slug: string,
-  kind: "api" | "mcp",
+  reach: Reach,
   role: Role,
 ): Promise<AppInfo | Extract<Gate, { kind: "refused" }>> {
+  const x = await xAppFor(slug, reach);
+  if (x !== undefined) {
+    return x;
+  }
   let app: AppInfo;
   try {
     app = await requireApp(slug, { connected: true, role });
@@ -145,13 +188,13 @@ async function connectedApp(
   if (manifest.type === "web") {
     return { kind: "refused", message: webAppRefusal(app.slug, manifest.url) };
   }
-  if (kind === "mcp" && !isMcpManifest(manifest)) {
+  if (reach !== "api" && !isMcpManifest(manifest)) {
     return {
       kind: "refused",
       message: `"${app.slug}" is an API app; make requests with \`${APP_COMMAND.name} request\`, after reading its guide with \`${APP_COMMAND.name} guide ${app.slug}\`.`,
     };
   }
-  if (kind === "api" && manifest.type !== "api") {
+  if (reach === "api" && manifest.type !== "api") {
     return {
       kind: "refused",
       message: `"${app.slug}" is an MCP app; use \`${APP_COMMAND.name} tools\` and \`${APP_COMMAND.name} call\`.`,
@@ -162,20 +205,20 @@ async function connectedApp(
 
 async function connectedAppGate(
   slug: string,
-  kind: "api" | "mcp",
+  reach: Reach,
   role: Role,
 ): Promise<Gate> {
-  const app = await connectedApp(slug, kind, role);
+  const app = await connectedApp(slug, reach, role);
   return "kind" in app ? app : { kind: "allowed" };
 }
 
 /** The app `run` works with, once its gate has let the call through. */
 async function gatedApp(
   slug: string,
-  kind: "api" | "mcp",
+  reach: Reach,
   role: Role,
 ): Promise<AppInfo> {
-  const app = await connectedApp(slug, kind, role);
+  const app = await connectedApp(slug, reach, role);
   if ("kind" in app) {
     throw new CapabilityFailure(app.message, "refused");
   }
@@ -401,16 +444,140 @@ function firstSentence(text: string): string {
 /**
  * `apps.call`'s gate: the app connected, an MCP app, and for one of the
  * Mac's own apps, macOS letting Instrument in. Where macOS says no, or has
- * not been asked yet, its card goes up and the call is not made.
+ * not been asked yet, its card goes up and the call is not made. An X app
+ * needs a Grok plan signed in here instead, before its guide is handed over.
  */
 async function callGate(slug: string, ctx: CapabilityContext): Promise<Gate> {
-  const app = await connectedApp(slug, "mcp", ctx.role);
+  const app = await connectedApp(slug, "tools", ctx.role);
   if ("kind" in app) {
     return app;
+  }
+  if (isXApp(app.manifest)) {
+    if (!grokPlanSignedIn()) {
+      console.warn(`App call refused: ${app.slug} (no Grok plan)`);
+      return { kind: "refused", message: noGrokPlan(app.slug, ctx.role) };
+    }
+    return xGuideGate(app, ctx);
   }
   const macApp = bundledMacApp(app.manifest);
   const card = macApp ? await macosAppCard(ctx.asker, macApp) : undefined;
   return card ? { ...card, kind: "card" } : mcpGuideGate(app, ctx);
+}
+
+/**
+ * An X app's guide as the model is handed it: its own guide, then what the
+ * X tools reach and take, which ships with the build as a server's words
+ * come with its server.
+ */
+async function xGuide(app: AppInfo): Promise<string> {
+  const own = (await readAppGuide(app.slug))?.trim();
+  return [own, xToolsGuide(app.slug)].filter(Boolean).join("\n\n");
+}
+
+/** An X app's guide before its first call, as an MCP app's is (`mcpGuideGate`). */
+async function xGuideGate(app: AppInfo, ctx: CapabilityContext): Promise<Gate> {
+  const messages = await ctx.modelWindow();
+  if (messages !== undefined && anyAppGuideHandedOver(messages, app.slug)) {
+    return { kind: "allowed" };
+  }
+  const guide = await xGuide(app);
+  return (await guideInWindow(app, guide, ctx))
+    ? { kind: "allowed" }
+    : { guides: [{ app: app.slug, guide }], kind: "read-first" };
+}
+
+/**
+ * Why an X tool cannot run here: no Grok plan signed in on this computer,
+ * which the chat asks for with `connect_app` and a task leaves to the chat.
+ */
+function noGrokPlan(slug: string, role: Role): string {
+  const why = `"${slug}" searches X on the user's Grok plan, which isn't signed in on this computer.`;
+  return role === "chat"
+    ? `${why} Ask for it with ${TOOL_NAMES.connectApp} naming "${slug}": its row signs the user in to their Grok plan.`
+    : `${why} ${APPS_ARE_THE_CHATS}`;
+}
+
+/** The X tool a call names, or why there is none by that name. */
+function xToolNamed(slug: string, name: string) {
+  const found = X_TOOLS.find((each) => each.name === name);
+  if (found === undefined) {
+    throw new CapabilityFailure(
+      `"${slug}" has no tool "${name}". \`${APP_COMMAND.name} tools ${slug}\` lists them.`,
+    );
+  }
+  return found;
+}
+
+/** The JSON a tool's arguments take, as an MCP tool lists it. */
+function xInputSchema(tool: (typeof X_TOOLS)[number]) {
+  return z.json().parse(
+    z.toJSONSchema(tool.capability.input, {
+      io: "input",
+      unrepresentable: "any",
+    }),
+  );
+}
+
+/**
+ * One X tool's call, run here rather than on a server: its arguments read
+ * as the tool's input, and its result as the value `app call` gives any
+ * tool's.
+ */
+async function runXTool(
+  app: AppInfo,
+  name: string,
+  args: Record<string, unknown>,
+  ctx: CapabilityContext,
+): Promise<z.output<ReturnType<typeof z.json>>> {
+  const tool = xToolNamed(app.slug, name);
+  noteReadOnlyTools(
+    app.slug,
+    X_TOOLS.map((each) => each.name),
+  );
+  const parsed = tool.capability.input.safeParse(args);
+  if (!parsed.success) {
+    throw new CapabilityFailure(
+      `The arguments do not fit what ${name} takes (${z.prettifyError(parsed.error).replaceAll("\n", " ")}). It takes:\n${JSON.stringify(xInputSchema(tool), null, 2)}`,
+    );
+  }
+  return z.json().parse(await tool.capability.run(parsed.data, ctx));
+}
+
+/** An X app's tools, listed as `apps.tools` lists a server's. */
+async function xToolsListing(
+  app: AppInfo,
+  only: string | undefined,
+  ctx: CapabilityContext,
+): Promise<z.output<typeof ToolsListingSchema>> {
+  if (only !== undefined) {
+    const tool = xToolNamed(app.slug, only);
+    return {
+      app: app.slug,
+      tools: [
+        {
+          description: tool.capability.summary,
+          input_schema: xInputSchema(tool),
+          name: tool.name,
+        },
+      ],
+    };
+  }
+  const guide = ctx.surface === "cli" ? await xGuide(app) : undefined;
+  const handOff =
+    guide !== undefined && !(await guideInWindow(app, guide, ctx))
+      ? guide
+      : undefined;
+  if (handOff !== undefined) {
+    recordAppGuideHandOff({ app: app.slug, guide: handOff, printed: handOff });
+  }
+  return {
+    app: app.slug,
+    ...(handOff !== undefined && { guide: handOff }),
+    tools: X_TOOLS.map((tool) => ({
+      description: firstSentence(tool.capability.summary),
+      name: tool.name,
+    })),
+  };
 }
 
 export const appsCall = defineCapability({
@@ -434,7 +601,10 @@ export const appsCall = defineCapability({
   // as JSON, else the text itself.
   output: z.json(),
   async run({ app: slug, args, tool }, ctx) {
-    const app = await gatedApp(slug, "mcp", ctx.role);
+    const app = await gatedApp(slug, "tools", ctx.role);
+    if (isXApp(app.manifest)) {
+      return runXTool(app, tool, args, ctx);
+    }
     const { manifest } = app;
     if (!isMcpManifest(manifest)) {
       throw new CapabilityFailure(
@@ -540,7 +710,7 @@ export const appsCall = defineCapability({
       ? z.json().parse(redactValue(structured, redact))
       : jsonOrText(redact(text));
   },
-  summary: "Run one tool of a connected MCP app.",
+  summary: "Run one tool of a connected MCP app, or of an app on x.com.",
   surfaces: {
     cli: {
       help: `Arguments as a JSON object, inline or on stdin through a quoted heredoc.
@@ -564,6 +734,16 @@ const ToolSchema = z.object({
   name: z.string(),
 });
 
+const ToolsListingSchema = z.object({
+  app: z.string(),
+  /**
+   * The app's guide, where the listing on the command line is the first
+   * the model sees of it.
+   */
+  guide: z.string().optional(),
+  tools: z.array(ToolSchema),
+});
+
 /**
  * A tool's mark from the server's own hints, only where it set one: a tool
  * with no hints is neither, whatever the spec's default.
@@ -580,7 +760,7 @@ function toolMark(
 }
 
 export const appsTools = defineCapability({
-  gate: ({ app }, ctx) => connectedAppGate(app, "mcp", ctx.role),
+  gate: ({ app }, ctx) => connectedAppGate(app, "tools", ctx.role),
   input: z.object({
     app: AppField,
     tool: z.string().optional().meta({
@@ -588,17 +768,12 @@ export const appsTools = defineCapability({
     }),
   }),
   name: "apps.tools",
-  output: z.object({
-    app: z.string(),
-    /**
-     * The app's guide, where the listing on the command line is the first
-     * the model sees of it.
-     */
-    guide: z.string().optional(),
-    tools: z.array(ToolSchema),
-  }),
+  output: ToolsListingSchema,
   async run({ app: slug, tool: only }, ctx) {
-    const app = await gatedApp(slug, "mcp", ctx.role);
+    const app = await gatedApp(slug, "tools", ctx.role);
+    if (isXApp(app.manifest)) {
+      return xToolsListing(app, only, ctx);
+    }
     const { manifest } = app;
     if (!isMcpManifest(manifest)) {
       throw new CapabilityFailure(
@@ -673,7 +848,7 @@ export const appsTools = defineCapability({
     };
   },
   summary:
-    "List a connected MCP app's tools, a line each, or show one in full with the JSON it takes.",
+    "List the tools of a connected MCP app or an app on x.com, a line each, or show one in full with the JSON it takes.",
   surfaces: {
     cli: {
       aliases: ["tool"],
@@ -1181,10 +1356,7 @@ export const appsList = defineCapability({
         connected: isConnected(connections[app.slug], app.manifestHash),
         name: app.name,
         slug: app.slug,
-        status: `${describeConnection(connections[app.slug], app.manifestHash, {
-          direct: signsInDirectly(app.manifest),
-          web: app.manifest.type === "web",
-        })}${standingElsewhere(app, connections, elsewhere)}`,
+        status: `${appStanding(app, connections[app.slug])}${standingElsewhere(app, connections, elsewhere)}`,
         type: app.manifest.type,
       })),
       invalid: invalid.map(({ message, slug }) => ({ message, slug })),

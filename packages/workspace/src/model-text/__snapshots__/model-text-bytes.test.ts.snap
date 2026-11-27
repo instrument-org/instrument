@@ -1616,6 +1616,17 @@ The user clicked Undo on your earlier project changes: Houseplants is Plants aga
 <instrument-system-note>
 The workspace instructions in \`/Users/mac-user/Instrument/AGENTS.md\` are empty or removed. Stop applying the previous workspace instructions.
 </instrument-system-note>",
+  "xGuide": "Instrument's own X tools, which every app on x.com has, run on the user's Grok plan signed in on this computer: each call is a request (a long search, several) on that plan, so ask once for what you need. \`instrument app tool x <name>\` shows the JSON a tool takes.
+- search: posts matching a query, an account's latest (\`from\` alone), or both. \`sort\`: \`latest\` (newest first) or \`top\` (most engaged first).
+- thread: the conversation around one post, oldest first: what it replies to, the post, its replies.
+- people: accounts by name or by what they post about: handle, name, bio, link.
+Every post and account they return is one X's search returned and cited, never one Grok wrote; an empty list means nothing was found.
+
+\`query\` takes X's search operators, which combine: "exact phrase", a OR b, -word, (grouping), #hashtag, from:handle, to:handle, @handle, min_faves:N (likes; min_likes: does not work), min_retweets:N, min_replies:N, filter:media, filter:images, filter:videos, filter:links, filter:news, -filter:replies, -filter:retweets, filter:blue_verified, lang:xx, url:domain, list:<id>. near:, within: and geocode: no longer work.
+\`from\` and \`exclude\` take up to 20 accounts each, without the @, and not both in one search: search the accounts you want rather than leaving some out.
+\`since\` and \`until\` are whole days (YYYY-MM-DD, UTC), \`until\` included, and a post's \`date\` is its day.
+
+Only x.com has the user's own timeline, notifications, bookmarks, likes, lists, DMs, trends, and posting: work those in a tab on x.com, signed in in Instrument's browser, where X's own account switcher has every account the user signed in to there.",
 }
 `;
 
@@ -2395,16 +2406,7 @@ exports[`the exported text constants > windowCommand 1`] = `
 
 exports[`the exported text constants > workspaceInstructions 1`] = `{}`;
 
-exports[`the exported text constants > xCommand 1`] = `
-{
-  "X_COMMAND": {
-    "description": "Reads X (Twitter) through the user's Grok account, whatever model you run on: \`instrument x search "<words>"\` for posts about something (X's search operators work too), \`--from <handle>\` alone for an account's latest, \`instrument x thread <post url>\` for the conversation around a post, and \`--json\` on either for the posts as data (handle, date, text, url) to pipe or save. It prints the posts themselves, which x.com shows only to a signed-in browser. A shell command, not a skill; \`instrument x --help\` has every flag. When it fails it says why (no Grok account, a usage limit, a refusal), which is what to tell the user.",
-    "name": "instrument x",
-    "summary": "Search posts on X through the user's Grok account.",
-    "word": "x",
-  },
-}
-`;
+exports[`the exported text constants > xGuide 1`] = `{}`;
 
 exports[`the notes a stored data part renders > actions 1`] = `
 [

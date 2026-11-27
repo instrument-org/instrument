@@ -46,7 +46,7 @@ import * as memoryCommand from "./commands/memory-command";
 import * as officeCommand from "./commands/office-command";
 import * as taskCommand from "./commands/task-command";
 import * as windowCommand from "./commands/window-command";
-import * as xCommand from "./commands/x-command";
+import * as xGuide from "./guides/x-guide";
 import * as signInProgress from "./notes/sign-in-progress-model-text";
 import * as signedIn from "./notes/signed-in-model-text";
 import * as skillChanges from "./notes/skill-changes-model-text";
@@ -232,7 +232,7 @@ const MODULES = {
   viewContext,
   windowCommand,
   workspaceInstructions,
-  xCommand,
+  xGuide,
 };
 
 describe.skipIf(WINDOWS)("the system prompt", () => {
@@ -559,6 +559,7 @@ describe.skipIf(WINDOWS)("the builders called directly", () => {
         ),
       ),
       timeZoneRegion: environmentModelText.timeZoneRegion("Europe/Berlin"),
+      xGuide: xGuide.xToolsGuide("x"),
       unanswered: errorText(
         stoppedToolCall.withUnansweredToolCallResult(
           tool({ state: "input-available" }),

@@ -465,8 +465,6 @@ describe("the registry", () => {
         "web.search",
         "window.list",
         "window.read",
-        "x.search",
-        "x.thread",
       ]
     `);
   });
@@ -496,8 +494,6 @@ describe("the registry", () => {
         "web.search",
         "window.list",
         "window.read",
-        "x.search",
-        "x.thread",
       ]
     `);
   });
@@ -568,7 +564,7 @@ describe("the registry", () => {
   it("generates every instrument subcommand", () => {
     expect(
       Object.fromEntries(
-        ["activity", "app", "memory", "task", "window", "x"].map((word) => [
+        ["activity", "app", "memory", "task", "window"].map((word) => [
           word,
           Object.keys(cliSubcommands(word).subcommands).toSorted(),
         ]),
@@ -628,10 +624,6 @@ describe("the registry", () => {
           "sites",
           "unpin",
           "wait",
-        ],
-        "x": [
-          "search",
-          "thread",
         ],
       }
     `);

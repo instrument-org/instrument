@@ -1,3 +1,4 @@
+import { AIProviderConfigIdSchema } from "@instrument-org/shared";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -70,6 +71,36 @@ describe("the apps a session starts with", () => {
     const text = await buildAppsContextText();
     expect(text).toContain("- linear (Linear, mcp): not connected");
     expect(text).not.toContain("app_instructions");
+  });
+
+  it("says where X's search and its site each stand", async () => {
+    await seedApp("x", {
+      name: "X",
+      setup: { type: "web", url: "https://x.com" },
+    });
+    const row = async () =>
+      (await buildAppsContextText())
+        .split("\n")
+        .find((line) => line.startsWith("- x "));
+
+    expect(await row()).toMatchInlineSnapshot(
+      `"- x (X, web at https://x.com, with Instrument's X tools: \`instrument app tools x\`): search through the Grok plan (not signed in on this computer) · x.com not checked on this computer yet: the user may already be signed in on the site in Instrument's browser"`,
+    );
+
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      getAIProviderConfigs: () => [
+        {
+          apiKey: "grok-token",
+          cacheIdentifier: "grok-account",
+          id: AIProviderConfigIdSchema.parse("grok-account-1"),
+          type: "grok-account",
+        },
+      ],
+    });
+    expect(await row()).toContain(
+      "search through the Grok plan (signed in) · x.com not checked on this computer yet",
+    );
   });
 
   it("has a web app not checked here said to be maybe signed in already", async () => {

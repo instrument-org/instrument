@@ -25,6 +25,7 @@ import {
   type AppSlug,
   AppSlugSchema,
 } from "./manifest";
+import { isXApp } from "./x-site";
 
 /**
  * The workspace's apps: the `apps` synced store (`docs/architecture/synced-stores.md`),
@@ -350,9 +351,11 @@ export function guideSkeleton(
     const reach =
       manifest.type === "mcp-local"
         ? `Runs on this machine from the ${manifest.runtime === "node" ? "npm" : "PyPI"} package ${manifest.package}: ${tools}`
-        : manifest.type === "web"
-          ? `Worked on the web at ${manifest.url}, where the user signs in in ${APP_NAME}'s browser: a task opens the site in a tab and works there. No \`${APP_COMMAND.name}\` call or request reaches it.`
-          : `Reached through its MCP server at ${manifest.url}: ${tools}`;
+        : isXApp(manifest)
+          ? `Worked on the web at ${manifest.url}, where the user signs in in ${APP_NAME}'s browser, and searched with ${APP_NAME}'s own X tools on the user's Grok plan: \`${APP_COMMAND.name} tools ${slug}\` lists them, \`${APP_COMMAND.name} call ${slug} search '{"query": "..."}'\` runs one.`
+          : manifest.type === "web"
+            ? `Worked on the web at ${manifest.url}, where the user signs in in ${APP_NAME}'s browser: a task opens the site in a tab and works there. No \`${APP_COMMAND.name}\` call or request reaches it.`
+            : `Reached through its MCP server at ${manifest.url}: ${tools}`;
     return `${entry ? `${entry.description}\n\n` : ""}${reach}\n`;
   }
   const guide = entry?.apiGuide;

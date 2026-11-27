@@ -165,7 +165,8 @@ interface CliSpec<Input> {
   positional?: readonly (keyof Input & string)[];
   /**
    * The last positional field takes every word left, joined by spaces, so
-   * `instrument x search new rust release` searches for all three words.
+   * `instrument memory save pacific-time You are on Pacific time` saves
+   * the whole sentence.
    */
   rest?: boolean;
   /** A field read from stdin when stdin has something, ahead of its positional word. */

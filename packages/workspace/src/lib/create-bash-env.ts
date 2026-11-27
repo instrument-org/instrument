@@ -35,7 +35,6 @@ import {
 } from "./shell-commands/agent-browser";
 import { MAC_APPS } from "./mac-apps/apps";
 import { APP_COMMAND, createAppCommand } from "./shell-commands/app";
-import { createXCommand, X_COMMAND } from "./shell-commands/x";
 import { BOOKMARKS_COMMAND } from "../model-text/commands/bookmarks-command";
 import { SETTINGS_COMMAND } from "../model-text/commands/settings-command";
 import { createSettingsCommand } from "./shell-commands/settings";
@@ -815,7 +814,6 @@ export function createBashDescription() {
         `  ${cmd.name} - ${cmd.description}${cmd.scripting && scriptSurfaceOpen() ? ` ${cmd.scripting}` : ""}`,
     ),
     ...SESSION_COMMAND_DEFS.map((cmd) => `  ${cmd.name} - ${cmd.description}`),
-    `  ${X_COMMAND.name} - ${X_COMMAND.description}`,
     ...CHAT_COMMAND_LINES,
   ];
 
@@ -1013,7 +1011,6 @@ export async function createLocalBashEnv({
         ...APP_COMMAND,
         command: createAppCommand(scope),
       },
-      { ...X_COMMAND, command: createXCommand(scope) },
       { ...BOOKMARKS_COMMAND, command: createBookmarksCommand(scope) },
       { ...SETTINGS_COMMAND, command: createSettingsCommand(scope) },
       { ...CHATS_COMMAND, command: createChatsCommand(scope) },

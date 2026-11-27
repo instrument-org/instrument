@@ -518,7 +518,7 @@ export function cliSubcommands(
 
 /**
  * An `instrument` command whose every subcommand the registry generates,
- * with its usage around the lines they make: `instrument x`, `instrument app`.
+ * with its usage around the lines they make: `instrument app`, `instrument memory`.
  */
 export function generatedCommand(
   {

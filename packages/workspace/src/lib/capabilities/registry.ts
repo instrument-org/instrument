@@ -79,7 +79,6 @@ import {
   windowWait,
   windowShow,
 } from "./window";
-import { xSearch, xThread } from "./x";
 
 /**
  * Every capability a command or a script calls, each defined once, in the
@@ -163,6 +162,4 @@ export const CAPABILITIES: readonly Capability[] = [
   windowJoin,
   windowRestore,
   windowWait,
-  xSearch,
-  xThread,
 ];

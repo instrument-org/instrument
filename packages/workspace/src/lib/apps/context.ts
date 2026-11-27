@@ -1,3 +1,5 @@
+import { APP_NAME } from "@instrument-org/shared";
+
 import { instructionsInContext } from "../instructions-in-context";
 import { APP_COMMAND } from "../../model-text/commands/app-command";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -9,6 +11,7 @@ import {
 } from "./connection";
 import { connectedElsewhere } from "./elsewhere";
 import { signsInDirectly } from "./site";
+import { grokPlanSignedIn, isXApp } from "./x-site";
 import { type AppInfo, listApps, readAppGuide } from "./store";
 
 /**
@@ -26,7 +29,7 @@ export async function buildAppsContextText(): Promise<string> {
 
   const rows = apps.map(
     (app) =>
-      `- ${app.slug} (${app.name}${app.manifest.account ? `, signed in as ${app.manifest.account}` : ""}, ${app.manifest.type === "web" ? `web at ${app.manifest.url}` : app.manifest.type}): ${describeConnection(connections[app.slug], app.manifestHash, { direct: signsInDirectly(app.manifest), nextSteps: false, web: app.manifest.type === "web" })}${standingElsewhere(app, connections, elsewhere)}`,
+      `- ${app.slug} (${app.name}${app.manifest.account ? `, signed in as ${app.manifest.account}` : ""}, ${app.manifest.type === "web" ? `web at ${app.manifest.url}` : app.manifest.type}${isXApp(app.manifest) ? `, with ${APP_NAME}'s X tools: \`${APP_COMMAND.name} tools ${app.slug}\`` : ""}): ${appStanding(app, connections[app.slug], { nextSteps: false })}${standingElsewhere(app, connections, elsewhere)}`,
   );
   for (const entry of invalid) {
     rows.push(`- ${entry.slug}: broken manifest, ${entry.message}`);
@@ -72,6 +75,31 @@ async function appInstructionsText(app: AppInfo): Promise<string | undefined> {
   return instructions === undefined
     ? undefined
     : `The instructions for "${app.name}" (${app.slug}), its guide:\n<app_instructions>\n${instructions}\n</app_instructions>`;
+}
+
+/**
+ * Where an app stands on this computer, as a listing says it: its
+ * connection, and for an X app, the Grok plan its search runs on beside its
+ * site's sign-in.
+ */
+export function appStanding(
+  app: AppInfo,
+  connection: AppConnection | undefined,
+  { nextSteps = true }: { nextSteps?: boolean } = {},
+): string {
+  const { manifest } = app;
+  const standing = describeConnection(connection, app.manifestHash, {
+    direct: signsInDirectly(manifest),
+    nextSteps,
+    web: manifest.type === "web",
+  });
+  if (!isXApp(manifest) || manifest.type !== "web") {
+    return standing;
+  }
+  const plan = grokPlanSignedIn()
+    ? "signed in"
+    : "not signed in on this computer";
+  return `search through the Grok plan (${plan}) · ${new URL(manifest.url).host} ${standing}`;
 }
 
 /** Where an app not connected here is connected on another computer, as the end of its line. */

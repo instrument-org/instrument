@@ -15,8 +15,17 @@
 // page's trace would count (`trace`: following the end and slipping off it,
 // or the reader's place shifting with no input). A clean run has none.
 //
+// Reaching the top also reports how the column's height went: `scrollHeight`
+// right as the chat opened, settled, and with every turn loaded, and while
+// getting there, each change of it and each time the scrollbar's thumb moved
+// down while the reader went up (`height`).
+//
 // Args: `chat` (harbor-survey), `zooms` ([1, 0.75, 1.5]), `words` (600) and
-// `delayMs` (20) for the streamed reply, `wheelPx` (500) per wheel step.
+// `delayMs` (20) for the streamed reply, `wheelPx` (500) per wheel step,
+// `reach` ("wheel") for how the top is reached ("drag" takes the position
+// to 0 as the scrollbar's thumb would and leaves it there until every page
+// is in), `stream` (true) to stream the
+// replies.
 
 import { createServer } from "node:http";
 
@@ -75,18 +84,26 @@ export default async (app, args = {}) => {
       "document.querySelectorAll('[data-group-up] [data-message-scroller-item]').length > 10",
       { timeout: 30_000 },
     );
+    const firstScrollHeight = (
+      await app.eval("window.__transcriptProbe.counts()")
+    ).scrollHeight;
     await sleep(2500);
-    results.phases.push(await measure("open"));
+    const opened = await measure("open");
+    results.phases.push(opened);
 
     // To the top with the wheel, the way a reader goes back through it. A
     // view left at the very top keeps the page above it unasked for until
     // the reader moves, so one held there turns back down a little first.
+    // Or by the scrollbar's thumb, dragged to the top and held there.
     await reset();
+    await app.eval("window.__transcriptProbe.height.start()");
+    const reach = args.reach ?? "wheel";
     const wheelPx = args.wheelPx ?? 500;
     let steps = 0;
     let nudges = 0;
     let heldAtTop = 0;
-    while (steps < 6000) {
+    const dragged = reach === "drag" ? await dragToTop(app) : undefined;
+    while (reach === "wheel" && steps < 6000) {
       const at = await app.eval("window.__transcriptProbe.where()");
       if (at.scrollTop <= 0 && !at.hasOlder) {
         break;
@@ -103,11 +120,21 @@ export default async (app, args = {}) => {
       await sleep(30);
     }
     await sleep(1500);
+    const height = await app.eval("window.__transcriptProbe.height.stop()");
+    const top = await measure("scrolled to the top");
     results.phases.push({
-      ...(await measure("scrolled to the top")),
-      wheelSteps: steps,
-      nudges,
+      ...top,
+      ...(dragged ? { dragged } : { wheelSteps: steps, nudges }),
     });
+    results.height = {
+      ...height,
+      scrollHeight: {
+        firstFrame: firstScrollHeight,
+        open: opened.scrollHeight,
+        loaded: top.scrollHeight,
+        openOffBy: opened.scrollHeight - top.scrollHeight,
+      },
+    };
 
     // Down to the end and back up in steps, at each zoom.
     for (const zoom of args.zooms ?? [1, 0.75, 1.5]) {
@@ -125,6 +152,10 @@ export default async (app, args = {}) => {
     }
     await app.eval("window.__transcriptProbe.setZoom(1)");
     await sleep(500);
+
+    if (args.stream === false) {
+      return results;
+    }
 
     // A reply streaming in, followed at the end.
     const { sessionId } = await app.rpc("workspace.chats.session", {
@@ -184,6 +215,34 @@ async function wheel(app, deltaY) {
     x,
     y,
   });
+}
+
+/**
+ * The scrollbar's thumb dragged to the top and held there until no older
+ * page is left to load. macOS draws overlay scrollbars, which take no
+ * synthesized press in a window off screen, so this is what the scroll
+ * owner sees of one: a press on the viewport itself, then the position
+ * stepped to 0 over ten frames and left there. Says how long the pages took
+ * and how far from the top the view was at most once it got there.
+ */
+async function dragToTop(app) {
+  await app.eval("window.__transcriptProbe.dragToTop()");
+  const started = Date.now();
+  let offTop = 0;
+  for (;;) {
+    const at = await app.eval("window.__transcriptProbe.where()");
+    offTop = Math.max(offTop, at.scrollTop);
+    if (!at.hasOlder || Date.now() - started > 60_000) {
+      break;
+    }
+    await sleep(50);
+  }
+  await sleep(500);
+  return {
+    ms: Date.now() - started,
+    offTop,
+    ...(await app.eval("window.__transcriptProbe.firstOnScreen()")),
+  };
 }
 
 async function waitForTurn(app, chat, timeoutMs) {
@@ -331,7 +390,71 @@ const PAGE_HELPERS = String.raw`(() => {
     return row ? { row, top: row.getBoundingClientRect().top } : undefined;
   };
   const trace = { events: [], stop: undefined };
+  const heights = { stop: undefined };
   window.__transcriptProbe = {
+    /** A press on the scrollbar, and the position taken to 0 over ten frames. */
+    async dragToTop() {
+      const view = viewport();
+      view.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      const from = view.scrollTop;
+      for (let step = 9; step >= 0; step--) {
+        view.scrollTop = (from * step) / 10;
+        await frames(1);
+      }
+    },
+    /** The first row a person sees at the top of the view, and whether it is the chat's first. */
+    firstOnScreen() {
+      const view = viewport();
+      const content = view.querySelector("[data-slot=message-scroller-content]");
+      const viewTop = view.getBoundingClientRect().top;
+      const first = content.firstElementChild;
+      const row = [...content.querySelectorAll(":scope > [data-message-scroller-item]")].find(
+        (item) => item.getBoundingClientRect().bottom > viewTop,
+      );
+      return {
+        scrollTop: view.scrollTop,
+        isFirstTurn: first === row,
+        rowTop: row ? Math.round(row.getBoundingClientRect().top - viewTop) : undefined,
+      };
+    },
+    /**
+     * Counts, frame by frame, each change of the column's scrollHeight and each
+     * frame the thumb moved down by more than half a percent of the track
+     * (a nudge down from the very top is one of those).
+     */
+    height: {
+      start() {
+        const view = viewport();
+        const seen = { changes: 0, grew: 0, shrank: 0, largestPx: 0, totalPx: 0, thumbDown: 0, frames: 0 };
+        let height = view.scrollHeight;
+        let thumb = view.scrollTop / view.scrollHeight;
+        let frame = 0;
+        const tick = () => {
+          frame = requestAnimationFrame(tick);
+          seen.frames += 1;
+          const next = view.scrollHeight;
+          if (next !== height) {
+            const change = next - height;
+            seen.changes += 1;
+            if (change > 0) seen.grew += 1; else seen.shrank += 1;
+            seen.largestPx = Math.max(seen.largestPx, Math.abs(change));
+            seen.totalPx += Math.abs(change);
+            height = next;
+          }
+          const at = view.scrollTop / view.scrollHeight;
+          if (at - thumb > 0.005) seen.thumbDown += 1;
+          thumb = at;
+        };
+        frame = requestAnimationFrame(tick);
+        heights.stop = () => {
+          cancelAnimationFrame(frame);
+          return seen;
+        };
+      },
+      stop() {
+        return heights.stop?.();
+      },
+    },
     center() {
       const box = viewport().getBoundingClientRect();
       return { x: box.left + box.width / 2, y: box.top + box.height / 2 };

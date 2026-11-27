@@ -346,8 +346,7 @@ export function useWindowTabsChange(): TabsChange {
 export function useGroupLayout(group: string): GroupLayout {
   const tabs = useTabsAtom();
   const layout = useMemo(
-    () =>
-      selectAtom(tabs, (state) => groupLayoutOf(state, group), sameLayout),
+    () => selectAtom(tabs, (state) => groupLayoutOf(state, group), sameLayout),
     [group, tabs],
   );
   return useAtomValue(layout);
@@ -371,6 +370,16 @@ export function useLinkGroup(group: string): string | undefined {
     [group],
   );
   return useAtomValue(word);
+}
+
+/** The color a group's link group label was given (`GroupOwn.linkColor`), read for the group alone. */
+export function useLinkColor(group: string): string | undefined {
+  const color = useMemo(
+    () =>
+      selectAtom(windowTabsAtom, (state) => state.groups?.[group]?.linkColor),
+    [group],
+  );
+  return useAtomValue(color);
 }
 
 function sameLayout(a: GroupLayout, b: GroupLayout) {

@@ -91,6 +91,7 @@ import { groupsInProject, isPinnedGroup, type TabGroup } from "./tab-groups";
 import {
   useGroupLayout,
   useGroupLead,
+  useLinkColor,
   useLinkGroup,
   useWindowTabs,
 } from "./window-tabs";
@@ -178,7 +179,7 @@ export function GroupSidebar({
   }
   const washProject = project ?? lastProject;
 
-  const { chatUpIn } = useWindowTabs();
+  const { chatUpIn, groupOwn, setGroupOwn } = useWindowTabs();
   const listed = groupsInProject(open, project?.id, projects);
   const pinned = listed.filter((entry) => isPinnedGroup(entry));
   const rest = listed.filter((entry) => !isPinnedGroup(entry));
@@ -238,6 +239,15 @@ export function GroupSidebar({
       onNewWindow: () => {
         onShow(entry.group, { newWindow: true });
       },
+      onRemoveLabel:
+        groupOwn[entry.group]?.linkGroup === undefined
+          ? undefined
+          : () => {
+              setGroupOwn(entry.group, {
+                linkColor: undefined,
+                linkGroup: undefined,
+              });
+            },
       onTogglePin: () => {
         onPin(entry.group, !entry.pinned);
       },
@@ -454,6 +464,7 @@ function steadyMenu(
     onCloseOthers: closer((now) => now.onCloseOthers),
     onDuplicate: () => latest(group)?.onDuplicate(),
     onNewWindow: () => latest(group)?.onNewWindow(),
+    onRemoveLabel: closer((now) => now.onRemoveLabel),
     onTogglePin: () => latest(group)?.onTogglePin(),
   };
 }
@@ -465,6 +476,7 @@ function offersOf(menu: GroupRowMenuActions): string {
     menu.onCloseAbove !== undefined,
     menu.onCloseBelow !== undefined,
     menu.onCloseOthers !== undefined,
+    menu.onRemoveLabel !== undefined,
   ].join();
 }
 
@@ -820,6 +832,7 @@ export function GroupRow({
   const names = useTabNames(chatTitles);
   const held = useGroupLead(entry.group);
   const linkGroup = useLinkGroup(entry.group);
+  const linkColor = useLinkColor(entry.group);
   const layout = useGroupLayout(entry.group);
   const sides = rowSidesOf(layout);
   // Named as a group, by the name its row shows, so a row whose tab is a
@@ -839,6 +852,7 @@ export function GroupRow({
       held={held}
       isCloseShown={isCloseShown}
       isOnScreen={isUp}
+      linkColor={linkColor}
       linkGroup={linkGroup}
       sides={sides}
     />

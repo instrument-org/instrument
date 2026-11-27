@@ -226,6 +226,7 @@ import {
   useWindowTabs,
   windowTabsAtom,
 } from "./window-tabs";
+import { newLinkColor } from "./link-label";
 import { stripKeyOf } from "./pane-tabs";
 import { flashStripTab, flashStripTabOnceDrawn } from "./tab-strip";
 import { forgetMovedAway, hasMovedAway, receiveTab } from "./move-tab";
@@ -1704,7 +1705,13 @@ function WindowShell({
         groups.make({
           fill: (group) => {
             if (linkGroup !== undefined) {
-              windowTabs.setGroupOwn(group, { linkGroup });
+              const worn = (store.get(windowTabGroupsAtom) ?? []).map(
+                (each) => windowTabs.groupOwn[each]?.linkColor,
+              );
+              windowTabs.setGroupOwn(group, {
+                linkColor: newLinkColor(worn),
+                linkGroup,
+              });
             }
             const [first] = hrefs.map((href) =>
               windowTabs.openScreen(href, { group }),

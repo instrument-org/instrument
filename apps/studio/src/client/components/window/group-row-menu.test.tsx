@@ -85,6 +85,7 @@ function menuFor(entry: TabGroup): GroupRowMenuActions {
     onCloseOthers: vi.fn(),
     onDuplicate: vi.fn(),
     onNewWindow: vi.fn(),
+    onRemoveLabel: undefined,
     onTogglePin: vi.fn(),
   };
 }
@@ -139,5 +140,28 @@ describe("a tab group row's menu", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "Pin" }));
 
     expect(menu.onTogglePin).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers Remove Label on a group a link named, and takes it off", async () => {
+    const entry = GROUPS[0]?.[1];
+    if (!entry) {
+      throw new Error("no group");
+    }
+    const menu = { ...menuFor(entry), onRemoveLabel: vi.fn() };
+    renderWithProviders(
+      <GroupRow
+        chatTitles={new Map()}
+        entry={entry}
+        isUp={false}
+        menu={menu}
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByRole("button"));
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Remove Label" }),
+    );
+
+    expect(menu.onRemoveLabel).toHaveBeenCalledTimes(1);
   });
 });

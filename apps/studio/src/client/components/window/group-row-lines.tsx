@@ -13,6 +13,7 @@ import { useAppsBySlug } from "./apps-by-slug";
 import { chatDotOf, ChatMarkIcon } from "./chat-mark";
 import { FadeTitle } from "./fade-title";
 import { leadTabOf, type RowSides } from "./group-leads";
+import { linkColorOf } from "./link-label";
 import { RowActionBar } from "./row-action-bar";
 import { type RowLines, siteOf, tabsBesideLead } from "./row-lines";
 import { TabMark, TONE_INK, useRowLines, useRowSources } from "./row-half";
@@ -45,8 +46,9 @@ interface MarkRun {
  * a group of many tabs still shows its title. A chat that is not the lead
  * has no line to say it is at work, so its mark wears the working pulse.
  * A group an outside link named by a word (`linkGroup`) shows the word on the
- * second line, in place of the lead tab's folders or site, unless the lead
- * is a chat, whose line says what it is doing.
+ * second line as a label filled with its color (`linkColor`), in place of the
+ * lead tab's folders or site, unless the lead is a chat, whose line says what
+ * it is doing.
  */
 export function GroupRowLines({
   chatTitles,
@@ -55,6 +57,7 @@ export function GroupRowLines({
   held,
   isCloseShown = false,
   isOnScreen,
+  linkColor,
   linkGroup,
   sides,
   titleRanges = null,
@@ -68,6 +71,8 @@ export function GroupRowLines({
   isCloseShown?: boolean;
   /** Whether the group is up: the tabs in front then wear no unread dot, as in their strips. */
   isOnScreen: boolean;
+  /** The color its link group's label was given (`GroupOwn.linkColor`). */
+  linkColor?: string | undefined;
   /** The word an outside link named the group by (`GroupOwn.linkGroup`). */
   linkGroup?: string | undefined;
   sides: RowSides;
@@ -80,11 +85,15 @@ export function GroupRowLines({
   const { chats } = useRowSources();
   const lead = leadTabOf(sides, held);
   const leadLines = useRowLines(lead, chatTitles);
-  const lines: RowLines =
+  const label =
     linkGroup === undefined || chatOfTab(lead) !== undefined
+      ? undefined
+      : linkGroup;
+  const lines: RowLines =
+    label === undefined
       ? leadLines
       : {
-          line: linkGroup,
+          line: label,
           strong: leadLines.strong,
           title: leadLines.title,
           tone: "quiet",
@@ -202,7 +211,16 @@ export function GroupRowLines({
       </div>
       {(lines.line !== "" || otherMarks) && (
         <div className="flex h-5 min-w-0 items-center gap-2 pl-6 text-[12px] leading-5">
-          <SecondLine lines={lines} />
+          {label === undefined ? (
+            <SecondLine lines={lines} />
+          ) : (
+            <span
+              className="min-w-0 truncate rounded-[5px] px-1.5 text-[11px] leading-4 font-semibold text-white"
+              style={{ backgroundColor: linkColorOf(label, linkColor) }}
+            >
+              {label}
+            </span>
+          )}
           {otherMarks}
         </div>
       )}

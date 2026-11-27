@@ -582,6 +582,7 @@ const SECTIONS: {
                 onCloseOthers: none,
                 onDuplicate: none,
                 onNewWindow: none,
+                onRemoveLabel: undefined,
                 onTogglePin: none,
               }}
             />,

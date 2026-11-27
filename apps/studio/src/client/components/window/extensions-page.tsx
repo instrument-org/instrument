@@ -5,7 +5,7 @@ import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { StorefrontIcon } from "@phosphor-icons/react/Storefront";
 import { useId } from "react";
 
-import { AdBlockingExtensionRow } from "./ad-blocking";
+import { AdBlockingExtensionRow } from "./ad-blocking-extension-row";
 import {
   type BrowserExtension,
   ExtensionIcon,

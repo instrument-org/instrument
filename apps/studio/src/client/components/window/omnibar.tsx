@@ -328,7 +328,7 @@ export function Omnibar({
   // field change: it answers that Return alone, so the same words typed
   // again later are looked for again.
   const [missed, setMissed] = useState<
-    undefined | { outcome: MissedPath; typed: string }
+    undefined | { outcome: MissedPath; shown: string; typed: string }
   >();
   if (missed !== undefined && missed.typed !== typed.trim()) {
     setMissed(undefined);
@@ -372,12 +372,12 @@ export function Omnibar({
           leave();
           return;
         }
-        setMissed({ outcome: located, typed: path.typed });
+        setMissed({ outcome: located, shown: path.shown, typed: path.typed });
         send({ index: 0, type: "highlight" });
         return;
       }
       case "failed": {
-        setMissed({ outcome: located, typed: path.typed });
+        setMissed({ outcome: located, shown: path.shown, typed: path.typed });
         send({ index: 0, type: "highlight" });
       }
     }
@@ -594,7 +594,9 @@ export function Omnibar({
         <OmniList
           current={current}
           id={listId}
-          notice={notice ? missedPathNotice(notice.outcome) : undefined}
+          notice={
+            notice ? missedPathNotice(notice.outcome, notice.shown) : undefined
+          }
           onRun={run}
           rows={rows}
         />

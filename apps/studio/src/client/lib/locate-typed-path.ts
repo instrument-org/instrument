@@ -46,11 +46,14 @@ export async function locateTypedPath(
   return error ? { kind: "failed", path: path.shown } : located;
 }
 
-/** What a field says about a path it could not open, in a sentence. */
-export function missedPathNotice(missed: MissedPath) {
-  const shown = `“${displayHostPath(withoutTrailingSeparators(missed.path), window.api.homeDir)}”`;
+/**
+ * What a field says about a path it could not open, naming it as the person
+ * wrote it (`TypedPath.shown`, a `~` kept as typed).
+ */
+export function missedPathNotice(missed: MissedPath, written: string) {
+  const shown = `“${withoutTrailingSeparators(written)}”`;
   if (missed.kind === "missing") {
-    return `There’s nothing at ${shown}.`;
+    return `Can’t find ${shown}`;
   }
   // Windows has no code of its own for a share that can't be reached, so
   // the read fails as UNKNOWN; on a share, that is what it nearly always is.
@@ -59,7 +62,7 @@ export function missedPathNotice(missed: MissedPath) {
     (missed.code === "UNKNOWN" && missed.path.startsWith("\\\\")
       ? "The network share it’s on isn’t answering."
       : undefined);
-  return `Instrument couldn’t open ${shown}.${why ? ` ${why}` : ""}`;
+  return `Can’t open ${shown}.${why ? ` ${why}` : ""}`;
 }
 
 /** The failures a person can do something about, said the way they would say them. */

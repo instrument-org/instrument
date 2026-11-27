@@ -1140,11 +1140,11 @@ function LoadErrorNotice({
       <WarningCircleIcon className="size-8 text-muted-foreground" />
       {missed ? (
         <p className="max-w-sm text-sm font-medium">
-          {missedPathNotice(missed)}
+          {missedPathNotice(missed, typed?.shown ?? missed.path)}
         </p>
       ) : located?.kind === "refused" ? (
         <p className="max-w-sm text-sm font-medium">
-          Instrument can’t read “{displayHostPath(located.path, home)}”.
+          Can’t read “{typed?.shown ?? located.path}”
         </p>
       ) : copy ? (
         <div className="max-w-md space-y-1.5">

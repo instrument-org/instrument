@@ -4510,7 +4510,7 @@ export function NotFound({
         <div>
           <p className="text-sm font-medium break-all">{`Can’t find “${name}”`}</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            It may have been moved or deleted.
+            It may have been moved, deleted, or saved on another computer.
           </p>
         </div>
         <div className="flex items-center gap-2">

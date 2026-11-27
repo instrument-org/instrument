@@ -94,7 +94,7 @@ describe("a path the field found nothing at", () => {
   it("says so until the words change, and not when they come back", async () => {
     await renderInBrowser(<Omnibar location={{ kind: "newTab" }} />);
     const field = page.getByRole("combobox");
-    const notice = page.getByText("There’s nothing at “/nowhere/x”.");
+    const notice = page.getByText("Can’t find “/nowhere/x”");
 
     await userEvent.fill(field, "/nowhere/x");
     await userEvent.keyboard("{Enter}");

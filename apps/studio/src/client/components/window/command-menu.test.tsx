@@ -202,13 +202,13 @@ describe("a path the command menu found nothing at", () => {
     const { rerender } = renderWithProviders(<MenuRows words="/nowhere/x" />);
     fireEvent.click(screen.getByRole("button", { name: "/nowhere/x" }));
     expect(
-      await screen.findByText("There’s nothing at “/nowhere/x”."),
+      await screen.findByText("Can’t find “/nowhere/x”"),
     ).toBeTruthy();
 
     rerender(<MenuRows words="/nowhere/" />);
     rerender(<MenuRows words="/nowhere/x" />);
 
-    expect(screen.queryByText("There’s nothing at “/nowhere/x”.")).toBeNull();
+    expect(screen.queryByText("Can’t find “/nowhere/x”")).toBeNull();
     expect(screen.getByRole("button", { name: "/nowhere/x" })).toBeTruthy();
   });
 });

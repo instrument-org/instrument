@@ -124,7 +124,7 @@ export function PathChip({ path }: { path: TypedPath }) {
   const open = (options?: OpenOptions) => {
     void locateTypedPath(path).then((located) => {
       if (located.kind === "failed") {
-        toast(missedPathNotice(located));
+        toast(missedPathNotice(located, path.shown));
         return;
       }
       // A path with nothing at it opens a tab at it that says it can't find it.
@@ -150,7 +150,7 @@ export function PathChip({ path }: { path: TypedPath }) {
     bookmarkRow(async () => {
       const located = await locateTypedPath(path);
       if (located.kind === "failed" || located.kind === "missing") {
-        throw new Error(missedPathNotice(located));
+        throw new Error(missedPathNotice(located, path.shown));
       }
       return {
         title: segmentsOf(located.path).at(-1) ?? located.path,

@@ -442,7 +442,7 @@ export function NewChatView({
   const openPath = async (path: TypedPath) => {
     const located = await locateTypedPath(path);
     if (located.kind === "failed") {
-      toast.error(missedPathNotice(located));
+      toast.error(missedPathNotice(located, path.shown));
       return;
     }
     takeBackWords();

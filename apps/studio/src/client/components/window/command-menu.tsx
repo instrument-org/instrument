@@ -753,7 +753,7 @@ export function useCommandMenuRows({
               ].map((item, index) =>
                 index === 0 ? { ...item, id: "open-path" } : item,
               ),
-              label: missedPathNotice(missed),
+              label: missedPathNotice(missed, typedPath?.shown ?? missed.path),
             },
           ]
         : [

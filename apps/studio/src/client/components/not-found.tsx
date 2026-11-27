@@ -68,7 +68,7 @@ function NotFoundCard() {
             <ReportErrorButton error={error} surface="not-found" />
           </div>
         }
-        description={`If a link in ${APP_NAME} brought you here, let us know so we can fix it.`}
+        description={`If a link in ${APP_NAME} brought you here, please report it.`}
         title="Page not found"
       />
     </div>

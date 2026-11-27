@@ -1679,36 +1679,35 @@ function WindowShell({
       notOpened: (count) => {
         toast(
           count === 1
-            ? "1 more file didn't open"
-            : `${count} more files didn't open`,
+            ? "1 more file didn’t open"
+            : `${count} more files didn’t open`,
           {
-            description: `One link opens up to ${OUTSIDE_FILES_MAX} files at a time.`,
+            description: `A link opens up to ${OUTSIDE_FILES_MAX} files at a time.`,
           },
         );
       },
       pageNotOpened: (host, why) => {
         if (why === "noAnswer") {
-          toast(`${host} didn't answer`, {
+          toast(`${host} didn’t answer`, {
             description: "Try the link again in a moment.",
           });
         } else {
           toast(`Error saving the page from ${host}`, {
-            description: "It couldn't be saved to your Downloads folder.",
+            description: "Check that your Downloads folder has room.",
           });
         }
       },
       // Fixed words: the link's own are in no toast, since a site can send
       // one with no click at all.
       linkNotOpened: () => {
-        toast("Couldn't open that link", {
+        toast("Can’t open this link", {
           action: {
             label: "Check for updates",
             onClick: () => {
               checkForUpdates.mutate();
             },
           },
-          description:
-            "This version of Instrument doesn't know that kind of link, but a newer one might.",
+          description: "A newer version of Instrument may open it.",
         });
       },
       // One thing from outside the app comes up in the tab of this window's

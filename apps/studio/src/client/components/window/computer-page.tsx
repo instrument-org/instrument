@@ -2637,6 +2637,7 @@ export function ComputerPage({
           over the folder instead, and a press outside it puts it away. */}
       <StudioSidebarRail
         bounds={PLACES_BOUNDS}
+        handleOn="border"
         isOpen={(isNarrow ? isPlacesOpen : isPlacesShown) && !isBesideOpen}
         isOverlay={isNarrow}
         label="Resize the sidebar"

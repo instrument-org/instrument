@@ -5,11 +5,11 @@ import * as React from "react";
 
 import { Button } from "./button";
 import { FarRows } from "./scroll-owner/far-rows";
+import { FarRowsContext } from "./scroll-owner/far-rows-context";
 import { type ScrollOptions, ScrollOwner } from "./scroll-owner/scroll-owner";
 import { Spinner } from "./spinner";
 
 const ScrollOwnerContext = React.createContext<ScrollOwner | null>(null);
-const FarRowsContext = React.createContext<FarRows | null>(null);
 
 function useScrollOwner(): ScrollOwner {
   const owner = React.use(ScrollOwnerContext);
@@ -26,11 +26,6 @@ function useFarRows(): FarRows {
     throw new Error("A message scroller part must be inside its provider.");
   }
   return farRows;
-}
-
-/** The transcript's turns far from view, where there is a transcript. */
-function useOptionalFarRows(): FarRows | null {
-  return React.use(FarRowsContext);
 }
 
 /** The commands a transcript's controls reach the scroller through. */
@@ -506,7 +501,6 @@ function assignRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
 export {
   MessageScroller,
   useFarRows,
-  useOptionalFarRows,
   useMessageScroller,
   ScrollPin,
   useMessageScrollerScrollable,

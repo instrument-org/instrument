@@ -3,9 +3,9 @@ import { flashJumpTarget } from "@/client/lib/flash-jump-target";
 import { useAtomValue } from "jotai";
 import { useCallback } from "react";
 
-import { keepDrawn } from "../components/task/chat-find";
 import { useReleaseAutoScroll } from "../components/transcript-scroll-context";
-import { useOptionalFarRows } from "../components/ui/message-scroller";
+import { useOptionalFarRows } from "../components/ui/scroll-owner/far-rows-context";
+import { keepDrawn } from "../components/ui/scroll-owner/keep-drawn";
 
 /**
  * The element a `#fragment` names, under either spelling it can carry.

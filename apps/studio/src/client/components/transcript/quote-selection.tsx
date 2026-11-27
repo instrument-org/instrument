@@ -1,10 +1,9 @@
 import { AskButton } from "@/client/components/document-viewers/ask-selection";
 import { type VirtualElement } from "@floating-ui/dom";
-import {
-  useMessageScroller,
-  useOptionalFarRows,
-} from "@/client/components/ui/message-scroller";
-import { centeringJump, keepDrawn } from "@/client/components/task/chat-find";
+import { useMessageScroller } from "@/client/components/ui/message-scroller";
+import { useOptionalFarRows } from "@/client/components/ui/scroll-owner/far-rows-context";
+import { centeringJump } from "@/client/components/task/chat-find";
+import { keepDrawn } from "@/client/components/ui/scroll-owner/keep-drawn";
 import { useEffect, useId, useImperativeHandle, useState } from "react";
 
 export interface QuoteSelectionRef {

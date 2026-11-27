@@ -18,7 +18,11 @@ import {
   useFarRows,
   useMessageScroller,
 } from "@/client/components/ui/message-scroller";
-import { type FarRows } from "@/client/components/ui/scroll-owner/far-rows";
+import {
+  drawn,
+  keepDrawn,
+  turnSelector,
+} from "@/client/components/ui/scroll-owner/keep-drawn";
 import { useFindTarget } from "@/client/hooks/use-find-target";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -48,9 +52,6 @@ import {
 
 /** How long typing rests before the turns not loaded yet are searched. */
 const SEARCH_REST_MS = 150;
-
-/** How many frames a loaded turn has to be drawn before the find gives up on it. */
-const DRAW_WAIT_FRAMES = 120;
 
 /**
  * Find in a chat's transcript: the shared {@link FindRow} in a card at the
@@ -489,10 +490,6 @@ const FIND_KEEPS = "find";
 
 const NO_BOXES = { matches: [], rows: [] };
 
-function turnSelector(id: string) {
-  return `[data-turn-id="${CSS.escape(id)}"]`;
-}
-
 function viewportOf(content: HTMLElement | null) {
   return (
     content?.closest<HTMLElement>('[data-slot="message-scroller-viewport"]') ??
@@ -594,27 +591,6 @@ function pickInTurn(
   return after <= 0 ? ranges.length - 1 : after - 1;
 }
 
-/**
- * Keeps `turns` drawn for `by`, in place of what it kept before, and waits
- * until they are: how anything that lands on a turn reaches one drawn as a box.
- */
-export async function keepDrawn(
-  farRows: FarRows,
-  content: Element,
-  by: string,
-  turns: ReadonlySet<string>,
-) {
-  farRows.keep(by, turns);
-  await drawn(() => [...turns].every((turn) => isTurnDrawn(content, turn)));
-}
-
-/** Whether the rows of the turn `id` are drawn rather than boxes. */
-function isTurnDrawn(content: Element, id: string) {
-  return [...content.querySelectorAll(turnSelector(id))].every(
-    (row) => !row.hasAttribute("data-placeholder"),
-  );
-}
-
 /** The first match whose bottom is below the top of the view, else the last. */
 function firstInView(ranges: readonly Range[], viewport: HTMLElement | null) {
   if (!viewport || ranges.length === 0) {
@@ -666,16 +642,6 @@ function isLoaded(content: HTMLElement, id: string) {
   return (
     content.querySelector(`[data-message-id="${CSS.escape(id)}"]`) !== null
   );
-}
-
-/** Waits for `isDrawn`, a frame at a time. */
-async function drawn(isDrawn: () => boolean) {
-  for (let frame = 0; frame < DRAW_WAIT_FRAMES; frame++) {
-    if (isDrawn()) {
-      return;
-    }
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-  }
 }
 
 /**

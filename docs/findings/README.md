@@ -72,6 +72,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [In-app browser: full-page screenshots tile unless taken a viewport at a time](in-app-browser-full-page-screenshots.md): resolved 2026-11-24: `agent-browser screenshot --full` is taken a viewport's worth at a time and joined.
 - [What the in-app browser reports about itself](in-app-browser-self-report.md): current, except that the identity the guest presents has changed since.
 - [Leaking z-index stacks in the renderer](leaking-z-index-stacks.md): resolved for the surfaces listed below;
+- [The Linux keyring check always says yes](linux-keyring-check-always-says-yes.md): open, found 2026-11-27 reading the code and `dbus-send`'s source;
 - [Local transcription: engine choice](local-transcription-engine.md): the engine comparison is deliberately left unresolved, because the measurement that would settle it has not been run.
 - [The loopback block stops curl, not native interpreters](loopback-block-is-curl-only.md): resolved by lifting the block rather than enforcing it: `curl` and `web_fetch` reach the whole local network and refuse only Instrument's own workspace serve...
 - [Loading a Python skill popped the macOS Command Line Tools installer](macos-command-line-tools-dialog.md): resolved by the native sandbox closing the installer service, with `DEVELOPER_DIR` kept only for local MCP servers;

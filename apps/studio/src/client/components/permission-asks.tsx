@@ -393,13 +393,13 @@ function AdminAskCard({
           {reason}
         </p>
       ) : null}
-      <div className="relative mt-2.5 rounded-xl bg-muted/50">
+      <div className="group/command relative mt-2.5 rounded-xl bg-muted/50">
         <pre className="max-h-40 scroll-fade-y overflow-auto py-2 pr-10 pl-3 font-mono text-[13px] leading-5 break-all whitespace-pre-wrap">
           {ask.target}
         </pre>
         <CopyButton
-          className="absolute top-1 right-1 text-muted-foreground"
-          iconSize={14}
+          className="absolute top-1 right-1 grid size-7 place-items-center rounded-md bg-card text-muted-foreground opacity-0 shadow-xs ring-1 ring-border group-hover/command:opacity-100 hover:text-foreground focus-visible:opacity-100"
+          iconSize={16}
           label="Copy command"
           onCopy={async () => {
             await navigator.clipboard.writeText(ask.target);

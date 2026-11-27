@@ -1,3 +1,5 @@
+import { JoinSidesIcon } from "@/client/components/icons/join-sides-icon";
+import { TabGroupIcon } from "@/client/components/icons/tab-group-icon";
 import { toast } from "@/client/lib/toast";
 import { type WindowTab } from "@/client/atoms/window";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
@@ -13,8 +15,6 @@ import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowUUpLeftIcon } from "@phosphor-icons/react/ArrowUUpLeft";
 import { ArrowsMergeIcon } from "@phosphor-icons/react/ArrowsMerge";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
-import { RectangleIcon } from "@phosphor-icons/react/Rectangle";
-import { StackIcon } from "@phosphor-icons/react/Stack";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
@@ -91,7 +91,7 @@ export function WindowSpaceMenu({
         {kind === "tab" ? (
           <NewTabIcon className="size-4" />
         ) : (
-          <StackIcon className="size-4" />
+          <TabGroupIcon className="size-4" />
         )}
         <span>{newShortcut.label}</span>
         <Shortcut>{formatAcceleratorText(newShortcut.accelerator)}</Shortcut>
@@ -122,7 +122,7 @@ export function WindowSpaceMenu({
           </Item>
           {sides.onJoinSides && (
             <Item onClick={sides.onJoinSides}>
-              <RectangleIcon className="size-4" />
+              <JoinSidesIcon className="size-4" />
               <span>Join Sides</span>
             </Item>
           )}

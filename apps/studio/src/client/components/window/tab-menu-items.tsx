@@ -1,4 +1,6 @@
-import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
+import { JoinSidesIcon } from "@/client/components/icons/join-sides-icon";
+import { TabGroupIcon } from "@/client/components/icons/tab-group-icon";
+import { DuplicateIcon } from "@/client/components/icons/duplicate-icon";
 import { useOpeningReleaseGuard } from "@/client/components/ui/context-menu";
 import {
   DropdownMenu,
@@ -14,9 +16,7 @@ import { ArrowLineLeftIcon } from "@phosphor-icons/react/ArrowLineLeft";
 import { ArrowLineRightIcon } from "@phosphor-icons/react/ArrowLineRight";
 import { ArrowsLeftRightIcon } from "@phosphor-icons/react/ArrowsLeftRight";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
-import { RectangleIcon } from "@phosphor-icons/react/Rectangle";
 import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
-import { StackIcon } from "@phosphor-icons/react/Stack";
 import { XIcon } from "@phosphor-icons/react/X";
 import { XSquareIcon } from "@phosphor-icons/react/XSquare";
 import { type ReactNode } from "react";
@@ -193,13 +193,13 @@ export function TabMenuItems({
       )}
       {onJoinSides && (
         <Item onClick={onJoinSides}>
-          <RectangleIcon className="size-4" />
+          <JoinSidesIcon className="size-4" />
           <span>Join Sides</span>
         </Item>
       )}
       {onMoveToNewGroup && (
         <Item onClick={onMoveToNewGroup}>
-          <StackIcon className="size-4" />
+          <TabGroupIcon className="size-4" />
           <span>{MOVE_TO_NEW_TAB_GROUP}</span>
         </Item>
       )}
@@ -238,7 +238,7 @@ export function TabMenuItems({
       ) : null}
       {placing && <Separator />}
       <Item onClick={onDuplicate}>
-        <NewTabIcon className="size-4" />
+        <DuplicateIcon className="size-4" />
         <span>Duplicate</span>
       </Item>
       {actions.map((action) => (

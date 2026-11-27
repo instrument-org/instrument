@@ -1,3 +1,4 @@
+import { GenericAppIcon } from "@/client/components/icons/generic-app-icon";
 import { type ViewerFile } from "@/client/atoms/viewer-file";
 import {
   useFileManagerApp,
@@ -6,7 +7,6 @@ import {
 import { useOpenFileWith } from "@/client/hooks/use-open-file";
 import { hasFilesView, revealInFileManager } from "@/client/lib/show-in-files";
 import { osConventions } from "@/client/lib/utils";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { type ReactElement } from "react";
 
 import { IconWithFallback } from "./icon-with-fallback";
@@ -52,7 +52,7 @@ export function OpenInMenu({
   return (
     <Sub>
       <SubTrigger>
-        <AppWindowIcon className="size-4" />
+        <GenericAppIcon className="size-4" />
         <span>{onlyAlternatives ? "Open with" : "Open in"}</span>
       </SubTrigger>
       <SubContent className="flex min-w-52 flex-col p-0">
@@ -225,7 +225,7 @@ function OpenWithCandidates({
         >
           <IconWithFallback
             className="size-5"
-            fallback={<AppWindowIcon className="size-5" />}
+            fallback={<GenericAppIcon className="size-5" />}
             src={candidate.iconUrl}
           />
           <span className="truncate">{candidate.appName}</span>

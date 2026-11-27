@@ -1,10 +1,11 @@
+import { CubeIcon } from "@phosphor-icons/react/Cube";
+import { FilePlusIcon } from "@phosphor-icons/react/FilePlus";
+import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import {
   type ToolName,
   toolWorkingLabel,
 } from "@instrument-org/workspace/client";
 import { type Icon } from "@phosphor-icons/react";
-import { BookOpenIcon } from "@phosphor-icons/react/BookOpen";
-import { CodeIcon } from "@phosphor-icons/react/Code";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { ImageIcon } from "@phosphor-icons/react/Image";
@@ -81,15 +82,15 @@ export const TOOL_ICONS: Record<ToolName, Icon | undefined> = {
   bash: TerminalIcon,
   choose: QuestionIcon,
   connect_app: PlugsConnectedIcon,
-  edit_file: CodeIcon,
+  edit_file: NotePencilIcon,
   generate_image: ImageIcon,
-  load_skill: BookOpenIcon,
+  load_skill: CubeIcon,
   offer_feedback: MegaphoneSimpleIcon,
   read_file: EyeIcon,
   unavailable: WrenchIcon,
   web_fetch: GlobeIcon,
   web_search: MagnifyingGlassIcon,
-  write_file: CodeIcon,
+  write_file: FilePlusIcon,
 };
 
 export function getToolStreamingLabel(

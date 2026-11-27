@@ -13,7 +13,6 @@ import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { NO_FAVORITE_CHANGES, favoritePlaces } from "@/shared/favorite-places";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { MinusCircleIcon } from "@phosphor-icons/react/MinusCircle";
 import { PlusCircleIcon } from "@phosphor-icons/react/PlusCircle";
@@ -99,7 +98,7 @@ export function PlaceMenu({
             })
         }
       >
-        <ClipboardTextIcon className="size-4" />
+        <CopyIcon className="size-4" />
         <span>{copyPathLabel(name)}</span>
       </ContextMenuItem>
       {favorite ? (

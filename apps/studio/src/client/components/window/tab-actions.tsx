@@ -17,7 +17,6 @@ import { expandHomePath } from "@instrument-org/shared";
 import { browserTargetOf } from "@instrument-org/workspace/client";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
-import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PrinterIcon } from "@phosphor-icons/react/Printer";
@@ -199,7 +198,7 @@ export function useFrontTabActions({
           },
         },
         {
-          icon: <ClipboardTextIcon className="size-4" />,
+          icon: <CopyIcon className="size-4" />,
           id: "copy-path",
           label: "Copy Path",
           run: () => {

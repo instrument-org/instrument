@@ -1,3 +1,5 @@
+import { TabGroupIcon } from "@/client/components/icons/tab-group-icon";
+import { DuplicateIcon } from "@/client/components/icons/duplicate-icon";
 import {
   type FileSystemItem,
   type FileSystemSortKey,
@@ -35,10 +37,8 @@ import { currentOs, isMacOS, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
-import { StackIcon } from "@phosphor-icons/react/Stack";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { ClipboardIcon } from "@phosphor-icons/react/Clipboard";
-import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
@@ -371,7 +371,7 @@ export function FolderMenuItems({
           </Item>
           {onOpenInNewGroup ? (
             <Item onClick={onOpenInNewGroup}>
-              <StackIcon className="size-4" />
+              <TabGroupIcon className="size-4" />
               <span>Open in New Tab Group</span>
             </Item>
           ) : null}
@@ -438,7 +438,7 @@ export function FolderMenuItems({
             <Shortcut>{keys.copy}</Shortcut>
           </Item>
           <Item disabled={kept !== undefined} onClick={onDuplicate}>
-            <CopyIcon className="size-4" />
+            <DuplicateIcon className="size-4" />
             <span>Duplicate</span>
             {keys.duplicate ? <Shortcut>{keys.duplicate}</Shortcut> : null}
           </Item>
@@ -467,7 +467,7 @@ export function FolderMenuItems({
                 </Item>
               ) : null}
               <Item onClick={onCopyPath}>
-                <ClipboardTextIcon className="size-4" />
+                <CopyIcon className="size-4" />
                 <span>Copy Path</span>
                 {keys.copyPath ? <Shortcut>{keys.copyPath}</Shortcut> : null}
               </Item>

@@ -36,7 +36,6 @@ import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { FolderSimplePlusIcon } from "@phosphor-icons/react/FolderSimplePlus";
 import { useAtomValue } from "jotai";
 import { ArrowSquareInIcon } from "@phosphor-icons/react/ArrowSquareIn";
-import { BookmarksSimpleIcon } from "@phosphor-icons/react/BookmarksSimple";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { XCircleIcon } from "@phosphor-icons/react/XCircle";
@@ -71,7 +70,7 @@ export function ShowBookmarksBarItem() {
         setShown.mutate({ enabled });
       }}
     >
-      <BookmarksSimpleIcon className="size-4" />
+      <BookmarksIcon className="size-4" />
       <span>Show Bookmarks Bar</span>
     </ContextMenuCheckboxItem>
   );
@@ -240,7 +239,7 @@ function MoveToItems({ bookmark }: { bookmark: Bookmark }) {
           >
             {place.depth > 1 && <PlaceIndent depth={place.depth} />}
             {place.depth === 0 ? (
-              <BookmarksSimpleIcon className="size-4" />
+              <BookmarksIcon className="size-4" />
             ) : (
               <FolderSimpleIcon className="size-4" />
             )}

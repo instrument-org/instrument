@@ -1,3 +1,5 @@
+import { SystemThemeIcon } from "@/client/components/icons/system-theme-icon";
+import { TabGroupIcon } from "@/client/components/icons/tab-group-icon";
 import { ChatAskIcon } from "@/client/components/icons/chat-ask-icon";
 import { MiddleTruncate } from "@/client/components/middle-truncate";
 import { chatNotesAtom } from "@/client/atoms/chat-notes";
@@ -132,10 +134,8 @@ import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { FlaskIcon } from "@phosphor-icons/react/Flask";
 import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { MoonIcon } from "@phosphor-icons/react/Moon";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
-import { StackIcon } from "@phosphor-icons/react/Stack";
 import { SunIcon } from "@phosphor-icons/react/Sun";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -373,7 +373,7 @@ export function useCommandMenuRows({
   const commands: Omit<Item, "ranges" | "type">[] = [
     {
       chord: WINDOW_SHORTCUTS.newChat.accelerator,
-      icon: <StackIcon />,
+      icon: <TabGroupIcon />,
       id: "new-group",
       label: "New Tab Group",
       run: () => {
@@ -485,7 +485,11 @@ export function useCommandMenuRows({
       [
         { icon: <SunIcon />, label: "Use Light Theme", value: "light" },
         { icon: <MoonIcon />, label: "Use Dark Theme", value: "dark" },
-        { icon: <MonitorIcon />, label: "Use System Theme", value: "system" },
+        {
+          icon: <SystemThemeIcon />,
+          label: "Use System Theme",
+          value: "system",
+        },
       ] as const
     )
       .filter(({ value }) => value !== theme)

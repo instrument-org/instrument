@@ -1,5 +1,5 @@
+import { GenericAppIcon } from "@/client/components/icons/generic-app-icon";
 import { rpcClient } from "@/client/rpc/client";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { useQuery } from "@tanstack/react-query";
 
 /**
@@ -14,6 +14,6 @@ export function MacAppIcon({ app }: { app: string }) {
   return icon.data?.url ? (
     <img alt="" className="size-6" draggable={false} src={icon.data.url} />
   ) : (
-    <AppWindowIcon className="size-6 text-muted-foreground" />
+    <GenericAppIcon className="size-6 text-muted-foreground" />
   );
 }

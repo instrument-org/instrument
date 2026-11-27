@@ -1,3 +1,4 @@
+import { DuplicateIcon } from "@/client/components/icons/duplicate-icon";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -8,7 +9,6 @@ import {
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { ArrowLineUpIcon } from "@phosphor-icons/react/ArrowLineUp";
-import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
@@ -76,7 +76,7 @@ export function GroupRowMenu({
           Open in New Window
         </ContextMenuItem>
         <ContextMenuItem onSelect={menu.onDuplicate}>
-          <CopyIcon className="size-4" />
+          <DuplicateIcon className="size-4" />
           Duplicate Tab Group
         </ContextMenuItem>
         <ContextMenuSeparator />

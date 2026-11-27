@@ -1,3 +1,5 @@
+import { GenericAppIcon } from "@/client/components/icons/generic-app-icon";
+import { TabGroupIcon } from "@/client/components/icons/tab-group-icon";
 import { useImageArrival } from "@/client/hooks/use-image-arrival";
 import {
   useOpenGestures,
@@ -290,7 +292,7 @@ export function InlineLink({
 export function AppChipIcon({ slug }: { slug: string }) {
   const app = useAppsBySlug().get(slug);
   if (!app) {
-    return <AppWindowIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+    return <GenericAppIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
   }
   return (
     <AppIcon
@@ -416,8 +418,10 @@ function AppLinkIcon({ link }: { link: InstrumentLink }) {
     case "skill": {
       return <CubeIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
     }
-    // A tab group or a tab is a place in the window.
-    case "group":
+    case "group": {
+      return <TabGroupIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+    }
+    // A tab is a place in the window.
     case "tab": {
       return <AppWindowIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
     }

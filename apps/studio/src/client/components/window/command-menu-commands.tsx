@@ -1,3 +1,6 @@
+import { DuplicateIcon } from "@/client/components/icons/duplicate-icon";
+import { JoinSidesIcon } from "@/client/components/icons/join-sides-icon";
+import { TabGroupIcon } from "@/client/components/icons/tab-group-icon";
 import { type WindowTab } from "@/client/atoms/window";
 import { sidebarOpenAtom } from "@/client/atoms/tab-groups";
 import { getGuest } from "@/client/lib/browser-pool";
@@ -14,7 +17,6 @@ import { ArrowLineLeftIcon } from "@phosphor-icons/react/ArrowLineLeft";
 import { ArrowLineRightIcon } from "@phosphor-icons/react/ArrowLineRight";
 import { ArrowsLeftRightIcon } from "@phosphor-icons/react/ArrowsLeftRight";
 import { BookmarksIcon } from "@phosphor-icons/react/Bookmarks";
-import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
@@ -22,12 +24,10 @@ import { MagnifyingGlassMinusIcon } from "@phosphor-icons/react/MagnifyingGlassM
 import { MagnifyingGlassPlusIcon } from "@phosphor-icons/react/MagnifyingGlassPlus";
 import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
-import { RectangleIcon } from "@phosphor-icons/react/Rectangle";
 import { ShareIcon } from "@phosphor-icons/react/Share";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useSidePanel } from "./side-panel-state";
 import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
-import { StackIcon } from "@phosphor-icons/react/Stack";
 import { StopIcon } from "@phosphor-icons/react/Stop";
 import { XIcon } from "@phosphor-icons/react/X";
 import { XSquareIcon } from "@phosphor-icons/react/XSquare";
@@ -274,13 +274,13 @@ export function useMenuCommands({
     action(
       "duplicate-tab",
       "Duplicate Tab",
-      <CopyIcon className={ICON} />,
+      <DuplicateIcon className={ICON} />,
       duplicate,
     ),
     action(
       "move-tab-to-new-group",
       "Move Tab to New Tab Group",
-      <StackIcon className={ICON} />,
+      <TabGroupIcon className={ICON} />,
       group !== undefined && groupTabCount > 1
         ? () => {
             groupActions.make({
@@ -364,7 +364,7 @@ export function useMenuCommands({
           action(
             "close-split-keep-both",
             "Close Split, Keep Both",
-            <RectangleIcon className={ICON} />,
+            <JoinSidesIcon className={ICON} />,
             isSplit
               ? () => {
                   windowTabs.joinSides(group);
@@ -405,7 +405,7 @@ export function useMenuCommands({
           action(
             "duplicate-tab-group",
             "Duplicate Tab Group",
-            <CopyIcon className={ICON} />,
+            <DuplicateIcon className={ICON} />,
             () => {
               groupActions.duplicate(entry);
             },
@@ -507,7 +507,7 @@ export function useMenuCommands({
           action(
             "copy-for-agent",
             "Copy for an Agent",
-            <ClipboardTextIcon className={ICON} />,
+            <CopyIcon className={ICON} />,
             () => {
               void copying(
                 () => rpcClient.chatLocation.forAgent.call({ id: chat.id }),
@@ -521,7 +521,7 @@ export function useMenuCommands({
           action(
             "copy-work-folder-path",
             "Copy Work Folder Path",
-            <ClipboardTextIcon className={ICON} />,
+            <CopyIcon className={ICON} />,
             () => {
               void copying(
                 () =>
@@ -539,7 +539,7 @@ export function useMenuCommands({
             action(
               "copy-developer-details",
               "Copy Developer Details",
-              <ClipboardTextIcon className={ICON} />,
+              <CopyIcon className={ICON} />,
               () => {
                 void copying(
                   () =>

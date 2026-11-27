@@ -1,3 +1,4 @@
+import { SystemThemeIcon } from "@/client/components/icons/system-theme-icon";
 import { toggleDeveloperStrip } from "@/client/atoms/developer-strip";
 import { featuresAtom } from "@/client/atoms/features";
 import { openSettings } from "@/client/atoms/settings-modal";
@@ -22,7 +23,6 @@ import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type FeatureName, FeatureNameSchema } from "@/shared/features";
 import { SHORTCUTS } from "@/shared/shortcuts";
 import { APP_FLAVOR, PORTS } from "@instrument-org/shared";
-import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { MoonIcon } from "@phosphor-icons/react/Moon";
 import { SunIcon } from "@phosphor-icons/react/Sun";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -237,7 +237,7 @@ function ThemeToggle() {
   const shortcut = formatAcceleratorText(SHORTCUTS.toggleTheme.accelerator);
   const ThemeIcon =
     theme === "system"
-      ? MonitorIcon
+      ? SystemThemeIcon
       : resolvedTheme === "dark"
         ? MoonIcon
         : SunIcon;

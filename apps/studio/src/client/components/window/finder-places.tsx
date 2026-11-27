@@ -1,3 +1,4 @@
+import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { MiddleTruncate } from "@/client/components/middle-truncate";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
@@ -13,7 +14,6 @@ import { COMPUTER_ROOT, RECENTS_ROOT } from "@/shared/computer-href";
 import { favoritePlaces, type FavoriteChanges } from "@/shared/favorite-places";
 import { folderNameFromPath } from "@instrument-org/shared";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
-import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { memo, type ReactNode, useRef } from "react";
 
@@ -183,7 +183,7 @@ export const FinderPlaces = memo(function FinderPlaces({
         onOpen={actions.rootTo}
         places={[
           {
-            icon: <MonitorIcon className="size-4 text-muted-foreground" />,
+            icon: <DesktopIcon className="size-4 text-muted-foreground" />,
             isActive: isComputer,
             name: osConventions().computer,
             path: COMPUTER_ROOT,

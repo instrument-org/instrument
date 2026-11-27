@@ -1,3 +1,5 @@
+import { BookmarksIcon } from "@phosphor-icons/react/Bookmarks";
+import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { targetOfAddress } from "@/client/bookmarks/address";
 import { useBookmarkFolders } from "@/client/bookmarks/folders";
 import {
@@ -59,10 +61,8 @@ import { WINDOW_CARD_GAP, windowCardTop } from "@/shared/constants";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ArrowSquareInIcon } from "@phosphor-icons/react/ArrowSquareIn";
-import { BookmarksSimpleIcon } from "@phosphor-icons/react/BookmarksSimple";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
-import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { CloudIcon } from "@phosphor-icons/react/Cloud";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
@@ -491,9 +491,7 @@ function PanelHead({
  */
 function PanelScroll({ children }: { children: ReactNode }) {
   return (
-    <div
-      className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-fade-y pb-2 [-webkit-app-region:no-drag]"
-    >
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-fade-y pb-2 [-webkit-app-region:no-drag]">
       {children}
       <div className={cn("min-h-2 flex-1", WINDOW_DRAG)} />
     </div>
@@ -1066,7 +1064,7 @@ function PlaceRow({ open, place }: { open: OpenAddress; place: Place }) {
         />
         <ContextMenuSeparator />
         <ContextMenuItem onClick={() => void copyFolderPath(place.path)}>
-          <ClipboardTextIcon className="size-4" />
+          <CopyIcon className="size-4" />
           <span>Copy Path</span>
         </ContextMenuItem>
       </ContextMenuContent>
@@ -1107,7 +1105,7 @@ function BookmarksSection({
         <AllBookmarksDrop>
           {(className) => (
             <p className={cn(EMPTY_SLOT, className)}>
-              <BookmarksSimpleIcon className="size-4 shrink-0" />
+              <BookmarksIcon className="size-4 shrink-0" />
               Bookmarks you keep show up here.
             </p>
           )}
@@ -1348,7 +1346,7 @@ function BookmarkTree({
                     type="button"
                   >
                     <DropLine at={line} />
-                    <BookmarksSimpleIcon className="size-4 shrink-0 text-foreground/70" />
+                    <BookmarksIcon className="size-4 shrink-0 text-foreground/70" />
                     <span className="min-w-0 flex-1 truncate">
                       Bookmarks bar
                     </span>

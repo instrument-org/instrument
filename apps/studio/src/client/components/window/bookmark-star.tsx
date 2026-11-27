@@ -1,3 +1,4 @@
+import { BookmarksIcon } from "@phosphor-icons/react/Bookmarks";
 import { useBookmarkActions } from "@/client/bookmarks/actions";
 import { sameAddress } from "@/client/bookmarks/address";
 import { useBookmarkFolders } from "@/client/bookmarks/folders";
@@ -27,7 +28,6 @@ import {
 import { cn } from "@/client/lib/utils";
 import { bookmarkPlaces, keyOfPlace, placeOf } from "@/shared/bookmarks";
 import { instrumentAddressOf, SCREENS } from "@/shared/instrument-screens";
-import { BookmarksSimpleIcon } from "@phosphor-icons/react/BookmarksSimple";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { useAtomValue, useSetAtom } from "jotai";
 import { StarIcon } from "@phosphor-icons/react/Star";
@@ -183,9 +183,7 @@ export function BookmarkStar({
                   "text-foreground/20 hover:bg-transparent hover:text-foreground/20",
                 isOutOfSight && "pointer-events-none opacity-0",
               )}
-              data-bookmark-star={
-                isLoaded ? (kept ? "kept" : "") : "loading"
-              }
+              data-bookmark-star={isLoaded ? (kept ? "kept" : "") : "loading"}
               disabled={!isLoaded}
               onClick={press}
               ref={button}
@@ -361,7 +359,7 @@ function BookmarkCard({
                 <SelectItem key={place.key ?? BAR} value={place.key ?? BAR}>
                   {place.depth > 1 && <PlaceIndent depth={place.depth} />}
                   {place.depth === 0 ? (
-                    <BookmarksSimpleIcon className="size-4" />
+                    <BookmarksIcon className="size-4" />
                   ) : (
                     <FolderSimpleIcon className="size-4" />
                   )}

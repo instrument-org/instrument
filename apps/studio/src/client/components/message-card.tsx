@@ -1,3 +1,4 @@
+import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { CopyButton } from "@/client/components/copy-button";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -136,7 +137,7 @@ export function MessageActions({
                 openExternal(gmailOf(getMessage()), { addReferral: false });
               }}
             >
-              <AppIcon fallback={<ArrowUpRightIcon />} target={browser} />
+              <AppIcon fallback={<ArrowSquareOutIcon />} target={browser} />
               {browser.appName
                 ? `Open Gmail in ${browser.appName}`
                 : "Open in Gmail"}

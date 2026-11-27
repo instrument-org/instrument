@@ -1,3 +1,4 @@
+import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -19,7 +20,6 @@ import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { ArrowElbowDownRightIcon } from "@phosphor-icons/react/ArrowElbowDownRight";
-import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { type ReactNode } from "react";
 
 /** A row a list adds to a folder's menu, after the ones every folder has. */
@@ -159,7 +159,7 @@ export function FolderRow({
           <span>{showInFolderLabel("folder")}</span>
         </ContextMenuItem>
         <ContextMenuItem onClick={() => void copyFolderPath(path)}>
-          <ClipboardTextIcon className="size-4" />
+          <CopyIcon className="size-4" />
           <span>Copy Path</span>
         </ContextMenuItem>
         {menu.length > 0 ? <ContextMenuSeparator /> : null}

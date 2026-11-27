@@ -1,8 +1,8 @@
+import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { type MenuComponents } from "@/client/components/ui/menu-components";
 import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
-import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { safe } from "@orpc/client";
 
 import { type Chat } from "./chats";
@@ -45,7 +45,7 @@ export function ChatCopyMenu({
   return (
     <Sub>
       <SubTrigger>
-        <ClipboardTextIcon className="size-4" />
+        <CopyIcon className="size-4" />
         Copy
       </SubTrigger>
       <SubContent>

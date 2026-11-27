@@ -1,9 +1,9 @@
+import { TabGroupIcon } from "@/client/components/icons/tab-group-icon";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { type MenuComponents } from "@/client/components/ui/menu-components";
 import { type OpenDestination } from "@/client/hooks/use-open-target";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
-import { StackIcon } from "@phosphor-icons/react/Stack";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { type ComponentType } from "react";
 
@@ -12,7 +12,7 @@ const PLACE_ICONS: Partial<
   Record<OpenDestination["id"], ComponentType<{ className?: string }>>
 > = {
   bookmark: StarIcon,
-  openNewGroup: StackIcon,
+  openNewGroup: TabGroupIcon,
   openNewTab: NewTabIcon,
   openNewWindow: AppWindowIcon,
   openSplit: SquareSplitHorizontalIcon,

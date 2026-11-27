@@ -1,3 +1,4 @@
+import { BookmarksIcon } from "@phosphor-icons/react/Bookmarks";
 import { undoBookmarkChanges } from "@/client/bookmarks/agent-changes";
 import {
   applyBookmarkOpsAtom,
@@ -9,7 +10,6 @@ import {
   type BookmarkSide,
 } from "@instrument-org/workspace/client";
 import { BookmarkSimpleIcon } from "@phosphor-icons/react/BookmarkSimple";
-import { BookmarksSimpleIcon } from "@phosphor-icons/react/BookmarksSimple";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { useAtomValue, useStore } from "jotai";
 import { useState } from "react";
@@ -74,7 +74,7 @@ export function BookmarkChangesNote({
     <ChangeCard
       heading={headingOf(changes)}
       hidden={changes.length - shown.length}
-      icon={BookmarksSimpleIcon}
+      icon={BookmarksIcon}
       onShowMore={() => {
         setExpanded(true);
       }}

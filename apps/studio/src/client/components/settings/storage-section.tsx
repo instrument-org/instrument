@@ -1,3 +1,4 @@
+import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { copyFolderPath, FolderRow } from "@/client/components/folder-row";
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { settingAnchor } from "@/client/components/settings/settings-index";
@@ -29,7 +30,6 @@ import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { formatBytes } from "@instrument-org/workspace/client";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
-import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
 import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
@@ -170,7 +170,7 @@ function FolderGroup({
                     void copyFolderPath(folder.path);
                   }}
                 >
-                  <ClipboardTextIcon className="size-4 text-muted-foreground" />
+                  <CopyIcon className="size-4 text-muted-foreground" />
                   <span>Copy Path</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />

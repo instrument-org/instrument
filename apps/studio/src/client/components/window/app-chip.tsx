@@ -1,3 +1,4 @@
+import { GenericAppIcon } from "@/client/components/icons/generic-app-icon";
 import { targetOfAddress } from "@/client/bookmarks/address";
 import { PageFavicon } from "@/client/components/favicon";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
@@ -9,7 +10,6 @@ import {
   SCREENS,
   screenOfHref,
 } from "@/shared/instrument-screens";
-import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { BookmarksIcon } from "@phosphor-icons/react/Bookmarks";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
@@ -118,7 +118,7 @@ export function AppMark({
       </span>
     );
   }
-  const Icon = isScreenName(app) ? SCREEN_MARKS[app] : AppWindowIcon;
+  const Icon = isScreenName(app) ? SCREEN_MARKS[app] : GenericAppIcon;
   return (
     <Icon className={cn("size-3.5 shrink-0 text-foreground/70", className)} />
   );

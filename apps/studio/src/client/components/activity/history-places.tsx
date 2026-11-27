@@ -1,3 +1,4 @@
+import { TabGroupIcon } from "@/client/components/icons/tab-group-icon";
 import { SHOW_LABELS } from "@/client/components/activity/activity-timeline";
 import { cn } from "@/client/lib/utils";
 import { type Show } from "@/shared/history-show";
@@ -7,7 +8,6 @@ import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClo
 import { FileIcon } from "@phosphor-icons/react/File";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
-import { StackIcon } from "@phosphor-icons/react/Stack";
 import { type ComponentType, Fragment } from "react";
 
 const PLACES: {
@@ -20,7 +20,7 @@ const PLACES: {
   { icon: ChatCircleIcon, show: "chats" },
   { icon: PencilSimpleIcon, show: "changes" },
   { icon: ChartBarIcon, show: "ai" },
-  { icon: StackIcon, show: "closed" },
+  { icon: TabGroupIcon, show: "closed" },
 ];
 
 /**

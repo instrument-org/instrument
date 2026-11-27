@@ -1,3 +1,4 @@
+import { BookmarksIcon } from "@phosphor-icons/react/Bookmarks";
 import {
   addressOfTyped,
   bookmarkEditOps,
@@ -31,7 +32,6 @@ import {
   siblingsIn,
 } from "@/shared/bookmarks";
 import { isInstrumentAddress } from "@instrument-org/shared";
-import { BookmarksSimpleIcon } from "@phosphor-icons/react/BookmarksSimple";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useId, useState } from "react";
@@ -367,7 +367,7 @@ function PlaceTree({ tree }: { tree: PlaceTreeState }) {
               depth={each.depth}
               icon={
                 each.depth === 0 ? (
-                  <BookmarksSimpleIcon className="size-4 shrink-0" />
+                  <BookmarksIcon className="size-4 shrink-0" />
                 ) : (
                   <FolderSimpleIcon className="size-4 shrink-0 text-foreground/60" />
                 )

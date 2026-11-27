@@ -1,3 +1,4 @@
+import { BookmarksIcon } from "@phosphor-icons/react/Bookmarks";
 import { UNDO_LABEL } from "@/client/lib/undo-toast";
 import { targetOfAddress } from "@/client/bookmarks/address";
 import { useBookmarkFolders } from "@/client/bookmarks/folders";
@@ -78,7 +79,6 @@ import {
   rootOf,
 } from "@/shared/bookmarks";
 import { APP_NAME } from "@instrument-org/shared";
-import { BookmarksSimpleIcon } from "@phosphor-icons/react/BookmarksSimple";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
@@ -851,7 +851,7 @@ function OutlineRowView({
           ) : null}
           <span className="grid size-5 shrink-0 place-items-center">
             {row.kind === "root" ? (
-              <BookmarksSimpleIcon className="size-4 text-foreground/60" />
+              <BookmarksIcon className="size-4 text-foreground/60" />
             ) : row.kind === "folder" ? (
               <FolderSimpleIcon className="size-4 text-foreground/60" />
             ) : (

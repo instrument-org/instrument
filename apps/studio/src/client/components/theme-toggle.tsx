@@ -1,3 +1,4 @@
+import { SystemThemeIcon } from "@/client/components/icons/system-theme-icon";
 import { useTheme } from "@/client/components/theme-provider";
 import {
   Select,
@@ -5,7 +6,6 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/client/components/ui/select";
-import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { MoonIcon } from "@phosphor-icons/react/Moon";
 import { SunIcon } from "@phosphor-icons/react/Sun";
 
@@ -21,7 +21,7 @@ export function ThemeToggle() {
         return <SunIcon className="size-4" />;
       }
       case "system": {
-        return <MonitorIcon className="size-4" />;
+        return <SystemThemeIcon className="size-4" />;
       }
       default: {
         return <SunIcon className="size-4" />;
@@ -72,7 +72,7 @@ export function ThemeToggle() {
           Dark
         </SelectItem>
         <SelectItem value="system">
-          <MonitorIcon className="size-4" />
+          <SystemThemeIcon className="size-4" />
           System
         </SelectItem>
       </SelectContent>

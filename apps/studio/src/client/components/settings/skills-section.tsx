@@ -28,7 +28,14 @@ import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useContext, useState } from "react";
 import { NEW_SKILL_ASK } from "@/client/lib/new-skill-ask";
+import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import { toast } from "@/client/lib/toast";
+import { refreshSkills } from "@/client/hooks/use-refresh-skills-on-change";
+import { osConventions } from "@/client/lib/utils";
+import {
+  toastWithUndo,
+  withdrawUndoOffer,
+} from "@/client/components/window/undo-offers";
 
 type Skill = RPCOutput["workspace"]["skill"]["list"][number];
 
@@ -68,6 +75,7 @@ export function SkillsSection() {
         ) : null}
       </div>
       <SkippedSkillFolders />
+      <BrokenSkills ask={ask} />
       <SkillList
         menu={(skill) => (skill.editable ? <SkillMenu skill={skill} /> : null)}
         onOpen={(skill) => {
@@ -99,9 +107,7 @@ function SkippedSkillFolders() {
     const name = folder.split("/").at(-1) ?? folder;
     try {
       const { loaded } = await load.mutateAsync({ folder });
-      await queryClient.invalidateQueries({
-        queryKey: rpcClient.workspace.skill.key(),
-      });
+      await refreshSkills(queryClient);
       if (!loaded) {
         toast(`Your Mac didn’t let Instrument read “${name}”`, {
           description:
@@ -146,24 +152,111 @@ function SkippedSkillFolders() {
 }
 // oxlint-enable studio/no-os-words
 
-/** The "⋯" on a row of the workspace's own skills, the ones it can delete. */
+type BrokenSkill = RPCOutput["workspace"]["skill"]["broken"][number];
+
+/** What is wrong with a skill no chat can load, as a person fixing it reads it. */
+const BROKEN_SKILL_PROBLEMS: Record<BrokenSkill["problem"], string> = {
+  "no-description": "SKILL.md has no description",
+  "no-frontmatter": "SKILL.md doesn’t start with a name and description",
+  "no-skill-file": "This folder has no SKILL.md",
+  unparsable: "The header at the top of SKILL.md can’t be read",
+  unterminated: "The header at the top of SKILL.md has no closing ---",
+};
+
+/**
+ * Folders in the workspace's Skills folder that no chat can load, each with
+ * what is wrong and a draft asking a chat to fix it. Only here: the agent's
+ * list and the composer's menus leave them out.
+ */
+function BrokenSkills({ ask }: { ask: ((words: string) => void) | undefined }) {
+  const broken = useQuery(rpcClient.workspace.skill.broken.queryOptions());
+  if (!broken.data?.length) {
+    return null;
+  }
+  return (
+    <section className="space-y-2">
+      <h4 className="text-sm font-medium text-muted-foreground">
+        Can’t load
+      </h4>
+      <p className="text-sm text-muted-foreground">
+        Chats can’t use these skills until they’re fixed.
+      </p>
+      <div className="divide-y overflow-hidden rounded-lg border">
+        {broken.data.map((skill) => (
+          <FolderRow
+            className="p-3"
+            end={
+              ask ? (
+                <Button
+                  onClick={() => {
+                    ask(fixSkillAsk(skill));
+                  }}
+                  size="sm"
+                  variant="outline"
+                >
+                  Fix in chat
+                </Button>
+              ) : null
+            }
+            key={skill.folder}
+            line={BROKEN_SKILL_PROBLEMS[skill.problem]}
+            onOpen={() => {
+              void showInFolder(skill.folder, { kind: "folder" });
+            }}
+            path={skill.folder}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** The message that asks a chat to fix a skill, naming the skill that knows how one is written. */
+function fixSkillAsk(skill: BrokenSkill) {
+  return `Use ${skillMentionToken("skill-creator")} to fix the “${skill.name}” skill in Skills. ${BROKEN_SKILL_PROBLEMS[skill.problem]}.`;
+}
+
+/**
+ * The "⋯" on a row of the workspace's own skills, the ones it can move to the
+ * Trash. It goes as Files moves a folder there, so the toast's Undo, or ⌘Z in
+ * Files, puts it back.
+ */
 function SkillMenu({ skill }: { skill: Skill }) {
   const queryClient = useQueryClient();
-  const remove = useMutation(
-    rpcClient.workspace.skill.remove.mutationOptions(),
-  );
+  const trash = useMutation(rpcClient.files.trash.mutationOptions());
   const [isConfirming, setConfirming] = useState(false);
+  const trashName = osConventions().trash;
 
-  const confirmDelete = async () => {
+  const putBack = async (journalId: string) => {
     try {
-      await remove.mutateAsync({ name: skill.id });
-      await queryClient.invalidateQueries({
-        queryKey: rpcClient.workspace.skill.key(),
-      });
-      setConfirming(false);
-      toast.success(`Deleted “${skill.title}”`);
+      const undone = await rpcClient.files.undo.call({ journalId });
+      withdrawUndoOffer(undone.journalId);
     } catch (error) {
-      toast.error(`Couldn't delete “${skill.title}”`, { cause: error });
+      toast.error("Couldn't put that back", { cause: error });
+    }
+    await refreshSkills(queryClient);
+  };
+
+  const confirmTrash = async () => {
+    try {
+      const { journalId } = await trash.mutateAsync({ path: skill.path });
+      await refreshSkills(queryClient);
+      setConfirming(false);
+      toastWithUndo(
+        `Moved “${skill.title}” to the ${trashName}`,
+        journalId === null
+          ? null
+          : {
+              journalIds: [journalId],
+              undo: () => {
+                void putBack(journalId);
+              },
+            },
+      );
+    } catch (error) {
+      toast.error(`Couldn't move “${skill.title}” to the ${trashName}`, {
+        cause: error,
+      });
     }
   };
 
@@ -184,32 +277,32 @@ function SkillMenu({ skill }: { skill: Skill }) {
             variant="destructive"
           >
             <TrashIcon className="size-4" />
-            <span>Delete…</span>
+            <span>{`Move to ${trashName}…`}</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       <AlertDialog onOpenChange={setConfirming} open={isConfirming}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{`Delete “${skill.title}”?`}</AlertDialogTitle>
+            <AlertDialogTitle>{`Move “${skill.title}” to the ${trashName}?`}</AlertDialogTitle>
             <AlertDialogDescription>
-              Permanently deletes this skill folder from the workspace.
+              {`Chats stop using it. You can put it back from the ${trashName}.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={remove.isPending}>
+            <AlertDialogCancel disabled={trash.isPending}>
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              disabled={remove.isPending}
+              disabled={trash.isPending}
               onClick={(event) => {
-                // Held open until the delete lands, so a failure is said
+                // Held open until the move lands, so a failure is said
                 // over the dialog it came from.
                 event.preventDefault();
-                void confirmDelete();
+                void confirmTrash();
               }}
             >
-              Delete skill
+              {`Move to ${trashName}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -89,8 +89,9 @@ export interface SkillInfo {
   source: SkillSourceKind;
   sourceId: SkillSourceId;
   /**
-   * The frontmatter `name`, which is prose meant for people. The directory
-   * name is the plain label shown to people; `id` addresses the package.
+   * The frontmatter `name`, which is prose meant for people and what
+   * Settings names the skill by; the directory name is the skill's `/slash` form, and
+   * `id` addresses the package.
    */
   title: string;
   /**
@@ -699,6 +700,54 @@ async function findSkillsInDir(
   }
 
   return skills;
+}
+
+/** Why a folder in the workspace's `Skills/` is not a skill a chat can load. */
+export type BrokenSkillProblem =
+  | Exclude<FrontmatterResult, { ok: true }>["reason"]
+  | "no-skill-file";
+
+export interface BrokenSkill {
+  folder: AbsolutePath;
+  name: string;
+  problem: BrokenSkillProblem;
+}
+
+/**
+ * The folders in the workspace's own `Skills/` that discovery leaves out
+ * (`findSkillsInDir`), for Settings to show with what to fix. Only this
+ * source: it is the person's, and the one they can fix from the app. A hidden
+ * folder is not a skill anyone meant.
+ */
+export async function findBrokenSkills(
+  rootDir: WorkspaceConfig["rootDir"],
+): Promise<BrokenSkill[]> {
+  const dir = absolutePathJoin(rootDir, SKILLS_FOLDER_NAME);
+  const entries = await fs
+    .readdir(dir, { withFileTypes: true })
+    .catch(() => []);
+  const broken: BrokenSkill[] = [];
+  for (const entry of entries) {
+    const folder = absolutePathJoin(dir, entry.name);
+    if (
+      entry.name.startsWith(".") ||
+      !(entry.isDirectory() || (await isDirectorySymlink(folder)))
+    ) {
+      continue;
+    }
+    let raw: string;
+    try {
+      raw = await fs.readFile(path.join(folder, "SKILL.md"), "utf8");
+    } catch {
+      broken.push({ folder, name: entry.name, problem: "no-skill-file" });
+      continue;
+    }
+    const parsed = parseFrontmatter(raw);
+    if (!parsed.ok) {
+      broken.push({ folder, name: entry.name, problem: parsed.reason });
+    }
+  }
+  return broken.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**

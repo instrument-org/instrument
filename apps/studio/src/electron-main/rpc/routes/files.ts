@@ -350,11 +350,11 @@ const duplicate = base
   });
 
 /**
- * What a Replace displaces, moved to the Trash, and where it landed when the
- * system says: the Mac's own call answers that, which reading the Trash could
- * not without Full Disk Access.
+ * Moves a thing to the Trash (what a Replace displaces, or what the person
+ * trashed), and where it landed when the system says: the Mac's own call
+ * answers that, which reading the Trash could not without Full Disk Access.
  */
-async function trashReplaced(at: string): Promise<InTrash> {
+async function trashAndLocate(at: string): Promise<InTrash> {
   const landed = await nativeTrashItem(at);
   if (landed !== undefined) {
     return { inTrash: landed };
@@ -480,7 +480,7 @@ function placeRoute(op: "copy" | "move") {
       const outcome = await executePlacing(
         op,
         plan.steps,
-        fileSystemOps({ leftovers: placingLeftovers, trash: trashReplaced }),
+        fileSystemOps({ leftovers: placingLeftovers, trash: trashAndLocate }),
       );
       const protection = outcome.failure
         ? ((await confirmedBlock(input.folder, since).catch(() => undefined)) ??
@@ -761,19 +761,22 @@ const trash = base
       throw errors.PROTECTED({ message: kept });
     }
     const identity = await identityOf(input.path);
+    let landed: InTrash;
     try {
-      await shell.trashItem(input.path);
+      landed = await trashAndLocate(input.path);
     } catch (error) {
       throw errors.CANNOT_TRASH({
         message: error instanceof Error ? error.message : undefined,
       });
     }
-    // Where it landed is found by its identity now, while it is still the
-    // newest thing there.
     if (!identity) {
       return { journalId: null };
     }
-    const trashed = await findInTrash(identity, { from: input.path });
+    // Where it landed, as the Mac answers it, or else found by its identity
+    // now, while it is still the newest thing there: reading the Trash needs
+    // Full Disk Access on a Mac, so the search alone finds nothing without it.
+    const trashed =
+      landed.inTrash ?? (await findInTrash(identity, { from: input.path }));
     const entry = fileJournal.record({
       from: input.path,
       identity,

@@ -2,7 +2,6 @@ import { eventIterator } from "@orpc/server";
 import { z } from "zod";
 
 import { listFolder } from "../../lib/chat/folder-look";
-import { deleteSkill } from "../../lib/delete-skill";
 import {
   setSkillFolderLoaded,
   skippedSkillFolders,
@@ -12,13 +11,14 @@ import {
   getWritableSkillsRoot,
 } from "../../lib/skill-provenance";
 import {
+  findBrokenSkills,
   findSkills,
   getSkillSources,
   listSkillFiles,
   SKILL_SOURCE_KINDS,
 } from "../../lib/skills";
 import { changesTo } from "../../lib/live-changes";
-import { base, toORPCError } from "../base";
+import { base } from "../base";
 import { publisher } from "../publisher";
 
 const SkillSourceSchema = z.enum(SKILL_SOURCE_KINDS);
@@ -93,15 +93,28 @@ const list = base
     }));
   });
 
-const remove = base
-  .input(z.object({ name: z.string() }))
-  .output(z.void())
-  .handler(async ({ context, errors, input }) => {
-    const result = await deleteSkill(context.workspaceConfig, input.name);
-    if (result.isErr()) {
-      throw toORPCError(result.error, errors);
-    }
-  });
+/**
+ * The folders in the workspace's `Skills/` no chat can load, and why, for
+ * Settings to show beside the skills that work. The agent's catalog, the
+ * slash menu and `list` leave them out.
+ */
+const broken = base
+  .output(
+    z
+      .object({
+        folder: z.string(),
+        name: z.string(),
+        problem: z.enum([
+          "no-description",
+          "no-frontmatter",
+          "no-skill-file",
+          "unparsable",
+          "unterminated",
+        ]),
+      })
+      .array(),
+  )
+  .handler(({ context }) => findBrokenSkills(context.workspaceConfig.rootDir));
 
 /**
  * Fires whenever the workspace skills directory changes. Deliberately a bare
@@ -173,9 +186,9 @@ const loadFolder = base
   });
 
 export const skill = {
+  broken,
   events: { changed },
   list,
   loadFolder,
-  remove,
   skippedFolders,
 };

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { SKILLS_FOLDER_NAME } from "../constants";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import {
+  findBrokenSkills,
   findSkills,
   getSkillSources,
   listSkillFiles,
@@ -632,6 +633,38 @@ describe("skill discovery", () => {
     expect(skills.map(({ name, source }) => ({ name, source }))).toEqual([
       { name: "review", source: "agents" },
     ]);
+  });
+});
+
+describe("findBrokenSkills", () => {
+  it("names each workspace skill discovery leaves out, and why", async () => {
+    const root = await tempDir("skills-broken-");
+    const workspace = path.join(root, "workspace");
+    const skills = path.join(workspace, SKILLS_FOLDER_NAME);
+    await writeSkill(path.join(skills, "works"), "Fine");
+    const write = (name: string, raw: string) =>
+      writePackageFile(path.join(skills, name), "SKILL.md", raw);
+    await write("no-description", make("name: Nothing"));
+    await write("no-frontmatter", "Just a body");
+    await write("unterminated", "---\ndescription: Open");
+    await write("unparsable", make("description: [unclosed"));
+    await fs.mkdir(path.join(skills, "empty"));
+    await fs.mkdir(path.join(skills, ".hidden"));
+    await fs.writeFile(path.join(skills, "notes.txt"), "");
+
+    const broken = await findBrokenSkills(WorkspaceDirSchema.parse(workspace));
+    expect(broken.map(({ name, problem }) => `${name}: ${problem}`))
+      .toMatchInlineSnapshot(`
+        [
+          "empty: no-skill-file",
+          "no-description: no-description",
+          "no-frontmatter: no-frontmatter",
+          "unparsable: unparsable",
+          "unterminated: unterminated",
+        ]
+      `);
+    const found = await findSkills(sourcesIn(root));
+    expect(found.map((skill) => skill.name)).toEqual(["works"]);
   });
 });
 

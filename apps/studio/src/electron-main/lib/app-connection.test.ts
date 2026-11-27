@@ -21,6 +21,11 @@ vi.mock("@instrument-org/workspace/electron", () => ({
     return Promise.resolve();
   },
 }));
+vi.mock("@/electron-main/browser-view/sign-in-cookies", () => ({
+  dropSignInCookies: (...args: unknown[]) => {
+    mocks.calls.push(["dropSignInCookies", ...args]);
+  },
+}));
 
 beforeEach(() => {
   mocks.calls.length = 0;
@@ -93,6 +98,7 @@ describe("settleConnection", () => {
               "error": undefined,
               "manifestHash": "now",
               "seenSignedIn": undefined,
+              "signInCookieSites": undefined,
               "status": "connected",
             },
           ],
@@ -105,6 +111,10 @@ describe("settleConnection", () => {
           ],
         ],
         "declined": [
+          [
+            "dropSignInCookies",
+            "linear",
+          ],
           [
             "recordConnection",
             "linear",
@@ -121,6 +131,10 @@ describe("settleConnection", () => {
           ],
         ],
         "failed": [
+          [
+            "dropSignInCookies",
+            "linear",
+          ],
           [
             "recordConnection",
             "linear",
@@ -140,6 +154,10 @@ describe("settleConnection", () => {
         ],
         "needs-approval": [
           [
+            "dropSignInCookies",
+            "linear",
+          ],
+          [
             "recordConnection",
             "linear",
             {
@@ -149,6 +167,10 @@ describe("settleConnection", () => {
           ],
         ],
         "needs-key": [
+          [
+            "dropSignInCookies",
+            "linear",
+          ],
           [
             "recordConnection",
             "linear",
@@ -160,6 +182,10 @@ describe("settleConnection", () => {
         ],
         "needs-sign-in": [
           [
+            "dropSignInCookies",
+            "linear",
+          ],
+          [
             "recordConnection",
             "linear",
             {
@@ -169,6 +195,33 @@ describe("settleConnection", () => {
           ],
         ],
       }
+    `);
+  });
+
+  it("writes the other sites a web sign-in left cookies on with the connection", async () => {
+    await settleConnection("grok", {
+      manifestHash: "now",
+      signInCookieSites: [{ cookies: 7, site: "x.com" }],
+      status: "connected",
+    });
+    expect(mocks.calls[0]).toMatchInlineSnapshot(`
+      [
+        "recordConnection",
+        "grok",
+        {
+          "connectedAt": 1000,
+          "error": undefined,
+          "manifestHash": "now",
+          "seenSignedIn": undefined,
+          "signInCookieSites": [
+            {
+              "cookies": 7,
+              "site": "x.com",
+            },
+          ],
+          "status": "connected",
+        },
+      ]
     `);
   });
 });

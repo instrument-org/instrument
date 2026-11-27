@@ -3,8 +3,10 @@ import {
   type AppEvent,
   appChanged,
   recordConnection,
+  type SignInCookieSite,
   type SignInEnd,
 } from "@instrument-org/workspace/electron";
+import { dropSignInCookies } from "@/electron-main/browser-view/sign-in-cookies";
 import { z } from "zod";
 
 /** Where an app stands, as the Apps screen draws it. */
@@ -41,8 +43,15 @@ export function statusOf(
 
 /** Where a connection moved, with what the record keeps about the move. */
 export type ConnectionOutcome =
-  /** The user signed in on a web app's own site, on the manifest as it stands. */
-  | { manifestHash: string; status: "connected" }
+  /**
+   * The user signed in on a web app's own site, on the manifest as it
+   * stands, with the other sites the sign-in left cookies on, if any.
+   */
+  | {
+      manifestHash: string;
+      signInCookieSites?: SignInCookieSite[];
+      status: "connected";
+    }
   /** "Not now", on the card or the provider's page. */
   | { status: "declined" }
   /** A sign-in that could not start or finish, and how it ended when that was more than an error. */
@@ -73,15 +82,19 @@ export async function settleConnection(
         manifestHash: outcome.manifestHash,
         // The user's own sign-in, which stands in place of one the agent saw.
         seenSignedIn: undefined,
+        // Only this sign-in's: sites an earlier one named are cleared.
+        signInCookieSites: outcome.signInCookieSites,
         status: "connected",
       });
       break;
     }
     case "declined": {
+      dropSignInCookies(slug);
       await recordConnection(slug, { status: "declined" });
       break;
     }
     default: {
+      dropSignInCookies(slug);
       await recordConnection(slug, outcome);
     }
   }

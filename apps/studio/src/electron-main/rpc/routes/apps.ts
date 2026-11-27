@@ -81,6 +81,10 @@ import {
   expectSignIn,
   settleSignIn,
 } from "@/electron-main/browser-view/history-intents";
+import {
+  finishSignInCookies,
+  startSignInCookies,
+} from "@/electron-main/browser-view/sign-in-cookies";
 
 /**
  * A saved key shows the day it was saved, and its last four characters where
@@ -1060,10 +1064,22 @@ const allow = base
   });
 
 /**
+ * A web app's site opened in a tab of the window's browser for its sign-in:
+ * the browser's cookies are read now, so the sign-in's end can name the
+ * other sites it left cookies on.
+ */
+const startWebSignIn = base
+  .input(z.object({ slug: AppSlugSchema, tab: z.string() }))
+  .handler(({ input }) => {
+    startSignInCookies(input.slug, input.tab);
+  });
+
+/**
  * "Done signing in" on a web app's card or page: the user's word is the whole
  * of the connection, since nothing here can see a session in the browser.
  * Pinned to the manifest as it stands, so a site the agent moves the app to
- * later asks again; the chat is woken the way a finished sign-in wakes it.
+ * later asks again; the chat is woken the way a finished sign-in wakes it,
+ * with the other sites the sign-in left cookies on.
  */
 const markWebSignedIn = base
   .input(AnsweredOnCardSchema)
@@ -1081,8 +1097,13 @@ const markWebSignedIn = base
         message: `${input.slug} is not a web app.`,
       });
     }
+    const cookieSites = await finishSignInCookies(input.slug, [
+      manifest.url,
+      ...(manifest.signIn === undefined ? [] : [manifest.signIn]),
+    ]);
     await settleConnection(input.slug, {
       manifestHash: loaded.value.manifestHash,
+      ...(cookieSites.length === 0 ? {} : { signInCookieSites: cookieSites }),
       status: "connected",
     });
   });
@@ -1182,5 +1203,6 @@ export const apps = {
   setUp,
   startOAuth,
   startUpdate,
+  startWebSignIn,
   test,
 };

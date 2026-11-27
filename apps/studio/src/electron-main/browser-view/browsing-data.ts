@@ -9,7 +9,7 @@ import { forgetSiteCapture } from "./page-capture";
 import { keepOnlyPageThumbnails } from "./page-thumbnails";
 
 /** The in-app browser's session, opened if no page has opened it yet this run. */
-function browserSession(): Session {
+export function browserSession(): Session {
   return configureGuestSession(getBrowserSessionDir());
 }
 
@@ -35,11 +35,10 @@ const SITE_STORAGES = [
 export function cookieSitesOf(cookies: Pick<Cookie, "domain">[]): string[] {
   const counts = new Map<string, number>();
   for (const { domain } of cookies) {
-    const host = (domain ?? "").replace(/^\./, "");
-    if (!host) {
+    const site = registrableDomainOf(domain ?? "");
+    if (!site) {
       continue;
     }
-    const site = getDomain(host, { allowPrivateDomains: true }) ?? host;
     counts.set(site, (counts.get(site) ?? 0) + 1);
   }
   return [...counts]
@@ -47,6 +46,16 @@ export function cookieSitesOf(cookies: Pick<Cookie, "domain">[]): string[] {
       ([a, countA], [b, countB]) => countB - countA || a.localeCompare(b),
     )
     .map(([site]) => site);
+}
+
+/**
+ * The site a host or a cookie's domain is part of, by its registrable domain
+ * (`accounts.google.com` and `.google.com` are both `google.com`), or the
+ * host itself where it has none (`localhost`, an IP address).
+ */
+export function registrableDomainOf(host: string): string {
+  const bare = host.replace(/^\./, "");
+  return getDomain(bare, { allowPrivateDomains: true }) ?? bare;
 }
 
 /** What the browser holds that the clearing dialog can say something about. */

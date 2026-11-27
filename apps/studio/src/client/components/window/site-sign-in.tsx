@@ -76,10 +76,15 @@ export function useSiteSignIn({
   const windowTabs = useWindowTabs();
   const app = useApp(slug);
   const mark = useMarkSignedIn(name);
+  const start = useMutation(rpcClient.apps.startWebSignIn.mutationOptions());
   const started = useSiteSignIns().get(slug);
   const signInPage = app?.type === "web" ? app.signIn : undefined;
 
-  /** Notes the tab the app's site opened in, from which the bar and the row's Done follow. */
+  /**
+   * Notes the tab the app's site opened in, from which the bar and the
+   * row's Done follow, and has main read the browser's cookies as the
+   * sign-in starts.
+   */
   const opened = (tab: string | undefined) => {
     if (tab === undefined) {
       return;
@@ -90,6 +95,7 @@ export function useSiteSignIn({
       ...(from === undefined ? {} : { from }),
       slug,
     });
+    start.mutate({ slug, tab });
   };
   return {
     canOpen: Boolean(appWindow?.browser) && signInPage !== undefined,

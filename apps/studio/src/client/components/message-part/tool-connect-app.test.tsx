@@ -69,6 +69,7 @@ vi.mock("@/client/rpc/client", () => ({
           mutationFn: mocks.startOAuth,
         }),
       },
+      startWebSignIn: mutation(),
     },
     workspace: {
       chats: {

@@ -70,6 +70,7 @@ vi.mock("@/client/rpc/client", () => ({
       startOAuth: mutation(() =>
         Promise.resolve({ status: "started", url: "https://login.example" }),
       ),
+      startWebSignIn: mutation(() => Promise.resolve()),
     },
     utils: {
       browserOpenTarget: {

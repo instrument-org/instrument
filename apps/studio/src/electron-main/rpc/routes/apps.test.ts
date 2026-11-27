@@ -12,12 +12,14 @@ const mocks = vi.hoisted(() => ({
   beginMcpOAuth: vi.fn(),
   loadApp: vi.fn(),
   cancelMcpOAuth: vi.fn(() => Promise.resolve()),
+  finishSignInCookies: vi.fn(() => Promise.resolve<object[]>([])),
   oauthState: undefined as string | undefined,
   pending: new Map<string, string>(),
   updates: new Set<string>(),
   recordConnection: vi.fn(),
   requireAppKeys: vi.fn(() => Promise.resolve([])),
   runAppTest: vi.fn(),
+  startSignInCookies: vi.fn(),
   getAppCredentials: vi.fn((): object[] => []),
   setAppCredentials: vi.fn(),
   withAppMcpClient: vi.fn(),
@@ -45,6 +47,12 @@ vi.mock("@/electron-main/stores/workspace/app-oauth", () => ({
     clearTransient: () => Promise.resolve(),
     getState: () => Promise.resolve(mocks.oauthState),
   },
+}));
+// The in-app browser's cookies, which this test has no browser for.
+vi.mock("@/electron-main/browser-view/sign-in-cookies", () => ({
+  dropSignInCookies: vi.fn(),
+  finishSignInCookies: mocks.finishSignInCookies,
+  startSignInCookies: mocks.startSignInCookies,
 }));
 vi.mock("../../lib/apps", () => ({
   announceConnected: vi.fn(),
@@ -450,6 +458,33 @@ describe("markWebSignedIn", () => {
     expect(mocks.appChanged).toHaveBeenCalledWith("drive", {
       event: "connected",
     });
+  });
+
+  it("writes the other sites the sign-in left cookies on, the app's own left out", async () => {
+    await writeApp("Grok", "grok", {
+      signIn: "https://accounts.x.ai/sign-in",
+      type: "web",
+      url: "https://grok.com",
+    });
+    mocks.finishSignInCookies.mockResolvedValueOnce([
+      { cookies: 7, site: "x.com" },
+    ]);
+
+    await call(apps.startWebSignIn, { slug: "grok", tab: "tab-1" }, options);
+    await call(apps.markWebSignedIn, { slug: "grok" }, options);
+
+    expect(mocks.startSignInCookies).toHaveBeenCalledWith("grok", "tab-1");
+    expect(mocks.finishSignInCookies).toHaveBeenCalledWith("grok", [
+      "https://grok.com",
+      "https://accounts.x.ai/sign-in",
+    ]);
+    expect(mocks.recordConnection).toHaveBeenCalledWith(
+      "grok",
+      expect.objectContaining({
+        signInCookieSites: [{ cookies: 7, site: "x.com" }],
+        status: "connected",
+      }),
+    );
   });
 
   it("refuses an app that is not a web app", async () => {

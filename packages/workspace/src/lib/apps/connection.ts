@@ -67,9 +67,9 @@ export const AppConnectionSchema = z.object({
    */
   signedInFrom: SignInOpensInSchema.optional(),
   /**
-   * For the last sign-in made in the window's browser, the other sites that
-   * set cookies there while it was under way, each with how many: the sites
-   * alone, never a cookie.
+   * For the last sign-in made in the window's browser, the other sites whose
+   * pages it loaded that set or changed cookies there while it was under
+   * way, each with how many: the sites alone, never a cookie.
    */
   signInCookieSites: z.array(SignInCookieSiteSchema).optional(),
   /**

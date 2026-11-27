@@ -17,6 +17,7 @@ const { mocks } = vi.hoisted(() => ({
   mocks: {
     apps: vi.fn<() => Promise<unknown>>(),
     markWebSignedIn: vi.fn<(input: object) => Promise<unknown>>(),
+    startWebSignIn: vi.fn<(input: object) => Promise<unknown>>(),
   },
 }));
 
@@ -36,6 +37,9 @@ vi.mock("@/client/rpc/client", () => ({
           ...options,
           mutationFn: mocks.markWebSignedIn,
         }),
+      },
+      startWebSignIn: {
+        mutationOptions: () => ({ mutationFn: mocks.startWebSignIn }),
       },
     },
   },
@@ -160,9 +164,7 @@ describe("the bar over a sign-in page", () => {
 
 describe("opening a site's sign-in", () => {
   const openPage = vi.fn<WindowContextValue["openPage"]>(() => "tab-new");
-  const showTab = vi.fn<NonNullable<WindowContextValue["showTab"]>>(
-    () => true,
-  );
+  const showTab = vi.fn<NonNullable<WindowContextValue["showTab"]>>(() => true);
   // Only what the hook reads is here; the rest of the window is never asked.
   const appWindow = new Proxy(
     { browser: null, openPage, showTab },
@@ -200,8 +202,15 @@ describe("opening a site's sign-in", () => {
   beforeEach(() => {
     openPage.mockClear();
     showTab.mockClear();
+    mocks.startWebSignIn.mockReset();
+    mocks.startWebSignIn.mockResolvedValue(undefined);
     mocks.apps.mockResolvedValue({
-      apps: [{ ...notes("needs-sign-in").apps[0], endpoint: "https://notes.example.com" }],
+      apps: [
+        {
+          ...notes("needs-sign-in").apps[0],
+          endpoint: "https://notes.example.com",
+        },
+      ],
     });
   });
 
@@ -216,6 +225,12 @@ describe("opening a site's sign-in", () => {
     });
     expect(openPage).not.toHaveBeenCalled();
     expect(marked(store).map((tab) => tab.id)).toEqual(["tab-2"]);
+    await waitFor(() => {
+      expect(mocks.startWebSignIn.mock.calls[0]?.[0]).toEqual({
+        slug: "notes",
+        tab: "tab-2",
+      });
+    });
   });
 
   it("opens the sign-in page when no tab is on the site", async () => {
@@ -226,5 +241,11 @@ describe("opening a site's sign-in", () => {
       expect(openPage).toHaveBeenCalledWith("https://notes.example.com/login");
     });
     expect(showTab).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mocks.startWebSignIn.mock.calls[0]?.[0]).toEqual({
+        slug: "notes",
+        tab: "tab-new",
+      });
+    });
   });
 });

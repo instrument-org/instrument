@@ -122,6 +122,7 @@ import { pageKeyOfInput } from "./page-key";
 import { forwardPopupEvents, placePopupView, popupState } from "./popup-tabs";
 import { createPutAwaySound } from "./put-away-sound";
 import { stopScreencast } from "./screencast";
+import { noteSignInPage, noteSignInPopup } from "./sign-in-cookies";
 import {
   guestWindowOpenHandler,
   isBlankPopup,
@@ -674,11 +675,13 @@ function createBrowserViewManager(): BrowserViewManager {
         focusGuard.onNavigationStart(targetId);
         markNavigated(entry, details.url);
         history.start(details.url);
+        noteSignInPage(targetId, details.url);
       }
     });
     guest.on("did-redirect-navigation", (details) => {
       if (details.isMainFrame) {
         history.redirect(details.url);
+        noteSignInPage(targetId, details.url);
       }
     });
     // The blank page every guest is born on is not somewhere the page has
@@ -989,6 +992,8 @@ function createBrowserViewManager(): BrowserViewManager {
     entries.set(targetId, entry);
     advanceEntry(entry, "willAttach");
     advanceEntry(entry, "didAttach");
+    // Before its events are heard, since its page may already be on its way.
+    noteSignInPopup(opener.targetId, targetId, url);
     bindGuest(entry, popup, { adopted: true });
     forwardPopupEvents(targetId, popup);
     popup.once("destroyed", () => {

@@ -25,6 +25,7 @@ import {
   joinSides,
   groupLayoutOf,
   isBlankNewTab,
+  isTabNamed,
   moveTabTo,
   moveToGroup,
   navigateScreen,
@@ -1435,5 +1436,29 @@ describe("a tab's agent id", () => {
       agentId: "page",
       group: OTHER,
     });
+  });
+});
+
+describe("isTabNamed", () => {
+  it.each([
+    ["its own id", { group: "g", id: "tab_file", kind: "page" }, "tab_file"],
+    [
+      "an id it had before it was reopened",
+      { group: "g", id: "tab_new", kind: "page", reopenedFrom: ["tab_old"] },
+      "tab_old",
+    ],
+    [
+      "the id agents name it by, a file's tab that was a page",
+      {
+        agentId: "tab_page",
+        group: "g",
+        href: fileHref("/w/report.html"),
+        id: "tab_file",
+        kind: "screen",
+      },
+      "tab_page",
+    ],
+  ] satisfies [string, WindowTab, string][])("names a tab by %s", (_case, tab, id) => {
+    expect(isTabNamed(tab, id)).toBe(true);
   });
 });

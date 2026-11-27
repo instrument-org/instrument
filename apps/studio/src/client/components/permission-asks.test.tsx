@@ -4,12 +4,16 @@ import {
   DeviceIdSchema,
   StoreId,
 } from "@instrument-org/workspace/client";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { renderWithProviders } from "../../tests/render";
 import { installWindowStubs } from "../../tests/window-stubs";
+import { type WindowTab } from "@/client/atoms/window";
+
 import { PermissionAsksFoot } from "./permission-asks";
+import { selectedTabIn } from "./window/tab-model";
+import { seedWindowTabsAtom, windowTabsAtom } from "./window/window-tabs";
 
 const chatId = ChatIdSchema.parse("test-chat");
 
@@ -364,4 +368,79 @@ describe("PermissionAsksFoot", () => {
       expect(screen.queryByLabelText("sam › Pantry")).toBeNull();
     });
   });
+});
+
+describe("the page wait card, clicked", () => {
+  /** A group of the chat's: the chat up, and the tab the wait names by `agentId` behind it, with `hosted` tabs no strip lists. */
+  function waitOn(
+    named: WindowTab,
+    hosted: WindowTab[] = [],
+  ): ReturnType<typeof renderWithProviders>["store"] {
+    const { queryClient, store } = renderWithProviders(
+      <PermissionAsksFoot chatId={chatId} />,
+    );
+    store.set(seedWindowTabsAtom, {
+      activeByGroup: { g: "chat" },
+      groups: {},
+      tabs: [
+        { group: "g", href: "/chat/test-chat", id: "chat", kind: "screen" },
+        named,
+        ...hosted,
+      ],
+    });
+    queryClient.setQueryData(
+      rpcClient.workspace.chats.live.asks.experimental_liveOptions({
+        input: { id: chatId },
+      }).queryKey,
+      [
+        {
+          answerable: true,
+          askedAt: new Date(0),
+          askers: [{ at: new Date(0), sessionId: StoreId.newSessionId() }],
+          computer: "Studio Mac",
+          device,
+          here: true,
+          id: "ask-0",
+          kind: "page",
+          page: { title: "Sign in", url: "https://shop.example/" },
+          status: "open",
+          target: "tab_agent",
+        },
+      ],
+    );
+    return store;
+  }
+
+  it.each([
+    [
+      "a page tab reopened under a new id",
+      { agentId: "tab_agent", group: "g", id: "tab_reopened", kind: "page" },
+      [],
+    ],
+    [
+      "a page that took over from a file's tab",
+      { agentId: "tab_agent", group: "g", id: "tab_page", kind: "page" },
+      [],
+    ],
+    [
+      "a file's tab that was a page",
+      {
+        agentId: "tab_agent",
+        group: "g",
+        href: "/files?path=%2Fw%2Freport.html",
+        id: "tab_file",
+        kind: "screen",
+      },
+      [{ group: "page:tab_file", id: "tab_agent", kind: "page" }],
+    ],
+  ] satisfies [string, WindowTab, WindowTab[]][])(
+    "brings up %s, by the id the agent names it by",
+    async (_case, named, hosted) => {
+      const store = waitOn(named, hosted);
+
+      fireEvent.click(await screen.findByText(/Waiting for you on/));
+
+      expect(selectedTabIn(store.get(windowTabsAtom), "g")?.id).toBe(named.id);
+    },
+  );
 });

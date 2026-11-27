@@ -2,6 +2,7 @@ import {
   WEB_APP_NOT_SIGNED_IN,
   WEB_APP_UNMARKED,
 } from "../../model-text/commands/app-command";
+import { SignInCookieSiteSchema } from "../../schemas/session/message-data-part";
 import { TOOL_NAMES } from "../../tools/name";
 import { APP_NAME } from "@instrument-org/shared";
 import { z } from "zod";
@@ -65,6 +66,12 @@ export const AppConnectionSchema = z.object({
    * through before this was recorded.
    */
   signedInFrom: SignInOpensInSchema.optional(),
+  /**
+   * For the last sign-in made in the window's browser, the other sites that
+   * set cookies there while it was under way, each with how many: the sites
+   * alone, never a cookie.
+   */
+  signInCookieSites: z.array(SignInCookieSiteSchema).optional(),
   /**
    * The manifest that passed. A manifest edited since is not the one that was
    * tested, and a call refuses until it is tested again: this is what keeps
@@ -235,7 +242,12 @@ export async function recordConnection(
     // record has to earn it again.
     ...(patch.status === "connected"
       ? {}
-      : { error: patch.error, manifestHash: undefined, seenSignedIn: undefined }),
+      : {
+          error: patch.error,
+          manifestHash: undefined,
+          seenSignedIn: undefined,
+          signInCookieSites: undefined,
+        }),
     ended: patch.ended,
     keyRefused: patch.keyRefused,
     status: patch.status,

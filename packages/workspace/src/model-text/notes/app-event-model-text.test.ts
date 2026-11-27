@@ -64,6 +64,37 @@ describe("the note an app event wakes the chat with", () => {
     );
   });
 
+  it("names the other sites a sign-in left cookies on, only on the wake", () => {
+    const note = (carried: boolean) =>
+      appEventModelNote({
+        apps: {},
+        ...(carried && { carried }),
+        events: [
+          {
+            account: "sam",
+            event: "connected",
+            name: "Grok",
+            signInCookieSites: [
+              { cookies: 4, site: "x.com" },
+              { cookies: 2, site: "doubleclick.net" },
+            ],
+            slug: "grok",
+            web: "https://grok.com",
+          },
+        ],
+      });
+    expect(note(false)).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      An app changed:
+      - The user says they are signed in to Grok (grok) on the web, in Instrument's browser. It is connected. Work it there: open https://grok.com in a tab, where the sign-in holds, or use a tab already open there. No \`instrument app\` call reaches it. It is signed in as sam.
+        While they signed in, other sites set cookies in Instrument's browser: x.com (4), doubleclick.net (2). Signing in with another account (with X, with Google) leaves that site signed in here too; ad and analytics sites set cookies on any visit.
+      Nobody typed anything; this note is why you are awake. Tell the user in one line where things stand, and finish what they asked for if it was waiting on this.
+      </instrument-system-note>"
+    `);
+    expect(note(true)).not.toContain("x.com");
+  });
+
   it("tells this computer's connections to a session last told another's", () => {
     expect(
       appEventModelNote({

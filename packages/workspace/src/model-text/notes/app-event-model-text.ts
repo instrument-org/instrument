@@ -38,10 +38,13 @@ export function appEventModelNote(
         return `- ${event.name} (${event.slug}) was changed outside this conversation: what you read of its setup or guide is out of date.`;
       }
       case "connected": {
+        // What else the sign-in left in the browser is for the chat that
+        // asked for it, never a note carried on a message about something else.
+        const cookies = data.carried ? "" : cookieSitesLine(event);
         if (event.web !== undefined) {
-          return `- The user says they are signed in to ${event.name} (${event.slug}) on the web, in ${APP_NAME}'s browser. It is connected. Work it there: open ${event.web} in a tab, where the sign-in holds, or use a tab already open there. No \`${APP_COMMAND.name}\` call reaches it.${nameIt(event)}`;
+          return `- The user says they are signed in to ${event.name} (${event.slug}) on the web, in ${APP_NAME}'s browser. It is connected. Work it there: open ${event.web} in a tab, where the sign-in holds, or use a tab already open there. No \`${APP_COMMAND.name}\` call reaches it.${nameIt(event)}${cookies}`;
         }
-        return `- The user signed in to ${event.name} (${event.slug})${signedInWhere(event.signedInFrom)}. It is connected${detail ? `: ${detail}` : ""}. Use it now: \`${APP_COMMAND.name} tools ${event.slug}\`, then \`${APP_COMMAND.name} call\`.${nameIt(event)}`;
+        return `- The user signed in to ${event.name} (${event.slug})${signedInWhere(event.signedInFrom)}. It is connected${detail ? `: ${detail}` : ""}. Use it now: \`${APP_COMMAND.name} tools ${event.slug}\`, then \`${APP_COMMAND.name} call\`.${nameIt(event)}${cookies}`;
       }
       case "declined": {
         return `- The user declined to connect ${event.name} (${event.slug}). Do not ask again unless they bring it up; say what you cannot do without it, in a line, and carry on with what you can.`;
@@ -80,6 +83,22 @@ export function appEventModelNote(
   return systemNote`
     ${said.join("\n")}
   `;
+}
+
+/**
+ * The other sites that set cookies in the window's browser during a sign-in,
+ * as facts: a sign-in through another account leaves that account's site
+ * signed in, and an ad or analytics site sets cookies on any visit, so which
+ * of them is a sign-in only the site's own page shows.
+ */
+function cookieSitesLine({ signInCookieSites: sites }: AppEventLine): string {
+  if (sites === undefined || sites.length === 0) {
+    return "";
+  }
+  const listed = sites
+    .map(({ cookies, site }) => `${site} (${cookies})`)
+    .join(", ");
+  return `\n  While they signed in, other sites set cookies in ${APP_NAME}'s browser: ${listed}. Signing in with another account (with X, with Google) leaves that site signed in here too; ad and analytics sites set cookies on any visit.`;
 }
 
 /** Which browser a sign-in went through, from which the agent can tell whose sessions it left. */

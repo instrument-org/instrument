@@ -67,18 +67,22 @@ export async function appEventOf(
   const loaded = await loadApp(slug);
   const app = loaded.isOk() ? loaded.value : undefined;
   const manifest = app?.manifest;
-  const signedInFrom =
-    happened.event === "connected" &&
-    manifest !== undefined &&
-    signsInDirectly(manifest)
-      ? (await getWorkspaceConfig().apps.connections.get(slug))?.signedInFrom
+  const connection =
+    happened.event === "connected" && manifest !== undefined
+      ? await getWorkspaceConfig().apps.connections.get(slug)
       : undefined;
+  const signedInFrom =
+    manifest !== undefined && signsInDirectly(manifest)
+      ? connection?.signedInFrom
+      : undefined;
+  const cookieSites = connection?.signInCookieSites ?? [];
   return {
     ...(manifest?.account === undefined ? {} : { account: manifest.account }),
     ...(happened.detail === undefined ? {} : { detail: happened.detail }),
     event: happened.event,
     name: app?.name ?? slug,
     ...(signedInFrom === undefined ? {} : { signedInFrom }),
+    ...(cookieSites.length === 0 ? {} : { signInCookieSites: cookieSites }),
     slug,
     // A web app is worked on its own site, which the chat is told.
     ...(manifest?.type === "web" ? { web: manifest.url } : {}),

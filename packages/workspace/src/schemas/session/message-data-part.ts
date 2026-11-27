@@ -16,6 +16,14 @@ import { StopperSchema } from "../stop-notice";
 import { StoreId } from "../store-id";
 import { ToldAppsSchema, ToldDigestsSchema } from "../told";
 
+/** A site that set cookies in the window's browser while a sign-in was under way, and how many: the site alone, never a cookie. */
+export const SignInCookieSiteSchema = z.object({
+  cookies: z.number().int().positive(),
+  site: z.string(),
+});
+
+export type SignInCookieSite = z.output<typeof SignInCookieSiteSchema>;
+
 export namespace SessionMessageDataPart {
   export const NameSchema = z.enum([
     "actions",
@@ -1291,6 +1299,11 @@ export namespace SessionMessageDataPart {
            * opened: the window's own browser, or the user's.
            */
           signedInFrom: z.enum(["app", "external"]).optional(),
+          /**
+           * For a sign-in that connected in the window's browser, the other
+           * sites that set cookies there while it was under way.
+           */
+          signInCookieSites: z.array(SignInCookieSiteSchema).optional(),
           /**
            * For a sign-in of the app's own that did not connect: how it
            * ended, and the service's site, where signing in on the web is

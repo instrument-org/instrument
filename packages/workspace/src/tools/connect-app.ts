@@ -15,7 +15,12 @@ import { type LocalMcpAppManifest } from "../lib/apps/manifest";
 import { describeLocalLaunch } from "../lib/apps/mcp/local-server";
 import { onSameSite } from "../lib/apps/same-site";
 import { appSiteFor } from "../lib/apps/site";
-import { grokPlanSignedIn, isXApp } from "../lib/apps/x-site";
+import {
+  grokPlanRefusedLately,
+  grokPlanSignedIn,
+  isXApp,
+} from "../lib/apps/x-site";
+import { type ChatId } from "../schemas/chat-id";
 import {
   guidePlaceholdersLeft,
   loadApp,
@@ -88,7 +93,11 @@ const connectAppCapability = defineCapability({
         // One at a time: each ask writes the app's connection record.
         for (const slug of slugs) {
           apps.push(
-            await askFor(slug, { seenSignedIn: signedIn.has(slug), visited }),
+            await askFor(slug, {
+              chatId,
+              seenSignedIn: signedIn.has(slug),
+              visited,
+            }),
           );
         }
         const failed = apps.flatMap((result) =>
@@ -133,9 +142,12 @@ export const ConnectApp = modelTool(connectAppCapability);
 async function askFor(
   requested: string,
   {
+    chatId,
     seenSignedIn,
     visited,
   }: {
+    /** The chat asking. */
+    chatId: ChatId;
     /** Whether the agent saw the app's site load signed in. */
     seenSignedIn: boolean;
     /** The hosts the chat's browser has been on, its tasks' included. */
@@ -152,14 +164,21 @@ async function askFor(
     };
   }
   const { manifest, manifestHash, name, slug } = loaded.value;
-  // X's search runs on the Grok plan, so an X app asked for asks for the
-  // plan. One the agent saw signed in records its site alone, and the plan
-  // is asked for when a search needs it.
-  const needsPlan = !seenSignedIn && isXApp(manifest) && !grokPlanSignedIn();
+  const connection = await readConnection(slug);
+  const connected = isConnected(connection, manifestHash);
+  // X's search runs on the Grok plan, which X asked for with none signed in
+  // here asks for once a search needs it: its site is signed in already, or
+  // an X tool was refused for want of the plan in this chat lately.
+  // Otherwise its row is its site's sign-in, as any web app's, and one the
+  // agent saw signed in records its site alone.
+  const needsPlan =
+    !seenSignedIn &&
+    isXApp(manifest) &&
+    !grokPlanSignedIn() &&
+    (connected || grokPlanRefusedLately(chatId));
   // Asking again would set a working connection back to waiting, for every
   // chat that uses it.
-  const connection = await readConnection(slug);
-  if (!needsPlan && isConnected(connection, manifestHash)) {
+  if (!needsPlan && connected) {
     return { name, slug, state: "connected" };
   }
   // The test that runs once the user has acted fails on an API app's

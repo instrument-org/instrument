@@ -49,7 +49,11 @@ import {
 import { appStanding, standingElsewhere } from "../apps/context";
 import { connectedElsewhere } from "../apps/elsewhere";
 import { webInsteadUrl } from "../apps/site";
-import { grokPlanSignedIn, isXApp } from "../apps/x-site";
+import {
+  grokPlanSignedIn,
+  isXApp,
+  noteGrokPlanRefused,
+} from "../apps/x-site";
 import { xToolsGuide } from "../../model-text/guides/x-guide";
 import { X_TOOLS } from "./x";
 import { webInsteadCommand } from "../apps/web-instead";
@@ -455,6 +459,8 @@ async function callGate(slug: string, ctx: CapabilityContext): Promise<Gate> {
   if (isXApp(app.manifest)) {
     if (!grokPlanSignedIn()) {
       console.warn(`App call refused: ${app.slug} (no Grok plan)`);
+      // The chat's next ask for X asks for the plan.
+      noteGrokPlanRefused(ctx.chatId);
       return { kind: "refused", message: noGrokPlan(app.slug, ctx.role) };
     }
     return xGuideGate(app, ctx);

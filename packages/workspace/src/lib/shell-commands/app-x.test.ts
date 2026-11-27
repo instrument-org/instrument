@@ -11,6 +11,7 @@ import { StoreId } from "../../schemas/store-id";
 import { forgetApps, seedApp } from "../../test/helpers/seed-app";
 import { knowChat } from "../../test/helpers/mock-chat-config";
 import { createMemoryAppsConfig } from "../apps/memory-config";
+import { grokPlanRefusedLately } from "../apps/x-site";
 import { createLocalBashEnv } from "../create-bash-env";
 import { chatDir } from "../record-folders";
 import { type Role } from "../capabilities/define";
@@ -284,6 +285,8 @@ describe("an X tool with no Grok plan signed in", () => {
       "instrument app: "x" searches X on the user's Grok plan, which isn't signed in on this computer. Ask for it with connect_app naming "x": its row signs the user in to their Grok plan.
       "
     `);
+    // So connect_app's row for X asks for the plan.
+    expect(grokPlanRefusedLately(chatId)).toBe(true);
   });
 
   it("has a task leave the asking to the chat", async () => {

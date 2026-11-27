@@ -1,4 +1,5 @@
 import { AIProviderConfigIdSchema } from "@instrument-org/shared";
+import ms from "ms";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { readConnection } from "../lib/apps/connection";
@@ -6,6 +7,8 @@ import { signInProgress } from "../lib/apps/sign-in-group";
 import { type AppManifest } from "../lib/apps/manifest";
 import { createMemoryAppsConfig } from "../lib/apps/memory-config";
 import { loadApp, writeApp } from "../lib/apps/store";
+import { noteGrokPlanRefused } from "../lib/apps/x-site";
+import { type ChatId } from "../schemas/chat-id";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -374,8 +377,29 @@ describe("connect_app for X", () => {
     });
   });
 
-  it("asks for the Grok plan its search runs on, where none is signed in", async () => {
+  /** X's site's own sign-in, as any web app's row asks for it. */
+  const siteRow = {
+    kind: "web",
+    name: "X",
+    site: "https://x.com",
+    slug: "x",
+    state: "asked",
+    url: "https://x.com",
+  };
+
+  /** An X tool refused for want of the plan in the chat, `minutes` ago. */
+  function refusedAgo(chatId: ChatId, minutes: number) {
+    vi.useFakeTimers({
+      now: Date.now() - minutes * ms("1 minute"),
+      toFake: ["Date"],
+    });
+    noteGrokPlanRefused(chatId);
+    vi.useRealTimers();
+  }
+
+  it("asks for the Grok plan once an X tool was refused for want of it in the chat", async () => {
     const lisbon = await chat();
+    refusedAgo(lisbon.chatId, 9);
     const output = await ask(lisbon, ["x"]);
 
     expect(output).toMatchObject({
@@ -394,6 +418,27 @@ describe("connect_app for X", () => {
         "value": "A card asking the user to sign in to their Grok plan, which X's search runs on, is in the conversation: it opens the sign-in in the window's browser. Your turn ended on it: you will be woken with a note when they have signed in or declined, and \`instrument app call x\` searches then. Do not poll.",
       }
     `);
+  });
+
+  it("asks for X's site where no search has needed the plan", async () => {
+    const lisbon = await chat();
+    const porto = await chat();
+    // Another chat's refusal is that chat's.
+    refusedAgo(porto.chatId, 1);
+
+    expect(await ask(lisbon, ["x"])).toEqual({ apps: [siteRow] });
+    expect(await openAsks(lisbon.chatId)).toEqual([
+      expect.objectContaining({
+        apps: [{ name: "X", slug: "x", standing: "waiting" }],
+      }),
+    ]);
+  });
+
+  it("asks for X's site once a refusal is ten minutes old", async () => {
+    const lisbon = await chat();
+    refusedAgo(lisbon.chatId, 11);
+
+    expect(await ask(lisbon, ["x"])).toEqual({ apps: [siteRow] });
   });
 
   it("records X's site seen signed in with no row, where no plan is signed in", async () => {
@@ -432,19 +477,9 @@ describe("connect_app for X", () => {
   it("asks for the site's own sign-in once the plan is signed in", async () => {
     plan.signedIn = true;
     const lisbon = await chat();
+    refusedAgo(lisbon.chatId, 1);
 
-    expect(await ask(lisbon, ["x"])).toEqual({
-      apps: [
-        {
-          kind: "web",
-          name: "X",
-          site: "https://x.com",
-          slug: "x",
-          state: "asked",
-          url: "https://x.com",
-        },
-      ],
-    });
+    expect(await ask(lisbon, ["x"])).toEqual({ apps: [siteRow] });
   });
 
   it("answers that X is connected once the plan and the site are", async () => {

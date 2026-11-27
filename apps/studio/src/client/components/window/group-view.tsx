@@ -369,7 +369,7 @@ function GroupSides({
     <div
       // Two pixels of room past the cards, which the focused side's line
       // (`FOCUSED_SIDE`) is drawn in, taken back by the margin.
-      className="relative -m-0.5 min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden scroll-fade-x p-0.5"
+      className="relative -m-0.5 min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-hidden scroll-fade-none p-0.5"
       style={
         {
           "--gutter-at": `${gutterAt}px`,

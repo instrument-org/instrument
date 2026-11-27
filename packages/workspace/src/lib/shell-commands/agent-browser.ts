@@ -370,7 +370,7 @@ async function adblock(
     ? "Ad blocking is off: the user turned it off for every page."
     : task
       ? "Ad blocking is on in this chat's tabs."
-      : "Ad blocking is off in this chat's tabs, until `agent-browser adblock on` or the app restarts. The user's own setting is unchanged.";
+      : `Ad blocking is off in this chat's ${targets.length === 1 ? "open tab" : `${targets.length} open tabs`}, until \`agent-browser adblock on\` or the app restarts. A tab opened after this, a popup included, blocks ads again: run \`adblock off\` there too. The user's own setting is unchanged.`;
   const reload =
     mode !== undefined && workspace
       ? "\nReload the page (`agent-browser reload`) for the change to apply."

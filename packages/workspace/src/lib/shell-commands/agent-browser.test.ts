@@ -318,14 +318,14 @@ describe("createAgentBrowserCommand", () => {
     it("turns blocking off and on for the chat's tabs without spawning the CLI", async () => {
       const off = await command.execute(["adblock", "off"], mockCtx);
       expect(off.stdout).toMatchInlineSnapshot(`
-        "Ad blocking is off in this chat's tabs, until \`agent-browser adblock on\` or the app restarts. The user's own setting is unchanged.
+        "Ad blocking is off in this chat's open tab, until \`agent-browser adblock on\` or the app restarts. A tab opened after this, a popup included, blocks ads again: run \`adblock off\` there too. The user's own setting is unchanged.
         Reload the page (\`agent-browser reload\`) for the change to apply.
         "
       `);
       expect(unblocked.has(driven)).toBe(true);
 
       const status = await command.execute(["adblock"], mockCtx);
-      expect(status.stdout).toContain("off in this chat's tabs");
+      expect(status.stdout).toContain("off in this chat's open tab");
 
       const on = await command.execute(["adblock", "on"], mockCtx);
       expect(on.stdout).toMatchInlineSnapshot(`

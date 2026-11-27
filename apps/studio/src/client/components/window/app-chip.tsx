@@ -130,7 +130,8 @@ export function AppMark({
  * wears the bubbles of many chats, the page it goes to. A press on it goes
  * to the app where it has a place to go to. With
  * `nameFolds`, a narrow field (`@container/field`) shows the mark alone, so
- * the name after the chip keeps the room.
+ * the name after the chip keeps the room; without one, the chip's own name
+ * truncates, so what follows it in the field keeps its place.
  */
 export function AppChip({
   app,
@@ -148,12 +149,19 @@ export function AppChip({
       ) : (
         <AppMark app={app} />
       )}
-      <span className={cn(nameFolds && "@max-[18rem]/field:sr-only")}>
+      <span
+        className={cn(
+          nameFolds ? "@max-[18rem]/field:sr-only" : "min-w-0 truncate",
+        )}
+      >
         {appName(app)}
       </span>
     </>
   );
-  const className = cn(CHIP, nameFolds && "@max-[18rem]/field:pr-1.5");
+  const className = cn(
+    CHIP,
+    nameFolds ? "@max-[18rem]/field:pr-1.5" : "min-w-0 shrink",
+  );
   if (!onPress) {
     return (
       <span className={className} data-app-chip={app}>

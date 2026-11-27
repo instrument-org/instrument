@@ -328,8 +328,18 @@ export function TabLocationRow({
             }
           />
           {fieldEnd}
-          {chat}
-          {openIn && <OpenInAppButton target={openIn} />}
+          {/* A field too narrow for the place's name keeps the name and the
+              star. Both of these are a right press away: the tab's menu
+              splits, and the place's menu opens it in another app. */}
+          {chat && (
+            <span className="contents @max-[12rem]/field:hidden">{chat}</span>
+          )}
+          {openIn && (
+            <OpenInAppButton
+              className="@max-[12rem]/field:hidden"
+              target={openIn}
+            />
+          )}
           {address && !isWebStart && (
             <BookmarkStar
               address={address}

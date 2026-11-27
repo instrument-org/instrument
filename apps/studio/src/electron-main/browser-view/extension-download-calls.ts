@@ -57,7 +57,7 @@ function asks(extension: Pick<Extension, "manifest">, permission: string) {
  * (`downloadForExtension`), onto the list, and the list's changes reach
  * every extension with the `downloads` permission as `onCreated`,
  * `onChanged` and `onErased`. An extension sees the person's downloads,
- * never the agent's, which the list does not hold. Ids are numbers for
+ * never the agent's, which the list marks as such. Ids are numbers for
  * this run, oldest lowest, since the list keeps its own as strings.
  * `open` needs `downloads.open` too, as in Chrome, but no click before it,
  * which Electron does not tell the main process of. `removeFile` moves the
@@ -91,6 +91,7 @@ export function answerDownloadCalls(
   /** The list as extensions read it, oldest first; `look` checks each file again. */
   const read = (look: boolean): ChromeDownload[] =>
     allDownloads()
+      .filter((download) => download.agent !== true)
       .toReversed()
       .map((download) => {
         if (download.running) {

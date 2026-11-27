@@ -1,13 +1,35 @@
 import fs from "node:fs";
 import path from "node:path";
 
+/** A write of a key, as a file records it. */
+interface KeyWrite {
+  key: string;
+  live: boolean;
+  sequence: number;
+}
+
+/** What a file gave when last read: its writes of keys with a prefix, and the size and time it had. */
+interface FileRead {
+  mtimeMs: number;
+  prefix: string;
+  size: number;
+  writes: KeyWrite[];
+}
+
+/**
+ * Each folder's files as last read, by name. A file is read again only when
+ * its size or time changes, which a table's never do once written.
+ */
+const filesRead = new Map<string, Map<string, FileRead>>();
+
 /**
  * The keys a LevelDB database holds that start with `prefix`, read from its
  * files rather than by opening it, which the process holding it open
  * forbids: every table (`.ldb`, `.sst`) and write-ahead log (`.log`) in the
  * folder, the newest write of a key saying whether it is there. Values are
  * skipped, never kept. A file gone by the time it is read (a compaction) or
- * cut short (a log being written) gives what it has.
+ * cut short (a log being written) gives what it has. A file unchanged since
+ * the last read of the folder is not read again.
  *
  * Chromium keeps a profile's Local Storage this way, its keys naming the
  * origins it holds data for.
@@ -20,41 +42,68 @@ export async function levelDbKeys(
   try {
     names = await fs.promises.readdir(dir);
   } catch {
+    filesRead.delete(dir);
     return [];
   }
   const wanted = Buffer.from(prefix, "latin1");
+  const before = filesRead.get(dir);
+  const read = new Map<string, FileRead>();
   const newest = new Map<string, { live: boolean; sequence: number }>();
-  const write = (key: Uint8Array, sequence: number, live: boolean) => {
-    if (wanted.some((byte, index) => key[index] !== byte)) {
-      return;
-    }
-    const name = Buffer.from(key).toString("latin1");
-    const seen = newest.get(name);
-    if (seen === undefined || sequence > seen.sequence) {
-      newest.set(name, { live, sequence });
-    }
-  };
   for (const name of names) {
     const extension = path.extname(name);
     if (extension !== ".ldb" && extension !== ".sst" && extension !== ".log") {
       continue;
     }
-    let file: Buffer;
+    const file = path.join(dir, name);
+    let stat: fs.Stats;
     try {
-      file = await fs.promises.readFile(path.join(dir, name));
+      stat = await fs.promises.stat(file);
     } catch {
       continue;
     }
-    try {
-      if (extension === ".log") {
-        readLog(file, write);
-      } else {
-        readTable(file, write);
+    const { mtimeMs, size } = stat;
+    let fileRead = before?.get(name);
+    if (
+      fileRead?.prefix !== prefix ||
+      fileRead.size !== size ||
+      fileRead.mtimeMs !== mtimeMs
+    ) {
+      let bytes: Buffer;
+      try {
+        bytes = await fs.promises.readFile(file);
+      } catch {
+        continue;
       }
-    } catch {
-      // A file cut short or not LevelDB's: what it gave so far stands.
+      const writes: KeyWrite[] = [];
+      fileRead = { mtimeMs, prefix, size, writes };
+      const write: Write = (key, sequence, live) => {
+        if (wanted.every((byte, index) => key[index] === byte)) {
+          writes.push({
+            key: Buffer.from(key).toString("latin1"),
+            live,
+            sequence,
+          });
+        }
+      };
+      try {
+        if (extension === ".log") {
+          readLog(bytes, write);
+        } else {
+          readTable(bytes, write);
+        }
+      } catch {
+        // A file cut short or not LevelDB's: what it gave so far stands.
+      }
+    }
+    read.set(name, fileRead);
+    for (const { key, live, sequence } of fileRead.writes) {
+      const seen = newest.get(key);
+      if (seen === undefined || sequence > seen.sequence) {
+        newest.set(key, { live, sequence });
+      }
     }
   }
+  filesRead.set(dir, read);
   return [...newest]
     .filter(([, { live }]) => live)
     .map(([key]) => key)

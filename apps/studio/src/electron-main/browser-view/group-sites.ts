@@ -16,7 +16,12 @@ export interface SiteReads {
   /** Origins keeping site data, and where. */
   siteData: { kind: SiteDataKind; origin: string }[];
   /** Pages visited, by address and who visited them: how often and when last. */
-  visits: { actor: "agent" | "user"; at: number; count: number; url: string }[];
+  visits: readonly {
+    actor: "agent" | "user";
+    at: number;
+    count: number;
+    url: string;
+  }[];
 }
 
 /**

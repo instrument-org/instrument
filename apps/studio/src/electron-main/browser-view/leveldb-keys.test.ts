@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { levelDbKeys, unsnappy } from "./leveldb-keys";
 
@@ -180,6 +180,40 @@ describe("levelDbKeys", () => {
       "META:https://d.example",
       "META:https://e.example",
     ]);
+  });
+
+  it("reads a file again only once it changes, and forgets one gone", async () => {
+    const table5 = path.join(dir, "000005.ldb");
+    const log8 = path.join(dir, "000008.log");
+    fs.writeFileSync(table5, table([["META:https://a.example", 1, true]]));
+    fs.writeFileSync(log8, log(10, [["META:https://b.example", true]]));
+    expect(await levelDbKeys(dir, "META:")).toEqual([
+      "META:https://a.example",
+      "META:https://b.example",
+    ]);
+
+    const readFile = vi.spyOn(fs.promises, "readFile");
+    expect(await levelDbKeys(dir, "META:")).toEqual([
+      "META:https://a.example",
+      "META:https://b.example",
+    ]);
+    expect(readFile).not.toHaveBeenCalled();
+
+    fs.appendFileSync(log8, log(11, [["META:https://c.example", true]]));
+    expect(await levelDbKeys(dir, "META:")).toEqual([
+      "META:https://a.example",
+      "META:https://b.example",
+      "META:https://c.example",
+    ]);
+    expect(readFile.mock.calls.map(([file]) => file)).toEqual([log8]);
+
+    // A compaction takes the table away.
+    fs.rmSync(table5);
+    expect(await levelDbKeys(dir, "META:")).toEqual([
+      "META:https://b.example",
+      "META:https://c.example",
+    ]);
+    readFile.mockRestore();
   });
 
   it("reads nothing from a folder that is not there", async () => {

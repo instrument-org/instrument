@@ -188,6 +188,32 @@ describe("history store", () => {
     expect(history.summary()).toEqual({ count: 0, hosts: [] });
   });
 
+  it("lists the pages visited by who visited them, read again once a visit is added or hidden", () => {
+    const history = store();
+    const visit = (actor: "agent" | "user", at: number) =>
+      history.addVisit({
+        actor,
+        at,
+        transition: "link",
+        url: "https://a.test/",
+      });
+    const pages = () =>
+      history
+        .visitedPages()
+        .map(
+          ({ actor, at, count }) =>
+            `${actor} ${at.toString()} x${count.toString()}`,
+        )
+        .toSorted();
+    visit("user", 1);
+    visit("user", 2);
+    expect(pages()).toEqual(["user 2 x2"]);
+    const agent = visit("agent", 3);
+    expect(pages()).toEqual(["agent 3 x1", "user 2 x2"]);
+    history.hideVisit(agent, "redirect");
+    expect(pages()).toEqual(["user 2 x2"]);
+  });
+
   it("completes only to significant pages: typed, visited often, or lately", () => {
     const history = store();
     const now = 30 * 24 * HOUR;

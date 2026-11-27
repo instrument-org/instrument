@@ -70,6 +70,14 @@ export interface HistoryPage {
   visitCount: number;
 }
 
+/** A page visited, by the person or an agent: how many times and when last, in epoch ms. */
+interface VisitedPage {
+  actor: HistoryActor;
+  at: number;
+  count: number;
+  url: string;
+}
+
 export interface NewVisit {
   actor: HistoryActor;
   at: number;
@@ -222,7 +230,10 @@ export function createHistoryStore(file: string) {
   const filesChanged = () => {
     changes.publish("files", null);
   };
+  // `visitedPages` as last read, until a page changes.
+  let visited: readonly VisitedPage[] | undefined;
   const pagesChanged = (urls?: readonly string[]) => {
+    visited = undefined;
     changes.publish("pages", urls === undefined ? {} : { urls });
   };
 
@@ -577,15 +588,11 @@ export function createHistoryStore(file: string) {
 
     /**
      * Every page visited and not hidden, the person's and an agent's apart:
-     * how many times each visited it and when last, in epoch ms.
+     * how many times each visited it and when last, in epoch ms. Read again
+     * only once a page has changed.
      */
-    visitedPages(): {
-      actor: HistoryActor;
-      at: number;
-      count: number;
-      url: string;
-    }[] {
-      return database
+    visitedPages(): readonly VisitedPage[] {
+      visited ??= database
         .prepare(
           "SELECT urls.url AS url, visits.actor AS actor, count(*) AS count, max(visits.at) AS at FROM visits JOIN urls ON urls.id = visits.url_id WHERE visits.hidden_by IS NULL GROUP BY urls.id, visits.actor",
         )
@@ -596,6 +603,7 @@ export function createHistoryStore(file: string) {
           count: Number(row.count),
           url: String(row.url),
         }));
+      return visited;
     },
 
     /** The start page's host-limited recents and frequently visited sites. */

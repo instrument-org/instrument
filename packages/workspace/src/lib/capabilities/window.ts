@@ -37,7 +37,7 @@ import {
   type WindowGroups,
 } from "../../model-text/notes/window-list-model-text";
 import { parseBrowserTargetId } from "../../types";
-import { personPagesOn } from "../actions/read";
+import { personPagesOn, SITE_HISTORY_LIMIT } from "../actions/read";
 import { noteBrowserAgentActivity } from "../browser-agent-activity";
 import { recordVisitedHosts } from "../browser-state";
 import { ChatStateSchema, chatStateOf } from "../chat/chat-state";
@@ -1586,10 +1586,12 @@ export const windowHistory = defineCapability({
     limit: z.number().int().min(1).default(HISTORY_LIMIT).meta({
       description: "How many rows, newest first.",
     }),
-    site: z.string().optional().meta({
-      description:
-        "Only the pages visited on this site and on every host under it.",
-    }),
+    site: z
+      .string()
+      .optional()
+      .meta({
+        description: `Only the pages visited on this site and on every host under it, among History's newest ${SITE_HISTORY_LIMIT.toString()}.`,
+      }),
   }),
   name: "window.history",
   output: z.array(HistoryRowSchema),

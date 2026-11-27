@@ -1695,6 +1695,42 @@ describe("history --site", () => {
       ]
     `);
   });
+
+  it("reads History further back only while short of pages on the site, never past its newest 10000", async () => {
+    const page = (minutesAgo: number, url: string): HistoryAction => ({
+      at: new Date(Date.UTC(2026, 10, 27) - minutesAgo * 60_000).toISOString(),
+      kind: "page",
+      url,
+    });
+    const rows = Array.from({ length: 20_000 }, (_, index) =>
+      page(index, `https://other.example/${index.toString()}`),
+    );
+    rows.splice(0, 0, page(0, "https://tasky.example/a"));
+    rows.splice(3000, 0, page(3000, "https://tasky.example/b"));
+    rows.splice(15_000, 0, page(15_000, "https://tasky.example/c"));
+    const limits: (number | undefined)[] = [];
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      readPersonHistory: ({ limit }) => {
+        limits.push(limit);
+        return rows.slice(0, limit);
+      },
+    });
+
+    const result = await run(
+      {},
+      "history",
+      "--site",
+      "tasky.example",
+      "--limit",
+      "3",
+    );
+
+    expect(result.stdout.trim().split("\n")).toHaveLength(2);
+    expect(limits).toEqual([
+      30, 60, 120, 240, 480, 960, 1920, 3840, 7680, 10_000,
+    ]);
+  });
 });
 
 describe("in a task", () => {

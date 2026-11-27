@@ -81,22 +81,38 @@ function history(range: Range & { limit?: number }): HistoryAction[] {
 
 type PageAction = Extract<HistoryAction, { kind: "page" }>;
 
+/** How many of History's newest rows `personPagesOn` reads at most. */
+export const SITE_HISTORY_LIMIT = 10_000;
+
 /**
  * The pages the person visited on a site, its host or any host under it
  * (`github.com` takes `gist.github.com`), newest first and without repeats,
- * at most `limit`.
+ * at most `limit`: History is read further back each time what was read
+ * holds fewer, never past its newest `SITE_HISTORY_LIMIT` rows.
  */
 export function personPagesOn(site: string, limit: number): PageAction[] {
   const isOnSite = (url: string) => {
     const host = URL.parse(url)?.hostname;
     return host === site || (host?.endsWith(`.${site}`) ?? false);
   };
-  return history({ since: 0, until: Date.now() })
-    .filter(
+  for (
+    let read = Math.min(limit * 10, SITE_HISTORY_LIMIT);
+    ;
+    read = Math.min(read * 2, SITE_HISTORY_LIMIT)
+  ) {
+    const rows = history({ limit: read, since: 0, until: Date.now() });
+    const pages = rows.filter(
       (action): action is PageAction =>
         action.kind === "page" && isOnSite(action.url),
-    )
-    .slice(0, limit);
+    );
+    if (
+      pages.length >= limit ||
+      rows.length < read ||
+      read === SITE_HISTORY_LIMIT
+    ) {
+      return pages.slice(0, limit);
+    }
+  }
 }
 
 type PermissionAction = Extract<Action, { kind: "permission" }>;

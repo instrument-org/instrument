@@ -108,11 +108,15 @@ describe("an agent never makes a tab group", () => {
     [
       "after the agent's last page",
       [chatTab(), { ...page("prev", G, 1), openedBy: CHAT }],
-      { ...AGENT, previous: "prev" },
+      AGENT,
     ],
   ])("%s: the page goes in the chat's group", (_label, tabs, ask) => {
     const before: WindowTabs = { activeByGroup: {}, tabs };
-    const { state } = openBesideChat(before, page("opened", G), ask);
+    const { state } = openBesideChat(
+      before,
+      { ...page("opened", G), openedBy: CHAT },
+      ask,
+    );
     expect(groupsOf(state)).toEqual(groupsOf(before));
     expect(state.tabs.find((tab) => tab.id === "opened")?.group).toBe(G);
   });

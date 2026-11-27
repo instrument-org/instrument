@@ -5,7 +5,6 @@ import {
   type BesideAsk,
   handOverBesideChat,
   openBesideChat,
-  previousOpenedIn,
 } from "./beside-chat";
 import {
   addPages,
@@ -248,10 +247,6 @@ export const TAB_OPS = {
     if (group === undefined) {
       return unchanged(state, undefined);
     }
-    const previous =
-      ask.openedBy === undefined
-        ? undefined
-        : previousOpenedIn(state, group, ask.openedBy);
     const placed = openBesideChat(
       state,
       {
@@ -262,7 +257,7 @@ export const TAB_OPS = {
         ...(ask.openedBy === undefined ? {} : { openedBy: ask.openedBy }),
         ...(ask.url ? { openedUrl: ask.url, url: ask.url } : {}),
       },
-      { ...ask.ask, ...(previous === undefined ? {} : { previous }) },
+      ask.ask,
     );
     return {
       state: placed.state,
@@ -373,10 +368,6 @@ export const TAB_OPS = {
     if (group === undefined) {
       return unchanged(state, undefined);
     }
-    const previous =
-      ask.openedBy === undefined
-        ? undefined
-        : previousOpenedIn(state, group, ask.openedBy);
     const placed = openBesideChat(
       state,
       {
@@ -386,7 +377,7 @@ export const TAB_OPS = {
         kind: "screen",
         ...(ask.openedBy === undefined ? {} : { openedBy: ask.openedBy }),
       },
-      { ...ask.ask, ...(previous === undefined ? {} : { previous }) },
+      ask.ask,
     );
     const there = state.tabs.find((tab) => tab.id === placed.id);
     return {

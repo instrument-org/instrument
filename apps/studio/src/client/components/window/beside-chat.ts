@@ -270,12 +270,13 @@ export function previousOpenedIn(
  * plain click beside the chat) and whether it is up on its side. What the
  * person opens in front takes the keyboard to its side; a Cmd-click or a
  * middle click, and anything an agent opens (`openedBy`), never moves the
- * keyboard. Nothing happens for a chat's tab no group has.
+ * keyboard. A tab an agent opens goes after its last one in the group
+ * (`previousOpenedIn`). Nothing happens for a chat's tab no group has.
  */
 export function openBesideChat(
   state: WindowTabs,
   tab: WindowTab,
-  ask: BesideAsk,
+  ask: Omit<BesideAsk, "previous">,
 ): { front: boolean; id: string; state: WindowTabs } {
   const group = state.tabs.find((entry) => entry.id === ask.chatTab)?.group;
   if (group === undefined) {
@@ -283,7 +284,15 @@ export function openBesideChat(
   }
   const layout = groupLayoutOf(state, group);
   const { side: _side, ...placed } = { ...tab, group };
-  const placement = besidePlacementOf(layout, ask, placed);
+  const previous =
+    tab.openedBy === undefined
+      ? undefined
+      : previousOpenedIn(state, group, tab.openedBy);
+  const placement = besidePlacementOf(
+    layout,
+    { ...ask, ...(previous === undefined ? {} : { previous }) },
+    placed,
+  );
   let next: WindowTabs;
   let id = tab.id;
   if (placement.kind === "show") {
@@ -342,15 +351,10 @@ export function handOverBesideChat(
       state: raiseTab(state, showing.id),
     };
   }
-  const previous = previousOpenedIn(state, group, openedBy);
   const placed = openBesideChat(
     state,
     { group, href, id, kind: "screen", openedBy },
-    {
-      chatTab,
-      isShown: true,
-      ...(previous === undefined ? {} : { previous }),
-    },
+    { chatTab, isShown: true },
   );
   return { ...placed, isNew: true };
 }

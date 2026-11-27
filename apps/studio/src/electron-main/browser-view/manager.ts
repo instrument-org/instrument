@@ -98,6 +98,11 @@ import { getHistoryStore } from "./history-store";
 import { noteFrameSession } from "./keyboard-without-focus";
 import { mayPageNavigateTo } from "./local-file-policy";
 import { log } from "./log";
+import {
+  guardPageLeaving,
+  pageDialogs,
+  servePageDialogs,
+} from "./page-dialogs";
 import { readMemoryLevel } from "./memory-level";
 import { isCapturing } from "./page-capture";
 import {
@@ -293,6 +298,11 @@ const describeTabScript = (guestId: number) => `(() => {
 
 function createBrowserViewManager(): BrowserViewManager {
   const entries = new Map<BrowserTargetId, BrowserEntry>();
+  servePageDialogs({
+    dialogs: pageDialogs,
+    entryOf: (guestId) => guests.entryOf(guestId),
+    personUsedAt: (guestId) => guests.get(guestId)?.userInputAt,
+  });
   countGuestsWith(() => {
     const counts = { asleep: 0, live: 0, shown: 0 };
     for (const entry of entries.values()) {
@@ -592,6 +602,10 @@ function createBrowserViewManager(): BrowserViewManager {
     guardGuestSecurity(guest, targetId, {
       exceptions: certificateExceptions,
       signIns: guestSignIns,
+    });
+    guardPageLeaving(guest, entry, {
+      dialogs: pageDialogs,
+      personUsedAt: () => guests.get(guest.id)?.userInputAt,
     });
     // Muted until a person uses the page: an agent drives it, often while
     // nobody is looking, and its CDP clicks count as the user gesture a page

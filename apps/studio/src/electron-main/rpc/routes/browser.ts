@@ -38,6 +38,7 @@ import {
   keepOnlyPageThumbnails,
   readPageThumbnail,
 } from "@/electron-main/browser-view/page-thumbnails";
+import { pageDialogs } from "@/electron-main/browser-view/page-dialogs";
 import { suggestSearches } from "@/electron-main/browser-view/search-engine";
 import { siteIconDeps } from "@/electron-main/lib/app-protocol";
 import { rememberPageIcon as keepPageIcon } from "@/electron-main/lib/site-icons";
@@ -205,6 +206,13 @@ const live = {
     yield* liveRead({
       changes: [publisher.subscribe("browser.downloads-changed", { signal })],
       read: listDownloads,
+    });
+  }),
+  // The dialogs tabs' pages are waiting on, oldest first.
+  pageDialogs: base.handler(async function* ({ signal }) {
+    yield* liveRead({
+      changes: [publisher.subscribe("browser.page-dialogs-changed", { signal })],
+      read: () => pageDialogs.list(),
     });
   }),
   // The sign-ins tabs' pages are waiting on, oldest first.
@@ -474,6 +482,20 @@ const answerSignIn = base
   )
   .handler(({ input }) => {
     guestSignIns.answer(input.id, input.credentials);
+  });
+
+const answerPageDialog = base
+  .input(
+    z.object({
+      answer: z.union([
+        z.object({ accept: z.literal(false) }),
+        z.object({ accept: z.literal(true), text: z.string().optional() }),
+      ]),
+      id: z.string(),
+    }),
+  )
+  .handler(({ input }) => {
+    pageDialogs.answer(input.id, input.answer);
   });
 
 /**
@@ -782,6 +804,7 @@ const popup = {
 export const browser = {
   allowPageCapture,
   answerPageCapture,
+  answerPageDialog,
   answerSignIn,
   askSystemForCapture,
   continueDespiteCertificate,

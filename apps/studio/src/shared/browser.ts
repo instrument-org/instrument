@@ -60,6 +60,26 @@ export type GuestLastLoad =
   | { errorCode?: undefined; httpResponseCode: number; url: string };
 
 /**
+ * A page's own dialog waiting on an answer, which the tab shows over its
+ * page: a message (`alert`), a question with OK and Cancel (`confirm`), a
+ * question with a text field (`prompt`), or the page asking whether to leave
+ * with changes it has not saved (`leave`, its `beforeunload`).
+ */
+export interface PageDialog {
+  /** What a `prompt` offers as the answer before anything is typed. */
+  defaultValue?: string;
+  id: string;
+  kind: "alert" | "confirm" | "leave" | "prompt";
+  message: string;
+  /** The host of the page asking, with its port when not the default. */
+  site: string;
+  targetId: BrowserTargetId;
+}
+
+/** An answer to a page's dialog: OK (or Leave), with what was typed into a `prompt`, or Cancel. */
+export type PageDialogAnswer = { accept: false } | { accept: true; text?: string };
+
+/**
  * A page asking for a username and password (HTTP basic or digest auth, or a
  * proxy in its way), waiting on the person's answer in the tab's window.
  */

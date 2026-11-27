@@ -31,6 +31,7 @@ interface PublisherEvents {
   // field says is not secure.
   "browser.certificate-exceptions-changed": null;
   // A tab's page asked for a username and password, or stopped waiting for one.
+  "browser.page-dialogs-changed": null;
   "browser.sign-ins-changed": null;
   // A tab's page started or stopped using the microphone or camera, was
   // refused them, or left for another page.

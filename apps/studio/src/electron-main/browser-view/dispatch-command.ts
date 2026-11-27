@@ -15,6 +15,7 @@ import { noop, sleep } from "radashi";
 import type { BrowserEntry } from "./entry";
 
 import { showAgentCommand, withoutAgentPointer } from "./agent-pointer";
+import { answerAgentDialog, noteAgentLeaving } from "./page-dialogs";
 import { captureFrame, FrameNotDrawnError } from "./capture-frame";
 import {
   DEFAULT_VIEWPORT_HEIGHT,
@@ -164,6 +165,13 @@ export async function sendCommand({
 
   ensureDebuggerAttached(entry);
   noteUnknownMethod(method);
+  if (
+    byAgent &&
+    (method === "Page.navigate" || method === "Page.reload") &&
+    entry.webContents
+  ) {
+    noteAgentLeaving(entry.webContents.id);
+  }
 
   const send = (sentMethod: string, sentParams: unknown) =>
     forwardToDebugger({
@@ -234,6 +242,12 @@ export const MAIN_OVERRIDES: {
   // because it is session-wide and would collide across concurrent targets.
   "Browser.setDownloadBehavior": ({ entry, params }) =>
     applyDownloadBehavior(entry, params),
+
+  // A page's own dialogs are the app's (`page-dialogs.ts`), shown to the agent
+  // as the browser's would be; one Chromium showed itself, a frame's, goes on
+  // to the debugger.
+  "Page.handleJavaScriptDialog": ({ entry, forward, params }) =>
+    answerAgentDialog(entry, params) ?? forward(),
 
   // Not forwarded to the debugger: the guest was resized rather than emulated,
   // so there is no override to clear, and the panel clears its own preview when

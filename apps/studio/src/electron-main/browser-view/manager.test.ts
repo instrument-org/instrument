@@ -14,6 +14,13 @@ import { getBrowserViewManager } from "./manager";
 vi.mock("electron", () => ({
   BrowserWindow: { fromWebContents: () => null },
 }));
+vi.mock("./page-dialogs", () => ({
+  answerAgentDialog: () => undefined,
+  guardPageLeaving: vi.fn(),
+  noteAgentLeaving: vi.fn(),
+  pageDialogs: {},
+  servePageDialogs: vi.fn(),
+}));
 vi.mock("@/electron-main/rpc/publisher", () => ({
   publisher: { publish: vi.fn() },
 }));

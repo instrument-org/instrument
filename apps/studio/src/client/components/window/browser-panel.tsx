@@ -3,6 +3,10 @@ import { BrowserExtensionButtons } from "@/client/components/window/browser-exte
 import { BrowserFindCard } from "@/client/components/window/browser-find-card";
 import { BrowserPageMenu } from "@/client/components/window/browser-page-menu";
 import {
+  PageDialogSheet,
+  useGuestPageDialog,
+} from "@/client/components/window/browser-page-dialog";
+import {
   CertificateErrorNotice,
   SignInSheet,
   useGuestSignIn,
@@ -257,6 +261,8 @@ export function BrowserPanel({
   // A site asking for a username and password, drawn over the page while
   // its request waits.
   const signIn = useGuestSignIn(active ? targetId : null);
+  // The page's own alert, confirm, prompt or leave question, over the page.
+  const pageDialog = useGuestPageDialog(active ? targetId : null);
 
   // A page under an overlay stays in view, since the dim layer stacks over it,
   // but stops being the Cmd+F target: the overlay's own host claims the single
@@ -1003,6 +1009,9 @@ export function BrowserPanel({
               aria-hidden
               className="pointer-events-none absolute inset-0 z-10 bg-card"
             />
+          )}
+          {pageDialog && (
+            <PageDialogSheet dialog={pageDialog} key={pageDialog.id} />
           )}
           {signIn ? (
             <SignInSheet key={signIn.id} signIn={signIn} />

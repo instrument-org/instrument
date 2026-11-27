@@ -218,7 +218,10 @@ export const CDP_METHODS = {
   "Page.enable": {},
   "Page.getFrameTree": {},
   "Page.getLayoutMetrics": {},
-  "Page.handleJavaScriptDialog": {},
+  "Page.handleJavaScriptDialog": {
+    main: "override",
+    why: "a page's alert, confirm, prompt and beforeunload are the app's own dialogs, which main shows the agent as Page.javascriptDialogOpening and answers here; one Chromium showed itself, a frame's, goes on to the debugger",
+  },
   "Page.navigate": {
     main: "wrapped",
     session: "wrapped",

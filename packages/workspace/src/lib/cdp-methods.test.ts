@@ -54,6 +54,7 @@ describe("the table of CDP methods", () => {
         "Emulation.clearDeviceMetricsOverride",
         "Emulation.setDeviceMetricsOverride",
         "Page.captureScreenshot",
+        "Page.handleJavaScriptDialog",
         "Page.printToPDF",
         "Page.reload",
         "Page.screencastFrameAck",

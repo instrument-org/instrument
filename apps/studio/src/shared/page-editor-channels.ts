@@ -69,3 +69,20 @@ export const PAGE_CAPTURE_DEVICES_CHANNEL = "page-capture:devices";
 
 /** From main to the guest's preload: `true` to send silence and a black picture, `false` to resume. */
 export const PAGE_CAPTURE_PAUSE_CHANNEL = "page-capture:pause";
+
+/**
+ * A page's own dialog (`alert`, `confirm`, `prompt`), asked synchronously by
+ * the guest preload's stand-ins for them, which main answers once the person
+ * or the agent has: the dialog's kind, its message, and the default answer
+ * a `prompt` offers.
+ */
+export const PAGE_DIALOG_CHANNEL = "page-dialog";
+
+/**
+ * Where a page is about to go, from the guest to main as the navigation
+ * starts (the Navigation API's `navigate` event): its address, its kind
+ * (`push`, `replace`, `reload` or `traverse`), and for a traverse how many
+ * steps back or forward. Main reads it when the page's `beforeunload` holds
+ * the navigation up, so a person who chooses to leave goes there.
+ */
+export const PAGE_LEAVING_CHANNEL = "page-leaving";

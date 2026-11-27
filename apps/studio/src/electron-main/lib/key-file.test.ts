@@ -1,4 +1,4 @@
-import Store from "electron-store";
+import Store from "@/electron-main/stores/store";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";

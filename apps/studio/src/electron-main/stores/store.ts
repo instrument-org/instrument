@@ -1,3 +1,4 @@
+// oxlint-disable-next-line no-restricted-imports -- the one module that makes an electron-store
 import ElectronStore from "electron-store";
 import fs from "node:fs";
 

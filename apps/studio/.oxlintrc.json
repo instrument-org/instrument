@@ -331,6 +331,14 @@
                 "importNames": ["publisher", "workspacePublisher"],
                 "message": "The workspace's event bus is its own: hear it through appListChanges or sessionEnds, and tell it through appChanged, so the workspace can leave the main process.",
                 "name": "@instrument-org/workspace/electron"
+              },
+              {
+                "message": "electron-store reads, decrypts and parses its whole file on every get. Make a store from stores/store.ts, which answers from memory while the file is unchanged.",
+                "name": "electron-store"
+              },
+              {
+                "message": "Conf reads, decrypts and parses its whole file on every get. Make a store from stores/store.ts, which answers from memory while the file is unchanged.",
+                "name": "conf"
               }
             ],
             "patterns": [

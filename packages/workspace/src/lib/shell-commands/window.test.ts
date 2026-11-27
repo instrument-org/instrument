@@ -51,6 +51,9 @@ const CHAT_FACTS = {
 
 const pageTab = StoreId.newTabId();
 let pageUrls: string[];
+/** A tab on an HTML file, and the page that draws it, which earlier builds named the tab by. */
+const fileTab = StoreId.newTabId();
+const filePage = StoreId.newTabId();
 
 // Which task is at work in which tab, as the chat's tasks' records would say.
 const holders = new Map<
@@ -64,6 +67,7 @@ const closedByChat: {
   id: string;
   reason?: string;
   session: StoreId.Session;
+  url?: string;
 }[] = [];
 vi.mock(import("../chat/chat-tabs"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -72,6 +76,7 @@ vi.mock(import("../chat/chat-tabs"), async (importOriginal) => ({
       id: tab.id,
       session: tab.session,
       ...(reason === undefined ? {} : { reason }),
+      ...(tab.url === "" ? {} : { url: tab.url }),
     });
     return Promise.resolve();
   },
@@ -279,7 +284,13 @@ vi.mock(import("../chat/person-turn"), () => ({
  * an id it has not got.
  */
 function answeringWindow() {
-  const known = new Set<string>(["tab_known", pageTab, "tab_docs", "tab_hn"]);
+  const known = new Set<string>([
+    "tab_known",
+    pageTab,
+    "tab_docs",
+    "tab_hn",
+    fileTab,
+  ]);
   const groups = new Set<string>([
     "group_a",
     "group:docs",
@@ -316,7 +327,11 @@ function answeringWindow() {
       action: ask.action,
       ...(ask.chatId ? { chatId: ask.chatId } : {}),
     });
-    const { action } = ask;
+    // The window takes a tab's page's id for the tab it draws.
+    const action =
+      "tabId" in ask.action && ask.action.tabId === filePage
+        ? { ...ask.action, tabId: fileTab }
+        : ask.action;
     if (action.kind === "close" && known.has(action.tabId)) {
       closed.add(action.tabId);
     }
@@ -385,6 +400,12 @@ function answeringWindow() {
                   id: pageTab,
                   title: "Suite plans",
                   url: "https://www.zendesk.com/pricing/",
+                },
+                {
+                  id: fileTab,
+                  targetId: filePage,
+                  title: "Report",
+                  url: pathToFileURL(path.join(chatFolder, "report.html")).href,
                 },
               ].filter((page) => !movedOut.has(page.id)),
               read: { layout: open(own), movedIn: {}, movedOut: {} },
@@ -893,6 +914,70 @@ describe("window close, show and read on a tab", () => {
   });
 });
 
+describe("a tab on an HTML file", () => {
+  let before = getWorkspaceConfig();
+  beforeEach(() => {
+    before = getWorkspaceConfig();
+  });
+  afterEach(() => {
+    setWorkspaceConfig(before);
+  });
+
+  /** The browser reading each page's address from `addresses`, by the page's id. */
+  function pagesAt(addresses: Record<string, string>) {
+    const config = getWorkspaceConfig();
+    setWorkspaceConfig({
+      ...config,
+      browser: {
+        ...config.browser,
+        getLoadedDocumentUrl: (targetId) => addresses[targetId],
+        getTargetAddress: (targetId) => addresses[targetId],
+      },
+    });
+  }
+
+  it("leaves word of it closed for the task working in it, by the tab's id at its page's address", async () => {
+    const address = pathToFileURL(path.join(chatFolder, "report.html")).href;
+    pagesAt({ [filePage]: address });
+    const session = StoreId.newSessionId();
+    holders.set(fileTab, { id: "t1", session, title: "Check the report" });
+    closedByChat.length = 0;
+
+    const result = await run({}, "close", fileTab);
+
+    expect(result.stdout).toContain(`Closed tab ${fileTab}.`);
+    expect(closedByChat).toEqual([{ id: fileTab, session, url: address }]);
+  });
+
+  it("refuses to read it while its page shows a file outside the chat's folders", async () => {
+    pagesAt({ [filePage]: "file:///Users/someone/secrets.html" });
+
+    const result = await run({}, "read", fileTab);
+
+    expect(asked.map(({ action }) => action.kind)).not.toContain("read");
+    expect(result.exitCode).toBe(1);
+  });
+
+  it("waits on it named by its page's id, under the tab's", async () => {
+    const result = await run(
+      {},
+      "wait",
+      filePage,
+      "--title",
+      "Log in",
+      "--reason",
+      "Only you can sign in.",
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(raised[0]?.[2]).toBe(fileTab);
+    expect(result.stdout).toContain(
+      `Showed the user tab ${fileTab} ("Report")`,
+    );
+    expect(result.stdout).not.toContain(filePage);
+  });
+});
+
 describe("window list", () => {
   it("names what is in the window by the ids the other subcommands and agent-browser tab take", async () => {
     holders.set(pageTab, {
@@ -1140,9 +1225,8 @@ describe("window group, move, history and restore", () => {
     expect(closedByChat).toEqual([]);
     const moved = await run({}, "move", pageTab, "--group", "meeting notes");
 
-    expect(
-      [beside.stdout, moved.stdout].join("").replaceAll(pageTab, "<page>"),
-    ).toMatchInlineSnapshot(`
+    expect([beside.stdout, moved.stdout].join("").replaceAll(pageTab, "<page>"))
+      .toMatchInlineSnapshot(`
       "Moved <page>: showing on the right side, beside you.
       Moved <page> into the tab group "Meeting notes" instrument://group/group:notes; the window shows another group, so they are out of sight. Task t1 ("Read the page") was working in it; its next browser command tells it so.
       "

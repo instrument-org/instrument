@@ -9,7 +9,14 @@ const CHAT_ID = ChatIdSchema.parse("2026-11-23-find-the-order");
 const SESSION_ID = StoreId.newSessionId();
 
 /** The chat's tabs as the window lists them, a page's guest up or not. */
-let windowList: { id: string; kind: "page"; title: string; url: string }[] = [];
+let windowList: {
+  id: string;
+  kind: "page";
+  /** The page the tab draws, where it is not the tab's own id, as for a tab on an HTML file. */
+  targetId?: string;
+  title: string;
+  url: string;
+}[] = [];
 /** The tabs whose pages are loaded, by the title and address their guests report. */
 let loaded = new Map<string, { title: string; url: string }>();
 let openedTabs: { id: string }[] = [];
@@ -19,7 +26,7 @@ vi.mock("./chat/chat-tabs", () => ({
     Promise.resolve(
       windowList.map((entry) => ({
         ...entry,
-        targetId: entry.id as BrowserTargetId,
+        targetId: (entry.targetId ?? entry.id) as BrowserTargetId,
       })),
     ),
   takeClosedTabs: () => Promise.resolve([]),
@@ -97,6 +104,32 @@ describe("the tabs a session is told its chat has", () => {
         title: "Your Orders",
         unloaded: true,
         url: "https://shop.example.com/orders",
+      },
+    ]);
+  });
+
+  it("names a tab on an HTML file by the tab's id, from the page that draws it", async () => {
+    windowList = [
+      {
+        id: "tab_file",
+        kind: "page",
+        targetId: "tab_page",
+        title: "",
+        url: "file:///work/report.html",
+      },
+    ];
+    loaded.set("tab_page", {
+      title: "Report",
+      url: "file:///work/report.html",
+    });
+    openedTabs = [{ id: "tab_page" }];
+
+    expect(await tabsTold()).toEqual([
+      {
+        id: "tab_file",
+        openedBy: "task",
+        title: "Report",
+        url: "file:///work/report.html",
       },
     ]);
   });

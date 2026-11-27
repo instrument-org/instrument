@@ -1198,12 +1198,25 @@ describe("agent-browser routing", () => {
   ])(
     "saves $args through the tab, the CLI only clicking",
     async ({ args, clicked, saved }) => {
+      // A tab on an HTML file: agents name it by the tab's id, and its page,
+      // under another, is what saves.
       const targetId = "tab_01M5Q2CY3JB5G7KJVE1QA1HK0B";
+      const page = "tab_01M5Q2CY3JB5G7KJVE1QA1HK0C";
+      const stopWindow = publisher.subscribe("window.tab", (ask) => {
+        publisher.publish("window.tabDone", {
+          id: ask.id,
+          requestId: ask.requestId,
+          pages: [
+            { id: targetId, targetId: page, title: "", url: "file:///r.html" },
+          ],
+        });
+      });
       const tabs = JSON.stringify({
         data: { tabs: [{ active: true, tabId: "t1", targetId }] },
         success: true,
       });
       const sent: unknown[] = [];
+      const sentTo: string[] = [];
       let emit: (method: string, params: unknown) => void = () => undefined;
       const { browser } = getWorkspaceConfig();
       browser.subscribeEvents = (_targetId, _onDetach, onEvent) => {
@@ -1211,11 +1224,8 @@ describe("agent-browser routing", () => {
         return () => undefined;
       };
       // The fake answers every command alike, which its overloads cannot say.
-      browser.sendCommand = ((
-        _targetId: string,
-        _method: string,
-        params: unknown,
-      ) => {
+      browser.sendCommand = ((to: string, _method: string, params: unknown) => {
+        sentTo.push(to);
         sent.push(params);
         return Promise.resolve({});
       }) as typeof browser.sendCommand;
@@ -1234,9 +1244,11 @@ describe("agent-browser routing", () => {
       });
 
       const result = await command.execute(args, commandCtx);
+      stopWindow();
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain(shellPath(saved));
+      expect(sentTo[0]).toBe(page);
       expect(sent[0]).toEqual({
         behavior: "allow",
         downloadPath: path.dirname(saved),

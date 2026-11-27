@@ -17,7 +17,11 @@ import { closeChatTabs, closeTabsOverCap } from "./tab-cap";
 const lifetimes = vi.hoisted(() => new Map<string, TabLifetime>());
 const closes = vi.hoisted(() => [] as string[]);
 /** The tabs the window lists for the chat; undefined for no window to ask. */
-const listed = vi.hoisted(() => ({ ids: undefined as string[] | undefined }));
+const listed = vi.hoisted(() => ({
+  /** The tab each page draws, by the page's id, where the tab's own id is another: a tab on an HTML file. */
+  drawnFor: new Map<string, string>(),
+  ids: undefined as string[] | undefined,
+}));
 
 vi.mock(import("../../machines/window-browser"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -33,7 +37,8 @@ vi.mock(import("./window-tab"), async (importOriginal) => ({
       return Promise.resolve({
         requestId: "list",
         pages: listed.ids.map((id) => ({
-          id,
+          id: listed.drawnFor.get(id) ?? id,
+          targetId: id,
           title: "",
           url: "https://example.com/",
         })),
@@ -50,6 +55,7 @@ beforeEach(async () => {
   lifetimes.clear();
   closes.length = 0;
   listed.ids = undefined;
+  listed.drawnFor.clear();
   root = await fs.mkdtemp(path.join(os.tmpdir(), "tab-cap-"));
   chatId = createMockChatConfigForDir(
     path.join(root, "chats", ChatIdSchema.parse("tab-cap-test")),
@@ -169,6 +175,25 @@ describe("closeTabsOverCap", () => {
     expect(state.openedTabs.map((tab) => tab.id)).not.toContain(oldest.id);
     expect(state.closedTabs).toEqual([
       { id: oldest.id, reason: "tabCap", url: "" },
+    ]);
+  });
+
+  it("closes a tab on an HTML file by the tab's id, and keeps word of it under that id", async () => {
+    const page = openedTab(500);
+    const tabs = [
+      ...Array.from({ length: CHAT_HIDDEN_TAB_CAP }, (_, i) => openedTab(i)),
+      page,
+    ];
+    const fileTab = StoreId.newTabId();
+    listed.ids = tabs.map((tab) => tab.id);
+    listed.drawnFor.set(page.id, fileTab);
+    await setChatState(chatDir(chatId), { openedTabs: tabs });
+
+    await closeTabsOverCap(chatId);
+
+    expect(closes).toEqual([fileTab]);
+    expect((await getChatState(chatDir(chatId))).closedTabs).toEqual([
+      { id: fileTab, reason: "tabCap", url: "https://example.com/" },
     ]);
   });
 

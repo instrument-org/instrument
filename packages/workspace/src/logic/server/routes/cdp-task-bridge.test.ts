@@ -32,13 +32,20 @@ const OTHER_SESSION = StoreId.SessionSchema.parse(
 /** The tabs the chat's agents opened, in memory. */
 const record: { openedTabs: { id: BrowserTargetId }[] } = { openedTabs: [] };
 /** The chat's tabs as the window groups them, a page's guest up or not. */
-let windowList: { id: string; kind: "page"; title: string; url: string }[] = [];
+let windowList: {
+  id: string;
+  kind: "page";
+  /** The page the tab draws, where it is not the tab's own id, as for a tab on an HTML file. */
+  targetId?: string;
+  title: string;
+  url: string;
+}[] = [];
 vi.mock("../../../lib/chat/chat-tabs", () => ({
   chatPageTabs: () =>
     Promise.resolve(
       windowList.map((entry) => ({
         ...entry,
-        targetId: entry.id as BrowserTargetId,
+        targetId: (entry.targetId ?? entry.id) as BrowserTargetId,
       })),
     ),
   forgetOpenedTabs: (_chatId: unknown, ids: ReadonlySet<string>) => {
@@ -138,7 +145,7 @@ vi.mock("../../../lib/chat/window-tab", () => ({
 
 function connect(sessionId: StoreId.Session = SESSION_ID) {
   const live = new Set<BrowserTargetId>(
-    windowList.map((entry) => entry.id as BrowserTargetId),
+    windowList.map((entry) => (entry.targetId ?? entry.id) as BrowserTargetId),
   );
   const subscribers = new Map<
     BrowserTargetId,
@@ -1005,6 +1012,113 @@ describe("a session's browser", () => {
     expect(takeTabNews(SESSION_ID)).toMatchObject([
       { agents: [{ sessionId: OTHER_SESSION }], targetId: shared.targetId },
     ]);
+  });
+});
+
+describe("a tab on an HTML file", () => {
+  /** A tab on a file, by its own id, drawn by a page under another id, which the session worked in. */
+  function fileTab() {
+    const tabId = StoreId.newTabId();
+    const targetId = browserTargetOf(StoreId.newTabId());
+    windowList = [
+      ...windowList,
+      {
+        id: tabId,
+        kind: "page",
+        targetId,
+        title: "Report",
+        url: "file:///tmp/tasks/read-the-pages/report.html",
+      },
+    ];
+    noteTabCommand(targetId, { chatId: TASK_ID, sessionId: SESSION_ID });
+    return { tabId, targetId };
+  }
+  const ids = (infos: unknown) =>
+    (infos as { targetId: string }[]).map((info) => info.targetId);
+
+  it("is named by the tab's id, and its commands reach the page that draws it", async () => {
+    const file = fileTab();
+    const { command, events, sendCommand } = connect();
+
+    const targets = await command("Target.getTargets");
+    const attached = await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: file.tabId,
+    });
+    await command(
+      "Runtime.evaluate",
+      { expression: "document.title" },
+      attached.result?.sessionId as string,
+    );
+
+    expect(ids(targets.result?.targetInfos)).toEqual([file.tabId]);
+    expect(created(events)).toEqual([file.tabId]);
+    expect(sendCommand).toHaveBeenCalledWith(
+      file.targetId,
+      "Runtime.evaluate",
+      { expression: "document.title" },
+    );
+  });
+
+  it("keeps its id as a page tab becomes the file's, with no tab gone or new", async () => {
+    const page = tab();
+    const { command, events } = connect();
+    await command("Target.getTargets");
+    await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: page.tabId,
+    });
+
+    // `agent-browser open ./report.html`: the page tab becomes a tab on the
+    // file, which agents name by the page tab's id and its page draws.
+    windowList = windowList.map((entry) =>
+      entry.id === page.tabId
+        ? {
+            ...entry,
+            targetId: page.targetId,
+            url: "file:///tmp/tasks/read-the-pages/report.html",
+          }
+        : entry,
+    );
+    const targets = await command("Target.getTargets");
+
+    expect(ids(targets.result?.targetInfos)).toEqual([page.tabId]);
+    expect(created(events)).toEqual([page.tabId]);
+    expect(events("Target.targetDestroyed")).toEqual([]);
+  });
+
+  it("drives the new page that draws it once the tab walks to another file and back", async () => {
+    const file = fileTab();
+    const { closeByUser, command, events, sendCommand } = connect();
+    await command("Target.getTargets");
+    await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: file.tabId,
+    });
+
+    // To a Markdown file, which no page draws, then back to an HTML one,
+    // drawn by a page of its own.
+    const next = browserTargetOf(StoreId.newTabId());
+    closeByUser(file.targetId);
+    windowList = windowList.map((entry) =>
+      entry.id === file.tabId ? { ...entry, targetId: next } : entry,
+    );
+    await command("Target.getTargets");
+    const attached = await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: file.tabId,
+    });
+    await command(
+      "Runtime.evaluate",
+      { expression: "document.title" },
+      attached.result?.sessionId as string,
+    );
+
+    expect(sendCommand).toHaveBeenCalledWith(next, "Runtime.evaluate", {
+      expression: "document.title",
+    });
+    // The agent hears its page went and came back, under the one id.
+    expect(created(events)).toEqual([file.tabId, file.tabId]);
   });
 });
 

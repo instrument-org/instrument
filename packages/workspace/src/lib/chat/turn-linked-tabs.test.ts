@@ -12,6 +12,9 @@ import { keepTurnLinkedTabs } from "./turn-linked-tabs";
 const LIVE = StoreId.newTabId();
 const UNLOADED = StoreId.newTabId();
 const FILE = StoreId.newTabId();
+/** A tab that opened on an HTML file, by its own id, and the page that drew it, now at a site. */
+const WENT_ON = StoreId.newTabId();
+const WENT_ON_PAGE = StoreId.newTabId();
 
 vi.mock(import("./chat-tabs"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -19,6 +22,7 @@ vi.mock(import("./chat-tabs"), async (importOriginal) => ({
     Promise.resolve([
       // Only the fields read here.
       { id: UNLOADED, title: "Orders", url: "https://shop.test/orders" },
+      { id: WENT_ON, targetId: WENT_ON_PAGE, title: "", url: "" },
     ] as never),
 }));
 
@@ -37,7 +41,9 @@ describe("keepTurnLinkedTabs", () => {
         ? "https://shop.test/contract"
         : id.endsWith(FILE)
           ? "file:///Users/mac-user/page.html"
-          : undefined,
+          : id.endsWith(WENT_ON_PAGE)
+            ? "https://shop.test/receipt"
+            : undefined,
     );
     vi.spyOn(browser, "listTargets").mockResolvedValue([]);
   });
@@ -69,6 +75,17 @@ describe("keepTurnLinkedTabs", () => {
         ],
       },
       type: "data-linkedTabs",
+    });
+  });
+
+  it("keeps the page of a tab its agents name by an id the page does not have", async () => {
+    await keepTurnLinkedTabs({
+      chatId,
+      messages: turn(`[Receipt](instrument://tab/${WENT_ON})`),
+      sessionId,
+    });
+    expect(save.mock.calls[0]?.[0]).toMatchObject({
+      data: { tabs: [{ id: WENT_ON, url: "https://shop.test/receipt" }] },
     });
   });
 

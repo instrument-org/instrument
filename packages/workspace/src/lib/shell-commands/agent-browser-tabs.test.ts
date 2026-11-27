@@ -19,6 +19,7 @@ import { type BrowserTargetId, browserTargetOf } from "../../types";
 import { sessionLayout } from "../session-layout";
 import { getChatState, setChatState } from "../chat-record";
 import { chatDir } from "../record-folders";
+import { notePageDownload } from "../chat/page-downloads";
 import { notePageOpenedTab } from "../chat/popup-tabs";
 import { noteTabCommand, registerTabCloser } from "../tab-activity";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
@@ -42,6 +43,8 @@ let TASK_SESSION = StoreId.newSessionId();
 
 let rootDir: string;
 let live: Set<BrowserTargetId>;
+/** The tab each page draws, by the page's id, where the tab's own id is another: a tab on an HTML file. */
+let drawnFor: Map<BrowserTargetId, string>;
 let asks: { group?: ChatId; show: boolean }[];
 let stopAnswering: () => void;
 
@@ -61,7 +64,8 @@ function answeringWindow() {
         id: ask.id,
         requestId: ask.requestId,
         pages: [...live].map((id) => ({
-          id,
+          id: drawnFor.get(id) ?? id,
+          targetId: id,
           title: "Example",
           url: "https://example.com/",
         })),
@@ -136,6 +140,7 @@ beforeEach(async () => {
   await chatFor(CHAT_SESSION, CHAT_ID);
   TASK_SESSION = await chatTaskFor(CHAT_ID, { title: "Read the page" });
   live = new Set();
+  drawnFor = new Map();
   asks = [];
   browserOfLiveTargets();
   stopAnswering = answeringWindow();
@@ -156,6 +161,95 @@ describe("a chat", () => {
       `/devtools/task/${CHAT_ID}/${CHAT_SESSION}`,
     );
     expect(asks).toEqual([]);
+  });
+});
+
+describe("a tab on an HTML file", () => {
+  /** A tab on a file, by its own id, drawn by a page under another id, which the task drove. */
+  function fileTab() {
+    const tabId = StoreId.newTabId();
+    const page = browserTargetOf(StoreId.newTabId());
+    live.add(page);
+    drawnFor.set(page, tabId);
+    noteTabCommand(
+      page,
+      { chatId: CHAT_ID, sessionId: TASK_SESSION },
+      Date.now() + 60_000,
+    );
+    return { page, tabId };
+  }
+
+  it("is named by the tab's id when someone else used it", async () => {
+    const { page, tabId } = fileTab();
+    noteTabCommand(
+      page,
+      { chatId: CHAT_ID, sessionId: CHAT_SESSION },
+      Date.now() + 90_000,
+    );
+    noteTabCommand(
+      page,
+      { chatId: CHAT_ID, sessionId: TASK_SESSION },
+      Date.now() + 120_000,
+    );
+
+    const result = await run(["snapshot", "-i"]);
+
+    expect(result.stdout).toContain(
+      `Tab ${tabId} was used since your last command in it, by the chat`,
+    );
+    expect(result.stdout).not.toContain(page);
+  });
+
+  it("is named by the tab's id when its page opens a popup", async () => {
+    const { page, tabId } = fileTab();
+    const popup = StoreId.newTabId();
+    notePageOpenedTab(page, { tabId: popup, url: "https://help.example/" });
+
+    const result = await run(["click", "@e4"]);
+
+    expect(result.stdout).toContain(
+      `The page in tab ${tabId} opened https://help.example/ as a popup`,
+    );
+    expect(result.stdout).not.toContain(page);
+  });
+
+  it("is named by the tab's id when its page downloads a file", async () => {
+    const { page, tabId } = fileTab();
+    notePageDownload(page, "d1", {
+      path: path.join(rootDir, "report.csv"),
+      state: "completed",
+    });
+
+    const result = await run(["click", "@e4"]);
+
+    expect(result.stdout).toContain(`The page in tab ${tabId} downloaded`);
+    expect(result.stdout).not.toContain(page);
+  });
+
+  it("is switched to by its page's id, which earlier builds named it by", async () => {
+    const { page, tabId } = fileTab();
+    await answerAgentBrowser((given) => ({
+      exitCode: 0,
+      stderr: "",
+      stdout: given.includes("--json")
+        ? JSON.stringify({
+            data: { tabs: [{ active: true, tabId: "t1", targetId: tabId }] },
+            success: true,
+          })
+        : "",
+    }));
+
+    await createAgentBrowserCommand({
+      chatId: CHAT_ID,
+      layout: await sessionLayout({ chatId: CHAT_ID, sessionId: TASK_SESSION }),
+      sessionId: TASK_SESSION,
+    }).execute(["tab", page], ctx);
+
+    const ran = (await agentBrowserRuns()).map(({ args }) =>
+      args.slice(args.indexOf("tab")).join(" "),
+    );
+    expect(ran).toContain("tab t1");
+    expect(ran.some((each) => each.includes(page))).toBe(false);
   });
 });
 

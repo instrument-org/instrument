@@ -44,7 +44,7 @@ import {
   isNewChatTab,
   selectedTabIn,
   sideIndexOf,
-  tabShowingAmong,
+  tabShowing,
   tabsIn,
   type WindowTabs,
 } from "./tab-model";
@@ -1091,7 +1091,7 @@ export function useTabGroupActions() {
   /**
    * Puts up one thing handed over from outside the app (a link, a file from
    * the Finder): a tab in one of this window's groups already showing
-   * exactly it (`tabShowingAmong`) comes up in its group, walked to the part
+   * exactly it (`tabShowing`) comes up in its group, walked to the part
    * asked for where it stands elsewhere in it (another part of Settings),
    * and is given back for the window to light. Otherwise it opens as a new
    * group of its own, since something from outside never joins a group the
@@ -1102,11 +1102,11 @@ export function useTabGroupActions() {
     href: string,
     { returns }: { returns?: GroupReturns } = {},
   ): undefined | WindowTab => {
-    const tab = tabShowingAmong(
+    const tab = tabShowing(
       store.get(windowTabsAtom),
       store.get(windowTabGroupsAtom) ?? [],
       href,
-      groupUp(),
+      { exact: true, onScreen: groupUp() },
     );
     if (tab?.group === undefined) {
       make({ href, ...(returns === undefined ? {} : { returns }) });
@@ -1136,11 +1136,11 @@ export function useTabGroupActions() {
   ): undefined | WindowTab => {
     const state = store.get(windowTabsAtom);
     const here = store.get(windowTabGroupsAtom) ?? [];
-    const tab = tabShowingAmong(
+    const tab = tabShowing(
       state,
       unique([...here, ...state.tabs.flatMap((each) => each.group ?? [])]),
       newChatHref(draft),
-      groupUp(),
+      { exact: true, onScreen: groupUp() },
     );
     if (tab?.group === undefined) {
       return undefined;

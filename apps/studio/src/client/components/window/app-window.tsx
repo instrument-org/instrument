@@ -154,7 +154,7 @@ import {
   reopenedTab,
   selectedTabIn,
   sideIndexOf,
-  tabShowingAmong,
+  tabShowing,
 } from "./tab-model";
 import {
   bringForwardShowing,
@@ -1732,10 +1732,11 @@ function WindowShell({
           const side = sides.length > 1 ? 1 : 0;
           let after = sides[side]?.tabs.at(-1)?.id;
           const shown = hrefs.map((href) => {
-            const showing = tabShowingAmong(
+            const showing = tabShowing(
               store.get(windowTabsAtom),
               [joined],
               href,
+              { exact: true },
             );
             if (showing) {
               return showing.id;

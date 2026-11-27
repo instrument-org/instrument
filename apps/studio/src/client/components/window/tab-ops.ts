@@ -47,7 +47,7 @@ import {
   startedOver,
   stepTrail,
   stepVisit,
-  tabShowingIn,
+  tabShowing,
   tabToScreen,
   type WindowTabs,
   withChatSides,
@@ -410,7 +410,7 @@ export const TAB_OPS = {
 
   /**
    * Brings up the tab of the group on screen already showing what an address
-   * shows (`tabShowingIn`). Answers whether one does.
+   * shows (`tabShowing`). Answers whether one does.
    */
   selectShowing: (
     state: WindowTabs,
@@ -418,7 +418,7 @@ export const TAB_OPS = {
     href: string,
   ): Outcome<boolean> => {
     const tab =
-      onScreen === undefined ? undefined : tabShowingIn(state, onScreen, href);
+      onScreen === undefined ? undefined : tabShowing(state, [onScreen], href);
     return tab
       ? { state: pickTab(state, tab.id), value: true }
       : unchanged(state, false);

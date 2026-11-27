@@ -51,7 +51,7 @@ import {
   stepVisit,
   selectedTabIn,
   titleAtNavigation,
-  tabShowingAmong,
+  tabShowing,
   tabToScreen,
   visitScreen,
   upTabsIn,
@@ -1095,7 +1095,7 @@ describe("popupClosed", () => {
 
 // Something handed over from outside the app comes up in the tab already
 // showing exactly it, in whichever of the window's groups has one.
-describe("tabShowingAmong", () => {
+describe("tabShowing, exact", () => {
   const NOTES = "/Users/mac-user/Work/notes.md";
   const state = windowOf([
     screenTab("folder", "/files?path=&root=%2FUsers%2Fmac-user%2FWork", CHAT),
@@ -1122,18 +1122,20 @@ describe("tabShowingAmong", () => {
     ],
     ["another part of Settings", "/settings/models", "settings"],
   ])("finds %s", (_case, href, expected) => {
-    expect(tabShowingAmong(state, groups, href)?.id).toBe(expected);
+    expect(tabShowing(state, groups, href, { exact: true })?.id).toBe(expected);
   });
 
   it.each([
     ["a file in a folder a tab shows", fileHref("/Users/mac-user/Work/a.md")],
     ["the browser's start, which is not one thing", BROWSER_HREF],
   ])("finds nothing for %s", (_case, href) => {
-    expect(tabShowingAmong(state, groups, href)).toBeUndefined();
+    expect(tabShowing(state, groups, href, { exact: true })).toBeUndefined();
   });
 
   it("looks only in the groups given", () => {
-    expect(tabShowingAmong(state, [CHAT], fileHref(NOTES))).toBeUndefined();
+    expect(
+      tabShowing(state, [CHAT], fileHref(NOTES), { exact: true }),
+    ).toBeUndefined();
   });
 
   it("looks in the group on screen first", () => {
@@ -1141,10 +1143,15 @@ describe("tabShowingAmong", () => {
       ...state.tabs,
       screenTab("again", fileHref(NOTES), DRAFT),
     ]);
-    expect(tabShowingAmong(twice, groups, fileHref(NOTES), DRAFT)?.id).toBe(
-      "again",
-    );
-    expect(tabShowingAmong(twice, groups, fileHref(NOTES))?.id).toBe("file");
+    expect(
+      tabShowing(twice, groups, fileHref(NOTES), {
+        exact: true,
+        onScreen: DRAFT,
+      })?.id,
+    ).toBe("again");
+    expect(
+      tabShowing(twice, groups, fileHref(NOTES), { exact: true })?.id,
+    ).toBe("file");
   });
 });
 

@@ -574,7 +574,7 @@ export function useWindowTabs() {
     },
     /**
      * Brings up the tab of the group on screen already showing what an
-     * address shows (`tabShowingIn`); false where none does.
+     * address shows (`tabShowing`); false where none does.
      */
     selectShowing: (href: string): boolean =>
       run("selectShowing", href) ?? false,

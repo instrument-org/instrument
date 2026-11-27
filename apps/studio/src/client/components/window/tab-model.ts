@@ -1135,44 +1135,28 @@ function insertAfter(
 }
 
 /**
- * The tab of a group showing what an address shows: a screen tab at it, or
- * at the same file, folder or task however far it has walked within it
- * (`showsSame`), or the page a file's tab became, which is still the file's
- * tab. The one the group has up comes first.
+ * The tab showing what an address shows in any of some groups: a screen tab
+ * at it, or the page a file's tab became, which is still the file's tab. A
+ * screen tab matches at the same file, folder or task however far it has
+ * walked within it (`showsSame`); `exact` asks for exactly the same file,
+ * Files folder, chat, task, app or Settings (`showsSameThing`), never a
+ * folder for a file in it, as something handed over from outside brings up
+ * rather than opening again. The group on screen is looked in first when
+ * named, then the rest in the order given, and in each the tab it has up
+ * first.
  */
-export function tabShowingIn(
-  state: WindowTabs,
-  group: string,
-  href: string,
-): undefined | WindowTab {
-  const filePath = computerTabOf(href)?.file;
-  const shows = (tab: WindowTab) =>
-    tab.group === group &&
-    (tab.kind === "screen"
-      ? showsSame(tab.href, href)
-      : filePath !== undefined && hostPathOfFileUrl(tab.url) === filePath);
-  const up = selectedTabIn(state, group);
-  return up && shows(up) ? up : state.tabs.find(shows);
-}
-
-/**
- * The tab showing exactly what an address shows (`showsSameThing`: the same
- * file, Files folder, chat, task, app or Settings, never a folder for a file
- * in it) in any of some groups, a file's page counting as the file: what
- * something handed over from outside brings up rather than opening again.
- * The group on screen is looked in first, then the rest in the order given,
- * and in each the tab it has up first.
- */
-export function tabShowingAmong(
+export function tabShowing(
   state: WindowTabs,
   groups: readonly string[],
   href: string,
-  onScreen?: string,
+  { exact = false, onScreen }: { exact?: boolean; onScreen?: string } = {},
 ): undefined | WindowTab {
   const filePath = computerTabOf(href)?.file;
   const shows = (tab: WindowTab) =>
     tab.kind === "screen"
-      ? showsSameThing(tab.href, href)
+      ? exact
+        ? showsSameThing(tab.href, href)
+        : showsSame(tab.href, href)
       : filePath !== undefined && hostPathOfFileUrl(tab.url) === filePath;
   const ordered =
     onScreen !== undefined && groups.includes(onScreen)
@@ -1192,7 +1176,7 @@ export function tabShowingAmong(
 }
 
 /**
- * The tab already showing an address in a group (`tabShowingIn`), or one
+ * The tab already showing an address in a group (`tabShowing`), or one
  * opened there. A file is not opened twice. A group waiting behind with
  * its new tab up is told where to go, the way the tab on screen is: the
  * screen lands in that tab rather than beside it, and the tab keeps its id,
@@ -1221,7 +1205,7 @@ export function openOrFocusScreen(
     select: boolean;
   },
 ): { id: string; state: WindowTabs } {
-  const existing = tabShowingIn(state, group, href);
+  const existing = tabShowing(state, [group], href);
   if (existing) {
     return {
       id: existing.id,

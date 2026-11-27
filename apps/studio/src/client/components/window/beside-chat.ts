@@ -13,7 +13,7 @@ import {
   replaceTab,
   selectTab,
   sideIndexOf,
-  tabShowingIn,
+  tabShowing,
   type WindowTabs,
 } from "./tab-model";
 import { matchScreen, showsSame } from "./window-href";
@@ -101,7 +101,7 @@ export type BesidePlacement =
  * same chat, file, folder or one-of-a-kind screen (`showsSame`), or a web
  * page at exactly the same address.
  */
-function showsSameThing(a: WindowTab, b: WindowTab): boolean {
+function tabsShowSameThing(a: WindowTab, b: WindowTab): boolean {
   if (a.kind === "page" && b.kind === "page") {
     return a.url !== undefined && a.url === b.url;
   }
@@ -125,7 +125,8 @@ function showsSameThing(a: WindowTab, b: WindowTab): boolean {
  * - A plain click in a chat on the left side (or the only side) opens on the
  *   right side, made where there is none, in place of an unwritten New Tab
  *   that is all that side has, else right after the tab up there; a tab
- *   there already showing the same thing (`showsSameThing`) comes up instead.
+ *   there already showing the same thing (`tabsShowSameThing`) comes up
+ *   instead.
  * - Everything else is a new tab right after the chat's tab, in its side:
  *   in front, except for a Cmd-click or a middle click, which waits behind.
  */
@@ -144,7 +145,7 @@ function personPlacementOf(
     };
   }
   const right = layout.sides.length === 2 ? (layout.sides[1]?.tabs ?? []) : [];
-  const same = right.find((tab) => showsSameThing(tab, opening));
+  const same = right.find((tab) => tabsShowSameThing(tab, opening));
   if (same !== undefined) {
     return { kind: "show", tab: same.id };
   }
@@ -315,7 +316,7 @@ export function openBesideChat(
 /**
  * A file a chat's reply handed over, opened beside the chat as its turn ends:
  * the chat's group's tab already showing it brought up on its side
- * (`tabShowingIn`), the keyboard staying where it is, or else a tab of the
+ * (`tabShowing`), the keyboard staying where it is, or else a tab of the
  * agent's own (`openedBy`), placed and shown as `window show` places one.
  * `isNew` says which; nothing happens for a chat's tab no group has.
  */
@@ -332,7 +333,7 @@ export function handOverBesideChat(
   if (group === undefined) {
     return { front: false, id, isNew: false, state };
   }
-  const showing = tabShowingIn(state, group, href);
+  const showing = tabShowing(state, [group], href);
   if (showing !== undefined) {
     return {
       front: true,

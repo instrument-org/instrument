@@ -18,8 +18,12 @@ import { useOpenSettings } from "@/client/components/window/use-open-settings";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { privacyPaneForApp } from "@/client/lib/privacy-pane";
-import { cn, osConventions } from "@/client/lib/utils";
+import { cn, currentOs, osConventions } from "@/client/lib/utils";
+import { ArrowBendUpRightIcon } from "@phosphor-icons/react/ArrowBendUpRight";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { QuestionIcon } from "@phosphor-icons/react/Question";
+import { TerminalWindowIcon } from "@phosphor-icons/react/TerminalWindow";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { ShieldSlashIcon } from "@phosphor-icons/react/ShieldSlash";
 import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
@@ -31,7 +35,12 @@ import { Button } from "./ui/button";
 import { Delayed } from "./ui/delayed";
 import { Spinner } from "./ui/spinner";
 
-type Decision = "allowed" | "always" | "declined";
+type Decision =
+  | "allowed"
+  | "always"
+  | "declined"
+  | "ran-by-hand"
+  | "without-admin";
 type Ask = Exclude<
   NonNullable<ReturnType<typeof useChatAsks>>[number],
   { kind: "question" | "sign-in" }
@@ -97,7 +106,14 @@ function signInLine(target: string): string | undefined {
  * answering it brings up the next. It opens and folds away as a question
  * card does (`ComposerDock`).
  */
-export function PermissionAsksFoot({ chatId }: { chatId: ChatId }) {
+export function PermissionAsksFoot({
+  chatId,
+  sendMessage,
+}: {
+  chatId: ChatId;
+  /** Sends words as the person's own message, as the reply box would. */
+  sendMessage?: (prompt: string) => void;
+}) {
   // Sorting is stable, so each group stays oldest first.
   const asks = useAsks(chatId)?.toSorted(
     (a, b) => Number(b.answerable) - Number(a.answerable),
@@ -125,6 +141,7 @@ export function PermissionAsksFoot({ chatId }: { chatId: ChatId }) {
               ask={first}
               chatId={chatId}
               key={first.id}
+              sendMessage={sendMessage}
               stack={stack}
             />
           </div>
@@ -137,10 +154,12 @@ export function PermissionAsksFoot({ chatId }: { chatId: ChatId }) {
 function PermissionAskCard({
   ask,
   chatId,
+  sendMessage,
   stack,
 }: {
   ask: Ask;
   chatId: ChatId;
+  sendMessage: ((prompt: string) => void) | undefined;
   /** Every open ask, this one first, for the count and the no to all. */
   stack: readonly Ask[];
 }) {
@@ -228,7 +247,10 @@ function PermissionAskCard({
         allow={choice("allowed")}
         ask={ask}
         decline={choice("declined")}
+        ranByHand={choice("ran-by-hand")}
+        sendMessage={sendMessage}
         stackControls={stackControls}
+        withoutAdmin={choice("without-admin")}
       />
     );
   }
@@ -359,21 +381,37 @@ function PermissionAskCard({
  * what it changes, then the exact command, which is what runs, with a copy
  * for running it by hand. Run as administrator hands off to the system's own
  * prompt on the computer that asked, the only one that runs it; another
- * computer can only say no, and says where to run it.
+ * computer can only say no, and says where to run it. Under the answers, the
+ * other ways on: asking what it does (a message of the person's own, which
+ * leaves the card up), trying without an administrator, and running it by
+ * hand, which copies it as the system's terminal takes it and waits for
+ * Done.
  */
 function AdminAskCard({
   allow,
   ask,
   decline,
+  ranByHand,
+  sendMessage,
   stackControls,
+  withoutAdmin,
 }: {
   allow: Omit<Parameters<typeof AnswerButton>[0], "children">;
   ask: Ask;
   decline: Omit<Parameters<typeof AnswerButton>[0], "children">;
+  ranByHand: Omit<Parameters<typeof AnswerButton>[0], "children">;
+  sendMessage: ((prompt: string) => void) | undefined;
   stackControls: ReactNode;
+  withoutAdmin: Omit<Parameters<typeof AnswerButton>[0], "children">;
 }) {
   const reason = ask.askers[0]?.reason;
   const waiting = ask.status === "admin-prompt";
+  // I'll run it myself, on the computer the command is about: copied, and
+  // waiting for Done.
+  const [byHand, setByHand] = useState(false);
+  const runningByHand = byHand && ask.here && !waiting;
+  const handCommand = commandByHand(ask.target);
+  const shown = runningByHand ? handCommand : ask.target;
   return (
     <div
       className="relative animate-in rounded-2xl border border-border bg-card p-3 shadow-xs duration-200 ease-out fade-in-0 fill-mode-both slide-in-from-bottom-2 motion-reduce:animate-none"
@@ -395,12 +433,12 @@ function AdminAskCard({
       ) : null}
       <div className="group/command relative mt-2.5 rounded-xl bg-muted/50">
         <div
-          className="max-h-40 scroll-fade-y overflow-auto py-2 pr-10 pl-3"
+          className="max-h-40 overflow-auto scroll-fade-y py-2 pr-10 pl-3"
           data-admin-command=""
         >
           <BashCommandPreview
             className="text-[13px] leading-5 [&_pre]:break-all [&_pre]:whitespace-pre-wrap"
-            command={ask.target}
+            command={shown}
           />
         </div>
         <CopyButton
@@ -408,11 +446,17 @@ function AdminAskCard({
           iconSize={16}
           label="Copy command"
           onCopy={async () => {
-            await navigator.clipboard.writeText(ask.target);
+            await navigator.clipboard.writeText(shown);
           }}
           tooltip="Copy command"
         />
       </div>
+      {runningByHand ? (
+        <p className="mt-2 flex items-center gap-1.5 text-[13px] text-muted-foreground">
+          <CheckIcon className="size-3.5 shrink-0" />
+          {osConventions().adminPasteLine}
+        </p>
+      ) : null}
       {waiting ? (
         <p className="mt-3 flex min-h-8 items-center gap-2 text-[13px] text-muted-foreground">
           <Spinner className="size-3.5" delay={0} />
@@ -422,14 +466,34 @@ function AdminAskCard({
         </p>
       ) : ask.here ? (
         <div className="mt-3 flex items-center gap-2 @max-xs/asks:flex-col @max-xs/asks:items-stretch @max-xs/asks:gap-1.5">
-          <AnswerButton {...allow}>Run as administrator</AnswerButton>
-          <AnswerButton
-            {...decline}
-            className="ml-auto text-muted-foreground @max-xs/asks:ml-0"
-            variant="ghost"
-          >
-            Don’t allow
-          </AnswerButton>
+          {runningByHand ? (
+            <>
+              <AnswerButton {...ranByHand}>Done</AnswerButton>
+              <AnswerButton
+                className="ml-auto text-muted-foreground @max-xs/asks:ml-0"
+                disabled={false}
+                held={ranByHand.held}
+                onClick={() => {
+                  setByHand(false);
+                }}
+                pending={false}
+                variant="ghost"
+              >
+                Back
+              </AnswerButton>
+            </>
+          ) : (
+            <>
+              <AnswerButton {...allow}>Run as administrator</AnswerButton>
+              <AnswerButton
+                {...decline}
+                className="ml-auto text-muted-foreground @max-xs/asks:ml-0"
+                variant="ghost"
+              >
+                Don’t allow
+              </AnswerButton>
+            </>
+          )}
         </div>
       ) : (
         <div className="mt-3 flex items-center gap-2">
@@ -445,7 +509,94 @@ function AdminAskCard({
           </AnswerButton>
         </div>
       )}
+      {waiting || runningByHand ? null : (
+        // A line each where the three don't fit in a row, rather than
+        // wrapping into a ragged pair.
+        <div className="mt-2.5 flex items-center gap-1 border-t border-border pt-2 @max-lg/asks:flex-col @max-lg/asks:items-start @max-lg/asks:gap-0.5">
+          {sendMessage ? (
+            <ChoiceLink
+              icon={QuestionIcon}
+              onClick={() => {
+                sendMessage("What does this do?");
+              }}
+            >
+              What does this do?
+            </ChoiceLink>
+          ) : null}
+          <ChoiceLink
+            held={withoutAdmin.held}
+            icon={ArrowBendUpRightIcon}
+            onClick={withoutAdmin.onClick}
+            pending={withoutAdmin.pending}
+          >
+            Try without administrator
+          </ChoiceLink>
+          {ask.here ? (
+            <ChoiceLink
+              icon={TerminalWindowIcon}
+              onClick={() => {
+                navigator.clipboard.writeText(handCommand).then(
+                  () => {
+                    setByHand(true);
+                  },
+                  (error: unknown) => {
+                    toast.error("Couldn’t copy the command", { cause: error });
+                  },
+                );
+              }}
+            >
+              I’ll run it myself
+            </ChoiceLink>
+          ) : null}
+        </div>
+      )}
     </div>
+  );
+}
+
+/**
+ * A command as a person runs it as an administrator themselves: in an
+ * administrator's PowerShell as it is, since Windows runs it as PowerShell;
+ * elsewhere after sudo, a command of several parts through bash as the
+ * card would run it, so sudo covers every part.
+ */
+export function commandByHand(command: string): string {
+  if (currentOs() === "windows") {
+    return command;
+  }
+  return /[;&|<>\n`]|\$\(/u.test(command)
+    ? `sudo /bin/bash -c '${command.replaceAll("'", String.raw`'\''`)}'`
+    : `sudo ${command}`;
+}
+
+/** One of an admin card's quiet ways on, under its answers. */
+function ChoiceLink({
+  children,
+  held = false,
+  icon: Icon,
+  onClick,
+  pending = false,
+}: {
+  children: ReactNode;
+  held?: boolean;
+  icon: typeof QuestionIcon;
+  onClick: (() => void) | undefined;
+  pending?: boolean;
+}) {
+  return (
+    <button
+      aria-disabled={held || undefined}
+      className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px] whitespace-nowrap text-muted-foreground outline-none hover:bg-foreground/6 hover:text-foreground focus-visible:bg-foreground/6 focus-visible:text-foreground"
+      onClick={held ? undefined : onClick}
+      type="button"
+    >
+      {pending ? (
+        <Spinner className="size-3.5" delay={0} />
+      ) : (
+        <Icon className="size-3.5 shrink-0" />
+      )}
+      {children}
+    </button>
   );
 }
 
@@ -891,18 +1042,26 @@ function AdminAnswerNote({
   const [open, setOpen] = useState(false);
   const { run } = data;
   const notAllowed = data.answer === "declined" || run?.is === "canceled";
-  const lead = notAllowed
-    ? "Not allowed"
-    : run?.is === "ran"
-      ? "Ran as administrator"
-      : run?.is === "failed"
-        ? "Couldn’t run as administrator"
-        : "Interrupted while running as administrator";
-  const Icon = notAllowed
-    ? ShieldSlashIcon
-    : run?.is === "ran"
-      ? ShieldCheckIcon
-      : ShieldWarningIcon;
+  const lead =
+    data.answer === "ran-by-hand"
+      ? "You ran"
+      : data.answer === "without-admin"
+        ? "Not run as administrator"
+        : notAllowed
+          ? "Not allowed"
+          : run?.is === "ran"
+            ? "Ran as administrator"
+            : run?.is === "failed"
+              ? "Couldn’t run as administrator"
+              : "Interrupted while running as administrator";
+  const Icon =
+    data.answer === "ran-by-hand"
+      ? TerminalWindowIcon
+      : notAllowed || data.answer === "without-admin"
+        ? ShieldSlashIcon
+        : run?.is === "ran"
+          ? ShieldCheckIcon
+          : ShieldWarningIcon;
   return (
     <div className="min-w-0">
       <button
@@ -932,7 +1091,7 @@ function AdminAnswerNote({
         <div className="mt-1 mb-2 ml-7 rounded-xl bg-muted/50 px-3 py-2">
           <BashCommandPreview command={data.target} />
           {run?.is === "ran" && run.output !== "" ? (
-            <pre className="mt-2 max-h-60 scroll-fade-y overflow-auto font-mono text-[12.5px] leading-5 break-all whitespace-pre-wrap text-foreground/80">
+            <pre className="mt-2 max-h-60 overflow-auto scroll-fade-y font-mono text-[12.5px] leading-5 break-all whitespace-pre-wrap text-foreground/80">
               {run.output}
             </pre>
           ) : null}

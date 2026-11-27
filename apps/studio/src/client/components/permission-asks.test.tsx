@@ -548,6 +548,8 @@ describe("an admin command's answer row", () => {
       { answer: "allowed", run: { is: "failed", message: "No" } },
       "Couldn’t run as administrator",
     ],
+    [{ answer: "without-admin" }, "Not run as administrator"],
+    [{ answer: "ran-by-hand" }, "You ran"],
   ] as const)("reads %o as %s", (given, lead) => {
     render(
       <PermissionAnswerNote

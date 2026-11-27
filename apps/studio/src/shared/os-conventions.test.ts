@@ -16,6 +16,8 @@ describe("OS_CONVENTIONS", () => {
     expect(OS_CONVENTIONS).toMatchInlineSnapshot(`
       {
         "linux": {
+          "adminPasteLine": "Command copied. Paste it in a terminal, then choose Done.",
+          "adminPromptWait": "Waiting for the system",
           "appFiles": ".config and .local/share",
           "commandKey": "ctrlKey",
           "computer": "This Computer",
@@ -63,6 +65,8 @@ describe("OS_CONVENTIONS", () => {
           "trash": "Trash",
         },
         "mac": {
+          "adminPasteLine": "Command copied. Paste it in Terminal, then choose Done.",
+          "adminPromptWait": "Waiting for your password in macOS",
           "appFiles": "Library",
           "commandKey": "metaKey",
           "computer": "This Mac",
@@ -122,6 +126,8 @@ describe("OS_CONVENTIONS", () => {
           "trash": "Trash",
         },
         "windows": {
+          "adminPasteLine": "Command copied. Paste it in PowerShell as administrator, then choose Done.",
+          "adminPromptWait": "Waiting for Windows",
           "appFiles": "AppData",
           "commandKey": "ctrlKey",
           "computer": "This PC",

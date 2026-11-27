@@ -33,6 +33,11 @@ type Modifier = "alt" | "command" | "control" | "shift";
 type CommandChord = { alt: boolean; key: string; shift: boolean };
 
 export interface OsConventions {
+  /**
+   * What an admin card says once I'll run it myself copied its command: where
+   * to paste it, which is somewhere it runs as an administrator.
+   */
+  adminPasteLine: string;
   /** What a card says while the system's own prompt to run a command as an administrator is up. */
   adminPromptWait: string;
   /**
@@ -122,6 +127,7 @@ export interface OsConventions {
 
 export const OS_CONVENTIONS = {
   linux: {
+    adminPasteLine: "Command copied. Paste it in a terminal, then choose Done.",
     adminPromptWait: "Waiting for the system",
     appFiles: ".config and .local/share",
     commandKey: "ctrlKey",
@@ -166,6 +172,7 @@ export const OS_CONVENTIONS = {
     trash: "Trash",
   },
   mac: {
+    adminPasteLine: "Command copied. Paste it in Terminal, then choose Done.",
     adminPromptWait: "Waiting for your password in macOS",
     appFiles: "Library",
     commandKey: "metaKey",
@@ -203,6 +210,8 @@ export const OS_CONVENTIONS = {
     trash: "Trash",
   },
   windows: {
+    adminPasteLine:
+      "Command copied. Paste it in PowerShell as administrator, then choose Done.",
     adminPromptWait: "Waiting for Windows",
     appFiles: "AppData",
     commandKey: "ctrlKey",

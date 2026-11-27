@@ -1394,7 +1394,7 @@ export function ChatConversation({
             >
               {/* Inside the column rather than above it, so it is exactly as wide
               as the composer it belongs to. */}
-              <PermissionAsksFoot chatId={id} />
+              <PermissionAsksFoot chatId={id} sendMessage={sendNextStep} />
               <QuestionDock dock={questionDock} />
               {isArchived ? (
                 <ArchivedFoot chatId={id} />

@@ -191,7 +191,7 @@ function ReadFileCard({
       {openOnContentClick && modifiedAt !== undefined ? (
         <button
           aria-label={`Open ${filename} in panel`}
-          className="block w-full cursor-zoom-in px-4 py-3 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset"
+          className="block w-full cursor-zoom-in rounded-b-[inherit] px-4 py-3 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset"
           onClick={handleExpand}
           type="button"
         >

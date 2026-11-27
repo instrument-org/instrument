@@ -140,7 +140,10 @@ export function ImageViewer({
     >
       <div
         className={cn(
-          "flex size-full touch-none items-center justify-center overflow-hidden p-6 -outline-offset-3 outline-none focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:[outline-style:solid]",
+          // No focus ring, as in Preview: the picture filling the pane is
+          // where the keyboard is, and a ring inside the pane's rounded
+          // corners would be clipped by them.
+          "flex size-full touch-none items-center justify-center overflow-hidden p-6 outline-none",
           // A browser's own image view: grab to move around a zoomed
           // picture, and where there is nothing to move, a click's way out.
           zoom.isZoomed &&

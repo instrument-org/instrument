@@ -14,18 +14,35 @@ export function isOnSite(pageUrl: string, site: string): boolean {
 }
 
 /**
- * The pages visited on the apps' sites, in the order they were visited,
- * newest first, each with the app it is on. A page on two apps' sites is the
- * first app's, so one page is one row.
+ * Whether a page is at an app's home: on its host or one under it, and under
+ * its path when it has one, so Sheets at docs.google.com/spreadsheets/ takes
+ * no page of Docs.
+ */
+function isAtHome(pageUrl: string, home: string): boolean {
+  if (!isOnSite(pageUrl, home) || !URL.canParse(pageUrl)) {
+    return false;
+  }
+  const path = new URL(home).pathname.replace(/\/+$/, "");
+  const { pathname } = new URL(pageUrl);
+  return path === "" || pathname === path || pathname.startsWith(`${path}/`);
+}
+
+/**
+ * The pages visited on the apps' sites or at their homes, in the order they
+ * were visited, newest first, each with the app it is on. The home counts
+ * because a service is often used somewhere its site is not: Gmail's site is
+ * gmail.com and its home mail.google.com. A page on two apps' is the first
+ * app's, so one page is one row.
  */
 export function visitsWithin<
   Page extends { url: string },
-  App extends { site?: string | undefined },
+  App extends { home?: string | undefined; site?: string | undefined },
 >(visited: readonly Page[], apps: readonly App[]): { app: App; page: Page }[] {
   return visited.flatMap((page) => {
     const app = apps.find(
       (candidate) =>
-        candidate.site !== undefined && isOnSite(page.url, candidate.site),
+        (candidate.site !== undefined && isOnSite(page.url, candidate.site)) ||
+        (candidate.home !== undefined && isAtHome(page.url, candidate.home)),
     );
     return app ? [{ app, page }] : [];
   });

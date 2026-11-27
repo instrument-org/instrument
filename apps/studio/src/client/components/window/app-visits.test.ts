@@ -52,6 +52,40 @@ describe("visitsWithin", () => {
     ]);
   });
 
+  it("takes the pages at an app's home on another site, held to the home's path", () => {
+    const google = [
+      {
+        home: "https://mail.google.com",
+        name: "Gmail",
+        site: "https://gmail.com",
+      },
+      {
+        home: "https://docs.google.com/spreadsheets/",
+        name: "Google Sheets",
+        site: "https://sheets.google.com",
+      },
+    ];
+    const pages = [
+      { title: "Inbox", url: "https://mail.google.com/mail/u/0/#inbox" },
+      {
+        title: "Budget",
+        url: "https://docs.google.com/spreadsheets/d/1a2b/edit",
+      },
+      { title: "Notes", url: "https://docs.google.com/document/d/3c4d/edit" },
+      { title: "Lookalike", url: "https://docs.google.com/spreadsheetsx" },
+    ];
+
+    expect(
+      visitsWithin(pages, google).map(({ app, page }) => [
+        app.name,
+        page.title,
+      ]),
+    ).toEqual([
+      ["Gmail", "Inbox"],
+      ["Google Sheets", "Budget"],
+    ]);
+  });
+
   it("holds to one app's site when asked about that app alone", () => {
     expect(
       visitsWithin(visited, apps.slice(0, 1)).map(({ page }) => page.title),

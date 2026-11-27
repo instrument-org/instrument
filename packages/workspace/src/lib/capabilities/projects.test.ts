@@ -25,6 +25,7 @@ import {
   consumeSetupChanges,
 } from "../setup-changes";
 import { withTurnContext } from "../turn-context";
+import { shellPath } from "../shell-path";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 
 // No session has a live agent here.
@@ -162,7 +163,7 @@ describe("instrument projects set", () => {
     );
     expect(
       results[0]?.stdout.replaceAll(
-        getWorkspaceConfig().rootDir,
+        shellPath(getWorkspaceConfig().rootDir),
         "<workspace>",
       ),
     ).toMatchInlineSnapshot(`

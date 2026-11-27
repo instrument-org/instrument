@@ -26,6 +26,7 @@ import {
   consumeSetupChanges,
 } from "../setup-changes";
 import { withTurnContext } from "../turn-context";
+import { shellPath } from "../shell-path";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 
 const running = vi.hoisted(() => {
@@ -781,7 +782,10 @@ describe("instrument chats project", () => {
     await createProject({ name: "Work" });
     const travel = await one("instrument chats project travel organizer");
     expect(
-      travel.stdout?.replaceAll(getWorkspaceConfig().rootDir, "<workspace>"),
+      travel.stdout?.replaceAll(
+        shellPath(getWorkspaceConfig().rootDir),
+        "<workspace>",
+      ),
     ).toMatchInlineSnapshot(`
       "Filed organizer under Travel: Tidy up my chats
       This chat's project folder is <workspace>/Projects/Travel/, $INSTRUMENT_PROJECT from your next command. Its AGENTS.md, which every chat under it follows, begins:
@@ -794,8 +798,12 @@ describe("instrument chats project", () => {
       "
     `);
     const work = await one("instrument chats project work organizer lisbon");
-    expect(work.stdout?.replaceAll(getWorkspaceConfig().rootDir, "<workspace>"))
-      .toMatchInlineSnapshot(`
+    expect(
+      work.stdout?.replaceAll(
+        shellPath(getWorkspaceConfig().rootDir),
+        "<workspace>",
+      ),
+    ).toMatchInlineSnapshot(`
       "Filed organizer under Work: Tidy up my chats
       This chat's project folder is <workspace>/Projects/Work/, $INSTRUMENT_PROJECT from your next command. It has no AGENTS.md.
       Filed lisbon under Work: Trip to Lisbon

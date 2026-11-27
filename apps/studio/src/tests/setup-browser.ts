@@ -15,6 +15,7 @@ import { watchScrollFades } from "@/client/lib/scroll-fades";
 import { watchOpenOverlays } from "@/client/lib/window-drag-overlays";
 import { afterEach } from "vitest";
 
+import { installResizeLoopGuard } from "./resize-loop-guard";
 import { installWindowStubs } from "./window-stubs";
 
 // `vitest-browser-react` registers its own `beforeEach(cleanup)`, so unmounting
@@ -45,6 +46,9 @@ afterEach(() => {
 });
 
 installWindowStubs();
+
+// Every ResizeObserver loop fails its test, naming the callback behind it.
+installResizeLoopGuard();
 
 // A real browser runs the transitions and keyframes the app declares, and a
 // measurement taken while one is mid-flight is a measurement of a frame nobody

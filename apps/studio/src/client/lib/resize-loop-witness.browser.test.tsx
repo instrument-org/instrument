@@ -1,45 +1,80 @@
 import { afterEach, expect, it } from "vitest";
 
-import {
-  resizeLoopWitnesses,
-  watchResizeObservers,
-} from "./resize-loop-witness";
+import { nextResizeLoop } from "@/tests/resize-loop-guard";
 
-const Native = window.ResizeObserver;
+import { resizeLoopWitnesses } from "./resize-loop-witness";
 
+// The browser setup watches closely (`setup-browser.ts`).
 afterEach(() => {
-  window.ResizeObserver = Native;
   document.body.replaceChildren();
 });
 
-it("names the observer whose callback resized what it observes", async () => {
-  watchResizeObservers();
-  const box = document.createElement("div");
-  box.dataset.slot = "growing-box";
-  box.className = "grow";
-  box.style.height = "10px";
-  document.body.append(box);
+function box(slot: string, parent: Element = document.body) {
+  const element = document.createElement("div");
+  element.dataset.slot = slot;
+  element.style.height = "10px";
+  parent.append(element);
+  return element;
+}
 
-  const loop = new Promise<string[] | undefined>((resolve) => {
-    window.addEventListener(
-      "error",
-      (event) => {
-        event.preventDefault();
-        resolve(resizeLoopWitnesses(event.message));
-      },
-      { once: true },
-    );
-  });
+it("names the callback that resized the box it observes", async () => {
+  const growing = box("growing-box");
+  const loop = nextResizeLoop();
   const observer = new ResizeObserver(() => {
-    box.style.height = `${box.offsetHeight + 10}px`;
+    growing.style.height = `${growing.offsetHeight + 10}px`;
   });
-  observer.observe(box);
+  observer.observe(growing);
   const witnesses = await loop;
   observer.disconnect();
 
-  expect(witnesses?.length).toBeGreaterThan(0);
-  expect(witnesses?.[0]).toMatch(
-    /^body > div\[data-slot=growing-box\]\.grow ← .*resize-loop-witness\.browser\.test/,
+  expect(witnesses[0]).toMatch(
+    /^resized body > div\[data-slot=growing-box\] \(observed ← .*resize-loop-witness\.browser\.test.*\) ← .*resize-loop-witness\.browser\.test/,
+  );
+  expect(witnesses).toContainEqual(
+    expect.stringMatching(/^pass 1: body > div\[data-slot=growing-box\] ← /),
+  );
+});
+
+it("names the callback that resized a shallower box another observes", async () => {
+  const outer = box("outer");
+  const inner = box("inner", outer);
+  const loop = nextResizeLoop();
+  const watchingOuter = new ResizeObserver(() => {});
+  watchingOuter.observe(outer);
+  let isFirst = true;
+  const watchingInner = new ResizeObserver(() => {
+    if (isFirst) {
+      isFirst = false;
+      outer.style.paddingTop = "10px";
+    }
+  });
+  watchingInner.observe(inner);
+  // Both deliver in the first pass; the second has only the outer box left,
+  // which is no deeper than the inner one was.
+  const witnesses = await loop;
+  watchingOuter.disconnect();
+  watchingInner.disconnect();
+
+  expect(witnesses[0]).toMatch(
+    /^resized body > div\[data-slot=outer\] .* ← .*resize-loop-witness\.browser\.test/,
+  );
+});
+
+it("names the callback that began observing a box the step could not deliver", async () => {
+  const first = box("first");
+  const late = box("late");
+  const loop = nextResizeLoop();
+  const watchingLate = new ResizeObserver(() => {});
+  const observer = new ResizeObserver(() => {
+    watchingLate.observe(late);
+  });
+  observer.observe(first);
+  const witnesses = await loop;
+  observer.disconnect();
+  watchingLate.disconnect();
+
+  expect(witnesses[0]).toMatch(
+    /^began observing body > div\[data-slot=late\] ← .*resize-loop-witness\.browser\.test/,
   );
 });
 

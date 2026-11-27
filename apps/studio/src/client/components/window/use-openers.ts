@@ -1445,7 +1445,8 @@ export function useOpeners({
         return { error: `no tab group ${action.group} is open.` };
       }
       windowTabs.setGroupOwn(action.group, {
-        name: action.name === undefined ? undefined : plainGroupName(action.name),
+        name:
+          action.name === undefined ? undefined : plainGroupName(action.name),
       });
       return {};
     }
@@ -1764,97 +1765,56 @@ export function useOpeners({
   };
 
   const addBookmark = useAddBookmark();
-  const linked = useRef(showLinked);
-  useEffect(() => {
-    linked.current = showLinked;
-  });
-  useEffect(() => {
-    setLinkedShower((kind, id) => {
-      linked.current(kind, id);
-    });
-    return () => {
-      setLinkedShower(undefined);
-    };
-  }, []);
-  const openers = useRef({
+  // Each listener calls the latest of these, though it starts listening once.
+  const latest = useSteadyCallbacks({
     actOnTab,
     addBookmark,
     openFromPage,
-    openPage,
     pageBecameDownload: windowTabs.pageBecameDownload,
     popupClosed: windowTabs.popupClosed,
+    showLinked,
   });
   useEffect(() => {
-    openers.current = {
-      actOnTab,
-      addBookmark,
-      openFromPage,
-      openPage,
-      pageBecameDownload: windowTabs.pageBecameDownload,
-      popupClosed: windowTabs.popupClosed,
+    setLinkedShower(latest.showLinked);
+    return () => {
+      setLinkedShower(undefined);
     };
-  });
-  // A link in text being edited, opened from the window's native menu.
+  }, [latest]);
   useEffect(() => {
     const controller = new AbortController();
+    // A link in text being edited, opened from the window's native menu.
     void keepListening({
       signal: controller.signal,
       start: (signal) =>
         rpcClient.window.events.openMenuLink.call(undefined, { signal }),
       onEach: openMenuLink,
     });
-    return () => {
-      controller.abort();
-    };
-  }, []);
-  // A link a person kept from a page's menu.
-  useEffect(() => {
-    const controller = new AbortController();
+    // A link a person kept from a page's menu.
     void keepListening({
       signal: controller.signal,
       start: (signal) =>
         rpcClient.browser.events.bookmarkLink.call(undefined, { signal }),
       onEach: ({ title, url }) => {
-        openers.current.addBookmark({ title, url });
+        latest.addBookmark({ title, url });
       },
     });
-    return () => {
-      controller.abort();
-    };
-  }, []);
-  // A link a person asked a page for in a tab of its own.
-  useEffect(() => {
-    const controller = new AbortController();
+    // A link a person asked a page for in a tab of its own.
     void keepListening({
       signal: controller.signal,
       start: (signal) =>
         rpcClient.browser.events.openInNewTab.call(undefined, { signal }),
-      onEach: (ask) => {
-        openers.current.openFromPage(ask);
-      },
+      onEach: latest.openFromPage,
     });
-    return () => {
-      controller.abort();
-    };
-  }, []);
-  // A popup that closed itself takes its tab with it.
-  useEffect(() => {
-    const controller = new AbortController();
+    // A popup that closed itself takes its tab with it.
     void keepListening({
       signal: controller.signal,
       start: (signal) =>
         rpcClient.browser.events.popupClosed.call(undefined, { signal }),
       onEach: ({ openerId, targetId }) => {
-        openers.current.popupClosed(targetId, openerId);
+        latest.popupClosed(targetId, openerId);
       },
     });
-    return () => {
-      controller.abort();
-    };
-  }, []);
-  // A page whose first navigation became a download, left with nothing to show.
-  useEffect(() => {
-    const controller = new AbortController();
+    // A page whose first navigation became a download, left with nothing to show.
     void keepListening({
       signal: controller.signal,
       start: (signal) =>
@@ -1862,25 +1822,23 @@ export function useOpeners({
           signal,
         }),
       onEach: ({ targetId }) => {
-        openers.current.pageBecameDownload(targetId);
+        latest.pageBecameDownload(targetId);
       },
     });
     return () => {
       controller.abort();
     };
-  }, []);
+  }, [latest]);
   useEffect(() => {
     if (!isOpen) {
       return;
     }
     const controller = new AbortController();
     const answerAsk = async (request: WindowTabRequest) => {
-      const answer = await openers.current
-        .actOnTab(request)
-        .catch((error: unknown) => {
-          captureException(error);
-          return { error: "the window could not do that." };
-        });
+      const answer = await latest.actOnTab(request).catch((error: unknown) => {
+        captureException(error);
+        return { error: "the window could not do that." };
+      });
       // The answer goes back to the command that asked, so the
       // conversation can hand a tab to a task, or say what went wrong,
       // without waiting for the next message's note.
@@ -1900,7 +1858,7 @@ export function useOpeners({
     return () => {
       controller.abort();
     };
-  }, [isOpen]);
+  }, [isOpen, latest]);
   // Steady, so what they are handed to (the command menu, every screen's
   // window context) is not drawn again each time the window is.
   return useSteadyCallbacks({

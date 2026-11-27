@@ -1,12 +1,15 @@
+import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import * as React from "react";
 
 import { Button } from "./button";
+import { FarRows } from "./scroll-owner/far-rows";
 import { type ScrollOptions, ScrollOwner } from "./scroll-owner/scroll-owner";
 import { Spinner } from "./spinner";
 
 const ScrollOwnerContext = React.createContext<ScrollOwner | null>(null);
+const FarRowsContext = React.createContext<FarRows | null>(null);
 
 function useScrollOwner(): ScrollOwner {
   const owner = React.use(ScrollOwnerContext);
@@ -14,6 +17,15 @@ function useScrollOwner(): ScrollOwner {
     throw new Error("A message scroller part must be inside its provider.");
   }
   return owner;
+}
+
+/** The transcript's turns far from view, and where and how tall each row is. */
+function useFarRows(): FarRows {
+  const farRows = React.use(FarRowsContext);
+  if (!farRows) {
+    throw new Error("A message scroller part must be inside its provider.");
+  }
+  return farRows;
 }
 
 /** The commands a transcript's controls reach the scroller through. */
@@ -147,16 +159,27 @@ function MessageScrollerProvider({
         defaultScrollPosition,
       ),
   );
+  const [farRows] = React.useState(() => new FarRows(owner.holds));
+  const isShown = useIsActiveTab();
   React.useLayoutEffect(() => {
     owner.updateSettings({ anchorRoom: scrollPreviousItemPeek, autoScroll });
   }, [owner, autoScroll, scrollPreviousItemPeek]);
+  React.useLayoutEffect(() => {
+    farRows.setShown(isShown);
+  }, [farRows, isShown]);
   React.useEffect(() => {
     owner.connect();
+    farRows.connect();
     return () => {
       owner.dispose();
+      farRows.dispose();
     };
-  }, [owner]);
-  return <ScrollOwnerContext value={owner}>{children}</ScrollOwnerContext>;
+  }, [farRows, owner]);
+  return (
+    <ScrollOwnerContext value={owner}>
+      <FarRowsContext value={farRows}>{children}</FarRowsContext>
+    </ScrollOwnerContext>
+  );
 }
 
 function MessageScroller({
@@ -300,20 +323,30 @@ function MessageScrollerContent({
 
 // Rows deliberately avoid `content-visibility`/`contain-intrinsic-size`: paint
 // containment clips content that overflows a row horizontally (hover chrome,
-// shadows), which we need to stay visible.
+// shadows), which we need to stay visible. A turn far from view is a box of
+// its last height instead (`FarRows`), the row itself staying as it is.
 function MessageScrollerItem({
+  children,
   className,
+  keepDrawn = false,
   messageId,
   ref,
   scrollAnchor = false,
+  style,
+  turnId,
   ...props
 }: React.ComponentProps<"div"> & {
+  /** Never drawn as a box, however far from view. */
+  keepDrawn?: boolean;
   /** Names the row, for `scrollToMessage`. */
   messageId?: string;
   /** A message the person sent, which the scroller brings near the top as it arrives. */
   scrollAnchor?: boolean;
+  /** The turn the row is part of, drawn as a box with its other rows when far from view. */
+  turnId?: string;
 }) {
   const owner = useScrollOwner();
+  const farRows = useFarRows();
   const elementRef = React.useRef<HTMLDivElement | null>(null);
   const attach = React.useCallback(
     (element: HTMLDivElement | null) => {
@@ -332,17 +365,53 @@ function MessageScrollerItem({
       }
     };
   }, [owner, messageId]);
+  React.useLayoutEffect(() => {
+    const element = elementRef.current;
+    if (turnId === undefined || !element) {
+      return;
+    }
+    return () => {
+      farRows.unregister(element);
+    };
+  }, [farRows, turnId]);
+  React.useLayoutEffect(() => {
+    const element = elementRef.current;
+    if (turnId !== undefined && element) {
+      farRows.register(turnId, element, keepDrawn);
+    }
+  }, [farRows, keepDrawn, turnId]);
+  // How tall its box is while it is far from view, or none while it is drawn.
+  const boxHeight = React.useSyncExternalStore(
+    (listener) =>
+      turnId === undefined ? noop : farRows.subscribe(turnId, listener),
+    () => {
+      const element = elementRef.current;
+      return turnId !== undefined && element && farRows.isBoxed(turnId)
+        ? farRows.boxHeightOf(element)
+        : undefined;
+    },
+  );
+  const isBox = boxHeight !== undefined;
   return (
     <div
       className={cn("min-w-0 shrink-0", className)}
       data-message-id={messageId}
       data-message-scroller-item=""
+      data-placeholder={isBox ? "" : undefined}
       data-scroll-anchor={scrollAnchor ? "true" : "false"}
       data-slot="message-scroller-item"
+      data-turn-id={turnId}
       ref={attach}
+      style={style}
       {...props}
-    />
+    >
+      {isBox ? <div style={{ height: boxHeight }} /> : children}
+    </div>
   );
+}
+
+function noop() {
+  // Nothing to stop listening to.
 }
 
 // The transcript is not a tab stop and never draws a focus ring. It is a
@@ -375,7 +444,15 @@ function MessageScrollerViewport({
   ...props
 }: React.ComponentProps<"div">) {
   const owner = useScrollOwner();
-  const attach = useAttach(owner.setViewport, ref);
+  const farRows = useFarRows();
+  const attachToOwner = useAttach(owner.setViewport, ref);
+  const attach = React.useCallback(
+    (element: HTMLDivElement | null) => {
+      attachToOwner(element);
+      farRows.setViewport(element);
+    },
+    [attachToOwner, farRows],
+  );
   return (
     <div
       aria-label="Messages"
@@ -419,6 +496,7 @@ function assignRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
 
 export {
   MessageScroller,
+  useFarRows,
   useMessageScroller,
   ScrollPin,
   useMessageScrollerScrollable,

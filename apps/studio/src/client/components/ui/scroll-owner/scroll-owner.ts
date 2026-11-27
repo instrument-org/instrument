@@ -677,6 +677,16 @@ export class ScrollOwner {
     };
   };
 
+  /**
+   * Whether `row` has what this keeps in place: the row held still while a
+   * fold closes above it, or the message just sent while its reply arrives.
+   */
+  holds = (row: HTMLElement): boolean =>
+    (this.pin !== null && row.contains(this.pin.element)) ||
+    (this.mode.kind === "anchor" &&
+      this.anchorElement !== null &&
+      row.contains(this.anchorElement));
+
   /** Lets a held row go. */
   releasePin = (element: HTMLElement) => {
     if (this.pin?.element === element) {
@@ -803,7 +813,7 @@ export class ScrollOwner {
 }
 
 /** An element's top in the viewport's scroll coordinates, in layout px. */
-function scrollTopOf(element: HTMLElement, viewport: HTMLElement) {
+export function scrollTopOf(element: HTMLElement, viewport: HTMLElement) {
   return layoutTop(element) - layoutTop(viewport) - viewport.clientTop;
 }
 

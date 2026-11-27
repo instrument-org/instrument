@@ -67,6 +67,7 @@ import {
 } from "./activity-row";
 import { BranchedFromLine } from "./branched-from-line";
 import { FoldsOpenedByFind } from "./folds-opened-by-find";
+import { KeptOpenTurn, useKeptOpen } from "./kept-open";
 import { NextStepRows, useHasNextSteps } from "./next-steps";
 import { StoppedLine } from "./stopped-line";
 import { useStage } from "./stage/stage-context";
@@ -198,8 +199,11 @@ export const TurnView = memo(function TurnView({
   waitsForStep: boolean;
 }) {
   const floorRef = useWorkingFloor(turn.phase === "working", isCardAway);
+  // The last turn is where a reply streams and following the end reads, and
+  // the card's is where the live work shows.
+  const keepDrawn = isLast || hasCard;
   return (
-    <>
+    <KeptOpenTurn value={turn.id}>
       {turn.opener && (
         <MessageScrollerItem
           className={cn(
@@ -209,8 +213,10 @@ export const TurnView = memo(function TurnView({
           )}
           data-message-stop="message"
           data-transcript-row={`message:${turn.id}`}
+          keepDrawn={keepDrawn}
           messageId={turn.opener.message.id}
           scrollAnchor
+          turnId={turn.id}
         >
           {separator && <ChatSeparatorRow separator={separator} />}
           <OpenerView
@@ -229,8 +235,10 @@ export const TurnView = memo(function TurnView({
         // A turn with no message of its own that runs on from the one above
         // is one reply with it, so one stop (`message-keys.tsx`).
         data-message-stop={carriesOn && !turn.opener ? "continues" : "reply"}
+        keepDrawn={keepDrawn}
         ref={floorRef}
         style={carriesOn ? { marginTop: ROW_GAP - TURN_GAP } : undefined}
+        turnId={turn.id}
         {...(turn.opener ? {} : { messageId: turn.id })}
       >
         <TurnBody
@@ -244,7 +252,7 @@ export const TurnView = memo(function TurnView({
           waitsForStep={waitsForStep}
         />
       </MessageScrollerItem>
-    </>
+    </KeptOpenTurn>
   );
 });
 
@@ -386,7 +394,7 @@ function TurnBody({
   waitsForStep: boolean;
 }) {
   const isFolded = useIsFolded(turn);
-  const [isOpened, setIsOpened] = useState(false);
+  const [isOpened = false, setIsOpened] = useKeptOpen("worked");
   const isOpenedForFind = use(FoldsOpenedByFind).has(turn.id);
   const releaseAutoScroll = useReleaseAutoScroll();
   const { onBranch } = use(TranscriptActionsContext);
@@ -418,7 +426,7 @@ function TurnBody({
           key="worked"
           onToggle={() => {
             releaseAutoScroll();
-            setIsOpened((opened) => !opened);
+            setIsOpened(!isOpened);
           }}
           turn={turn}
         />,

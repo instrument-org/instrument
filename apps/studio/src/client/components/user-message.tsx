@@ -17,6 +17,7 @@ import { CopyButton } from "./copy-button";
 import { splitLeadingQuotes } from "@/client/lib/leading-quotes";
 
 import { SkillMentionText } from "./skill-mention-text";
+import { useKeptOpen } from "./transcript/kept-open";
 import { useReleaseAutoScroll } from "./transcript-scroll-context";
 import {
   Collapsible,
@@ -86,7 +87,7 @@ export function MessageBubble({
   tone: keyof typeof TONES;
 }) {
   const releaseAutoScroll = useReleaseAutoScroll();
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded = false, setIsExpanded] = useKeptOpen(`bubble:${tone}`);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const { quotes, words } = splitLeadingQuotes(messageText);

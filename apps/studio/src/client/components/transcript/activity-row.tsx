@@ -29,6 +29,7 @@ import { Button } from "../ui/button";
 import { WarningMark } from "../warning-mark";
 import { useReleaseAutoScroll } from "../transcript-scroll-context";
 import { FOLD_TRANSITION } from "./card-motion";
+import { useKeptOpen } from "./kept-open";
 import { RollingText } from "./rolling-text";
 import { useStepPart } from "./transcript-data";
 import { TranscriptActionsContext } from "./transcript-actions";
@@ -276,7 +277,7 @@ export function ActivityRowView({
   /** The thought going on, which the row's own steps leave out. */
   thought?: TurnStep;
 }) {
-  const [chosenOpen, setIsOpen] = useState<boolean>();
+  const [chosenOpen, setIsOpen] = useKeptOpen(`activity:${row.id}`);
   const isOpen = chosenOpen ?? row.endsBlocked ?? false;
   const [hasWorked, setHasWorked] = useState(isLive);
   if (isLive && !hasWorked) {
@@ -461,7 +462,7 @@ function StepRow({
   opensByItself?: boolean;
   step: TurnStep;
 }) {
-  const [chosenOpen, setIsOpen] = useState<boolean>();
+  const [chosenOpen, setIsOpen] = useKeptOpen(`step:${step.metadata.id}`);
   const isOpen = chosenOpen ?? opensByItself;
   const releaseAutoScroll = useReleaseAutoScroll();
   return (

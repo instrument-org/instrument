@@ -10,6 +10,7 @@ import { getLanguageDisplayName } from "../lib/file-extension-to-language";
 import { cn } from "../lib/utils";
 import { CopyButton } from "./copy-button";
 import { FileTypeIcon } from "./extend/file-system";
+import { useKeptOpen } from "./transcript/kept-open";
 import { useReleaseAutoScroll } from "./transcript-scroll-context";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
@@ -211,7 +212,7 @@ export const MarkdownCodeBlock = ({
   language?: string;
 }) => {
   const [wrapLines, setWrapLines] = useState(use(CodeBlockWrapContext));
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded = false, setIsExpanded] = useKeptOpen(`code:${code}`);
   const releaseAutoScroll = useReleaseAutoScroll();
 
   const lineCount = code.split("\n").length;

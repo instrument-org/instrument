@@ -54,6 +54,7 @@ import {
   keptEditSources,
   MessageEditSourcesContext,
 } from "./message-edit-sources";
+import { KeptOpen, KeptOpenContext } from "./kept-open";
 import { useIsCardAway } from "./transcript-data";
 import { TurnView } from "./turn-view";
 
@@ -105,6 +106,7 @@ export function Transcript({
   sessionId: StoreId.Session;
 }) {
   const [cache] = useState<TurnsCache>(() => new Map());
+  const [keptOpen] = useState(() => new KeptOpen());
   const turns = turnsOf(messages, { isRunning, sessionId }, cache);
   // What each turn is drawn with keeps its object while it is equal, so a
   // token streaming into the last reply leaves every other turn's memo whole.
@@ -185,41 +187,43 @@ export function Transcript({
     </CardFileVersionsContext>
   );
   return (
-    <TranscriptActionsContext value={actions}>
-      {hasOlder && onLoadOlder && (
-        <OlderTurns isLoading={isLoadingOlder} onNear={onLoadOlder} />
-      )}
-      {earlier.length > 0 && (
-        <EarlierInTheChat count={messagesIn(earlier)}>
-          {earlier.map(drawTurn)}
-        </EarlierInTheChat>
-      )}
-      {own.map(drawTurn)}
-      {pausedAtMaxSteps && onContinue && (
-        <MessageScrollerItem key="continue">
-          <Alert className="mt-4" variant="warning">
-            <WarningIcon />
-            <AlertDescription className="flex flex-col gap-3">
-              <div className="text-xs">
-                Instrument paused after working on its own for a while.
-              </div>
-              <Button onClick={onContinue} size="sm" variant="secondary">
-                Keep going
-              </Button>
-            </AlertDescription>
-          </Alert>
-        </MessageScrollerItem>
-      )}
-      {isDeveloperMode && (
-        <Suspense fallback={null}>
-          <DeveloperNotesLayer
-            chatId={chatId}
-            sessionId={sessionId}
-            turns={turns}
-          />
-        </Suspense>
-      )}
-    </TranscriptActionsContext>
+    <KeptOpenContext value={keptOpen}>
+      <TranscriptActionsContext value={actions}>
+        {hasOlder && onLoadOlder && (
+          <OlderTurns isLoading={isLoadingOlder} onNear={onLoadOlder} />
+        )}
+        {earlier.length > 0 && (
+          <EarlierInTheChat count={messagesIn(earlier)}>
+            {earlier.map(drawTurn)}
+          </EarlierInTheChat>
+        )}
+        {own.map(drawTurn)}
+        {pausedAtMaxSteps && onContinue && (
+          <MessageScrollerItem key="continue">
+            <Alert className="mt-4" variant="warning">
+              <WarningIcon />
+              <AlertDescription className="flex flex-col gap-3">
+                <div className="text-xs">
+                  Instrument paused after working on its own for a while.
+                </div>
+                <Button onClick={onContinue} size="sm" variant="secondary">
+                  Keep going
+                </Button>
+              </AlertDescription>
+            </Alert>
+          </MessageScrollerItem>
+        )}
+        {isDeveloperMode && (
+          <Suspense fallback={null}>
+            <DeveloperNotesLayer
+              chatId={chatId}
+              sessionId={sessionId}
+              turns={turns}
+            />
+          </Suspense>
+        )}
+      </TranscriptActionsContext>
+    </KeptOpenContext>
   );
 }
 

@@ -89,6 +89,7 @@ import {
   PHONE_CHATS_KEY,
 } from "@/electron-main/windows/phone-chat-groups";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
+import { isStepsWindow } from "@/electron-main/windows/steps-window";
 import {
   appWindowOptions,
   rememberedStateOf,
@@ -1557,7 +1558,7 @@ export function askWindow(window: BrowserWindow, ask: AppWindowAsk) {
  * `window-all-closed` counts it and would not fire, leaving a running process
  * with nothing on screen and, outside macOS, no dock or tray to bring one back
  * from. A minimized one is: the taskbar brings it back, and on Windows it does
- * not count as visible.
+ * not count as visible. Nor is a steps card, which goes with its window.
  */
 function hasVisibleWindowOtherThan(exclude: BrowserWindow | null) {
   return BrowserWindow.getAllWindows().some(
@@ -1565,6 +1566,7 @@ function hasVisibleWindowOtherThan(exclude: BrowserWindow | null) {
       window !== exclude &&
       !window.isDestroyed() &&
       (window.isVisible() || window.isMinimized()) &&
-      !spareOf(window.webContents.id),
+      !spareOf(window.webContents.id) &&
+      !isStepsWindow(window),
   );
 }

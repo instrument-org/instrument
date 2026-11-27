@@ -6,11 +6,14 @@ import {
 } from "@/electron-main/stores/workspace/browser-extensions";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
+import { openStepsWindow } from "@/electron-main/windows/steps-window";
 import {
   BROWSER_EXTENSIONS_SESSION,
   type BrowserExtension,
   CHROME_WEB_STORE_URL,
+  desktopAppSteps,
 } from "@/shared/browser-extensions";
+import { APP_NAME } from "@instrument-org/shared";
 import {
   type BrowserTargetId,
   BrowserTargetIdSchema,
@@ -830,13 +833,7 @@ export async function recheckExtensionConnections(): Promise<void> {
   }
   let changed = false;
   for (const { id } of enabled.session.extensions.getAllExtensions()) {
-    if (!desktopAppOf(id)) {
-      continue;
-    }
-    const connection = await checkExtensionConnection(id);
-    if (connections.get(id) !== connection) {
-      log.info(`extension ${id} desktop app connection: ${String(connection)}`);
-      connections.set(id, connection);
+    if (desktopAppOf(id) && (await recheckConnection(id))) {
       changed = true;
     }
   }
@@ -845,9 +842,105 @@ export async function recheckExtensionConnections(): Promise<void> {
   }
 }
 
-/** Opens the app an extension talks to, for the person to approve this browser in it. */
-export function openExtensionDesktopApp(id: string): Promise<void> {
-  return openDesktopApp(id);
+/** Asks one extension's desktop app again, keeping its answer; whether the answer changed. */
+async function recheckConnection(id: string): Promise<boolean> {
+  const connection = await checkExtensionConnection(id);
+  if (connections.get(id) === connection) {
+    return false;
+  }
+  log.info(`extension ${id} desktop app connection: ${String(connection)}`);
+  connections.set(id, connection);
+  return true;
+}
+
+/** How often the steps card asks the desktop app again while it is up, and for how long. */
+const STEPS_RECHECK_MS = 2000;
+const STEPS_RECHECK_FOR_MS = 10 * 60_000;
+/** How long the card stays up saying the app is connected. */
+const CONNECTED_CARD_MS = 8000;
+
+/**
+ * Opens the app an extension talks to, for the person to approve this
+ * browser in it, with the steps floating over it until the app takes this
+ * browser, on the systems where the app has a screen for that.
+ */
+export async function openExtensionDesktopApp(
+  id: string,
+  {
+    comeBack,
+    opener,
+  }: {
+    /** Brings Instrument back to the front, for the card's button once the app is connected. */
+    comeBack: () => void;
+    /** The app window the card goes with. */
+    opener: BrowserWindow | null;
+  },
+): Promise<void> {
+  await openDesktopApp(id);
+  const desktopApp = desktopAppOf(id);
+  const steps =
+    desktopApp &&
+    desktopAppSteps(
+      desktopApp.name,
+      process.platform === "darwin"
+        ? "mac"
+        : process.platform === "win32"
+          ? "windows"
+          : "linux",
+    );
+  if (!desktopApp || !steps) {
+    return;
+  }
+  const title = `Connect ${desktopApp.name}`;
+  let timer: NodeJS.Timeout | undefined;
+  const card = openStepsWindow(
+    `connect:${id}`,
+    {
+      foot: `This window closes once ${desktopApp.name} is connected.`,
+      steps,
+      title,
+    },
+    {
+      onAction: (action) => {
+        if (action === "back") {
+          card?.close();
+          comeBack();
+        }
+      },
+      onClosed: () => {
+        clearTimeout(timer);
+      },
+      opener,
+    },
+  );
+  if (!card) {
+    return;
+  }
+  const until = Date.now() + STEPS_RECHECK_FOR_MS;
+  const recheck = async () => {
+    if (card.isClosed()) {
+      return;
+    }
+    if (await recheckConnection(id)) {
+      publisher.publish("browser.extensions-changed", null);
+    }
+    if (card.isClosed()) {
+      return;
+    }
+    if (connections.get(id) === "connected") {
+      card.show({
+        button: { action: "back", label: `Back to ${APP_NAME}` },
+        done: `${desktopApp.name} is connected to ${APP_NAME}.`,
+        title,
+      });
+      timer = setTimeout(card.close, CONNECTED_CARD_MS);
+      return;
+    }
+    if (Date.now() < until) {
+      timer = setTimeout(() => void recheck(), STEPS_RECHECK_MS);
+    }
+  };
+  timer = setTimeout(() => void recheck(), STEPS_RECHECK_MS);
 }
 
 /**

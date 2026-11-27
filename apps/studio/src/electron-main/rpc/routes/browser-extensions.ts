@@ -8,6 +8,8 @@ import {
   setBrowserExtensionEnabled,
   setBrowserExtensionPinned,
 } from "@/electron-main/browser-view/extensions";
+import { getCallingWindow } from "@/electron-main/windows/calling-window";
+import { focusAppWindow } from "@/electron-main/windows/foreground";
 import { BrowserExtensionSchema } from "@/shared/browser-extensions";
 import { liveRead } from "@instrument-org/workspace/electron";
 import { eventIterator } from "@orpc/server";
@@ -64,8 +66,11 @@ const answerInstall = base
 
 const openDesktopApp = base
   .input(z.object({ id: z.string() }))
-  .handler(async ({ input }) => {
-    await openExtensionDesktopApp(input.id);
+  .handler(async ({ context, input }) => {
+    await openExtensionDesktopApp(input.id, {
+      comeBack: focusAppWindow,
+      opener: getCallingWindow(context.webContentsId),
+    });
   });
 
 /** Asks each extension's desktop app again, for a window coming back to the front. */

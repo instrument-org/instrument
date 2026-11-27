@@ -223,9 +223,6 @@ export function NotConnectedSteps({
           </li>
         ))}
       </ol>
-      <p className="mt-2.5 text-xs text-muted-foreground">
-        {APP_NAME} notices on its own once it is added.
-      </p>
       <div className="mt-3 flex items-center gap-2">
         <Button
           onClick={() => {

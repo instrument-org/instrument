@@ -1,10 +1,20 @@
 # Spotlight answers only for folders the asking app can read
 
-**Status:** open. Measured on macOS 27 and the Windows test host. Not yet repeated with the signed app on a VM with its privacy answers reset.
+**Status:** open. Measured on macOS 27, including as a signed preview on a freshly cloned test VM with no privacy answers, and on the Windows test host.
 
 The system's own file index is the obvious source for a search of the whole computer, by the person in Files and by the agent. These probes ask whether using it raises macOS's privacy dialogs, whether it leaks names from folders the app was never let into, and how well it finds files by name.
 
 ## Spotlight leaves out what the asking process can't list
+
+As the signed app, on a test VM with `pricing-*` files planted in Desktop, Documents and Downloads (two each, one nested), in a `Projects` folder in the home folder (three), and in a folder inside Documents (one): `mdfind -name pricing`, with no folder named, run by the app's own binary in Node mode from a launchd job so that the app was its own responsible process.
+
+| When | Results | From guarded folders | Time | Dialog |
+| --- | --- | --- | --- | --- |
+| SSH session holding Full Disk Access, for comparison | 10 | 7 | | |
+| The app, before macOS was asked anything | 3 | 0 | 58 ms | none |
+| The app, after the person allowed Documents | 6 | 3, all in Documents | 88 ms | none |
+
+So Spotlight follows exactly what the app may read: nothing from a guarded folder before macOS has been asked, everything in a folder once it is allowed, and never a dialog for a query that names no folder.
 
 The same whole-disk query, `mdfind 'kMDItemFSName == "*.md"'`, with no folder named, was run from two processes on one Mac and the results were counted by where they were:
 
@@ -39,6 +49,5 @@ Windows Search indexes only the properties of `.md` files, not their text.
 
 ## Still to establish
 
-- The signed app on a clean VM: does a Spotlight query with no folder named raise any dialog, and do Documents results appear once the person has allowed Documents?
 - Whether the agent's sandboxed shell can reach Spotlight's service at all.
 - Ranking: Spotlight returns results unranked, so a search box has to order them itself.

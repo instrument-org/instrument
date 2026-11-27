@@ -1,6 +1,6 @@
 # Plan: Files searches everything under the folder you're in
 
-Status: open. Wireframes drawn; the spike (step 1) is built and has not been run in the app.
+Status: open. Built: flat results, Folder column, name and kind matching, status lines. Checked on a clean macOS VM; Windows not yet checked.
 
 ## What we want
 
@@ -52,6 +52,20 @@ So a folder of documents answers before the person finishes typing, and a big tr
 5. **Status line:** "Showing the first 30,000 items" when truncated; in the home folder, name the guarded folders the walk did not enter.
 
 Results are a snapshot taken when search starts; folders on screen keep updating live.
+
+## Checked on a clean macOS VM
+
+A signed preview on a freshly cloned macOS 27 test VM with no privacy answers, with `pricing-*` files planted in Desktop, Documents, Downloads, a `Projects` folder, and a disk image mounted under `/Volumes`. A dialog was looked for on the VM's screen after each step.
+
+| Search for "pricing" in | Found | macOS dialog |
+| --- | --- | --- |
+| The home folder, nothing answered yet | the 3 in `Projects`; the status bar names Desktop, Documents, Downloads, Library, Movies, Music and Pictures as not searched | none |
+| The disk's top level | 2 of the 3 in `Projects`: the walk reached its 30,000 cap in the system's folders first; the disk image was not entered | none |
+| Documents, once opened in Files | all 3 under it, nested ones included | only the one Documents asks when Files first lists it, before any search |
+| Desktop, refused when Files first listed it | Files shows its refused page; nothing asks again | none after the refusal |
+| The home folder again, Documents allowed and Desktop refused | the same 3; Documents is still stepped over from above | none |
+
+Two gaps this leaves. A search from the home folder never enters a guarded folder, even one the person has allowed, because the walk can't tell an allowed folder from one never asked about without reading it; Spotlight can, since it answers only for folders the app may read ([finding](../findings/spotlight-search-follows-folder-permissions.md)). And a search from the disk's top level spends its cap on the system's own folders.
 
 ## Measure before calling it done
 

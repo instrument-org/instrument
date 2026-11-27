@@ -46,13 +46,6 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
-  "astro-docs": {
-    "source": "svgl",
-    "path": "astro-icon-light.svg",
-    "dark": "astro-icon-dark.svg",
-    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
-    "license": "MIT"
-  },
   "atlassian": {
     "source": "svgl",
     "path": "atlassian.svg",
@@ -758,12 +751,6 @@
     "source": "site",
     "url": "https://supermetrics.com/apple-touch-icon.png",
     "license": "trademark"
-  },
-  "svelte": {
-    "source": "svgl",
-    "path": "svelte.svg",
-    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
-    "license": "MIT"
   },
   "tavily": {
     "source": "thesvg",

@@ -239,6 +239,7 @@ export {
   notePageDownload,
 } from "./lib/chat/page-downloads";
 export { notePersonUsedTab } from "./lib/chat/person-used-tabs";
+export { type BrowserSite } from "./schemas/browser-site";
 export { WINDOW_ID } from "./schemas/window-id";
 export {
   appCatalogChanges,

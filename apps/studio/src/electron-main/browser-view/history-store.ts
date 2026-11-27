@@ -575,6 +575,29 @@ export function createHistoryStore(file: string) {
         });
     },
 
+    /**
+     * Every page visited and not hidden, the person's and an agent's apart:
+     * how many times each visited it and when last, in epoch ms.
+     */
+    visitedPages(): {
+      actor: HistoryActor;
+      at: number;
+      count: number;
+      url: string;
+    }[] {
+      return database
+        .prepare(
+          "SELECT urls.url AS url, visits.actor AS actor, count(*) AS count, max(visits.at) AS at FROM visits JOIN urls ON urls.id = visits.url_id WHERE visits.hidden_by IS NULL GROUP BY urls.id, visits.actor",
+        )
+        .all()
+        .map((row) => ({
+          actor: row.actor === "agent" ? "agent" : "user",
+          at: Number(row.at),
+          count: Number(row.count),
+          url: String(row.url),
+        }));
+    },
+
     /** The start page's host-limited recents and frequently visited sites. */
     startPages(excludedUrls: readonly string[], now: number) {
       return readStartPages(database, excludedUrls, now);

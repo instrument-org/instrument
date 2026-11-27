@@ -9,6 +9,7 @@ import {
   isHostedFeatureAvailable,
   isPlatformSearchForEveryModel,
 } from "@/electron-main/lib/hosted-features";
+import { browserSites } from "@/electron-main/browser-view/browser-sites";
 import { personHistory } from "@/electron-main/browser-view/person-history";
 import { lookUpSentLinkTitles } from "@/electron-main/browser-view/sent-link-titles";
 import { applyDraftOpsInMain } from "@/electron-main/drafts/serve-drafts";
@@ -246,6 +247,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       mayKeepHistory: keepsHistory,
       maySuggestNextMessage: () =>
         getWorkspacePreferences().get("suggestNextMessage"),
+      readBrowserSites: browserSites,
       readPersonHistory: personHistory,
       pnpmBinPath: getPNPMBinPath(),
       reportPlatformRefusal: recordPlatformRefusal,

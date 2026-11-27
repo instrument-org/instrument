@@ -12,6 +12,8 @@ import {
   type ListedGroup,
 } from "../../schemas/group-layout";
 import { type WindowTabAction } from "../../schemas/window-tab";
+import { type BrowserSite } from "../../schemas/browser-site";
+import { type HistoryAction } from "../actions/schema";
 import { type Chat } from "../chat/chats";
 import { type Project } from "../chat/projects";
 import { tabStanding } from "../capabilities/window";
@@ -1381,7 +1383,11 @@ describe("window group, move, history and restore", () => {
       await run({}, "name", "group:docs", "--clear"),
       await run({}, "name", "group:docs"),
     ];
-    expect(asked.map(({ action }) => action).filter((action) => action.kind === "nameGroup")).toEqual([
+    expect(
+      asked
+        .map(({ action }) => action)
+        .filter((action) => action.kind === "nameGroup"),
+    ).toEqual([
       { group: "group:notes", kind: "nameGroup", name: "Side panel" },
       { group: "group:docs", kind: "nameGroup" },
     ]);
@@ -1494,6 +1500,200 @@ describe("window group, move, history and restore", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain("nothing in History is tab_nope");
+  });
+});
+
+describe("sites", () => {
+  /** What the app reads of its browser: a site used, one visited only by an agent, one only keeping data, and two that only set cookies from other sites' pages. */
+  const SITES: BrowserSite[] = [
+    {
+      cookies: 4,
+      hosts: ["ads.example"],
+      setUpAs: [],
+      site: "ads.example",
+      siteData: [],
+      usedAt: Date.UTC(2026, 10, 27, 9, 0),
+      visits: { agent: 0, user: 0 },
+    },
+    {
+      cookies: 12,
+      hosts: ["app.tasky.example", "tasky.example"],
+      setUpAs: ["tasky", "tasky-work"],
+      site: "tasky.example",
+      siteData: ["IndexedDB", "Local Storage"],
+      usedAt: Date.UTC(2026, 10, 26, 18, 5),
+      visits: { agent: 3, user: 41 },
+    },
+    {
+      cookies: 0,
+      hosts: ["notes.example"],
+      setUpAs: [],
+      site: "notes.example",
+      siteData: ["Local Storage"],
+      visits: { agent: 0, user: 0 },
+    },
+    {
+      cookies: 2,
+      hosts: ["docs.example.org"],
+      setUpAs: [],
+      site: "example.org",
+      siteData: [],
+      usedAt: Date.UTC(2026, 10, 27, 8, 30),
+      visits: { agent: 2, user: 0 },
+    },
+    {
+      cookies: 1,
+      hosts: [],
+      setUpAs: [],
+      site: "pixel.example",
+      siteData: [],
+      visits: { agent: 0, user: 0 },
+    },
+  ];
+  let sites: BrowserSite[];
+  beforeEach(() => {
+    sites = SITES;
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      readBrowserSites: () => Promise.resolve(sites),
+    });
+  });
+
+  it("lists the sites used, most recently first, and how many only set cookies", async () => {
+    const result = await run({ role: "task" }, "sites");
+
+    expect(result.exitCode).toBe(0);
+    expect(asked).toEqual([]);
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "2 more sites only set cookies from other sites' pages; \`instrument window sites --all\` lists them.
+      A cookie is not a sign-in: open a site to see whether it is signed in.
+      site           cookies  last used          visits user/agent  site data                 set up as
+      example.org    2        2026-11-27T08:30Z  0/2                -
+      tasky.example  12       2026-11-26T18:05Z  41/3               IndexedDB, Local Storage  tasky, tasky-work
+      notes.example  0        -                  0/0                Local Storage
+      "
+    `);
+  });
+
+  it("lists every site with --all", async () => {
+    const result = await run({}, "sites", "--all");
+
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "A cookie is not a sign-in: open a site to see whether it is signed in.
+      site           cookies  last used          visits user/agent  site data                 set up as
+      ads.example    4        2026-11-27T09:00Z  0/0                -
+      example.org    2        2026-11-27T08:30Z  0/2                -
+      tasky.example  12       2026-11-26T18:05Z  41/3               IndexedDB, Local Storage  tasky, tasky-work
+      notes.example  0        -                  0/0                Local Storage
+      pixel.example  1        -                  0/0                -
+      "
+    `);
+  });
+
+  it("gives the sites and how many it left out as JSON", async () => {
+    const result = await run({}, "sites", "--json");
+
+    const answer = JSON.parse(result.stdout) as {
+      cookieOnly: number;
+      sites: BrowserSite[];
+    };
+    expect(answer.cookieOnly).toBe(2);
+    expect(answer.sites.map((site) => site.site)).toEqual([
+      "example.org",
+      "tasky.example",
+      "notes.example",
+    ]);
+  });
+
+  it("says when there is no site, or only sites that set cookies from other sites' pages", async () => {
+    const results = [];
+    for (const read of [[], SITES.slice(0, 1)]) {
+      sites = read;
+      results.push(await run({}, "sites"));
+    }
+
+    expect(results.map(({ stdout }) => stdout)).toMatchInlineSnapshot(`
+      [
+        "The in-app browser has no cookies, site data or visits yet.
+      ",
+        "No site was visited or keeps site data; 1 site only set cookies from other sites' pages, which \`instrument window sites --all\` lists.
+      ",
+      ]
+    `);
+  });
+});
+
+describe("history --site", () => {
+  const PAGES: HistoryAction[] = [
+    {
+      at: "2026-11-27T09:40:00.000Z",
+      kind: "page",
+      title: "Today",
+      url: "https://app.tasky.example/today",
+    },
+    {
+      at: "2026-11-27T09:30:00.000Z",
+      kind: "page",
+      url: "https://www.example.org/news",
+    },
+    {
+      at: "2026-11-27T09:20:00.000Z",
+      kind: "file",
+      path: "/Users/me/Instrument/report.md",
+    },
+    {
+      at: "2026-11-27T09:10:00.000Z",
+      kind: "page",
+      title: "Tasky",
+      url: "https://tasky.example/",
+    },
+    {
+      at: "2026-11-27T09:00:00.000Z",
+      kind: "page",
+      title: "Not Tasky",
+      url: "https://nottasky.example/",
+    },
+  ];
+  beforeEach(() => {
+    setWorkspaceConfig({
+      ...getWorkspaceConfig(),
+      readPersonHistory: ({ limit }) => PAGES.slice(0, limit),
+    });
+  });
+
+  it.each([["tasky.example"], ["https://www.tasky.example/pricing"]])(
+    "lists only the pages on the site and the hosts under it, named as %s",
+    async (site) => {
+      const result = await run({}, "history", "--site", site);
+
+      expect(result.exitCode).toBe(0);
+      expect(asked).toEqual([]);
+      expect(result.stdout).toMatchInlineSnapshot(`
+        "2026-11-27T09:40:00.000Z  visited: Today (app.tasky.example)  https://app.tasky.example/today
+        2026-11-27T09:10:00.000Z  visited: Tasky (tasky.example)  https://tasky.example/
+        "
+      `);
+    },
+  );
+
+  it("names a page with no title by its address, and says when the site has none", async () => {
+    const results = [
+      await run({}, "history", "--site", "example.org", "--limit", "1"),
+      await run({}, "history", "--site", "elsewhere.example"),
+      await run({}, "history", "--site", "tasky.example", "--closed"),
+    ];
+
+    expect(results.map(({ stderr, stdout }) => stdout + stderr))
+      .toMatchInlineSnapshot(`
+      [
+        "2026-11-27T09:30:00.000Z  visited: www.example.org/news (example.org)  https://www.example.org/news
+      ",
+        "No page on elsewhere.example in History.
+      ",
+        "instrument window: history takes --closed or --site, not both: instrument window history --site <site>.
+      ",
+      ]
+    `);
   });
 });
 

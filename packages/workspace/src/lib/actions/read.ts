@@ -79,6 +79,26 @@ function history(range: Range & { limit?: number }): HistoryAction[] {
   }
 }
 
+type PageAction = Extract<HistoryAction, { kind: "page" }>;
+
+/**
+ * The pages the person visited on a site, its host or any host under it
+ * (`github.com` takes `gist.github.com`), newest first and without repeats,
+ * at most `limit`.
+ */
+export function personPagesOn(site: string, limit: number): PageAction[] {
+  const isOnSite = (url: string) => {
+    const host = URL.parse(url)?.hostname;
+    return host === site || (host?.endsWith(`.${site}`) ?? false);
+  };
+  return history({ since: 0, until: Date.now() })
+    .filter(
+      (action): action is PageAction =>
+        action.kind === "page" && isOnSite(action.url),
+    )
+    .slice(0, limit);
+}
+
 type PermissionAction = Extract<Action, { kind: "permission" }>;
 
 /**

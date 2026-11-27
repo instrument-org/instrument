@@ -9,6 +9,10 @@ import {
 } from "@instrument-org/shared";
 import { z } from "zod";
 
+import {
+  type BrowserSite,
+  BrowserSiteSchema,
+} from "../../schemas/browser-site";
 import { type ChatId } from "../../schemas/chat-id";
 import {
   type LayoutSnapshot,
@@ -33,6 +37,7 @@ import {
   type WindowGroups,
 } from "../../model-text/notes/window-list-model-text";
 import { parseBrowserTargetId } from "../../types";
+import { personPagesOn } from "../actions/read";
 import { noteBrowserAgentActivity } from "../browser-agent-activity";
 import { recordVisitedHosts } from "../browser-state";
 import { ChatStateSchema, chatStateOf } from "../chat/chat-state";
@@ -1527,6 +1532,52 @@ const HISTORY_WORDS = {
   visit: "visited",
 } as const;
 
+const HistoryRowSchema = z.object({
+  address: z.string().optional(),
+  at: z.number(),
+  context: z.string(),
+  id: z.string(),
+  kind: z.enum(["closedGroup", "closedSide", "closedTab", "visit"]),
+  title: z.string(),
+});
+
+type HistoryRow = z.output<typeof HistoryRowSchema>;
+
+/** A site as `--site` names it: a host, or an address's host, without `www.`. */
+function siteNamed(named: string): string {
+  const host = /^https?:\/\//i.test(named)
+    ? (URL.parse(named)?.hostname ?? named)
+    : named;
+  return host
+    .trim()
+    .toLowerCase()
+    .replace(/\.$/, "")
+    .replace(/^www\./, "");
+}
+
+/** The pages the user visited on a site, as History's rows: by title, the host as context. */
+function siteRows(site: string, limit: number): HistoryRow[] {
+  return personPagesOn(site, limit).map((page) => ({
+    address: page.url,
+    at: Date.parse(page.at),
+    context: URL.parse(page.url)?.hostname.replace(/^www\./, "") ?? page.url,
+    id: page.at,
+    kind: "visit",
+    title: page.title || page.url.replace(/^https?:\/\//, ""),
+  }));
+}
+
+function historyText(rows: readonly HistoryRow[]): string {
+  return rows.length === 0
+    ? "Nothing in History yet."
+    : rows
+        .map(
+          (row) =>
+            `${row.kind === "visit" ? "" : `${row.id}  `}${new Date(row.at).toISOString()}  ${HISTORY_WORDS[row.kind]}: ${row.title}${row.context === "" ? "" : ` (${row.context})`}${row.address === undefined ? "" : `  ${row.address}`}`,
+        )
+        .join("\n");
+}
+
 export const windowHistory = defineCapability({
   input: z.object({
     closed: z.boolean().default(false).meta({
@@ -1535,19 +1586,25 @@ export const windowHistory = defineCapability({
     limit: z.number().int().min(1).default(HISTORY_LIMIT).meta({
       description: "How many rows, newest first.",
     }),
+    site: z.string().optional().meta({
+      description:
+        "Only the pages visited on this site and on every host under it.",
+    }),
   }),
   name: "window.history",
-  output: z.array(
-    z.object({
-      address: z.string().optional(),
-      at: z.number(),
-      context: z.string(),
-      id: z.string(),
-      kind: z.enum(["closedGroup", "closedSide", "closedTab", "visit"]),
-      title: z.string(),
-    }),
-  ),
-  async run({ closed, limit }, ctx) {
+  output: z.array(HistoryRowSchema),
+  render: (rows, { site }) => ({
+    stdout: `${rows.length === 0 && site !== undefined ? `No page on ${siteNamed(site)} in History.` : historyText(rows)}\n`,
+  }),
+  async run({ closed, limit, site }, ctx) {
+    if (site !== undefined) {
+      if (closed) {
+        throw new Error(
+          `history takes --closed or --site, not both: ${NAME} history --site <site>.`,
+        );
+      }
+      return siteRows(siteNamed(site), limit);
+    }
     const answer = await ask(
       { closedOnly: closed, kind: "history", limit },
       ctx,
@@ -1561,19 +1618,110 @@ export const windowHistory = defineCapability({
     return answer.history ?? [];
   },
   summary:
-    "The window's History, newest first, as its History list shows it: the tabs, sides and tab groups closed, each by the id `restore` takes, and the places visited. --closed lists only what was closed.",
+    "The window's History, newest first, as its History list shows it: the tabs, sides and tab groups closed, each by the id `restore` takes, and the places visited. --closed lists only what was closed; --site <site> only the pages the user visited on a site and every host under it.",
   surfaces: {
     cli: { help: "", words: ["window", "history"] },
   },
-  text: (rows) =>
-    rows.length === 0
-      ? "Nothing in History yet."
-      : rows
-          .map(
-            (row) =>
-              `${row.kind === "visit" ? "" : `${row.id}  `}${new Date(row.at).toISOString()}  ${HISTORY_WORDS[row.kind]}: ${row.title}${row.context === "" ? "" : ` (${row.context})`}${row.address === undefined ? "" : `  ${row.address}`}`,
-          )
-          .join("\n"),
+  text: historyText,
+});
+
+/** The words a time is printed in: to the minute, in UTC. */
+function minuteOf(at: number): string {
+  return `${new Date(at).toISOString().slice(0, 16)}Z`;
+}
+
+/** Whether a site was used rather than only setting cookies from other sites' pages: a page on it visited, or data kept. */
+function isUsed(site: BrowserSite): boolean {
+  return site.visits.user + site.visits.agent > 0 || site.siteData.length > 0;
+}
+
+const SitesSchema = z.object({
+  /** How many sites only set cookies from other sites' pages, which only `--all` lists. */
+  cookieOnly: z.number().int(),
+  sites: z.array(BrowserSiteSchema),
+});
+
+const COOKIE_IS_NO_SIGN_IN =
+  "A cookie is not a sign-in: open a site to see whether it is signed in.";
+
+function sitesText({
+  cookieOnly,
+  sites,
+}: z.output<typeof SitesSchema>): string {
+  const count = cookieOnly.toString();
+  const noun = cookieOnly === 1 ? "site" : "sites";
+  if (sites.length === 0) {
+    return cookieOnly === 0
+      ? "The in-app browser has no cookies, site data or visits yet."
+      : `No site was visited or keeps site data; ${count} ${noun} only set cookies from other sites' pages, which \`${NAME} sites --all\` lists.`;
+  }
+  const cells = [
+    [
+      "site",
+      "cookies",
+      "last used",
+      "visits user/agent",
+      "site data",
+      "set up as",
+    ],
+    ...sites.map((site) => [
+      site.site,
+      site.cookies.toString(),
+      site.usedAt === undefined ? "-" : minuteOf(site.usedAt),
+      `${site.visits.user.toString()}/${site.visits.agent.toString()}`,
+      site.siteData.length === 0 ? "-" : site.siteData.join(", "),
+      site.setUpAs.join(", "),
+    ]),
+  ];
+  const last = (cells[0]?.length ?? 1) - 1;
+  const widths = Array.from({ length: last }, (_, column) =>
+    Math.max(...cells.map((row) => (row[column] ?? "").length)),
+  );
+  return [
+    ...(cookieOnly === 0
+      ? []
+      : [
+          `${count} more ${noun} only set cookies from other sites' pages; \`${NAME} sites --all\` lists them.`,
+        ]),
+    COOKIE_IS_NO_SIGN_IN,
+    ...cells.map((row) =>
+      row
+        .map((cell, column) =>
+          column === last ? cell : cell.padEnd(widths[column] ?? 0),
+        )
+        .join("  ")
+        .trimEnd(),
+    ),
+  ].join("\n");
+}
+
+export const windowSites = defineCapability({
+  input: z.object({
+    all: z.boolean().default(false).meta({
+      description:
+        "Every site with cookies, those set only from other sites' pages too.",
+    }),
+  }),
+  name: "window.sites",
+  output: SitesSchema,
+  async run({ all }) {
+    const read = getWorkspaceConfig().readBrowserSites;
+    if (!read) {
+      throw new Error("there is no in-app browser here to read.");
+    }
+    const sites = (await read()).toSorted(
+      (a, b) =>
+        (b.usedAt ?? 0) - (a.usedAt ?? 0) || a.site.localeCompare(b.site),
+    );
+    const shown = all ? sites : sites.filter(isUsed);
+    return { cookieOnly: sites.length - shown.length, sites: shown };
+  },
+  summary:
+    "The sites the in-app browser has cookies or site data for, most recently used first: each one's cookies, when it was last used, its pages visited by the user and by agents, the data it keeps (IndexedDB, Local Storage) and the apps set up on it. Only those visited or keeping data; --all adds the ones that only set cookies from other sites' pages.",
+  surfaces: {
+    cli: { help: "", words: ["window", "sites"] },
+  },
+  text: sitesText,
 });
 
 export const windowRestore = defineCapability({

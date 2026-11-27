@@ -21,6 +21,7 @@ import { type FinderEntry } from "./lib/chat/finder-entries";
 import { type SentFromDraft } from "./lib/drafts/send-from-folder";
 import { type DeviceId } from "./lib/records/device-id";
 import { type MemoryLevel } from "./machines/page-lifetime";
+import { type BrowserSite } from "./schemas/browser-site";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
 import { type WebSearchClient } from "./schemas/web-search";
@@ -384,6 +385,12 @@ export interface WorkspaceConfig {
     since: number;
     until: number;
   }) => HistoryAction[];
+  /**
+   * Every site the in-app browser has cookies, site data or visits for,
+   * read from its profile and history, which only the app can open: `window
+   * sites` lists them. Absent where no app is behind the workspace.
+   */
+  readBrowserSites?: () => Promise<BrowserSite[]>;
   /**
    * Who is signed in, for the agents to know whose work it is: the account's
    * email and, when the account gives one, name, or undefined while nobody is. Read when a session's

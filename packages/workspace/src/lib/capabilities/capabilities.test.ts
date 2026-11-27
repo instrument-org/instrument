@@ -625,6 +625,7 @@ describe("the registry", () => {
           "read",
           "restore",
           "show",
+          "sites",
           "unpin",
           "wait",
         ],

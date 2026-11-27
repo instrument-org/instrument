@@ -50,6 +50,8 @@ interface PublisherEvents {
     kind: "add" | "allow-more";
     lines: string[];
     name: string;
+    /** Its features that will not work in the in-app browser. */
+    unsupported: string[];
   };
   // A window answered the ask, so every other window's dialog closes.
   "browser.extension-install-answered": { askId: string };

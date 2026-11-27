@@ -11,4 +11,5 @@ export const extensionInstallModalAtom = studioModalAtom<{
   kind: "add" | "allow-more";
   lines: string[];
   name: string;
+  unsupported: string[];
 }>();

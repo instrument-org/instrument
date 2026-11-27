@@ -19,7 +19,8 @@ import { useEffect } from "react";
 /**
  * The question before an extension is added, or when one asks to be allowed
  * more, as Chrome's own: the extension by icon and name, what it will be able
- * to do in a person's words, and Add or Allow beside Cancel. Main asks every window; this one opens
+ * to do in a person's words, what of it does not work here, and Add or
+ * Allow beside Cancel. Main asks every window; this one opens
  * on the ask, answers it, and closes when any window has.
  */
 export function ExtensionInstallModal() {
@@ -109,6 +110,18 @@ export function ExtensionInstallModal() {
                       <li key={line}>{line}</li>
                     ))}
                   </ul>
+                )}
+                {content.unsupported.length > 0 && (
+                  <>
+                    <DialogDescription className="mt-1">
+                      Some of its features don't work in {APP_NAME}:
+                    </DialogDescription>
+                    <ul className="list-disc space-y-1 pl-5 text-sm">
+                      {content.unsupported.map((feature) => (
+                        <li key={feature}>{feature}</li>
+                      ))}
+                    </ul>
+                  </>
                 )}
               </div>
             </div>

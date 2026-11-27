@@ -49,6 +49,7 @@ import {
   type ExtensionConnection,
   openDesktopApp,
 } from "./extension-connection";
+import { unsupportedFeatures } from "./extension-support";
 import {
   addVersion,
   chooseVersion,
@@ -621,6 +622,7 @@ async function confirmInstall(details: {
     kind: "add",
     lines: permissionLines(shown),
     name: details.localizedName,
+    unsupported: unsupportedFeatures(details.manifest),
   });
   if (!allowed) {
     return { action: "deny" };
@@ -704,6 +706,7 @@ async function confirmPermissions(
       kind: "allow-more",
       lines,
       name,
+      unsupported: [],
     });
     if (!allowed) {
       return false;
@@ -733,6 +736,7 @@ function askWindows(question: {
   kind: "add" | "allow-more";
   lines: string[];
   name: string;
+  unsupported: string[];
 }): Promise<boolean> {
   const turn = lastAsk.then(
     () =>
@@ -784,6 +788,7 @@ export async function listBrowserExtensions(): Promise<BrowserExtension[]> {
       installs?.get(id) ?? [],
       requiredAccess(id),
     );
+    const manifest = extension?.manifest ?? loadable?.manifest;
     const shown = extension
       ? {
           description: ManifestWordsSchema.parse(extension.manifest)
@@ -800,6 +805,7 @@ export async function listBrowserExtensions(): Promise<BrowserExtension[]> {
         enabled: extension !== undefined,
         id,
         pinned: !unpinned.includes(id),
+        unsupported: unsupportedFeatures(manifest),
         update: awaiting && {
           lines: awaiting.lines,
           version: awaiting.version.version,

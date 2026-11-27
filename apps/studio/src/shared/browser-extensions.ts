@@ -16,6 +16,8 @@ export const BrowserExtensionSchema = z.object({
   name: z.string(),
   /** Whether its button is in the browser's row. */
   pinned: z.boolean(),
+  /** Its features that will not work in the in-app browser, in a person's words. */
+  unsupported: z.array(z.string()),
   /** A newer version that asks for more than the person agreed to, in lines of what is new. */
   update: z
     .object({ lines: z.array(z.string()), version: z.string() })

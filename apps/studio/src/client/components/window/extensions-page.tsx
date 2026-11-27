@@ -1,5 +1,6 @@
 import { Button } from "@/client/components/ui/button";
 import { Switch } from "@/client/components/ui/switch";
+import { APP_NAME } from "@instrument-org/shared";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { StorefrontIcon } from "@phosphor-icons/react/Storefront";
 import { useId } from "react";
@@ -15,7 +16,8 @@ import {
 
 /**
  * The Extensions screen, a window tab of its own the way Chrome's page is:
- * every extension the in-app browser runs, with its words, what to do when
+ * every extension the in-app browser runs, with its words, what of it does
+ * not work here, what to do when
  * its desktop app does not take this browser yet or an update asks for more,
  * whether it is on, whether its button is in the browser's row, and Remove; and the way to the Chrome Web Store.
  */
@@ -82,6 +84,16 @@ function ExtensionRow({ extension }: { extension: BrowserExtension }) {
         {extension.description && (
           <p className="mt-0.5 text-[13px] text-muted-foreground">
             {extension.description}
+          </p>
+        )}
+        {extension.unsupported.length > 0 && (
+          <p className="mt-1.5 text-[13px] text-muted-foreground">
+            Doesn't work in {APP_NAME}:{" "}
+            {extension.unsupported
+              .map((feature, index) =>
+                index === 0 ? feature : feature.toLowerCase(),
+              )
+              .join(", ")}
           </p>
         )}
         {extension.update && (

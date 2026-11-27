@@ -788,7 +788,7 @@ export async function listBrowserExtensions(): Promise<BrowserExtension[]> {
       installs?.get(id) ?? [],
       requiredAccess(id),
     );
-    const manifest = extension?.manifest ?? loadable?.manifest;
+    const manifest: unknown = extension?.manifest ?? loadable?.manifest;
     const shown = extension
       ? {
           description: ManifestWordsSchema.parse(extension.manifest)

@@ -3967,8 +3967,7 @@ export function FileSystem({
           <FileSystemGalleryView {...viewProps} />
         )}
       </div>
-      {currentUnreadable === null &&
-      !isLoadingCurrentFolder ? (
+      {currentUnreadable === null && !isLoadingCurrentFolder ? (
         <FileSystemStatusBar
           count={
             shownView === "table" && isViewShown && listedCount !== null
@@ -4770,8 +4769,8 @@ function FileSystemStatusBar({
           : selected > 0
             ? `${selected.toLocaleString()} of ${counted} selected`
             : partialFolder
-            ? `${counted} most recent of ${partialFolder.total.toLocaleString()} items`
-            : `${counted} ${count === 1 ? "item" : "items"}`}
+              ? `${counted} most recent of ${partialFolder.total.toLocaleString()} items`
+              : `${counted} ${count === 1 ? "item" : "items"}`}
       </span>
       {notSearched.length > 0 ? (
         <span className="truncate">

@@ -469,7 +469,10 @@ const agentAsked = new WeakMap<BrowserEntry, string>();
  * agent the command fails as Chromium's does, rather than reach a dialog the
  * guest's debugger holds behind the tab's card.
  */
-export function answerAgentDialog(entry: BrowserEntry, params: unknown): object {
+export function answerAgentDialog(
+  entry: BrowserEntry,
+  params: unknown,
+): object {
   const id = agentAsked.get(entry);
   if (id === undefined) {
     throw new Error("No dialog is showing");

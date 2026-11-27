@@ -77,7 +77,9 @@ export interface PageDialog {
 }
 
 /** An answer to a page's dialog: OK (or Leave), with what was typed into a `prompt`, or Cancel. */
-export type PageDialogAnswer = { accept: false } | { accept: true; text?: string };
+export type PageDialogAnswer =
+  | { accept: false }
+  | { accept: true; text?: string };
 
 /**
  * A page asking for a username and password (HTTP basic or digest auth, or a

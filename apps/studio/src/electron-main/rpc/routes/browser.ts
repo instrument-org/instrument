@@ -211,7 +211,9 @@ const live = {
   // The dialogs tabs' pages are waiting on, oldest first.
   pageDialogs: base.handler(async function* ({ signal }) {
     yield* liveRead({
-      changes: [publisher.subscribe("browser.page-dialogs-changed", { signal })],
+      changes: [
+        publisher.subscribe("browser.page-dialogs-changed", { signal }),
+      ],
       read: () => pageDialogs.list(),
     });
   }),

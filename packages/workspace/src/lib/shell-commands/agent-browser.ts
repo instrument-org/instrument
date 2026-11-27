@@ -38,7 +38,7 @@ import {
   getDownloadsDir,
   getScreenshotsDir,
 } from "../chat-dir-utils";
-import { chatPageTabs } from "../chat/chat-tabs";
+import { chatPageTabs, pageTabNamed } from "../chat/chat-tabs";
 import {
   announceChatTab,
   closeChatTab,
@@ -1312,8 +1312,22 @@ export function createAgentBrowserCommand({
       // A tab of the chat's opened since this session's agent-browser
       // connected is announced only now that the agent names it, since
       // agent-browser makes a tab it discovers its active one.
-      const named =
+      let named =
         tabIdIndex === undefined ? undefined : resolvedArgs[tabIdIndex];
+      // A tab named by its page's id, as earlier builds named a tab on an
+      // HTML file, goes by the tab's own id from here on.
+      if (
+        listed.exitCode === 0 &&
+        tabIdIndex !== undefined &&
+        named !== undefined &&
+        !listsTab(listed.stdout, named)
+      ) {
+        const tab = pageTabNamed(await chatPageTabs(chatId), named);
+        if (tab !== undefined && tab.id !== named) {
+          resolvedArgs[tabIdIndex] = tab.id;
+          named = tab.id;
+        }
+      }
       if (
         listed.exitCode === 0 &&
         named !== undefined &&
@@ -1429,6 +1443,7 @@ export function createAgentBrowserCommand({
         result = await downloadThroughTab({
           args: resolvedArgs,
           browser: workspaceConfig.browser,
+          chatId,
           fileIndex: downloadFile,
           run: (runArgs) =>
             runAgentBrowser({
@@ -1649,8 +1664,8 @@ export function createAgentBrowserCommand({
       screenshotNote,
       ...(drivesChatTabs
         ? [
-            pageOpenedTabsNote(sessionId),
-            pageDownloadsNote(sessionId),
+            await pageOpenedTabsNote({ chatId, sessionId }),
+            await pageDownloadsNote({ chatId, sessionId }),
             await tabNewsNote({ chatId, sessionId }),
             await closedTabsNote({ chatId, sessionId }),
           ]
@@ -1692,12 +1707,14 @@ export function createAgentBrowserCommand({
 async function downloadThroughTab({
   args,
   browser,
+  chatId,
   fileIndex,
   run,
   signal,
 }: {
   args: string[];
   browser: BrowserConfig;
+  chatId: ChatId;
   fileIndex: number;
   run: (args: string[]) => Promise<{
     exitCode: number | undefined;
@@ -1710,10 +1727,15 @@ async function downloadThroughTab({
     ({ name, value }) => name === "--json" && value !== "false",
   );
   const tabs = await run(FOLLOW_UP_TABS_ARGS);
+  // The active tab by the id agents name it by; the page that saves is the
+  // one the tab draws.
+  const active = tabs.exitCode === 0 ? activeTabId(tabs.stdout) : undefined;
   const targetId =
-    tabs.exitCode === 0
-      ? parseBrowserTargetId(activeTabId(tabs.stdout) ?? "")
-      : null;
+    active === undefined
+      ? null
+      : parseBrowserTargetId(
+          pageTabNamed(await chatPageTabs(chatId), active)?.targetId ?? active,
+        );
   if (targetId === null) {
     return tabs.exitCode === 0
       ? {

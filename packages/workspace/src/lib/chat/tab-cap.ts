@@ -10,7 +10,7 @@ import { getChatState, updateChatState } from "../chat-record";
 import { chatDir, resolveChat, sessionOfChat } from "../record-folders";
 import { actsIn, forgetTab } from "../tab-activity";
 import { getWorkspaceConfig } from "../workspace-config";
-import { type ChatPageTab, chatPageTabs } from "./chat-tabs";
+import { agentTabIdOf, type ChatPageTab, chatPageTabs } from "./chat-tabs";
 import { liveTabTitles, tabPage } from "./tab-page";
 import { askWindow } from "./window-tab";
 
@@ -34,7 +34,7 @@ export async function closeTabsOverCap(chatId: ChatId): Promise<void> {
     }
     const listed = await chatPageTabs(chatId);
     const hidden = openedTabs
-      .filter((tab) => listed?.some((entry) => entry.id === tab.id) ?? true)
+      .filter((tab) => isListed(listed, tab))
       .filter((tab) => isUnused(tab))
       .map((tab) => ({ aloneForMs: aloneForMs(tab.id), tab }))
       .toSorted((a, b) => b.aloneForMs - a.aloneForMs);
@@ -136,19 +136,20 @@ async function closeOpened(
   reason: ClosedTab["reason"],
 ): Promise<void> {
   // A tab the person closed already has nothing left to close.
-  const open = tabs.filter(
-    (tab) => listed?.some((entry) => entry.id === tab.id) ?? true,
-  );
+  const open = tabs.filter((tab) => isListed(listed, tab));
   const gone = listed
     ? (await getChatState(chatDir(chatId))).openedTabs.filter(
-        (tab) => !listed.some((entry) => entry.id === tab.id),
+        (tab) => !isListed(listed, tab),
       )
     : [];
   if (open.length === 0 && gone.length === 0) {
     return;
   }
   const notes = await Promise.all(
-    open.map((tab) => closedTab(chatId, tab, listed, reason)),
+    open.map(async (tab) => ({
+      note: await closedTab(chatId, tab, listed, reason),
+      tab,
+    })),
   );
   const ids = new Set([...open, ...gone].map((tab) => tab.id));
   let closing: OpenedTab[] = [];
@@ -159,7 +160,9 @@ async function closeOpened(
     return {
       closedTabs: [
         ...state.closedTabs,
-        ...notes.filter((note) => still.has(note.id) && !told.has(note.id)),
+        ...notes
+          .filter(({ note, tab }) => still.has(tab.id) && !told.has(note.id))
+          .map(({ note }) => note),
       ],
       openedTabs: state.openedTabs.filter((tab) => !ids.has(tab.id)),
     };
@@ -170,17 +173,23 @@ async function closeOpened(
   for (const tab of closing) {
     forgetTab(tab.id);
     await askWindow({
-      action: { kind: "close", tabId: tab.id },
+      action: { kind: "close", tabId: agentTabIdOf(listed, tab.id) },
       askedBy: chatId,
       group: resolveChat(chatId),
     });
   }
 }
 
+/** Whether the window lists the tab an opened page draws, or can't say, with no window to ask. */
+function isListed(listed: ChatPageTab[] | undefined, tab: OpenedTab) {
+  return listed?.some((entry) => entry.targetId === tab.id) ?? true;
+}
+
 /**
  * What the session that worked in a tab last (else the one that opened it,
- * else the chat) is told of it: where it was, from its page, or from the
- * window's list for a tab whose page was unloaded.
+ * else the chat) is told of it, by the id agents name the tab by: where it
+ * was, from its page, or from the window's list for a tab whose page was
+ * unloaded.
  */
 async function closedTab(
   chatId: ChatId,
@@ -190,7 +199,7 @@ async function closedTab(
 ): Promise<ClosedTab> {
   const { browser } = getWorkspaceConfig();
   const { title, url } = tabPage(browser, tab.id, {
-    listed: listed?.find((entry) => entry.id === tab.id),
+    listed: listed?.find((entry) => entry.targetId === tab.id),
     titles: await liveTabTitles(browser),
   });
   const own = sessionOfChat(chatId);
@@ -198,7 +207,7 @@ async function closedTab(
     actsIn(tab.id).find((act) => act.chatId === chatId)?.sessionId ??
     tab.openedIn;
   return {
-    id: tab.id,
+    id: agentTabIdOf(listed, tab.id),
     reason,
     ...(session !== undefined && session !== own ? { session } : {}),
     ...(title ? { title } : {}),

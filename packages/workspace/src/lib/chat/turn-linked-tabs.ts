@@ -8,7 +8,7 @@ import { parseBrowserTargetId } from "../../types";
 import { ChatWrites } from "../chat-writes";
 import { linkTargetsIn } from "../link-targets";
 import { getWorkspaceConfig } from "../workspace-config";
-import { chatPageTabs } from "./chat-tabs";
+import { chatPageTabs, pageTabNamed } from "./chat-tabs";
 import { liveTabTitles, tabPage } from "./tab-page";
 
 /** The most tabs one reply's addresses are kept for. */
@@ -92,12 +92,15 @@ async function pagesOf(
     chatPageTabs(chatId),
   ]);
   return ids.flatMap((id) => {
-    const targetId = parseBrowserTargetId(id);
+    // The page the tab draws, which is the tab's own id but for a tab that
+    // opened on an HTML file.
+    const named = pageTabNamed(listed, id);
+    const targetId = named?.targetId ?? parseBrowserTargetId(id);
     if (targetId === null) {
       return [];
     }
     const { title, url } = tabPage(browser, targetId, {
-      listed: listed?.find((tab) => tab.id === id),
+      listed: named,
       titles,
     });
     return url !== undefined && /^https?:/i.test(url)

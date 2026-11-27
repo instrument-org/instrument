@@ -6,7 +6,12 @@ import { type ChatId } from "../schemas/chat-id";
 import { BLANK_PAGE_URL } from "./browser-state";
 import { agentSpellingOfFileUrls } from "./local-page-address";
 import { sessionLayout } from "./session-layout";
-import { chatPageTabs, takeClosedTabs } from "./chat/chat-tabs";
+import {
+  agentTabIdOf,
+  type ChatPageTab,
+  chatPageTabs,
+  takeClosedTabs,
+} from "./chat/chat-tabs";
 import { liveTabTitles, tabPage } from "./chat/tab-page";
 import { getChatState } from "./chat-record";
 import { chatDir } from "./record-folders";
@@ -115,13 +120,13 @@ async function chatTabsStatus(
       titles,
     });
     return {
-      id: targetId,
+      id: tab.id,
       ...(openedTabs.some((opened) => opened.id === targetId)
         ? { openedBy: "task" as const }
         : {}),
       ...(title ? { title } : {}),
       url: spell(url || BLANK_PAGE_URL),
-      ...(loaded ? tabStanding(targetId) : { unloaded: true }),
+      ...(loaded ? tabStanding(targetId, listed) : { unloaded: true }),
     };
   });
 }
@@ -132,7 +137,10 @@ async function chatTabsStatus(
  * CPU to 10 percent and none under 10. How long until an unused page
  * unloads is left out, since it changes with every minute that passes.
  */
-function tabStanding(targetId: BrowserTargetId) {
+function tabStanding(
+  targetId: BrowserTargetId,
+  listed: ChatPageTab[] | undefined,
+) {
   const { browser } = getWorkspaceConfig();
   const life = tabLifetime(targetId);
   const cost = browser.guestCost(targetId);
@@ -145,7 +153,7 @@ function tabStanding(targetId: BrowserTargetId) {
       : {}),
     ...(cpu >= 10 ? { cpuPercent: cpu } : {}),
     ...(cost && cost.sharedWith.length > 0
-      ? { sharedWith: cost.sharedWith }
+      ? { sharedWith: cost.sharedWith.map((id) => agentTabIdOf(listed, id)) }
       : {}),
   };
 }

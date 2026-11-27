@@ -48,6 +48,7 @@ import { isPersonsTurn } from "../chat/person-turn";
 import {
   chatPageTabs,
   noteTabClosedByChat,
+  pageTabNamed,
   tabHolders,
 } from "../chat/chat-tabs";
 import { noteTabCommand } from "../tab-activity";
@@ -122,12 +123,23 @@ function ask(action: WindowTabAction, ctx: CapabilityContext) {
 
 /** Which task is at work in a tab, and the clause for the line that reports what happened to it. */
 async function holderOf(tabId: string, ctx: CapabilityContext) {
-  const holder = (await tabHolders(ctx.chatId)).get(tabId);
+  const holders = await tabHolders(ctx.chatId);
+  // With a task at work in any tab, the tab by the id agents name it by,
+  // where the agent named its page's, as earlier builds named a tab on an
+  // HTML file, and the page it draws.
+  const page =
+    holders.size === 0
+      ? undefined
+      : pageTabNamed(await chatPageTabs(ctx.chatId), tabId);
+  const id = page?.id ?? tabId;
+  const holder = holders.get(id);
   return {
     clause: holder
       ? ` Task ${holder.id} ("${holder.title}") was working in it; its next browser command tells it so.`
       : "",
+    id,
     session: holder?.session,
+    targetId: page?.targetId ?? parseBrowserTargetId(tabId),
   };
 }
 
@@ -152,21 +164,22 @@ async function holdersOfMoved(ids: readonly string[], ctx: CapabilityContext) {
       }
       const pages = await chatPageTabs(ctx.chatId);
       for (const { holder, id } of held) {
-        const targetId = parseBrowserTargetId(id);
         if (
           pages === undefined ||
           holder.session === undefined ||
-          targetId === null ||
-          pages.some((page) => page.id === id)
+          holder.targetId === null ||
+          pages.some((page) => page.id === holder.id)
         ) {
           continue;
         }
         await noteTabClosedByChat(
           ctx.chatId,
           {
-            id: targetId,
+            id: holder.id,
             session: holder.session,
-            url: getWorkspaceConfig().browser.getTargetAddress(targetId) ?? "",
+            url:
+              getWorkspaceConfig().browser.getTargetAddress(holder.targetId) ??
+              "",
           },
           "movedOut",
         );
@@ -235,8 +248,8 @@ function describeTarget(target: WindowTabTarget) {
 }
 
 /** The agent opening a page is its first work in it, which the tab's working mark shows from the start. */
-function noteOpenedPage(tabId: string | undefined) {
-  const targetId = parseBrowserTargetId(tabId ?? "");
+function noteOpenedPage(page: string | undefined) {
+  const targetId = parseBrowserTargetId(page ?? "");
   if (targetId !== null) {
     noteBrowserAgentActivity(targetId);
   }
@@ -284,11 +297,15 @@ async function targetOf(
 }
 
 /**
- * Whether a page tab is on a file of this computer the chat's own tools
- * could not read, which the window would otherwise read for it.
+ * Whether a tab's page, by the page's id, is on a file of this computer the
+ * chat's own tools could not read, which the window would otherwise read
+ * for it.
  */
-function showsFileOutside(tabId: string, ctx: CapabilityContext): boolean {
-  const targetId = parseBrowserTargetId(tabId);
+function showsFileOutside(
+  page: string | undefined,
+  ctx: CapabilityContext,
+): boolean {
+  const targetId = parseBrowserTargetId(page ?? "");
   if (targetId === null) {
     return false;
   }
@@ -449,7 +466,8 @@ export const windowRead = defineCapability({
   output: z.string(),
   async run({ tab }, ctx) {
     // Checked on both sides of the read, since a page can take its own tab to
-    // another file while the window reads it.
+    // another file while the window reads it; after it, by the page the
+    // window read, which for a tab on an HTML file is not the tab's id.
     if (showsFileOutside(tab, ctx)) {
       throw new Error(outsideFile(tab));
     }
@@ -460,8 +478,8 @@ export const windowRead = defineCapability({
     if (answer.error) {
       throw new Error(answer.error);
     }
-    if (showsFileOutside(tab, ctx)) {
-      throw new Error(outsideFile(tab));
+    if (showsFileOutside(answer.targetId ?? tab, ctx)) {
+      throw new Error(outsideFile(answer.tabId ?? tab));
     }
     return answer.text ?? "";
   },
@@ -640,11 +658,13 @@ async function showOne(
   if (isTabId(arg)) {
     const answer = await ask({ kind: "show", tabId: arg }, ctx);
     const error = answer ? answer.error : NO_WINDOW;
+    // By the id agents name the tab by, where the agent named its page's.
+    const shown = answer?.tabId ?? arg;
     return error === undefined
       ? {
           failed: false,
-          said: `Tab ${arg}: ${(await placeOf(arg, ctx)) ?? "showing on its side"}.`,
-          tab: arg,
+          said: `Tab ${shown}: ${(await placeOf(shown, ctx)) ?? "showing on its side"}.`,
+          tab: shown,
           target: arg,
         }
       : { failed: true, said: error, target: arg };
@@ -666,7 +686,7 @@ async function showOne(
     return { failed: true, said: answer.error, target: arg };
   }
   const tabId = answer?.tabId;
-  noteOpenedPage(tabId);
+  noteOpenedPage(answer?.targetId ?? tabId);
   // With no window to answer the page still counts as opened: it is the
   // tab's id that is missing, not the page.
   const place =
@@ -758,12 +778,14 @@ async function replace(
     return { failed: true, said: error, target: arg };
   }
   // The chat's act in the tab, which the task's next command there reports.
-  const targetId = parseBrowserTargetId(tabId);
-  if (holder.session !== undefined && targetId !== null) {
-    noteTabCommand(targetId, { chatId: ctx.chatId, sessionId: ctx.sessionId });
+  if (holder.session !== undefined && holder.targetId !== null) {
+    noteTabCommand(holder.targetId, {
+      chatId: ctx.chatId,
+      sessionId: ctx.sessionId,
+    });
   }
-  // A tab that changes kind, a page becoming a file's tab or the reverse,
-  // comes back under a new id, which is the one to use next.
+  // The window answers with the id agents name the tab by, which is the one
+  // to use next where the agent named it by its page's id.
   const now = answer?.tabId ?? tabId;
   const place = await placeOf(now, ctx);
   return {
@@ -797,31 +819,31 @@ export const windowClose = defineCapability({
         continue;
       }
       const holder = await holderOf(tabId, ctx);
-      const side = sideOf(await windowsOf(ctx), tabId);
-      const targetId = parseBrowserTargetId(tabId);
+      const side = sideOf(await windowsOf(ctx), holder.id);
       const url =
-        targetId === null
+        holder.targetId === null
           ? undefined
-          : getWorkspaceConfig().browser.getTargetAddress(targetId);
+          : getWorkspaceConfig().browser.getTargetAddress(holder.targetId);
       const answer = await ask({ kind: "close", tabId }, ctx);
       const error = answer ? answer.error : NO_WINDOW;
       if (
         error === undefined &&
         holder.session !== undefined &&
-        targetId !== null
+        holder.targetId !== null
       ) {
         await noteTabClosedByChat(ctx.chatId, {
-          id: targetId,
+          id: holder.id,
           session: holder.session,
           url: url ?? "",
         });
       }
+      const closed = answer?.tabId ?? tabId;
       outcomes.push(
         error === undefined
           ? {
               failed: false,
-              said: `Closed tab ${tabId}.${side ? await closedSideLine(side, ctx) : ""}${holder.clause}`,
-              tab: tabId,
+              said: `Closed tab ${closed}.${side ? await closedSideLine(side, ctx) : ""}${holder.clause}`,
+              tab: closed,
               target: tabId,
             }
           : { failed: true, said: error, target: tabId },
@@ -1011,7 +1033,11 @@ export const windowWait = defineCapability({
     if (!own) {
       throw new Error(NO_WINDOW);
     }
-    const page = own.pages?.find((each) => each.id === tab);
+    // By the id agents name the tab by, or its page's, which earlier builds
+    // named a tab on an HTML file by.
+    const page =
+      own.pages?.find((each) => each.id === tab) ??
+      own.pages?.find((each) => each.targetId === tab);
     if (!page) {
       throw new Error(
         own.read?.layout.sides.some((side) =>
@@ -1023,22 +1049,22 @@ export const windowWait = defineCapability({
     }
     // Showing, so the page they are asked to use is the one they see. A card
     // over a page the window did not show asks for what they cannot do.
-    const shown = await ask({ kind: "show", tabId: tab }, ctx);
+    const shown = await ask({ kind: "show", tabId: page.id }, ctx);
     const failed = shown ? shown.error : NO_WINDOW;
     if (failed !== undefined) {
       throw new Error(
-        `tab ${tab} could not be shown, so no card was raised: ${failed}`,
+        `tab ${page.id} could not be shown, so no card was raised: ${failed}`,
       );
     }
-    const place = await placeOf(tab, ctx);
+    const place = await placeOf(page.id, ctx);
     const askId = await recordAsk(
       { ...ctx.asker, reason: reason.trim(), title: title.trim() },
       "page",
-      tab,
+      page.id,
       { page: { title: page.title, url: page.url } },
     );
     recordRaisedAsk(askId);
-    return `Showed the user tab ${tab} ("${page.title || page.url}") with a card ${ABOVE_REPLY_BOX} titled "${title.trim()}", your reason, ${WAIT_CARD_WORDS.done} and ${WAIT_CARD_WORDS.skip}.${place ? ` Tab ${tab}: ${place}.` : ""} Your turn ends here; their answer wakes you.`;
+    return `Showed the user tab ${page.id} ("${page.title || page.url}") with a card ${ABOVE_REPLY_BOX} titled "${title.trim()}", your reason, ${WAIT_CARD_WORDS.done} and ${WAIT_CARD_WORDS.skip}.${place ? ` Tab ${page.id}: ${place}.` : ""} Your turn ends here; their answer wakes you.`;
   },
   summary: `Hand the user a page of this chat's for what only they can do there (sign in, prove they are a person) and wait: a card shows your title and reason with ${WAIT_CARD_WORDS.done} and ${WAIT_CARD_WORDS.skip}, your turn ends, and their answer wakes you.`,
   surfaces: {

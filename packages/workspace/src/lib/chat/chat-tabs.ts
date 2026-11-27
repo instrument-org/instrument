@@ -11,7 +11,11 @@ import { listChildTasks } from "./children";
 import { takePendingUse } from "./person-used-tabs";
 import { askWindow } from "./window-tab";
 
-/** A page tab of the chat's, as the window lists it. */
+/**
+ * A page tab of the chat's, as the window lists it: by the id agents name it
+ * by (`id`) and the page an agent drives in it (`targetId`), which differ
+ * for a tab on an HTML file.
+ */
 export type ChatPageTab = NonNullable<WindowTabAnswer["pages"]>[number] & {
   targetId: BrowserTargetId;
 };
@@ -33,9 +37,35 @@ export async function chatPageTabs(
     return undefined;
   }
   return answer.pages.flatMap((tab) => {
-    const targetId = parseBrowserTargetId(tab.id);
+    const targetId = parseBrowserTargetId(tab.targetId ?? tab.id);
     return targetId === null ? [] : [{ ...tab, targetId }];
   });
+}
+
+/**
+ * The tab an id names among the chat's page tabs: by the id agents name it
+ * by, else by its page's id, which earlier builds named a tab on an HTML
+ * file by.
+ */
+export function pageTabNamed(
+  tabs: readonly ChatPageTab[] | undefined,
+  id: string,
+): ChatPageTab | undefined {
+  return (
+    tabs?.find((tab) => tab.id === id) ??
+    tabs?.find((tab) => tab.targetId === id)
+  );
+}
+
+/**
+ * The id agents name the tab a page draws by: the tab's, for a page the
+ * window lists, else the page's own.
+ */
+export function agentTabIdOf(
+  tabs: readonly ChatPageTab[] | undefined,
+  targetId: string,
+): string {
+  return tabs?.find((tab) => tab.targetId === targetId)?.id ?? targetId;
 }
 
 /** Keeps a tab a session of the chat opened, which counts toward `CHAT_HIDDEN_TAB_CAP` and closes with the chat's archiving (`tab-cap.ts`). */
@@ -75,7 +105,7 @@ export async function forgetOpenedTabs(
  */
 export async function noteTabClosedByChat(
   chatId: ChatId,
-  tab: { id: BrowserTargetId; session: StoreId.Session; url: string },
+  tab: { id: string; session: StoreId.Session; url: string },
   reason: "chat" | "movedOut" = "chat",
 ): Promise<void> {
   await updateChatState(chatDir(chatId), (state) => ({

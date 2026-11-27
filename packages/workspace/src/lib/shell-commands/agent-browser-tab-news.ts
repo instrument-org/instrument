@@ -3,7 +3,7 @@ import { type StoreId } from "../../schemas/store-id";
 import { isExtensionPage } from "../../logic/server/routes/cdp-bridge";
 import { closedTabsModelText } from "../../model-text/notes/browser-status-model-text";
 import { listChildTasks } from "../chat/children";
-import { takeClosedTabs } from "../chat/chat-tabs";
+import { agentTabIdOf, chatPageTabs, takeClosedTabs } from "../chat/chat-tabs";
 import { agentSpellingOfFileUrls } from "../local-page-address";
 import { sessionLayout } from "../session-layout";
 import { sessionOfChat } from "../record-folders";
@@ -28,9 +28,11 @@ export async function tabNewsNote({
   if (news.length === 0) {
     return undefined;
   }
-  const handles = new Map(
-    (await listChildTasks(chatId)).map((task) => [task.id, task.handle]),
-  );
+  const [tasks, tabs] = await Promise.all([
+    listChildTasks(chatId),
+    chatPageTabs(chatId),
+  ]);
+  const handles = new Map(tasks.map((task) => [task.id, task.handle]));
   const chatSession = sessionOfChat(chatId);
   const nameOf = (act: TabNews["agents"][number]) =>
     act.chatId !== chatId
@@ -45,7 +47,7 @@ export async function tabNewsNote({
         ? []
         : [`the user ${ago(now - tab.personAt)}`]),
     ];
-    return `Tab ${tab.targetId} was used since your last command in it, by ${who.join(" and ")}.`;
+    return `Tab ${agentTabIdOf(tabs, tab.targetId)} was used since your last command in it, by ${who.join(" and ")}.`;
   });
   return `${lines.join("\n")}\nThe chat and its tasks share every tab: check the page before relying on what you last saw there. Going to another page in this tab undoes their work on it: work that needs this page itself waits for them or asks, and work that needs only the site goes in a tab of your own (\`agent-browser tab new <url>\`).\n`;
 }
@@ -63,14 +65,20 @@ function ago(ms: number): string {
  * whatever is up: the tab's id, which `agent-browser tab <id>` switches to.
  * The tab was kept as one the session opened as it opened (`notePageOpenedTab`).
  */
-export function pageOpenedTabsNote(
-  sessionId: StoreId.Session,
-): string | undefined {
+export async function pageOpenedTabsNote({
+  chatId,
+  sessionId,
+}: {
+  chatId: ChatId;
+  sessionId: StoreId.Session;
+}): Promise<string | undefined> {
   const opened = takePopups(sessionId);
   if (opened.length === 0) {
     return undefined;
   }
+  const tabs = await chatPageTabs(chatId);
   return `${opened
+    .map(({ from, ...tab }) => ({ ...tab, from: agentTabIdOf(tabs, from) }))
     .map((tab) =>
       isExtensionPage(tab.url)
         ? `The page in tab ${tab.from} had a browser extension open ${tab.url}, the extension's own page, as a new tab of this chat, ${tab.tabId}. It is the user's to use.`

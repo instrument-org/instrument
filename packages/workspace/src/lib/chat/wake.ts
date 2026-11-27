@@ -17,6 +17,7 @@ import {
 } from "../local-page-address";
 import { filesNamedIn } from "../parse-files-block";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
+import { agentTabIdOf, chatPageTabs } from "./chat-tabs";
 import { openAsksOf } from "./open-asks";
 import { takeRoleRefusals } from "../capabilities/role-refusals";
 import { resolveChat, sessionOfChat } from "../record-folders";
@@ -734,13 +735,15 @@ export async function openTabsOf({
 }): Promise<NonNullable<TaskEvent["tabs"]>> {
   const { browser } = getWorkspaceConfig();
   const tabs: NonNullable<TaskEvent["tabs"]> = [];
-  for (const id of tabsActedInBy(sessionId)) {
-    if (!browser.getTargetMeta(id)) {
-      continue;
-    }
+  const open = tabsActedInBy(sessionId).filter(
+    (id) => browser.getTargetMeta(id) !== null,
+  );
+  // Each page by the id agents name its tab by.
+  const listed = open.length === 0 ? undefined : await chatPageTabs(chatId);
+  for (const id of open) {
     const url = browser.getTargetAddress(id);
     tabs.push({
-      id,
+      id: agentTabIdOf(listed, id),
       ...(url === undefined
         ? {}
         : { url: await chatSpellingOfUrl(url, chatId) }),

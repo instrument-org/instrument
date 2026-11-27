@@ -463,6 +463,10 @@ function answeringWindow() {
                                 ...(action.kind === "read"
                                   ? { text: "Jar\nA rigid container." }
                                   : {}),
+                                // The page that draws a tab on an HTML file.
+                                ...(action.tabId === fileTab
+                                  ? { targetId: filePage }
+                                  : {}),
                                 // The page steps its own history; a tab
                                 // in another group steps to what it showed.
                                 ...(action.kind === "step"
@@ -954,8 +958,9 @@ describe("a tab on an HTML file", () => {
 
     const result = await run({}, "read", fileTab);
 
-    expect(asked.map(({ action }) => action.kind)).not.toContain("read");
     expect(result.exitCode).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain(`tab ${fileTab} shows a file outside`);
   });
 
   it("waits on it named by its page's id, under the tab's", async () => {

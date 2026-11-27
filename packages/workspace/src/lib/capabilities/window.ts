@@ -466,10 +466,14 @@ export const windowRead = defineCapability({
   output: z.string(),
   async run({ tab }, ctx) {
     // Checked on both sides of the read, since a page can take its own tab to
-    // another file while the window reads it; after it, by the page the
-    // window read, which for a tab on an HTML file is not the tab's id.
+    // another file while the window reads it, by the page the tab draws,
+    // which for a tab on an HTML file is not the tab's id.
     if (showsFileOutside(tab, ctx)) {
       throw new Error(outsideFile(tab));
+    }
+    const page = pageTabNamed(await chatPageTabs(ctx.chatId), tab);
+    if (page !== undefined && showsFileOutside(page.targetId, ctx)) {
+      throw new Error(outsideFile(page.id));
     }
     const answer = await ask({ kind: "read", tabId: tab }, ctx);
     if (!answer) {
@@ -819,7 +823,15 @@ export const windowClose = defineCapability({
         continue;
       }
       const holder = await holderOf(tabId, ctx);
-      const side = sideOf(await windowsOf(ctx), holder.id);
+      const windows = await windowsOf(ctx);
+      // A tab named by its page's id, as earlier builds named a tab on an
+      // HTML file, is on its side under the tab's own.
+      const side =
+        sideOf(windows, holder.id) ??
+        sideOf(
+          windows,
+          pageTabNamed(await chatPageTabs(ctx.chatId), tabId)?.id ?? tabId,
+        );
       const url =
         holder.targetId === null
           ? undefined

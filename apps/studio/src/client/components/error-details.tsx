@@ -175,9 +175,11 @@ function StackTraceCollapsible({
                       Error {index + 1}
                     </p>
                   )}
-                  <pre className="max-h-48 scrollbar-thin scrollbar-color overflow-auto rounded-lg bg-muted px-3 py-2.5 font-mono text-xs leading-relaxed text-muted-foreground">
-                    {errorInfo.stack}
-                  </pre>
+                  <div className="rounded-lg bg-muted">
+                    <pre className="max-h-48 scrollbar-thin scrollbar-color overflow-auto scroll-fade-y px-3 py-2.5 font-mono text-xs leading-relaxed text-muted-foreground">
+                      {errorInfo.stack}
+                    </pre>
+                  </div>
                 </div>
               ),
           )}

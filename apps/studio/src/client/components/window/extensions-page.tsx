@@ -25,7 +25,7 @@ export function ExtensionsPage() {
   return (
     // The page is worked from its content, which the keys scroll.
     <div
-      className="h-full overflow-y-auto outline-none"
+      className="h-full overflow-y-auto scroll-fade-y outline-none"
       data-keyboard-home
       tabIndex={-1}
     >

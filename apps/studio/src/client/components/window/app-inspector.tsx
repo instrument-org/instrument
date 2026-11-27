@@ -154,32 +154,34 @@ export function AppInspector({
   return (
     <Section>
       <div className={FRAME_CLASS_NAME}>
-        <div className="min-w-0 overflow-y-auto border-r border-border bg-muted/40 p-1.5">
-          {groups.map((group) => (
-            <div key={group.label}>
-              <p className="px-2 pt-2 pb-1 text-[11px] font-medium text-muted-foreground">
-                {group.label}
-              </p>
-              {group.tools.map((tool) => (
-                <button
-                  className={cn(
-                    "block w-full truncate rounded-md px-2 py-1.5 text-left hover:bg-accent",
-                    tool.name === current.name && "bg-accent font-medium",
-                  )}
-                  key={tool.name}
-                  onClick={() => {
-                    setKind(tool.name);
-                    setFilters({});
-                    setPicked(undefined);
-                  }}
-                  title={tool.description}
-                  type="button"
-                >
-                  {labelOf(tool)}
-                </button>
-              ))}
-            </div>
-          ))}
+        <div className="min-w-0 border-r border-border bg-muted/40">
+          <div className="h-full overflow-y-auto scroll-fade-y p-1.5">
+            {groups.map((group) => (
+              <div key={group.label}>
+                <p className="px-2 pt-2 pb-1 text-[11px] font-medium text-muted-foreground">
+                  {group.label}
+                </p>
+                {group.tools.map((tool) => (
+                  <button
+                    className={cn(
+                      "block w-full truncate rounded-md px-2 py-1.5 text-left hover:bg-accent",
+                      tool.name === current.name && "bg-accent font-medium",
+                    )}
+                    key={tool.name}
+                    onClick={() => {
+                      setKind(tool.name);
+                      setFilters({});
+                      setPicked(undefined);
+                    }}
+                    title={tool.description}
+                    type="button"
+                  >
+                    {labelOf(tool)}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
         {runnable.includes(current) ? (
           <Records
@@ -318,7 +320,7 @@ function Detail({
         }}
         title={title}
       />
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 select-text">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto scroll-fade-y p-4 select-text">
         {drill && detail.isPending ? (
           <SkeletonFields />
         ) : detail.data && fuller === undefined ? (
@@ -531,7 +533,7 @@ function Records({
           onRefresh={() => void answer.refetch()}
           title={labelOf(tool)}
         />
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 select-text">
+        <div className="min-h-0 flex-1 overflow-y-auto scroll-fade-y p-4 select-text">
           <WholeAnswer
             answer={answer.isError ? undefined : answer.data}
             error={answer.isError ? answer.error.message : undefined}
@@ -554,7 +556,7 @@ function Records({
           onRefresh={() => void answer.refetch()}
           title={labelOf(tool)}
         />
-        <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
+        <div className="min-h-0 flex-1 overflow-y-auto scroll-fade-y p-1.5">
           {records.length === 0 ? (
             <p className="p-2 text-muted-foreground">Nothing here.</p>
           ) : (
@@ -662,7 +664,7 @@ function ToolSheet({ appName, tool }: { appName: string; tool: Tool }) {
             : `Changes things in ${appName}. Runs only when you ask in a chat.`}
         </p>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 select-text">
+      <div className="min-h-0 flex-1 overflow-y-auto scroll-fade-y p-4 select-text">
         <div className="flex flex-col gap-5">
           {tool.description ? <Markdown markdown={tool.description} /> : null}
           {tool.params.length > 0 ? (

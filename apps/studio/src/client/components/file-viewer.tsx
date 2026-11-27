@@ -1387,7 +1387,7 @@ export function FileViewer({
         // at the top of the view however far down the file is read.
         <div className="relative flex min-h-0 flex-1 flex-col">
           <div
-            className="relative min-h-0 flex-1 overflow-auto outline-none select-text"
+            className="relative min-h-0 flex-1 overflow-auto outline-none select-text scroll-fade-none"
             ref={contentRef}
             {...homeProps}
           >
@@ -1466,7 +1466,7 @@ export function ContentViewer({
     <div className={cn(fileViewerClassName, "min-h-0")}>
       <FileViewerHeader filename={title} onClose={onClose} path={title} />
       <div
-        className="look-content-body @container/transcript min-h-0 flex-1 overflow-y-auto px-5 pb-5"
+        className="look-content-body @container/transcript min-h-0 flex-1 overflow-y-auto scroll-fade-y px-5 pb-5"
         data-transcript
         ref={bodyRef}
       />

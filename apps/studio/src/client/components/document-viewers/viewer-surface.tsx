@@ -59,7 +59,7 @@ export function ViewerBody({
           // out of the tab order while they are invisible.
           inert={!railOpen}
         >
-          <div className="h-full w-40 overflow-y-auto overscroll-contain">
+          <div className="h-full w-40 overflow-y-auto overscroll-contain scroll-fade-y">
             {rail}
           </div>
         </div>

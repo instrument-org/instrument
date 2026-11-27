@@ -33,3 +33,4 @@ Principles are edited in place, like architecture: when one is refined, fix the 
 | [A shortened date shows the whole one on hover](a-shortened-date-shows-the-whole-one-on-hover.md) | Short dates in rows, the full date and time in a native `title` |
 | [One tooltip at a time, and only when it adds something](one-tooltip-at-a-time.md) | Icon controls get the app's tooltip, rows a native `title` only for an unseen fact, marks none |
 | [Tabs behave like a browser's](tabs-behave-like-a-browser.md) | Take Chromium's rule for tabs, groups and the address field before inventing one |
+| [A scroller fades out at an edge with more past it](scroll-edges-fade.md) | `scroll-fade-y`/`-x` on every scroller, or `scroll-fade-none` for a hard edge |

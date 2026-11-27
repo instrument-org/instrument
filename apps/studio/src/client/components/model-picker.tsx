@@ -512,75 +512,77 @@ function PickerPanel({
         />
       </div>
       <div className="flex min-h-0 flex-1">
-        <nav
-          aria-label="Providers"
-          className="flex w-50 shrink-0 flex-col gap-0.5 overflow-y-auto border-r bg-muted/40 p-2"
-        >
-          {rail.map((entry) => (
+        <div className="flex w-50 shrink-0 flex-col border-r bg-muted/40">
+          <nav
+            aria-label="Providers"
+            className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto scroll-fade-y p-2"
+          >
+            {rail.map((entry) => (
+              <button
+                aria-current={
+                  !searching && entry.id === openId ? "true" : undefined
+                }
+                className={cn(
+                  "flex min-h-8 items-center gap-2.5 rounded-xl px-2 text-left text-sm hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
+                  !searching &&
+                    entry.id === openId &&
+                    "bg-black/[0.06] font-medium dark:bg-white/10",
+                )}
+                key={entry.id}
+                onClick={() => {
+                  setOpenId(entry.id);
+                  setQuery("");
+                  setShowAll(false);
+                }}
+                type="button"
+              >
+                <AIProviderIcon
+                  className="size-4 shrink-0"
+                  colored
+                  type={entry.provider}
+                />
+                <span className="min-w-0 flex-1 truncate">
+                  {entry.name}
+                  {/* Named for what pressing it shows, so the accessibility
+                      tree says where the rest of the models are while the
+                      list holds one connection's. */}
+                  <span className="sr-only"> models</span>
+                </span>
+                {(entry.failed ?? entry.missing) ? (
+                  <>
+                    <WarningCircleIcon className="size-4 shrink-0 text-yellow-700 dark:text-yellow-300" />
+                    {entry.missing && (
+                      <span className="sr-only">(has the chosen model)</span>
+                    )}
+                  </>
+                ) : (
+                  entry.id === chosenConnection && (
+                    // Where the chosen model lives, so browsing another
+                    // connection does not lose it.
+                    <>
+                      <CheckIcon
+                        aria-hidden
+                        className="size-3.5 shrink-0 text-muted-foreground"
+                      />
+                      <span className="sr-only">(has the chosen model)</span>
+                    </>
+                  )
+                )}
+              </button>
+            ))}
+            <span className="flex-1" />
             <button
-              aria-current={
-                !searching && entry.id === openId ? "true" : undefined
-              }
-              className={cn(
-                "flex min-h-8 items-center gap-2.5 rounded-xl px-2 text-left text-sm hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
-                !searching &&
-                  entry.id === openId &&
-                  "bg-black/[0.06] font-medium dark:bg-white/10",
-              )}
-              key={entry.id}
-              onClick={() => {
-                setOpenId(entry.id);
-                setQuery("");
-                setShowAll(false);
-              }}
+              className="flex min-h-8 items-center gap-2.5 rounded-xl px-2 text-left text-sm text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.06]"
+              onClick={onAddProvider}
               type="button"
             >
-              <AIProviderIcon
-                className="size-4 shrink-0"
-                colored
-                type={entry.provider}
-              />
-              <span className="min-w-0 flex-1 truncate">
-                {entry.name}
-                {/* Named for what pressing it shows, so the accessibility
-                    tree says where the rest of the models are while the
-                    list holds one connection's. */}
-                <span className="sr-only"> models</span>
-              </span>
-              {(entry.failed ?? entry.missing) ? (
-                <>
-                  <WarningCircleIcon className="size-4 shrink-0 text-yellow-700 dark:text-yellow-300" />
-                  {entry.missing && (
-                    <span className="sr-only">(has the chosen model)</span>
-                  )}
-                </>
-              ) : (
-                entry.id === chosenConnection && (
-                  // Where the chosen model lives, so browsing another
-                  // connection does not lose it.
-                  <>
-                    <CheckIcon
-                      aria-hidden
-                      className="size-3.5 shrink-0 text-muted-foreground"
-                    />
-                    <span className="sr-only">(has the chosen model)</span>
-                  </>
-                )
-              )}
+              <PlusIcon className="size-4 shrink-0" />
+              Add a provider
             </button>
-          ))}
-          <span className="flex-1" />
-          <button
-            className="flex min-h-8 items-center gap-2.5 rounded-xl px-2 text-left text-sm text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.06]"
-            onClick={onAddProvider}
-            type="button"
-          >
-            <PlusIcon className="size-4 shrink-0" />
-            Add a provider
-          </button>
-        </nav>
+          </nav>
+        </div>
         <div
-          className="relative min-h-0 min-w-0 flex-1 overflow-y-auto"
+          className="relative min-h-0 min-w-0 flex-1 overflow-y-auto scroll-fade-y"
           data-slot="model-picker-scroll"
           ref={scrollRef}
         >

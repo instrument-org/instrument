@@ -174,7 +174,7 @@ export function EmojiGrid({
         ))}
       </div>
       <div
-        className="relative min-h-0 flex-1 overflow-y-auto px-2 pb-2"
+        className="relative min-h-0 flex-1 overflow-y-auto px-2 pb-2 scroll-fade-none"
         onScroll={words ? undefined : followScroll}
         ref={scroller}
       >

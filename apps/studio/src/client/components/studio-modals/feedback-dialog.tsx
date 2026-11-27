@@ -1288,9 +1288,11 @@ function LogLine({ content }: { content: string }) {
         <Caret className="size-3.5 text-muted-foreground" />
       </button>
       {open && (
-        <pre className="max-h-72 overflow-auto border-t border-border px-4 py-3 font-mono text-[11px] leading-[17px] whitespace-pre-wrap select-text">
-          {content}
-        </pre>
+        <div className="border-t border-border">
+          <pre className="max-h-72 overflow-auto scroll-fade-y px-4 py-3 font-mono text-[11px] leading-[17px] whitespace-pre-wrap select-text">
+            {content}
+          </pre>
+        </div>
       )}
     </div>
   );

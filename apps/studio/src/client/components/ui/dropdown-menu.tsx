@@ -28,7 +28,7 @@ function DropdownMenuCheckboxItem({
       // item sits in menus beside plain ones with a leading icon, and a check
       // in that gutter puts the state where those items keep their icon.
       className={cn(
-        "relative flex cursor-default items-center gap-2 rounded-lg py-1.5 pr-8 pl-3 text-sm text-foreground outline-hidden select-none focus:bg-foreground/6 dark:focus:bg-foreground/8 data-disabled:cursor-not-allowed data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-foreground/60",
+        "relative flex cursor-default items-center gap-2 rounded-lg py-1.5 pr-8 pl-3 text-sm text-foreground outline-hidden select-none focus:bg-foreground/6 data-disabled:cursor-not-allowed data-disabled:opacity-50 dark:focus:bg-foreground/8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-foreground/60",
         className,
       )}
       data-slot="dropdown-menu-checkbox-item"
@@ -61,8 +61,10 @@ function DropdownMenuContent({
           // `--content-zoom` divisor cancels Radix's zoomed-px available-height
           // against this content's self-applied CSS `zoom` (see select.tsx).
           // It carries no enter or exit animation: a menu is there on the
-          // frame after the press and gone on the frame after a pick.
-          "z-50 max-h-[calc(var(--radix-dropdown-menu-content-available-height)/var(--content-zoom))] min-w-32 overflow-x-hidden overflow-y-auto rounded-xl bg-popover p-1 text-popover-foreground shadow-float-sm",
+          // frame after the press and gone on the frame after a pick. A long
+          // menu fades through `MenuScrollArea`, since a mask here would fade
+          // the menu's own surface.
+          "z-50 max-h-[calc(var(--radix-dropdown-menu-content-available-height)/var(--content-zoom))] min-w-32 overflow-x-hidden overflow-y-auto rounded-xl bg-popover p-1 text-popover-foreground shadow-float-sm scroll-fade-none",
           className,
         )}
         collisionPadding={collisionPadding ?? chromeCollisionPadding}
@@ -95,7 +97,7 @@ function DropdownMenuItem({
   return (
     <DropdownMenuPrimitive.Item
       className={cn(
-        "relative flex cursor-default items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-foreground outline-hidden select-none focus:bg-foreground/6 dark:focus:bg-foreground/8 data-disabled:cursor-not-allowed data-disabled:opacity-50 data-inset:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive data-[variant=developer]:text-dev-700 dark:data-[variant=destructive]:focus:bg-destructive/20 dark:data-[variant=developer]:text-dev-300 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-foreground/60 data-[variant=destructive]:*:[svg]:text-destructive! data-[variant=developer]:*:[svg]:text-dev-700! dark:data-[variant=developer]:*:[svg]:text-dev-300!",
+        "relative flex cursor-default items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-foreground outline-hidden select-none focus:bg-foreground/6 data-disabled:cursor-not-allowed data-disabled:opacity-50 data-inset:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive data-[variant=developer]:text-dev-700 dark:focus:bg-foreground/8 dark:data-[variant=destructive]:focus:bg-destructive/20 dark:data-[variant=developer]:text-dev-300 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-foreground/60 data-[variant=destructive]:*:[svg]:text-destructive! data-[variant=developer]:*:[svg]:text-dev-700! dark:data-[variant=developer]:*:[svg]:text-dev-300!",
         className,
       )}
       data-inset={inset}
@@ -160,7 +162,7 @@ function DropdownMenuRadioItem({
   return (
     <DropdownMenuPrimitive.RadioItem
       className={cn(
-        "relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none focus:bg-foreground/6 dark:focus:bg-foreground/8 focus:text-accent-foreground data-disabled:cursor-not-allowed data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none focus:bg-foreground/6 focus:text-accent-foreground data-disabled:cursor-not-allowed data-disabled:opacity-50 dark:focus:bg-foreground/8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,
       )}
       data-slot="dropdown-menu-radio-item"
@@ -244,7 +246,7 @@ function DropdownMenuSubTrigger({
   return (
     <DropdownMenuPrimitive.SubTrigger
       className={cn(
-        "flex cursor-default items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-foreground outline-hidden select-none focus:bg-foreground/6 dark:focus:bg-foreground/8 data-inset:pl-8 data-[state=open]:bg-foreground/6 dark:data-[state=open]:bg-foreground/8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-foreground/60",
+        "flex cursor-default items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-foreground outline-hidden select-none focus:bg-foreground/6 data-inset:pl-8 data-[state=open]:bg-foreground/6 dark:focus:bg-foreground/8 dark:data-[state=open]:bg-foreground/8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-foreground/60",
         className,
       )}
       data-inset={inset}

@@ -33,9 +33,11 @@ export function ToolCapabilityFailure({
         <p className="text-sm text-muted-foreground">{errorMessage}</p>
 
         {responseBody && (
-          <pre className="mt-3 max-h-32 scrollbar-thin scrollbar-color overflow-auto rounded-lg bg-muted p-3 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
-            {responseBody}
-          </pre>
+          <div className="mt-3 rounded-lg bg-muted">
+            <pre className="max-h-32 scrollbar-thin scrollbar-color overflow-auto scroll-fade-y p-3 font-mono text-xs whitespace-pre-wrap text-muted-foreground">
+              {responseBody}
+            </pre>
+          </div>
         )}
 
         {providerGuardDescription && (

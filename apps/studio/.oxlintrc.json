@@ -34,6 +34,20 @@
       }
     },
     {
+      "files": ["src/client/**"],
+      "rules": {
+        "studio/scroll-fade": "error"
+      }
+    },
+    {
+      // Debug pages are tools for the team, not app surfaces, and tests
+      // render fixtures.
+      "files": ["src/client/routes/debug/**", "**/*.test.*"],
+      "rules": {
+        "studio/scroll-fade": "off"
+      }
+    },
+    {
       "files": ["src/**"],
       "rules": {
         "studio/no-either-command-key": "error",

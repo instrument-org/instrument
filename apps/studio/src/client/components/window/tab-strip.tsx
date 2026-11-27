@@ -589,7 +589,7 @@ export function TabStrip({
                 // it holds, so it takes the row's, which its tabs overfill.
                 // `relative` makes it the tabs' offset parent, which
                 // `showTab` measures against.
-                "@container/strip relative -m-1 flex min-w-0 flex-1 [scrollbar-width:none] overflow-x-auto p-1",
+                "@container/strip relative -m-1 flex min-w-0 flex-1 [scrollbar-width:none] overflow-x-auto p-1 scroll-fade-none",
                 EDGE_FADE,
               )}
               layoutScroll

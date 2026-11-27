@@ -79,32 +79,34 @@ export function SqliteViewer({ url }: { url: string }) {
       />
 
       {database.tables.length > 1 && (
-        <div className="flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-t border-border/60 px-2 select-none">
-          {database.tables.map((table) => (
-            <button
-              aria-current={table.name === active.name ? "true" : undefined}
-              className={cn(
-                "shrink-0 rounded-md px-2 py-1 text-xs whitespace-nowrap",
-                table.name === active.name
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:bg-muted",
-                // A view is still a table's worth of rows, but it is derived
-                // rather than stored, and telling them apart matters when
-                // deciding what a number came from.
-                table.type === "view" && "italic",
-              )}
-              key={table.name}
-              onClick={() => {
-                setSelected(table.name);
-              }}
-              title={
-                table.type === "view" ? `${table.name} (view)` : table.name
-              }
-              type="button"
-            >
-              {table.name}
-            </button>
-          ))}
+        <div className="shrink-0 border-t border-border/60">
+          <div className="flex h-9 items-center gap-1 overflow-x-auto scroll-fade-x px-2 select-none">
+            {database.tables.map((table) => (
+              <button
+                aria-current={table.name === active.name ? "true" : undefined}
+                className={cn(
+                  "shrink-0 rounded-md px-2 py-1 text-xs whitespace-nowrap",
+                  table.name === active.name
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:bg-muted",
+                  // A view is still a table's worth of rows, but it is derived
+                  // rather than stored, and telling them apart matters when
+                  // deciding what a number came from.
+                  table.type === "view" && "italic",
+                )}
+                key={table.name}
+                onClick={() => {
+                  setSelected(table.name);
+                }}
+                title={
+                  table.type === "view" ? `${table.name} (view)` : table.name
+                }
+                type="button"
+              >
+                {table.name}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </>

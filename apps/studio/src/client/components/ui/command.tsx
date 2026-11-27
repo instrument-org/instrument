@@ -123,7 +123,7 @@ function CommandList({
       // it gives a list of a fixed height to a scroller inside, which would
       // otherwise grow past it and never scroll.
       className={cn(
-        "max-h-[300px] scroll-py-1 overflow-x-hidden overflow-y-auto [&>[cmdk-list-sizer]]:h-full",
+        "max-h-[300px] scroll-py-1 overflow-x-hidden overflow-y-auto scroll-fade-y [&>[cmdk-list-sizer]]:h-full",
         className,
       )}
       data-slot="command-list"

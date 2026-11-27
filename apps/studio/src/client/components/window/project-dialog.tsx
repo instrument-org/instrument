@@ -610,7 +610,7 @@ function ProjectForm({
         zoom and the window's size both decide it. */}
       <div className="@container/project-dialog size-full min-h-0">
         <div className="grid h-full min-h-0 grid-cols-1 grid-rows-[minmax(0,2fr)_minmax(0,3fr)] @3xl/project-dialog:grid-cols-[22rem_minmax(0,1fr)] @3xl/project-dialog:grid-rows-1">
-          <div className="flex min-h-0 min-w-0 flex-col gap-5 overflow-y-auto border-b bg-muted/30 p-6 @3xl/project-dialog:border-r @3xl/project-dialog:border-b-0">
+          <div className="flex min-h-0 min-w-0 flex-col gap-5 overflow-y-auto border-b bg-muted/30 p-6 scroll-fade-none @3xl/project-dialog:border-r @3xl/project-dialog:border-b-0">
             <ProjectMarkPicker
               context={name}
               icon={icon || undefined}
@@ -728,7 +728,7 @@ function ProjectForm({
                   : "Every chat in this project starts with these."}
               </p>
             </div>
-            <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
+            <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto scroll-fade-none">
               <Suspense
                 fallback={
                   <div className="mx-auto w-full max-w-2xl pt-6 pr-8 pb-24 pl-14" />

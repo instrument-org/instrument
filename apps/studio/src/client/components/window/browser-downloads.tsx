@@ -112,7 +112,7 @@ export function BrowserDownloadsButton({
             Clear
           </Button>
         </div>
-        <ul className="max-h-96 overflow-y-auto p-1">
+        <ul className="max-h-96 overflow-y-auto scroll-fade-y p-1">
           {downloads.map((download) => (
             <DownloadRow download={download} key={download.id} />
           ))}

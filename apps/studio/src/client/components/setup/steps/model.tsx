@@ -344,7 +344,7 @@ function LongList({
           />
         </InputGroup>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+      <div className="min-h-0 flex-1 overflow-y-auto scroll-fade-y px-2 pb-2">
         {shown.length === 0 ? (
           <p className="px-2 py-6 text-center text-sm text-muted-foreground">
             No models match “{query.trim()}”.

@@ -70,7 +70,7 @@ export function ChatsMark({ open }: { open: OpenAddress }) {
         </PopoverTrigger>
         <PopoverContent
           align="start"
-          className="flex w-80 flex-col overflow-y-auto p-1"
+          className="flex w-80 flex-col overflow-y-auto scroll-fade-y p-1"
           maxHeight="480px"
         >
           {recent.length === 0 ? (

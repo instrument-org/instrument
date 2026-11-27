@@ -62,7 +62,7 @@ export function NotebookHtml({ html }: { html: string }) {
   const parsed = new DOMParser().parseFromString(html, "text/html");
 
   return (
-    <div className="max-w-full overflow-x-auto">
+    <div className="max-w-full overflow-x-auto scroll-fade-x">
       <Prose headings="document" size="sm">
         {toReactChildren(parsed.body, 0)}
       </Prose>

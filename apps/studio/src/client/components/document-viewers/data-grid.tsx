@@ -775,7 +775,7 @@ export function DataGrid({
               // text selection at the same time, and since the copy shortcut
               // answers with the range, what the reader can see highlighted is
               // not what lands on their clipboard.
-              className="min-h-0 flex-1 overflow-auto outline-none select-none focus-visible:outline-[2px] focus-visible:-outline-offset-2 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]"
+              className="min-h-0 flex-1 overflow-auto outline-none select-none scroll-fade-none focus-visible:outline-[2px] focus-visible:-outline-offset-2 focus-visible:outline-ring/50 focus-visible:[outline-style:solid]"
               onKeyDown={moveSelection}
               onPaste={(event) => {
                 if (edit && !editing) {

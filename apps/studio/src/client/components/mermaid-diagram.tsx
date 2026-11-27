@@ -190,7 +190,7 @@ export const MermaidDiagram = ({
           column. */}
       <div
         className={cn(
-          "mermaid-diagram not-prose overflow-x-auto rounded-md border border-border bg-background",
+          "mermaid-diagram not-prose overflow-x-auto rounded-md border border-border bg-background scroll-fade-none",
           !isDrawn && "invisible absolute inset-x-0 top-0 h-0 overflow-hidden",
           showSource && "hidden",
         )}

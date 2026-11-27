@@ -48,7 +48,7 @@ export function TaskBackgroundProcesses({
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="max-h-[min(420px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] w-110 overflow-y-auto rounded-2xl p-0"
+        className="max-h-[min(420px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] w-110 overflow-y-auto rounded-2xl p-0 scroll-fade-none"
       >
         <RunningList running={running} sessionId={sessionId} chatId={chatId} />
       </PopoverContent>

@@ -96,7 +96,7 @@ function JsonlBody({ text }: { text: string }) {
     // falls through to the same plain rendering an unrecognized text file gets
     // rather than to the "preview unavailable" card.
     return (
-      <div className="min-h-0 flex-1 overflow-auto p-4">
+      <div className="min-h-0 flex-1 overflow-auto scroll-fade-y p-4">
         <pre className="font-mono text-xs whitespace-pre-wrap">{text}</pre>
       </div>
     );

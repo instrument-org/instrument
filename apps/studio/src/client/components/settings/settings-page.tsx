@@ -269,7 +269,7 @@ export function SettingsPage({
       {isNarrow ? (
         <nav
           aria-label="Settings"
-          className="flex w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto py-3"
+          className="flex w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto scroll-fade-y py-3"
         >
           <RailButton
             icon={MagnifyingGlassIcon}
@@ -301,7 +301,7 @@ export function SettingsPage({
       ) : (
         <nav
           aria-label="Settings"
-          className="flex w-44 shrink-0 flex-col gap-2 overflow-y-auto px-3 py-3"
+          className="flex w-44 shrink-0 flex-col gap-2 overflow-y-auto scroll-fade-y px-3 py-3"
         >
           {searchField}
           {isSearching ? (
@@ -346,7 +346,7 @@ export function SettingsPage({
             tabIndex={-1}
             type="button"
           />
-          <div className="absolute inset-y-0 left-0 z-30 flex w-64 flex-col gap-2 overflow-y-auto border-r border-border bg-background px-3 py-3 shadow-xl-soft">
+          <div className="absolute inset-y-0 left-0 z-30 flex w-64 flex-col gap-2 overflow-y-auto border-r border-border bg-background px-3 py-3 shadow-xl-soft scroll-fade-none">
             {searchField}
             {isSearching ? (
               results

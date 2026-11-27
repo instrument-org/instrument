@@ -32,7 +32,7 @@ export function ErrorDialog() {
       >
         <div
           className={cn(
-            "flex min-h-0 flex-col gap-2 overflow-y-auto",
+            "flex min-h-0 flex-col gap-2 overflow-y-auto scroll-fade-none",
             "px-2 pt-2 pb-1.5",
           )}
         >

@@ -206,9 +206,11 @@ function ReportDialogContent({
             {showDetails ? "Hide details" : "Show details"}
           </button>
           {showDetails && (
-            <pre className="max-h-60 overflow-auto rounded-lg bg-muted/60 px-3 py-2.5 font-mono text-[11px] leading-[17px] wrap-anywhere whitespace-pre-wrap select-text">
-              {details ?? "Gathering the details…"}
-            </pre>
+            <div className="rounded-lg bg-muted/60">
+              <pre className="max-h-60 overflow-auto scroll-fade-y px-3 py-2.5 font-mono text-[11px] leading-[17px] wrap-anywhere whitespace-pre-wrap select-text">
+                {details ?? "Gathering the details…"}
+              </pre>
+            </div>
           )}
           {showDetails && described && described.events.length > 0 && (
             <>
@@ -228,9 +230,11 @@ function ReportDialogContent({
                 {showData ? "Hide the error data" : "Show the error data"}
               </button>
               {showData && (
-                <pre className="max-h-60 overflow-auto rounded-lg bg-muted/60 px-3 py-2.5 font-mono text-[11px] leading-[17px] wrap-anywhere whitespace-pre-wrap select-text">
-                  {JSON.stringify(described.events, null, 2)}
-                </pre>
+                <div className="rounded-lg bg-muted/60">
+                  <pre className="max-h-60 overflow-auto scroll-fade-y px-3 py-2.5 font-mono text-[11px] leading-[17px] wrap-anywhere whitespace-pre-wrap select-text">
+                    {JSON.stringify(described.events, null, 2)}
+                  </pre>
+                </div>
               )}
             </>
           )}

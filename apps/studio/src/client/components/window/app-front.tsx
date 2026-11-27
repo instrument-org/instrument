@@ -201,7 +201,7 @@ export function AppFront({
   return (
     // The page is worked from its content, which the keys scroll.
     <div
-      className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-8 pb-10 outline-none"
+      className="flex h-full min-h-0 flex-col overflow-y-auto scroll-fade-y px-8 pt-8 pb-10 outline-none"
       data-keyboard-home
       tabIndex={-1}
     >
@@ -353,7 +353,7 @@ export function AppFront({
                 <DialogTitle>What Instrument can do in {name}</DialogTitle>
               </DialogHeader>
               {inspectingAction === undefined ? (
-                <div className="min-h-0 flex-1 overflow-y-auto">
+                <div className="min-h-0 flex-1 overflow-y-auto scroll-fade-y">
                   <AppCapabilities
                     name={name}
                     onInspect={setInspectingAction}
@@ -648,7 +648,7 @@ function AppSetUp({
             Details
           </summary>
           <div className="group/detail relative mt-2 rounded-lg bg-muted/60 px-3 py-2 select-text">
-            <pre className="max-h-32 scrollbar-thin scrollbar-color overflow-auto pr-7 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap text-foreground/80">
+            <pre className="max-h-32 scrollbar-thin scrollbar-color overflow-auto scroll-fade-y pr-7 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap text-foreground/80">
               {app.connection.error}
             </pre>
             {/* `focus-within` as well as hover: the button stays in the tab

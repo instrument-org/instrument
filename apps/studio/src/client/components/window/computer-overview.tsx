@@ -119,7 +119,7 @@ export function ComputerOverview({
     <div className="flex min-h-0 flex-1 flex-col">
       {header}
       <div
-        className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-4"
+        className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto scroll-fade-y p-4"
         onPointerDown={(event) => {
           if (event.target === event.currentTarget) {
             setSelected(undefined);

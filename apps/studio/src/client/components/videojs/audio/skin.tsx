@@ -33,7 +33,7 @@ export function AudioSkin({
   return (
     <Container
       className={cn(
-        "flex flex-col justify-center-safe overflow-y-auto! rounded-none! after:hidden",
+        "flex flex-col justify-center-safe overflow-y-auto! rounded-none! scroll-fade-none after:hidden",
         className,
       )}
       data-theme="default"

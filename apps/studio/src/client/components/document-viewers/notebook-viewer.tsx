@@ -92,7 +92,7 @@ const NotebookScrollContext =
   createContext<null | RefObject<HTMLDivElement | null>>(null);
 
 const OUTPUT_BLOCK_CLASS =
-  "overflow-x-auto rounded-md border border-border/60 bg-muted/40 p-3 text-xs";
+  "overflow-x-auto scroll-fade-none rounded-md border border-border/60 bg-muted/40 p-3 text-xs";
 
 function ansiClassName(style: AnsiStyle) {
   return cn(
@@ -271,7 +271,7 @@ function NotebookDocument({ text }: { text: string }) {
 
       <div className="relative flex min-h-0 flex-1 flex-col">
         <FindScrollMarks marks={marks} />
-        <div className="min-h-0 flex-1 overflow-auto" ref={scrollRef}>
+        <div className="min-h-0 flex-1 overflow-auto scroll-fade-y" ref={scrollRef}>
           <div className="@container/notebook mx-auto flex max-w-4xl flex-col gap-6 p-4">
             <NotebookScrollContext value={scrollRef}>
               {notebook.cells.map((cell) => (
@@ -293,7 +293,7 @@ function NotebookOutputView({ output }: { output: NotebookOutput }) {
   switch (output.type) {
     case "error": {
       return (
-        <div className="overflow-x-auto rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs">
+        <div className="overflow-x-auto rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs scroll-fade-none">
           <AnsiText lines={output.traceback} />
         </div>
       );
@@ -317,7 +317,7 @@ function NotebookOutputView({ output }: { output: NotebookOutput }) {
       return (
         <div
           className={cn(
-            "overflow-x-auto px-1 text-xs",
+            "overflow-x-auto scroll-fade-x px-1 text-xs",
             output.stream === "stderr" &&
               "rounded-md border border-destructive/30 bg-destructive/5 p-3",
           )}

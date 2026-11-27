@@ -146,7 +146,7 @@ export function CertificateErrorNotice({
     rpcClient.browser.continueDespiteCertificate.mutationOptions(),
   );
   return (
-    <div className="absolute inset-0 overflow-y-auto bg-card p-6">
+    <div className="absolute inset-0 overflow-y-auto bg-card p-6 scroll-fade-none">
       <div className="mx-auto mt-[10%] max-w-lg space-y-4 text-sm">
         <WarningIcon className="size-10 text-destructive" />
         <h2 className="text-xl font-semibold">Your connection isn’t private</h2>

@@ -618,7 +618,7 @@ function DetailArea({ choice }: { choice: Choice }) {
     >
       <div
         className={cn(
-          "overflow-y-auto p-4 pr-11",
+          "overflow-y-auto scroll-fade-y p-4 pr-11",
           // Narrow, it stays a few lines tall until the pointer is on it;
           // wide, it fills the height the choices give it.
           "max-h-24 transition-[max-height] duration-200 group-hover/detail:max-h-72 motion-reduce:transition-none",
@@ -706,7 +706,7 @@ function ChoiceList({
     <div className="relative -mx-2">
       {/* Positioned, so each row's offsetTop is measured from the list. */}
       <div
-        className="relative flex max-h-[calc(var(--conversation-height)*0.4)] flex-col gap-0.5 overflow-y-auto *:shrink-0"
+        className="relative flex max-h-[calc(var(--conversation-height)*0.4)] flex-col gap-0.5 overflow-y-auto scroll-fade-none *:shrink-0"
         onFocus={(event) => {
           revealTypedRow(event.currentTarget);
         }}

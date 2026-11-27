@@ -230,7 +230,7 @@ export function ToolCardSection({
         className={cn(
           // Horizontal only. Vertical is the clamp's, and a box that scrolls
           // both ways would put back the trap the clamp is here to avoid.
-          "scrollbar-thin scrollbar-color overflow-x-auto",
+          "scrollbar-thin scrollbar-color overflow-x-auto scroll-fade-none",
           // Scrolls only once opened, and chains rather than containing, so
           // reaching the end of a log carries on down the transcript instead of
           // stopping dead in a box.

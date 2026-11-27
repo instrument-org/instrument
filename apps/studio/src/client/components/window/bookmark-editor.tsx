@@ -324,62 +324,64 @@ function PlaceTree({ tree }: { tree: PlaceTreeState }) {
   const typed = (id: string) =>
     tree.newFolders.find((made) => made.id === id)?.title ?? "";
   return (
-    <div
-      aria-label="Folder"
-      className="flex h-48 flex-col gap-0.5 overflow-y-auto rounded-lg border border-border p-1"
-      role="tree"
-    >
-      {tree.places.map((each) =>
-        each.key !== undefined && each.key === tree.naming ? (
-          <div
-            className="flex h-8 items-center gap-2 pr-1"
-            key={each.key}
-            style={{ paddingLeft: indentOf(each.depth) }}
-          >
-            <FolderSimpleIcon className="size-4 shrink-0 text-foreground/60" />
-            <Input
-              aria-label="Folder name"
-              autoFocus
-              className="h-7"
-              onBlur={tree.stopNaming}
-              onChange={(event) => {
-                if (each.key !== undefined) {
-                  tree.rename(each.key, event.currentTarget.value);
-                }
+    <div className="h-48 rounded-lg border border-border">
+      <div
+        aria-label="Folder"
+        className="flex h-full flex-col gap-0.5 overflow-y-auto scroll-fade-y p-1"
+        role="tree"
+      >
+        {tree.places.map((each) =>
+          each.key !== undefined && each.key === tree.naming ? (
+            <div
+              className="flex h-8 items-center gap-2 pr-1"
+              key={each.key}
+              style={{ paddingLeft: indentOf(each.depth) }}
+            >
+              <FolderSimpleIcon className="size-4 shrink-0 text-foreground/60" />
+              <Input
+                aria-label="Folder name"
+                autoFocus
+                className="h-7"
+                onBlur={tree.stopNaming}
+                onChange={(event) => {
+                  if (each.key !== undefined) {
+                    tree.rename(each.key, event.currentTarget.value);
+                  }
+                }}
+                onFocus={(event) => {
+                  event.currentTarget.select();
+                }}
+                onKeyDown={(event) => {
+                  // Return names the folder; the dialog saves on the next.
+                  if (event.key === "Enter" || event.key === "Escape") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    tree.stopNaming();
+                  }
+                }}
+                value={typed(each.key)}
+              />
+            </div>
+          ) : (
+            <FolderRow
+              depth={each.depth}
+              icon={
+                each.depth === 0 ? (
+                  <BookmarksSimpleIcon className="size-4 shrink-0" />
+                ) : (
+                  <FolderSimpleIcon className="size-4 shrink-0 text-foreground/60" />
+                )
+              }
+              isPicked={tree.picked === each.key}
+              key={each.key ?? "bar"}
+              onPick={() => {
+                tree.pick(each.key);
               }}
-              onFocus={(event) => {
-                event.currentTarget.select();
-              }}
-              onKeyDown={(event) => {
-                // Return names the folder; the dialog saves on the next.
-                if (event.key === "Enter" || event.key === "Escape") {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  tree.stopNaming();
-                }
-              }}
-              value={typed(each.key)}
+              title={each.title || NEW_FOLDER_NAME}
             />
-          </div>
-        ) : (
-          <FolderRow
-            depth={each.depth}
-            icon={
-              each.depth === 0 ? (
-                <BookmarksSimpleIcon className="size-4 shrink-0" />
-              ) : (
-                <FolderSimpleIcon className="size-4 shrink-0 text-foreground/60" />
-              )
-            }
-            isPicked={tree.picked === each.key}
-            key={each.key ?? "bar"}
-            onPick={() => {
-              tree.pick(each.key);
-            }}
-            title={each.title || NEW_FOLDER_NAME}
-          />
-        ),
-      )}
+          ),
+        )}
+      </div>
     </div>
   );
 }

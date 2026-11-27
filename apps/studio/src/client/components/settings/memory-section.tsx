@@ -476,7 +476,7 @@ function PasteImport({ onStart }: { onStart: (answer: string) => void }) {
           <Textarea
             // Grows with what is pasted, up to a point, so a long export
             // scrolls inside the box rather than pushing the page away.
-            className="max-h-60 min-h-24 overflow-y-auto font-mono text-xs"
+            className="max-h-60 min-h-24 overflow-y-auto scroll-fade-y font-mono text-xs"
             onChange={(event) => {
               setAnswer(event.target.value);
             }}

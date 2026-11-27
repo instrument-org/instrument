@@ -177,7 +177,7 @@ export function MessageBubble({
                 className={cn(
                   // A quote's card sits past the words on three sides.
                   "has-data-quote:-mx-2 has-data-quote:-mt-0.5 has-data-quote:px-2",
-                  isExpanded ? "max-h-400 overflow-y-auto" : "overflow-hidden",
+                  isExpanded ? "max-h-400 overflow-y-auto scroll-fade-y" : "overflow-hidden",
                 )}
                 data-slot="user-message-content"
                 ref={contentRef}

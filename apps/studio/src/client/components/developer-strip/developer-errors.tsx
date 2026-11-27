@@ -205,7 +205,7 @@ function ErrorsPanel({
             </DropdownMenu>
           </span>
         </StripHeading>
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto scroll-fade-y">
           {events.map((event) => (
             <button
               className={cn(
@@ -302,7 +302,7 @@ function ErrorDetail({ event, now }: { event: ExceptionEvent; now: number }) {
           {captured?.type} · {event.process}
         </span>
       </StripHeading>
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto scroll-fade-y p-3">
         <div>
           <div className="text-[15px] leading-6 font-medium wrap-break-word text-foreground">
             {captured?.value}

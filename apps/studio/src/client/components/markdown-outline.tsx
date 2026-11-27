@@ -114,7 +114,7 @@ export function MarkdownDocument({
     >
       <div className="relative flex min-w-0 flex-1">
         <div
-          className="relative min-w-0 flex-1 overflow-auto"
+          className="relative min-w-0 flex-1 overflow-auto scroll-fade-none"
           ref={(element) => {
             scrollRef.current = element;
             setScrollElement(element);
@@ -300,7 +300,7 @@ function MarkdownOutline({
 
   const list = (
     <div
-      className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2"
+      className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain scroll-fade-y px-2 py-2"
       ref={listRef}
     >
       {headings.map((heading, index) => (

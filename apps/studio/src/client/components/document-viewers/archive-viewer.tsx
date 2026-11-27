@@ -151,7 +151,7 @@ export function ArchiveViewer({ file }: { file: ViewerFile }) {
         />
       </ViewerToolbar>
 
-      <div className="min-h-0 flex-1 overflow-auto py-1" ref={scrollRef}>
+      <div className="min-h-0 flex-1 overflow-auto scroll-fade-y py-1" ref={scrollRef}>
         {isFinding && rows.length === 0 ? (
           <p className="px-3 py-6 text-center text-sm text-muted-foreground">
             Nothing in this archive matches “{deferredQuery}”.

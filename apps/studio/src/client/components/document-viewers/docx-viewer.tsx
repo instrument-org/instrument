@@ -168,7 +168,7 @@ export function DocxViewer({
         {isLoading && <FileLoading />}
         {!isLoading && (
           <div
-            className="absolute inset-0 overflow-auto bg-muted/40"
+            className="absolute inset-0 overflow-auto bg-muted/40 scroll-fade-none"
             ref={setScrollElement}
           >
             <DocxEditorViewer

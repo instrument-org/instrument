@@ -473,7 +473,7 @@ function ConnectedList() {
           Manage
         </Button>
       </div>
-      <ul className="max-h-36 overflow-y-auto">
+      <ul className="max-h-36 overflow-y-auto scroll-fade-y">
         {connections.map((connection) => (
           <li
             className="flex items-center gap-2.5 py-1.5 text-[13px]"

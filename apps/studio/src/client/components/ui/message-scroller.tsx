@@ -461,7 +461,7 @@ function MessageScrollerViewport({
     <div
       aria-label="Messages"
       className={cn(
-        "isolate size-full min-h-0 min-w-0 scrollbar-thin scrollbar-color overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable] outline-none",
+        "isolate size-full min-h-0 min-w-0 scrollbar-thin scrollbar-color [scrollbar-gutter:stable] overflow-x-hidden overflow-y-auto overscroll-contain outline-none scroll-fade-none",
         className,
       )}
       data-slot="message-scroller-viewport"

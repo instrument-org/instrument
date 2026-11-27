@@ -59,7 +59,7 @@ export function SetupPage({
     <div className="flex min-h-0 flex-1 flex-col">
       <div
         className={cn(
-          "flex min-h-0 flex-1 flex-col overflow-y-auto",
+          "flex min-h-0 flex-1 flex-col overflow-y-auto scroll-fade-y",
           fit === "dialog" ? "px-10" : "px-17",
         )}
         {...(heroMorph ? {} : moves)}

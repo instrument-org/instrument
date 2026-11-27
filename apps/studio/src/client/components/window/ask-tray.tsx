@@ -51,49 +51,51 @@ export function AskTray({
         data-slot="ask-tray"
       >
         {isOpen && (
-          <ol className="flex max-h-72 w-96 max-w-full flex-col gap-0.5 overflow-y-auto border-b border-border p-1">
-            {waiting.map(({ ask, n }) => (
-              <li
-                className="group/ask flex items-start gap-1 rounded-lg hover:bg-muted"
-                key={ask.id}
-              >
-                <button
-                  className="flex min-w-0 flex-1 items-start gap-2 px-2 py-1.5 text-left"
-                  onClick={() => {
-                    revealAsk(ask);
-                  }}
-                  type="button"
+          <div className="border-b border-border">
+            <ol className="flex max-h-72 w-96 max-w-full flex-col gap-0.5 overflow-y-auto scroll-fade-y p-1">
+              {waiting.map(({ ask, n }) => (
+                <li
+                  className="group/ask flex items-start gap-1 rounded-lg hover:bg-muted"
+                  key={ask.id}
                 >
-                  <AskNumber className="mt-0.5" n={n} />
-                  {/* What they said first, then where, as the page's own list reads. */}
-                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="truncate text-[13px]">
-                      {ask.instruction || ask.target}
+                  <button
+                    className="flex min-w-0 flex-1 items-start gap-2 px-2 py-1.5 text-left"
+                    onClick={() => {
+                      revealAsk(ask);
+                    }}
+                    type="button"
+                  >
+                    <AskNumber className="mt-0.5" n={n} />
+                    {/* What they said first, then where, as the page's own list reads. */}
+                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="truncate text-[13px]">
+                        {ask.instruction || ask.target}
+                      </span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {ask.instruction ? ask.target : ""}
+                        {ask.instruction && ask.excerpt ? " · " : ""}
+                        {ask.excerpt && (
+                          <span className="font-mono text-[11px] text-muted-foreground/80">
+                            {ask.excerpt.replaceAll(/\s+/g, " ")}
+                          </span>
+                        )}
+                      </span>
                     </span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {ask.instruction ? ask.target : ""}
-                      {ask.instruction && ask.excerpt ? " · " : ""}
-                      {ask.excerpt && (
-                        <span className="font-mono text-[11px] text-muted-foreground/80">
-                          {ask.excerpt.replaceAll(/\s+/g, " ")}
-                        </span>
-                      )}
-                    </span>
-                  </span>
-                </button>
-                <button
-                  aria-label={`Remove comment ${n}`}
-                  className="mt-1 mr-1 grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground opacity-60 group-hover/ask:opacity-100 hover:bg-foreground/8 hover:text-foreground"
-                  onClick={() => {
-                    remove([ask.id]);
-                  }}
-                  type="button"
-                >
-                  <XIcon className="size-3.5" />
-                </button>
-              </li>
-            ))}
-          </ol>
+                  </button>
+                  <button
+                    aria-label={`Remove comment ${n}`}
+                    className="mt-1 mr-1 grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground opacity-60 group-hover/ask:opacity-100 hover:bg-foreground/8 hover:text-foreground"
+                    onClick={() => {
+                      remove([ask.id]);
+                    }}
+                    type="button"
+                  >
+                    <XIcon className="size-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </div>
         )}
         <div className="flex min-w-0 items-center gap-1 p-1">
           <ToolbarTooltip label={isOpen ? "Hide comments" : "Show comments"}>

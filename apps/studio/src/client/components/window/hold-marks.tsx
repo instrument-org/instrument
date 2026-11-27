@@ -210,7 +210,7 @@ export function HoldMarks({
               event.preventDefault();
             }}
           >
-            <div className="flex max-h-full flex-col overflow-y-auto">
+            <div className="flex max-h-full flex-col overflow-y-auto scroll-fade-y">
               {items.map((item) =>
                 item.target.kind === "path" ? (
                   <button

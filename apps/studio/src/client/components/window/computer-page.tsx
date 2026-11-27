@@ -2652,7 +2652,7 @@ export function ComputerPage({
         widthAtom={finderPlacesWidthAtom}
       >
         <nav
-          className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-2 text-sm"
+          className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto scroll-fade-y px-2 py-2 text-sm"
           onKeyDown={onPlacesKeyDown}
         >
           {placeLists}

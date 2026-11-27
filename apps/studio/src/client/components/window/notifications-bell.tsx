@@ -162,7 +162,7 @@ export function NotificationsBell() {
             </p>
           </div>
         ) : (
-          <div className="flex max-h-[min(480px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] flex-col gap-0.5 overflow-y-auto px-1 pb-1">
+          <div className="flex max-h-[min(480px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] flex-col gap-0.5 overflow-y-auto scroll-fade-y px-1 pb-1">
             {problems.map((problem) => (
               <ProblemItem
                 key={problem.fingerprint}

@@ -250,37 +250,39 @@ function DiagnosticLog() {
                 }}
               />
             </div>
-            <div
-              className={cn(
-                "h-full overflow-auto rounded-md border border-border bg-muted/40 p-3 select-text",
-                wrapLines && wrapLinesClassName,
-              )}
-            >
-              {logQuery.isPending ? (
-                <p className="text-xs text-muted-foreground">
-                  Reading the log...
-                </p>
-              ) : logQuery.data ? (
-                // No whitespace class of its own: `pre` already does not wrap,
-                // so the toggle above adds wrapping rather than fighting it.
-                <pre className="pr-24 font-mono text-xs leading-5">
-                  {toLogLines(logQuery.data.text).map((line, index) => (
-                    <div
-                      className={LOG_LEVEL_CLASS[line.level]}
-                      // Lines repeat and carry no id, so position is the only
-                      // thing telling them apart. The list is rebuilt whole
-                      // whenever the text changes, so nothing reorders under it.
-                      key={index}
-                    >
-                      {line.text}
-                    </div>
-                  ))}
-                </pre>
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  There&rsquo;s no log yet. It fills up as you use the app.
-                </p>
-              )}
+            <div className="h-full rounded-md border border-border bg-muted/40">
+              <div
+                className={cn(
+                  "h-full overflow-auto scroll-fade-y p-3 select-text",
+                  wrapLines && wrapLinesClassName,
+                )}
+              >
+                {logQuery.isPending ? (
+                  <p className="text-xs text-muted-foreground">
+                    Reading the log...
+                  </p>
+                ) : logQuery.data ? (
+                  // No whitespace class of its own: `pre` already does not wrap,
+                  // so the toggle above adds wrapping rather than fighting it.
+                  <pre className="pr-24 font-mono text-xs leading-5">
+                    {toLogLines(logQuery.data.text).map((line, index) => (
+                      <div
+                        className={LOG_LEVEL_CLASS[line.level]}
+                        // Lines repeat and carry no id, so position is the only
+                        // thing telling them apart. The list is rebuilt whole
+                        // whenever the text changes, so nothing reorders under it.
+                        key={index}
+                      >
+                        {line.text}
+                      </div>
+                    ))}
+                  </pre>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    There&rsquo;s no log yet. It fills up as you use the app.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </DialogContent>

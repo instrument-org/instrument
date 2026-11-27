@@ -179,7 +179,7 @@ export function HistoryButton() {
             Tab groups you close show up here.
           </p>
         ) : (
-          <div className="flex min-h-0 flex-col gap-0.5 overflow-y-auto">
+          <div className="flex min-h-0 flex-col gap-0.5 overflow-y-auto scroll-fade-y">
             {closed.map((group) => (
               <button
                 className="flex shrink-0 rounded-lg px-2.5 py-1.5 text-left hover:bg-foreground/[0.04] focus-visible:-outline-offset-2"

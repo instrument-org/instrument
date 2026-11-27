@@ -78,7 +78,7 @@ function ErrorCard({ part }: { part: ErrorPart }) {
 
       {part.errorText && (
         <div className="relative">
-          <div className="max-h-44 scrollbar-thin scrollbar-color overflow-auto px-4 py-3 pr-10">
+          <div className="max-h-44 scrollbar-thin scrollbar-color overflow-auto scroll-fade-y px-4 py-3 pr-10">
             <pre
               className={cn(
                 "font-mono text-sm leading-relaxed break-words whitespace-pre-wrap",
@@ -117,7 +117,7 @@ function ErrorCard({ part }: { part: ErrorPart }) {
 
           {isRawOpen && (
             <div className="relative border-t border-border">
-              <div className="max-h-32 scrollbar-thin scrollbar-color overflow-auto px-4 py-3 pr-10">
+              <div className="max-h-32 scrollbar-thin scrollbar-color overflow-auto scroll-fade-y px-4 py-3 pr-10">
                 <pre className="font-mono text-xs leading-relaxed break-words whitespace-pre-wrap text-muted-foreground">
                   {inputText}
                 </pre>

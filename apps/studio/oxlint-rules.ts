@@ -1413,6 +1413,78 @@ const noStackedDocComments = defineRule({
   },
 });
 
+// A class list that scrolls, and whether it has chosen how its edges end. The
+// choice is read from the whole class list: the `className` it is in, or the
+// `cn(...)` call, or the string alone.
+const scrollingClass = /(?:^|\s)!?overflow-(?:[xy]-)?(?:auto|scroll)!?(?:\s|$)/;
+const scrollFadeChoice = /(?:^|\s)scroll-fade-(?:x|y|none)(?:[\s"'`]|$)/;
+
+function classListOf(node: ESTree.Node): ESTree.Node {
+  let list: ESTree.Node = node;
+  for (let at = node.parent; at; at = at.parent) {
+    if (at.type === "JSXAttribute") {
+      return at;
+    }
+    if (
+      at.type === "CallExpression" &&
+      at.callee.type === "Identifier" &&
+      at.callee.name === "cn"
+    ) {
+      list = at;
+      continue;
+    }
+    if (
+      at.type === "ConditionalExpression" ||
+      at.type === "LogicalExpression" ||
+      at.type === "ArrayExpression" ||
+      at.type === "TemplateLiteral" ||
+      at.type === "JSXExpressionContainer"
+    ) {
+      continue;
+    }
+    break;
+  }
+  return list;
+}
+
+const scrollFade = defineRule({
+  create(context) {
+    const reported = new Set<ESTree.Node>();
+    const check = (node: ESTree.Node, text: string) => {
+      if (!scrollingClass.test(text)) {
+        return;
+      }
+      const list = classListOf(node);
+      if (
+        reported.has(list) ||
+        scrollFadeChoice.test(context.sourceCode.getText(list))
+      ) {
+        return;
+      }
+      reported.add(list);
+      context.report({ messageId: "scrollFade", node });
+    };
+    return {
+      Literal(node) {
+        if (typeof node.value === "string") {
+          check(node, node.value);
+        }
+      },
+      TemplateElement(node) {
+        check(node, node.value.raw);
+      },
+    };
+  },
+  meta: {
+    messages: {
+      scrollFade:
+        "A scroller fades out at an edge with more past it (docs/principles/scroll-edges-fade.md). Add scroll-fade-y or scroll-fade-x, or scroll-fade-none where it should end at a hard edge: a document page, a grid with frozen headers, or a scroller that draws its own background or border, which the mask would fade too (put the fade on a scroller inside that box instead).",
+    },
+    schema: [],
+    type: "suggestion",
+  },
+});
+
 export default definePlugin({
   meta: { name: "studio" },
   rules: {
@@ -1432,6 +1504,7 @@ export default definePlugin({
     "no-transition-colors": noTransitionColors,
     "no-whole-query-result": noWholeQueryResult,
     "one-tooltip-provider": oneTooltipProvider,
+    "scroll-fade": scrollFade,
     "stage-reader-opts-out": stageReaderOptsOut,
   },
 });

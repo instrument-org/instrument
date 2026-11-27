@@ -38,7 +38,7 @@ function SelectContent({
           // pixels; this content self-applies CSS `zoom` (useAppZoomStyle), so
           // divide them by `--content-zoom` to cancel the double-count (otherwise
           // the max-height is scaled twice and the list overflows off-screen).
-          "relative z-50 max-h-[calc(var(--radix-select-content-available-height)/var(--content-zoom))] min-w-32 overflow-x-hidden overflow-y-auto rounded-xl bg-popover text-popover-foreground shadow-float-sm",
+          "relative z-50 max-h-[calc(var(--radix-select-content-available-height)/var(--content-zoom))] min-w-32 overflow-x-hidden overflow-y-auto rounded-xl bg-popover text-popover-foreground shadow-float-sm scroll-fade-none",
           position === "popper" &&
             "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
           className,

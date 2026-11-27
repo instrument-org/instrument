@@ -82,7 +82,7 @@ export function IWorkViewer({
           document can only be opened in {appName(filename)}.
         </span>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto bg-muted/40">
+      <div className="min-h-0 flex-1 overflow-auto bg-muted/40 scroll-fade-none">
         <PreviewImage blob={preview} filename={filename} />
       </div>
     </>

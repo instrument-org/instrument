@@ -730,7 +730,7 @@ export function InfoFrame({
           <div className="truncate text-xs text-muted-foreground">{sub}</div>
         </div>
       </div>
-      <dl className="min-h-0 overflow-y-auto px-3 py-2">{children}</dl>
+      <dl className="min-h-0 overflow-y-auto scroll-fade-y px-3 py-2">{children}</dl>
     </>
   );
 }

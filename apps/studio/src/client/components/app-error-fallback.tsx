@@ -34,7 +34,7 @@ export function AppErrorFallback({ error }: { error: unknown }) {
             />
             {/* `my-auto` rather than centering the column, so a card taller
               than the window scrolls from its top instead of losing it. */}
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6">
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto scroll-fade-y p-6">
               <div className="my-auto flex justify-center">
                 <AppErrorCard error={error} />
               </div>

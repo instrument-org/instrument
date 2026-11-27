@@ -4,7 +4,7 @@ import * as React from "react";
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
-      className="relative w-full overflow-x-auto"
+      className="relative w-full overflow-x-auto scroll-fade-x"
       data-slot="table-container"
     >
       <table

@@ -272,7 +272,7 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
 
   return (
     <div
-      className="@container/apps h-full min-h-0 overflow-y-auto outline-none"
+      className="@container/apps h-full min-h-0 overflow-y-auto outline-none scroll-fade-none"
       data-find-surface
       // The page itself takes the keyboard as the screen comes up, so the
       // arrow keys scroll it and no app looks chosen.
@@ -332,7 +332,7 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
             <div className="pointer-events-none absolute inset-x-0 top-full">
               {hasChips && isChipRowShown ? (
                 <div className="pointer-events-auto animate-in bg-background pb-3 duration-150 fade-in-0">
-                  <div className="flex gap-1.5 overflow-x-auto mask-x-from-[calc(100%-0.75rem)] px-3 [scrollbar-width:none]">
+                  <div className="flex [scrollbar-width:none] gap-1.5 overflow-x-auto scroll-fade-x px-3">
                     {categories.map((category) => chip(category, true))}
                   </div>
                 </div>

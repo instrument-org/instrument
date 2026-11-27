@@ -195,7 +195,7 @@ export function FileVersionsButton({
           {isTooBig ? null : versions.length}
         </PopoverTrigger>
       </ToolbarTooltip>
-      <PopoverContent align="end" className="w-87 overflow-y-auto p-1">
+      <PopoverContent align="end" className="w-87 overflow-y-auto p-1 scroll-fade-none">
         {isTooBig ? (
           <p className="p-2 text-[13px]">
             Versions aren’t available for files this large.
@@ -497,7 +497,7 @@ function VersionModeRow({
             </span>
             <CaretDownIcon className="size-3 shrink-0 text-muted-foreground" />
           </PopoverTrigger>
-          <PopoverContent align="start" className="w-87 overflow-y-auto p-1">
+          <PopoverContent align="start" className="w-87 overflow-y-auto p-1 scroll-fade-none">
             <VersionsList
               history={history}
               onPick={(version) => {

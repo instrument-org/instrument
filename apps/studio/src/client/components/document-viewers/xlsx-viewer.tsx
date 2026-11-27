@@ -239,27 +239,29 @@ function XlsxWorkbook({
       </div>
 
       {controller.sheets.length > 1 && (
-        <div className="flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-t border-border/60 px-2 select-none">
-          {controller.sheets.map((sheet, index) => (
-            <button
-              aria-current={
-                controller.activeSheetIndex === index ? "true" : undefined
-              }
-              className={cn(
-                "shrink-0 rounded-md px-2 py-1 text-xs whitespace-nowrap",
-                controller.activeSheetIndex === index
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:bg-muted",
-              )}
-              key={sheet.name}
-              onClick={() => {
-                controller.setActiveSheetIndex(index);
-              }}
-              type="button"
-            >
-              {sheet.name}
-            </button>
-          ))}
+        <div className="shrink-0 border-t border-border/60">
+          <div className="flex h-9 items-center gap-1 overflow-x-auto scroll-fade-x px-2 select-none">
+            {controller.sheets.map((sheet, index) => (
+              <button
+                aria-current={
+                  controller.activeSheetIndex === index ? "true" : undefined
+                }
+                className={cn(
+                  "shrink-0 rounded-md px-2 py-1 text-xs whitespace-nowrap",
+                  controller.activeSheetIndex === index
+                    ? "bg-accent text-accent-foreground"
+                    : "text-muted-foreground hover:bg-muted",
+                )}
+                key={sheet.name}
+                onClick={() => {
+                  controller.setActiveSheetIndex(index);
+                }}
+                type="button"
+              >
+                {sheet.name}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </XlsxViewerProvider>

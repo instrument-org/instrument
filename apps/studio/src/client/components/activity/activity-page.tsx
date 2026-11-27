@@ -645,7 +645,7 @@ const ESTIMATED_HEIGHT = { action: 40, cards: 110, day: 44, turn: 40 };
 
 /** The rows' own scrollport. */
 const LIST_PANE =
-  "min-h-0 min-w-0 flex-1 overflow-y-auto px-4 @min-[640px]/activity:px-6";
+  "min-h-0 min-w-0 flex-1 overflow-y-auto scroll-fade-y px-4 @min-[640px]/activity:px-6";
 
 /** The part of the list's height its details take where they come up from the bottom. */
 const SHEET_HEIGHT = 0.55;

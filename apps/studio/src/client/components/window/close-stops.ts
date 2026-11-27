@@ -6,6 +6,7 @@ import {
 
 import { type Chat } from "./chats";
 import { type WindowTab } from "@/client/atoms/window";
+import { agentIdOf } from "./tab-history";
 import { chatOfTab } from "./tab-model";
 
 /**
@@ -78,7 +79,8 @@ export function chatsStoppedByPages(
             title: tab.title ?? "",
             url: tab.url ?? tab.openedUrl ?? "",
           },
-          tab: tab.id,
+          // As agents name it, which the note that the page closed says.
+          tab: agentIdOf(tab),
         },
       ];
     });

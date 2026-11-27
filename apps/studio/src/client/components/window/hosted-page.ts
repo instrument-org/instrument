@@ -21,6 +21,7 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { useWindow } from "./context";
 import { type PageHost, usePageHost } from "./page-hosts";
+import { agentIdOf } from "./tab-history";
 import { matchScreen } from "./window-href";
 import { useWindowTabs, windowTabsAtom } from "./window-tabs";
 
@@ -534,7 +535,8 @@ export function useKeepsHostedPage(tabId: string) {
 /**
  * The page an agent drives in a tab: a page tab's own, the page a tab on a
  * page's file already has, or, for one that has none yet, where to open it.
- * Nothing for any other screen.
+ * Nothing for any other screen. The agent names the tab by its own agent id
+ * whichever it is (`agentIdOf`); the page's id is only for driving it.
  */
 export function agentPageOfTab(
   tabs: readonly WindowTab[],
@@ -591,4 +593,28 @@ export function undrawnHostedStep(
   return step?.kind === "file" || step?.kind === "site"
     ? { owner, step }
     : undefined;
+}
+
+/**
+ * The tab an agent names by an id: the tab it names by that id
+ * (`agentIdOf`), else the tab with that id of its own, else, for the id of a
+ * page drawn inside a file tab, which an earlier build handed out for the
+ * file tab, that file tab. Pages drawn inside tabs are never named
+ * themselves.
+ */
+export function agentNamedTab(
+  tabs: readonly WindowTab[],
+  id: string,
+): undefined | WindowTab {
+  const listed = tabs.filter(
+    (tab) => ownerOfHostGroup(tab.group) === undefined,
+  );
+  const named =
+    listed.find((tab) => agentIdOf(tab) === id) ??
+    listed.find((tab) => tab.id === id);
+  if (named) {
+    return named;
+  }
+  const owner = ownerOfHostGroup(tabs.find((tab) => tab.id === id)?.group);
+  return owner === undefined ? undefined : tabs.find((tab) => tab.id === owner);
 }

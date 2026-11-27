@@ -491,7 +491,7 @@ export function GroupItem({
       >
         <div className="relative h-full">
           <div className="h-full" data-keyboard-home ref={onPageHost} />
-          {!before && <PageAgentOverlay askingChat={chatId} tabId={up.id} />}
+          {!before && <PageAgentOverlay askingChat={chatId} tab={up} />}
         </div>
       </Bare>
     );

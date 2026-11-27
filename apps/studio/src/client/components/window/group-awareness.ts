@@ -9,9 +9,9 @@ import {
 } from "@instrument-org/workspace/client";
 
 import { computerTabOf } from "./file-tabs";
-import { agentPageOfTab } from "./hosted-page";
 import { joinHostPath } from "./host-path";
 import { type ScreenNames } from "./screen-presentation";
+import { agentIdOf } from "./tab-history";
 import { tabTitle } from "./tab-title";
 import { matchScreen } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
@@ -54,9 +54,9 @@ export function groupReadOf(
   const movedOut: Record<string, string> = {};
   for (const tab of window.windowTabs.allTabs) {
     if (tab.group === group && tab.movedFrom !== undefined) {
-      movedIn[tab.id] = tab.movedFrom;
+      movedIn[agentIdOf(tab)] = tab.movedFrom;
     } else if (tab.group !== undefined && tab.movedFrom === group) {
-      movedOut[tab.id] = tab.group;
+      movedOut[agentIdOf(tab)] = tab.group;
     }
   }
   return {
@@ -92,39 +92,35 @@ export function groupLayoutFor(
   };
 }
 
-/** One tab as the agent reads it: what it is, what it is called, and where. */
+/**
+ * One tab as the agent reads it: what it is, what it is called, and where,
+ * by the one id it has for its whole life (`agentIdOf`).
+ */
 export function describedTab(
-  { names, windowTabs }: GroupAwarenessWindow,
+  { names }: GroupAwarenessWindow,
   tab: WindowTab,
 ): LayoutTab {
   const title = tabTitle(tab, names);
+  const id = agentIdOf(tab);
   if (tab.kind === "page") {
     const filePath = hostPathOfFileUrl(tab.url);
     return filePath === undefined
       ? {
           address: tab.url ?? "about:blank",
-          id: tab.id,
+          id,
           kind: "website",
           title,
         }
-      : { address: filePath, id: tab.id, kind: "file", title };
+      : { address: filePath, id, kind: "file", title };
   }
   const computer = computerTabOf(tab.href);
   if (computer?.file !== undefined) {
-    // A tab on a page's file goes by its page's id, the one agent-browser
-    // drives, once it has a page.
-    const page = agentPageOfTab(windowTabs.allTabs, tab);
-    return {
-      address: computer.file,
-      id: page !== undefined && "id" in page ? page.id : tab.id,
-      kind: "file",
-      title,
-    };
+    return { address: computer.file, id, kind: "file", title };
   }
   if (computer) {
     return {
       address: joinHostPath(computer.root, computer.path),
-      id: tab.id,
+      id,
       kind: "folder",
       title,
     };
@@ -133,7 +129,7 @@ export function describedTab(
   if (screen.kind === "inbox") {
     return {
       address: "instrument://new-chat",
-      id: tab.id,
+      id,
       kind: "newChat",
       title,
     };
@@ -141,14 +137,14 @@ export function describedTab(
   if (screen.kind === "chat") {
     return {
       address: chatAddressOf(screen.chat),
-      id: tab.id,
+      id,
       kind: "chat",
       title,
     };
   }
   return {
     address: builtInAddress(tab.href),
-    id: tab.id,
+    id,
     kind: "builtIn",
     title,
   };

@@ -17,6 +17,7 @@ import { tabInView } from "./draft-context";
 import { computerTabOf, reachablePath } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { type ScreenNames, screenIdentity } from "./screen-presentation";
+import { agentIdOf } from "./tab-history";
 import { tabTitle } from "./tab-title";
 import { chatOfTab, draftOfTab, isFreshTab, isNewChatTab } from "./tab-model";
 import { type TabSurface } from "./tab-surface";
@@ -93,10 +94,14 @@ export function contextReaders({
     listed.map((tab) => {
       const title = tabTitle(tab, names);
       if (tab.kind !== "page") {
-        return { at: tab.href, id: tab.id, title };
+        return { at: tab.href, id: agentIdOf(tab), title };
       }
       const filePath = hostPathOfFileUrl(tab.url);
-      return { at: filePath ?? tab.url ?? "about:blank", id: tab.id, title };
+      return {
+        at: filePath ?? tab.url ?? "about:blank",
+        id: agentIdOf(tab),
+        title,
+      };
     });
   /** How the conversation reaches a file on this computer: its name, its path, and the mount it is under when a granted folder covers it. */
   const fileOf = (filePath: string) => {
@@ -163,9 +168,9 @@ export function contextReaders({
             return {
               ...words,
               ...(owned
-                ? { tab: tab.id }
+                ? { tab: agentIdOf(tab) }
                 : tab.group === undefined || isSiteGroup(tab.group)
-                  ? { tab: tab.id, theirs: true }
+                  ? { tab: agentIdOf(tab), theirs: true }
                   : {}),
               ...(ownTabs.length > 0 ? { tabs: ownTabs } : {}),
             };

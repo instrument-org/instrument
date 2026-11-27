@@ -170,6 +170,15 @@ vi.mock("@/client/rpc/client", () => ({
       },
     },
     workspace: {
+      // A page's file gives no title of its own here.
+      computer: {
+        titles: {
+          queryOptions: ({ input }: { input: unknown }) => ({
+            queryFn: async () => ({}),
+            queryKey: ["titles", input],
+          }),
+        },
+      },
       chats: {
         live: {
           tasks: {
@@ -731,15 +740,13 @@ describe("an agent and the window's other tab groups", () => {
         .filter((tab) => tab.side === 1)
         .map((tab) => `${tab.id} ${tab.kind}`);
 
+    // The tab goes by the one id it had throughout.
     expect(
       await answerTo({ direction: "back", kind: "step", tabId: page }, "s1"),
-    ).toEqual({ requestId: "s1", stepped: "tab", tabId: "tab_apps" });
+    ).toEqual({ requestId: "s1", stepped: "tab", tabId: page });
     expect(tabs()).toEqual([`${RIGHT_UP} page`, "tab_apps screen"]);
     expect(
-      await answerTo(
-        { direction: "forward", kind: "step", tabId: "tab_apps" },
-        "s2",
-      ),
+      await answerTo({ direction: "forward", kind: "step", tabId: page }, "s2"),
     ).toEqual({ requestId: "s2", stepped: "tab", tabId: page });
     expect(tabs()).toEqual([`${RIGHT_UP} page`, `${page} page`]);
     expect(
@@ -1820,17 +1827,20 @@ describe("an agent naming a tab on an HTML file", () => {
   it("keeps a page tab's id as its page lands on an HTML file", async () => {
     const { result } = windowWithPages();
     const before = await read("b1");
+    const file = StoreId.newTabId();
     act(() => {
       result.current.change("pageBecomesFile", {
-        file: { href: fileHref(REPORT), id: StoreId.newTabId() },
-        hostGroup: "page:made",
+        file: { href: fileHref(REPORT), id: file },
+        hostGroup: hostGroupOf(file),
         page: OTHER_BEHIND,
       });
     });
     const after = await read("b2");
-    expect(after.read?.layout).toEqual(before.read?.layout);
-    expect(after.pages?.map(({ id }) => id)).toEqual(
-      before.pages?.map(({ id }) => id),
-    );
+    const ids = (listed: typeof before) =>
+      listed.read?.layout.sides.map((side) => side.tabs.map((tab) => tab.id));
+    expect(ids(after)).toEqual(ids(before));
+    const pages = (listed: typeof before) =>
+      listed.pages?.map(({ id, targetId }) => ({ id, targetId }));
+    expect(pages(after)).toEqual(pages(before));
   });
 });

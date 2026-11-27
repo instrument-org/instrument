@@ -242,7 +242,14 @@ export const WindowTabAnswerSchema = z.object({
   requestId: z.string(),
   /** For a step: whether the page stepped through its own history, which lands after the answer, or the tab moved to another page or screen. */
   stepped: z.enum(["page", "tab"]).optional(),
+  /** The tab acted on or made, by the id agents name it by for its whole life. */
   tabId: z.string().optional(),
+  /**
+   * The page an agent drives in that tab, by the page's own id, which a
+   * page's browser view and its CDP target go by: a page tab's own, or the
+   * page a tab on an HTML file draws. Never told to an agent.
+   */
+  targetId: z.string().optional(),
   /** For a list: the group as the chat reads it, the shape of its log's layout part. */
   read: LayoutReadSchema.optional(),
   /**
@@ -259,9 +266,20 @@ export const WindowTabAnswerSchema = z.object({
       }),
     )
     .optional(),
-  /** For a list: the group's page tabs, each with the address its page shows. */
+  /**
+   * For a list: the group's page tabs, a tab on an HTML file among them,
+   * each with the address its page shows: by the id agents name the tab by,
+   * and its page's own id (`targetId`, the same id for most page tabs).
+   */
   pages: z
-    .array(z.object({ id: z.string(), title: z.string(), url: z.string() }))
+    .array(
+      z.object({
+        id: z.string(),
+        targetId: z.string().optional(),
+        title: z.string(),
+        url: z.string(),
+      }),
+    )
     .optional(),
   /** For a look: what the window draws where. */
   look: WindowLookSchema.optional(),

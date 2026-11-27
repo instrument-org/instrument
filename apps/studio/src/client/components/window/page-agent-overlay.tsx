@@ -12,6 +12,9 @@ import { CursorClickIcon } from "@phosphor-icons/react/CursorClick";
 import { HandIcon } from "@phosphor-icons/react/Hand";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { type WindowTab } from "@/client/atoms/window";
+
+import { agentIdOf } from "./tab-history";
 
 /**
  * What a chat's page says about the agent over the page itself: while the
@@ -22,18 +25,19 @@ import { useMutation, useQuery } from "@tanstack/react-query";
  */
 export function PageAgentOverlay({
   askingChat,
-  tabId,
+  tab,
 }: {
   /** The chat that may be waiting on the person in the page: the one that opened it, else the chat up in its group. */
   askingChat: ChatId | undefined;
-  tabId: string;
+  /** The page's tab: its own id is the page's, and agents name it by its agent id. */
+  tab: WindowTab;
 }) {
-  const target = browserTargetOf(tabId);
+  const target = browserTargetOf(tab.id);
   // The chat whose running turn used the page, which Take over stops.
   const usingChat = useTargetsAgentActivity([target]).get(target);
   const asker = askingChat ?? usingChat;
   return asker === undefined ? null : (
-    <Overlay asker={asker} tabId={tabId} usingChat={usingChat} />
+    <Overlay asker={asker} tabId={agentIdOf(tab)} usingChat={usingChat} />
   );
 }
 
@@ -43,6 +47,7 @@ function Overlay({
   usingChat,
 }: {
   asker: ChatId;
+  /** The page's tab, by the id agents name it by, which a wait and a take over name it by too. */
   tabId: string;
   usingChat: ChatId | undefined;
 }) {

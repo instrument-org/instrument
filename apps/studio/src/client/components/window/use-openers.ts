@@ -59,7 +59,7 @@ import {
   type PlacementContext,
   screenPlacementOf,
 } from "./placement";
-import { visitInTab } from "./tab-history";
+import { agentIdOf, visitInTab } from "./tab-history";
 import { stepTabNow } from "./use-tab-steps";
 import { taskHref, tasksOfHref } from "./tab-location";
 import { readTasksOf } from "./child-tasks-query";
@@ -79,7 +79,7 @@ import {
   chatSessionOfHref,
   matchScreen,
 } from "./window-href";
-import { newScreenId, type useWindowTabs } from "./window-tabs";
+import { newScreenId, type useWindowTabs, windowTabsAtom } from "./window-tabs";
 import {
   agentChatTabOf,
   noTabAt,
@@ -117,7 +117,7 @@ import { readWindowLook, windowDraws } from "./window-look";
 import { windowTabGroupsAtom } from "./open-groups";
 import { listedWith } from "./tab-groups";
 import { openLinkAddress, setLinkedShower } from "./open-link-address";
-import { agentPageOfTab, pageFileOfTab } from "./hosted-page";
+import { agentNamedTab, agentPageOfTab, pageFileOfTab } from "./hosted-page";
 
 /**
  * How long an agent's ask holds back the ones after it, which otherwise are
@@ -854,7 +854,7 @@ export function useOpeners({
   const showTabWhereItIs = (tabId: string): { error?: string } => {
     // A file tab's page names the file tab.
     const named =
-      windowTabs.allTabs.find((entry) => entry.id === tabId) ??
+      agentNamedTab(windowTabs.allTabs, tabId) ??
       windowTabs.allTabs.find((entry) => isTabNamed(entry, tabId));
     const owner = ownerOfHostGroup(named?.group);
     const tab =
@@ -913,7 +913,7 @@ export function useOpeners({
     group: string,
     target: Extract<WindowTabRequest["action"], { kind: "open" }>["target"],
     chat: ChatId | undefined,
-  ): Promise<Omit<WindowTabAnswer, "requestId">> => {
+  ): Promise<ActAnswer> => {
     if (!windowTabs.allTabs.some((tab) => tab.group === group)) {
       return { error: `no tab group ${group} is open.` };
     }
@@ -936,7 +936,7 @@ export function useOpeners({
           });
       return id === undefined
         ? { error: "the window did not open a tab." }
-        : { behind: isOnScreen, tabId: id };
+        : { behind: isOnScreen, made: id, ...agentAnswerOf(id, id) };
     }
     const href =
       target.kind === "app"
@@ -957,7 +957,8 @@ export function useOpeners({
     );
     return {
       behind: isOnScreen,
-      tabId: agentPageOf({ group, href, id, kind: "screen" }) ?? id,
+      made: id,
+      ...agentAnswerOf(id, agentPageOf({ group, href, id, kind: "screen" })),
     };
   };
   /**
@@ -1056,7 +1057,7 @@ export function useOpeners({
         const named = tab.kind === "screen" ? tasksOfHref(tab.href) : undefined;
         return named?.chat === undefined
           ? []
-          : [[tab.id, { chat: named.chat, task: named.task }] as const];
+          : [[agentIdOf(tab), { chat: named.chat, task: named.task }] as const];
       }),
     );
     const [[, windows], [, pageMarks], tasks] = await Promise.all([
@@ -1067,8 +1068,13 @@ export function useOpeners({
         [...taskTabs.values()].map(({ chat }) => chat),
       ),
     ]);
+    /** A tab's marks, by the id the agent reads it by; a page's, by the page the tab draws. */
     const markOf = (id: string): PageMark | undefined => {
-      const target = parseBrowserTargetId(id);
+      const tab = agentNamedTab(windowTabs.allTabs, id);
+      const page = tab && agentPageOfTab(windowTabs.allTabs, tab);
+      const target = parseBrowserTargetId(
+        page !== undefined && "id" in page ? page.id : id,
+      );
       const using = pageMarks?.using.find((each) => each.targetId === target);
       const failed = pageMarks?.unreached.some((each) => each === target);
       const named = taskTabs.get(id);
@@ -1114,7 +1120,9 @@ export function useOpeners({
         windowTabs.allTabs.flatMap((tab) => {
           const draft = tab.group === group ? draftOfTab(tab) : undefined;
           const words = drafts.find((each) => each.id === draft)?.words ?? "";
-          return words.trim() === "" ? [] : [[tab.id, draftTitle(words)]];
+          return words.trim() === ""
+            ? []
+            : [[agentIdOf(tab), draftTitle(words)]];
         }),
       );
     const heldIn = (group: string) => windowTabs.groupOwn[group]?.lead;
@@ -1188,13 +1196,24 @@ export function useOpeners({
       : browser?.openOrFocus(page.open.url, { group: page.open.group });
   };
 
-  /** The tab an agent names by its id; a file tab's page names the file tab, which every action takes. */
-  const namedTab = (id: string): undefined | WindowTab => {
-    const named = windowTabs.allTabs.find((entry) => entry.id === id);
-    const owner = ownerOfHostGroup(named?.group);
-    return owner === undefined
-      ? named
-      : windowTabs.allTabs.find((entry) => entry.id === owner);
+  /** The tab an agent names by its id (`agentNamedTab`), which every action takes. */
+  const namedTab = (id: string): undefined | WindowTab =>
+    agentNamedTab(windowTabs.allTabs, id);
+
+  /**
+   * What an answer names a tab by, from the tab's own id as the window has
+   * it now: the id agents know it by, and the page an agent drives in it,
+   * by the page's id, where it has one.
+   */
+  const agentAnswerOf = (
+    id: string,
+    page: string | undefined,
+  ): Pick<WindowTabAnswer, "tabId" | "targetId"> => {
+    const tab = store.get(windowTabsAtom).tabs.find((entry) => entry.id === id);
+    return {
+      tabId: tab === undefined ? id : agentIdOf(tab),
+      ...(page === undefined ? {} : { targetId: page }),
+    };
   };
 
   /**
@@ -1220,11 +1239,13 @@ export function useOpeners({
     }
     if (anchor !== undefined && ids.includes(anchor.id)) {
       return {
-        error: `${anchor.id} is one of the tabs to move; name another to put them beside.`,
+        error: `${agentIdOf(anchor)} is one of the tabs to move; name another to put them beside.`,
       };
     }
     if (group !== undefined && anchor !== undefined && anchor.group !== group) {
-      return { error: `tab ${anchor.id} is not in the tab group ${group}.` };
+      return {
+        error: `tab ${agentIdOf(anchor)} is not in the tab group ${group}.`,
+      };
     }
     const into =
       group ??
@@ -1292,7 +1313,7 @@ export function useOpeners({
   const act = async ({
     action,
     chatId: chat,
-  }: WindowTabRequest): Promise<Omit<WindowTabAnswer, "requestId">> => {
+  }: WindowTabRequest): Promise<ActAnswer> => {
     if (action.kind === "open") {
       const { target } = action;
       if (target.kind === "page" && action.show && target.url === undefined) {
@@ -1316,7 +1337,11 @@ export function useOpeners({
           openedBy: chat,
         });
         return opened
-          ? { behind: !opened.front, tabId: opened.id }
+          ? {
+              behind: !opened.front,
+              made: opened.id,
+              ...agentAnswerOf(opened.id, opened.id),
+            }
           : { error: "the window did not open a tab." };
       }
       const href =
@@ -1336,13 +1361,16 @@ export function useOpeners({
         isShown: action.show,
         openedBy: chat,
       });
-      // A page's file is named by its page, which an agent drives as it
-      // drives any page tab.
+      // A page's file has its page opened at once, for an agent to drive
+      // as it drives any page tab.
       return opened
         ? {
             behind: !opened.front,
-            tabId:
-              agentPageOf({ href, id: opened.id, kind: "screen" }) ?? opened.id,
+            made: opened.id,
+            ...agentAnswerOf(
+              opened.id,
+              agentPageOf({ href, id: opened.id, kind: "screen" }),
+            ),
           }
         : { error: "the window did not open a tab." };
     }
@@ -1362,7 +1390,7 @@ export function useOpeners({
               openedBy: chat,
             });
       return opened
-        ? { behind: !opened.front, tabId: opened.id }
+        ? { behind: !opened.front, ...agentAnswerOf(opened.id, undefined) }
         : { error: "the window did not open a tab." };
     }
     if (action.kind === "adopt") {
@@ -1381,7 +1409,7 @@ export function useOpeners({
         isShown: false,
         openedBy: chat,
       });
-      return { tabId: id.data };
+      return { made: id.data, ...agentAnswerOf(id.data, id.data) };
     }
     if (action.kind === "showGroup") {
       return showWholeGroup(action.group);
@@ -1548,8 +1576,9 @@ export function useOpeners({
       }
       return {
         windows,
-        // A tab on a page's file is listed as its page, by the page's id,
-        // so the tab an agent drives is the one the person sees.
+        // A tab on a page's file is listed with its page, by the tab's own
+        // agent id and the page's id it is driven by, so the tab an agent
+        // drives is the one the person sees.
         pages: windowTabs.allTabs.flatMap((entry) => {
           if (entry.group !== group) {
             return [];
@@ -1561,7 +1590,8 @@ export function useOpeners({
             ? []
             : [
                 {
-                  id: pageId,
+                  id: agentIdOf(entry),
+                  targetId: pageId,
                   title: (page?.kind === "page" && page.title) || "",
                   url:
                     (page?.kind === "page" && page.url) ||
@@ -1583,12 +1613,12 @@ export function useOpeners({
     switch (action.kind) {
       case "close": {
         closeTab(tab.id);
-        return { tabId: action.tabId };
+        return { tabId: agentIdOf(tab) };
       }
       case "replace": {
         if (isChatTab(tab)) {
           return {
-            error: `tab ${tab.id} is a chat, which stays as it is; open the page in a tab of its own.`,
+            error: `tab ${agentIdOf(tab)} is a chat, which stays as it is; open the page in a tab of its own.`,
           };
         }
         const { target } = action;
@@ -1598,9 +1628,12 @@ export function useOpeners({
           }
           if (tab.kind === "page") {
             browser?.navigateTab(tab.id, target.url);
-            return { tabId: tab.id };
+            return agentAnswerOf(tab.id, tab.id);
           }
-          return { tabId: browser?.pageInPlaceOf(tab, target.url) };
+          const page = browser?.pageInPlaceOf(tab, target.url);
+          return page === undefined
+            ? {}
+            : { made: page, ...agentAnswerOf(page, page) };
         }
         const href =
           target.kind === "app"
@@ -1620,40 +1653,45 @@ export function useOpeners({
           kind: "screen",
         });
         windowTabs.replace(tab.id, next);
-        return { tabId: agentPageOf(next) ?? next.id };
+        return {
+          made: next.id,
+          tabId: agentIdOf(next),
+          ...withTarget(agentPageOf(next)),
+        };
       }
       case "read": {
         const pageId = agentPageOf(tab);
+        const named = agentIdOf(tab);
         if (pageId === undefined) {
           return {
-            error: `tab ${tab.id} is not a page; read what it shows by its path.`,
+            error: `tab ${named} is not a page; read what it shows by its path.`,
           };
         }
         const text = await browser?.readPageText(pageId);
         return text === undefined
           ? {
-              error: `tab ${pageId} has no page loaded to read; \`instrument window show ${pageId}\` loads it.`,
+              error: `tab ${named} has no page loaded to read; \`instrument window show ${named}\` loads it.`,
             }
-          : { tabId: pageId, text };
+          : { tabId: named, targetId: pageId, text };
       }
       case "restore": {
         const pageId = agentPageOf(tab);
         return pageId !== undefined && browser?.restore(pageId)
-          ? { tabId: pageId }
+          ? { tabId: agentIdOf(tab), targetId: pageId }
           : { error: `tab ${action.tabId} is not a page.` };
       }
       case "show": {
         // Up on its side of its group, and the group on screen when the
         // window shows another; which side has the keyboard stays.
         const shown = showTabWhereItIs(tab.id);
-        return shown.error === undefined ? { tabId: action.tabId } : shown;
+        return shown.error === undefined ? { tabId: agentIdOf(tab) } : shown;
       }
       case "step": {
         const stepped = stepTabNow(windowTabs, tab, action.direction);
         if (stepped !== undefined) {
           return {
             stepped: stepped.layer === "guest" ? "page" : "tab",
-            tabId: stepped.tab.id,
+            tabId: agentIdOf(stepped.tab),
           };
         }
         const opener =
@@ -1662,8 +1700,8 @@ export function useOpeners({
             : undefined;
         return {
           error: opener
-            ? `tab ${tab.id} is at its start; a link in tab ${opener.id} opened it, and closing it (\`instrument window close ${tab.id}\`) returns there.`
-            : `tab ${tab.id} has nothing to go ${action.direction} to.`,
+            ? `tab ${agentIdOf(tab)} is at its start; a link in tab ${agentIdOf(opener)} opened it, and closing it (\`instrument window close ${agentIdOf(tab)}\`) returns there.`
+            : `tab ${agentIdOf(tab)} has nothing to go ${action.direction} to.`,
         };
       }
     }
@@ -1676,14 +1714,9 @@ export function useOpeners({
   const actOnTab = async (
     request: WindowTabRequest,
   ): Promise<Omit<WindowTabAnswer, "requestId">> => {
-    const answer = await act(request);
-    const { action, chatId: chat } = request;
-    const made =
-      action.kind === "open" ||
-      action.kind === "adopt" ||
-      (action.kind === "replace" && answer.tabId !== action.tabId);
-    if (made && chat !== undefined && answer.tabId !== undefined) {
-      windowTabs.markOpenedBy(answer.tabId, chat);
+    const { made, ...answer } = await act(request);
+    if (made !== undefined && request.chatId !== undefined) {
+      windowTabs.markOpenedBy(made, request.chatId);
     }
     return answer;
   };
@@ -1907,6 +1940,18 @@ export function useOpeners({
       openScreen(href, reuseBlankOf(options ?? {}, placing));
     },
   });
+}
+
+/**
+ * The window's answer to an agent's ask, with the tab it made, by the tab's
+ * own id, for the ask's chat to be marked as having opened it: one opened or
+ * adopted, or one that took another's place.
+ */
+type ActAnswer = Omit<WindowTabAnswer, "requestId"> & { made?: string };
+
+/** An answer's page an agent drives, by the page's id, where there is one. */
+function withTarget(page: string | undefined) {
+  return page === undefined ? {} : { targetId: page };
 }
 
 /** Where a place History lists is, as the agent names it: a page's URL, a file's or folder's path, an app address. */

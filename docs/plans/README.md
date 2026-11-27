@@ -75,7 +75,6 @@ Each entry is the plan's title and the opening of its status.
 - [Tab groups prototype](tab-groups-prototype.md): open
 - [One owner for every tab](tab-service.md): The back history of a discarded page, the table of where opens land, and keeping a page a person entered something into are done.
 - [Testing the Instrument folder](testing-the-instrument-folder.md): Under way.
-- [Virtualize the transcript](transcript-virtualization.md): Not started (checked 2026-11-26).
 - [Two sides prototype](two-sides-prototype.md): open
 - [Notices behind a bell in the window bar](window-notices.md): The bell is built (`NotificationsBell` in `WindowCorner`): problem reports (`4f94e0d72`), notices from the API (`1f62dc2af`), an update's result, a sandbox t...
 - [Windows sandbox: MXC behind `wrapNativeCommand`](windows-sandbox-mxc.md): Active.
@@ -151,6 +150,7 @@ Each entry is the plan's title and the opening of its status.
 - [Rename threads to chats](threads-to-chats-rename.md): Landed.
 - [Bound tool results before they consume the context window](tool-result-context-budgets.md): Complete, two phases of three.
 - [Rename topics to projects](topics-to-projects-rename.md): Landed in one change.
+- [Virtualize the transcript](transcript-virtualization.md): Built 2026-11-27 (checked then): far turns are boxes of their last height (`FarRows`, far-rows.ts), measured on the `long-work-chat` fixture with `perf-long-...
 - [Make the prompt editor uncontrolled](uncontrolled-prompt-editor.md): Done.
 - [One navigation model per window tab](window-tab-model.md): Done, except as below.
 

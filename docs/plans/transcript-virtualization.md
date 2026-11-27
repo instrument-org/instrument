@@ -1,6 +1,6 @@
 # Plan: virtualize the transcript
 
-Status: open. Not started (checked 2026-11-26). Phase 0's tail-first rendering is gone: a chat now opens on its last 20 turns from the server (`lastTurnsOf`) and loads older pages as the reader nears the top. The per-update render cost raised alongside this plan (every loaded turn redrawing per streamed token or draft write) is fixed without it (the commits "keep earlier turns' separators and file maps while a reply streams" and "hold a chat's transcript props steady while it streams and settles"); phases 1 and 2 below are not built.
+Status: done. Built 2026-11-27 (checked then): far turns are boxes of their last height (`FarRows`, [far-rows.ts](../../apps/studio/src/client/components/ui/scroll-owner/far-rows.ts)), measured on the `long-work-chat` fixture with `perf-long-transcript.mjs`. Where the build differs from the plan below is under [As built](#as-built).
 
 ## Why, and what is left to win
 
@@ -43,6 +43,53 @@ Exit: scrolling top to bottom and back shows no jumps at 0.75x, 1x and 1.5x zoom
 - **What else reads rows from the DOM.** The developer notes layer anchors each note with CSS anchor positioning on `data-transcript-row` (a note for a placeholder is not drawn until it mounts); quote selection and copy work on a DOM selection (a drag across placeholders copies them as nothing, as Select All does in any virtualized reader); `use-hash-link-scroll` finds a heading by id (route a link into a placeholder through its message id).
 - **State a turn keeps itself.** A turn's Worked row open state is `useState` in `TurnBody`; anything like it is lost when the turn becomes a placeholder. Lift what a reader would notice losing above the rows, the way `FoldsOpenedByFind` is.
 - **Tests.** jsdom has no layout, observers or sizes, so which turns are mounted and where the view lands belong in `*.browser.test.tsx`.
+
+## As built
+
+### Numbers
+
+`long-work-chat` (300 turns of tool work, tables, code and file cards), `perf-long-transcript.mjs` in a dev build, counts first. Before is the build without boxes, after the one with them.
+
+| Phase | DOM nodes (transcript) | Heap | Fibers per commit | Long frames |
+| --- | --- | --- | --- | --- |
+| Open (last 20 turns) | 2,805 → 736 | 228 → 214 MB | 289 → 273 | 1 → 1 |
+| Wheeled to the top (300 turns) | 42,844 → 2,086 | 496 → 234 MB | 1,041 → 222 | 15 (6.1 s) → 14 (2.4 s) |
+| Streaming a reply, followed at the end | 42,910 → 1,624 | 500 → 232 MB | 203 → 16 | 61 (14.4 s) → 5 (0.4 s) |
+| Streaming a reply, read from above | 42,956 → 1,670 | 498 → 233 MB | 190 → 16 | 63 (14.8 s) → 3 (0.3 s) |
+
+Timed again with each build's app pinned to the efficiency cores (`taskpolicy -c background`), without the zoom walk, long frames as count, total and worst:
+
+| Phase | Before | After |
+| --- | --- | --- |
+| Wheeled to the top | 356, 82.6 s (20.3 s blocking), worst 4.6 s | 599, 123.1 s (17.9 s blocking), worst 0.9 s |
+| Streaming, followed at the end | 26, 21.6 s (19.6 s blocking), worst 2.5 s | 83, 16.3 s (4.1 s blocking), worst 0.26 s |
+| Streaming, read from above | 621, 152.9 s (34.3 s blocking), worst 14.8 s | 77, 15.1 s (3.5 s blocking), worst 0.26 s |
+
+Scrolling all the way back costs more in all on slow cores, since every page still mounts whole before its far turns box and each turn draws again as the reader passes it, but no frame there blocks for long.
+
+Both builds: no step in the probe's walk down to the end and back (587, 407 and 1,164 steps at 1x, 0.75x and 1.5x) left the row in the middle of the view off where the step put it, and the debug page's trace counted no unasked move while either reply streamed. Wheeling to the top took 13 nudges down before (each page loaded at a scroll position of 0 pushed the reader down by its height, and the loader stayed in view) and none after. Scrolling a long way back now commits more often (each turn coming near is drawn, each going far is boxed), with smaller commits and no long frame while stepping.
+
+### What was taken from where
+
+- **TanStack Virtual** (`virtual-core`): heights from the `ResizeObserver` entry's box sizes, never a rect, and a size cache that outlives the row (here the row never unmounts, so its height stays on it). Not taken: its own scroll corrections, which the browser's anchoring does here.
+- **opencode's timeline virtualizer**: the find order. Search the data (`message.find`), bring the row into view, then find the range in what was drawn and refine there. Also its lesson that heights read under zoom must be layout px.
+- **t3code with `@legendapp/list`**: keeping the first and last rows always drawn (`alwaysRender`) became `keepDrawn` on the last turn and the card's; its minimap reading row positions by index became `FarRows.places()`. Not taken: `maintainVisibleContentPosition` with `overflow-anchor: none`, which legend-list forces because Chrome's anchoring would correct a second time.
+- **VS Code's chat list**: heights cached per element outside the row, and a prompt rail that places unmeasured turns from estimates, the precedent for a table of contents reading `places()`.
+- **bb's timeline**: in-flow spacers with remembered heights, the closest shape to boxes. bb turns anchoring off and keeps the position itself; here anchoring stays on, which is safe because `ScrollOwner` writes whole positions, never size deltas, so the two never correct the same change.
+
+### Where it differs from the plan
+
+- **A turn is boxed whole.** Its opener row and its body row go far and come back together (`turnId` on both items), so a turn never shows its question without its answer.
+- **The band has two edges.** Drawn within two viewport heights, a box only past three: one edge would box and draw a row at the edge on every small scroll.
+- **The box is a child of the row.** The row keeps its own style and holds one empty `div` as tall as its content was; Chrome stops anchoring for a layout in which the anchor node's own style changed, and a jump to a box landed 21 px off when the box was the row's own height.
+- **A jump to a box needs no correction from the owner.** `scrollToMessage` lands on the row, the row draws as it comes near, and anchoring keeps it where it landed while the rows above draw at their new heights.
+- **The owner keeps the place at the very top.** Chrome anchors nothing at a scroll position of 0, so a page of older turns loading there pushed the reader down by its height. The owner notes the first message row and its top while the view is at the very top, and puts that row back where it was once rows are added above it, the loader going with the last page included (`keepPlaceAtTop`).
+- **The reader's open controls are lifted** (`KeptOpen`, by turn): the Worked row, activity and step rows, a long bubble and a long code block (by its language and first line, which stay put while it streams) open as they were left when a turn is drawn again. A code block's line wrapping is not lifted, and comes back as the reader's setting has it.
+- **The log reads out only the turns kept drawn.** The column is `role="log"`; rows of any other turn carry `aria-live="off"`, so a turn drawn again, or a page of older ones, is not read out as news.
+- **An open menu holds a turn; an open disclosure does not.** Only a popup's button (`aria-haspopup` with `aria-expanded="true"`) keeps its turn drawn.
+- **A chat out of sight is not kept.** Chat screens are drawn afresh each time they come up ([kept-screens.ts](../../apps/studio/src/client/components/window/kept-screens.ts)), so switching tabs unmounts the transcript; the freeze while hidden (`setShown`) covers a transcript kept drawn behind the window's tab up.
+- **A link into a box is not routed.** `use-hash-link-scroll` finds headings in its own drawn message, so a fragment never names a boxed turn.
+- **Width changes leave boxes at their old heights** until each draws again, and anchoring absorbs the difference as it does. A zoom change makes the column longer or shorter than it will be (19,000 px longer at 1x after boxes taken at 1.5x on the fixture) until the reader has passed through it.
 
 ## Not in this plan
 

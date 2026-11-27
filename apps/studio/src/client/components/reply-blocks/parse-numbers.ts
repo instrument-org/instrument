@@ -38,6 +38,11 @@ const FIGURE =
 // and `− $45` are `−$1,240` and `−$45`.
 const NEGATIVE_SIGN = /^[-−]\s*(?=[$€£¥\d.])/u;
 
+// A figure leading words that say more about it, with a unit of its own or
+// none: `$475,700 over 30 years` is `$475,700` and the note "over 30 years".
+const FIGURE_THEN_WORDS =
+  /^(?<figure>[-−+]?[$€£¥₹]?\d[\d,]*(?:\.\d+)?(?:%|k|K|M|B|bn)?(?:\s(?:kWh|kW|kg|lb|km|mi|mm|cm|m|h|hr|hrs|min|GB|MB|TB))?)\s+(?<words>\p{L}.*)$/u;
+
 /**
  * Reads a numbers block: one figure per line. A line that is not one is kept
  * in order, to be drawn as Markdown under the figures.
@@ -58,11 +63,19 @@ export function parseNumbers(body: string): {
       rest.push(line);
       continue;
     }
-    const note = groups.note ?? groups.dash;
-    const value = groups.value
+    let note = groups.note ?? groups.dash;
+    let value = groups.value
       .replace(/^(\*\*|__)(.*)\1$/, "$2")
       .trim()
       .replace(NEGATIVE_SIGN, "−");
+    const split =
+      note === undefined && isWordsValue(value)
+        ? FIGURE_THEN_WORDS.exec(value)?.groups
+        : undefined;
+    if (split?.figure && split.words) {
+      value = split.figure;
+      note = split.words;
+    }
     figures.push({
       label: groups.label.trim(),
       value,

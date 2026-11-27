@@ -867,6 +867,12 @@ body {
     font-size: 0.875em;
   }
 
+  /* The quoted words' own bottom margin would otherwise win over the
+     source's smaller one, and set the source a paragraph away from them. */
+  blockquote:not(:where(.not-prose *)) > p:has(+ p[data-quote-source]) {
+    margin-bottom: 0;
+  }
+
   /* A quote, a list and its items have no padding above or below, so the
      margins of what they open or close with collapse straight through them.
      Typography zeroes only the outer margin of the block that opens or closes
@@ -3089,9 +3095,11 @@ span[data-unbroken] > * {
   }
 }
 
-/* An options table marks its pick with a faint tint across the row. The
-   outer cells take a little room inside their edges, on every row, so the
-   tint has some around the words and the columns stay in line. */
+/* An options table marks its pick with a faint tint across the row, rounded
+   at its ends. The outer cells take a little room inside their edges, on
+   every row, so the tint has some around the words and the columns stay in
+   line. The rules above and below the pick give way to it, since a straight
+   rule against a rounded corner leaves a notch at each end. */
 .markdown-table-frame > table[data-stack="options"] {
   --pick-tint: color-mix(in oklab, var(--brand-500) 7%, transparent);
 }
@@ -3110,6 +3118,15 @@ span[data-unbroken] > * {
 
 .markdown-table-frame > table[data-stack="options"] tr[data-picked] > td {
   background-color: var(--pick-tint);
+}
+
+.markdown-table-frame
+  > table[data-stack="options"]
+  :is(tr[data-picked], tr:has(+ tr[data-picked])),
+.markdown-table-frame
+  > table[data-stack="options"]
+  > thead:has(+ tbody > tr[data-picked]:first-child) {
+  border-bottom-color: transparent;
 }
 
 .markdown-table-frame

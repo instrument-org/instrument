@@ -80,6 +80,16 @@ describe("isWordsValue", () => {
     expect(isWordsValue(value)).toBe(expected);
   });
 
+  it.each([
+    ["Total interest: $475,700 over 30 years", "$475,700", "over 30 years"],
+    ["Savings: $310 every month for a year", "$310", "every month for a year"],
+    ["Usage: 9,284 kWh across the year", "9,284 kWh", "across the year"],
+    ["Growth: 12% since last spring", "12%", "since last spring"],
+  ])("splits the words after a figure into its note: %s", (line, value, note) => {
+    expect(parseNumbers(line).figures[0]).toMatchObject({ note, value });
+    expect(parseNumbers(line).figures[0]?.isWords).toBeUndefined();
+  });
+
   it("marks a worded figure", () => {
     expect(
       parseNumbers("Rate: about $0.19 per kWh every month\nUsage: 9,284 kWh")

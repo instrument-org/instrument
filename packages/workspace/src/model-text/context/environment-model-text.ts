@@ -40,19 +40,40 @@ const VARIABLE_FOLDERS = [
 ] as const satisfies [keyof Environment, string, string][];
 
 /**
+ * A change to the computer only an administrator can make, which the sandbox
+ * keeps from the agent, goes to the user as a link that opens its page of
+ * the system's settings, which Studio opens for this platform's scheme
+ * (`openExternal`). `example` is that link, written the way the reply writes it.
+ */
+function adminSettingsGuidance(example: string): string {
+  return `Your shell can't run anything as an administrator, so a setting only an administrator changes (the time zone, sharing, the firewall) is the user's to change: never try sudo or ask for their password. Give them a Markdown link in your reply that opens its page of the system's settings, and say what to change there: ${example}.`;
+}
+
+/**
  * What working on this platform asks of the agent, beyond what every
- * computer does: the Mac's own apps as apps to set up, and Windows
- * paths. Told in the system information, and again when a chat moves to a
- * computer on another platform, never in the system prompt, which reads the
- * same on every computer.
+ * computer does: the Mac's own apps as apps to set up, Windows paths, and
+ * where in the system's settings a change only the user can make is made.
+ * Told in the system information, and again when a chat moves to a computer
+ * on another platform, never in the system prompt, which reads the same on
+ * every computer.
  */
 export function platformGuidance(platform: string): string | undefined {
   switch (platform) {
     case "darwin": {
-      return `The Mac's own ${MAC_APPS.map((app) => app.name).join(", ")} are apps like any other (${MAC_APPS.map((app) => `\`${app.server}\``).join(", ")}), set up from \`${APP_COMMAND.name} catalog\`.`;
+      return [
+        `The Mac's own ${MAC_APPS.map((app) => app.name).join(", ")} are apps like any other (${MAC_APPS.map((app) => `\`${app.server}\``).join(", ")}), set up from \`${APP_COMMAND.name} catalog\`.`,
+        adminSettingsGuidance(
+          "[Open Date & Time settings](x-apple.systempreferences:com.apple.Date-Time-Settings.extension), and a Privacy & Security pane by its anchor, `x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone`",
+        ),
+      ].join(" ");
     }
     case "win32": {
-      return "The shell spells a Windows path the POSIX way (`C:\\Users\\sam` is `/c/Users/sam`); when you name a path to the user, write it the Windows way. Paths you pass a program as arguments are converted, but paths written inside a script's own code are not: write those the Windows way. `/tmp` in the shell is the temp folder (`%TEMP%`); a script gets it from its language (`tempfile.gettempdir()`, `os.tmpdir()`, `$env:TEMP`) rather than writing `/tmp`. `tasklist` lists every process on the computer; a program you start (PowerShell's `Get-Process` included) may see only its own.";
+      return [
+        "The shell spells a Windows path the POSIX way (`C:\\Users\\sam` is `/c/Users/sam`); when you name a path to the user, write it the Windows way. Paths you pass a program as arguments are converted, but paths written inside a script's own code are not: write those the Windows way. `/tmp` in the shell is the temp folder (`%TEMP%`); a script gets it from its language (`tempfile.gettempdir()`, `os.tmpdir()`, `$env:TEMP`) rather than writing `/tmp`. `tasklist` lists every process on the computer; a program you start (PowerShell's `Get-Process` included) may see only its own.",
+        adminSettingsGuidance(
+          "[Open Date & time settings](ms-settings:dateandtime)",
+        ),
+      ].join(" ");
     }
     default: {
       return undefined;

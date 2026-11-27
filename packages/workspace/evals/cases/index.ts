@@ -1,3 +1,4 @@
+import { ADMIN_SETTINGS_EVALS } from "./admin-settings";
 import { FILES_FOLDER_EVALS } from "./files-folder";
 import { WORKSPACE_INSTRUCTIONS_EVALS } from "./workspace-instructions";
 import { ACTIVITY_CONTEXT_EVALS } from "./activity-context";
@@ -161,6 +162,7 @@ export const EVALS = [
   ...TEXT_TOOLS_EVALS,
   ...THINKING_OUT_LOUD_EVALS,
   ...TIME_ZONE_EVALS,
+  ...ADMIN_SETTINGS_EVALS,
   ...SOURCE_LINKS_EVALS,
   ...TASK_APP_SETUP_EVALS,
   ...TASK_AND_QUESTION_EVALS,

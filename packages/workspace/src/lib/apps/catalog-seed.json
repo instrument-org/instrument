@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-11-27T22:30:52.082Z",
-  "entriesHash": "930c6cd197ed0104",
+  "revision": "2026-11-27T22:59:58.814Z",
+  "entriesHash": "cb3927f464cbf537",
   "entries": [
     {
       "slug": "activecampaign",
@@ -6359,6 +6359,24 @@
         "Are any directory syncs failing?",
         "How many organizations do I have?"
       ]
+    },
+    {
+      "slug": "x",
+      "name": "X",
+      "tagline": "Posts, people, and threads.",
+      "examples": [
+        "Search X for what people are saying about a launch",
+        "Read an X thread and sum it up",
+        "Catch me up on my X bookmarks"
+      ],
+      "description": "X, formerly Twitter. Instrument's own X tools search posts and read threads on the user's Grok plan; their timeline, bookmarks, notifications, and posting are on x.com, signed in, in Instrument's browser.",
+      "domain": "x.com",
+      "authMethods": [],
+      "interfaces": [],
+      "home": "https://x.com",
+      "category": "research",
+      "aliases": ["twitter"],
+      "tier": "listed"
     },
     {
       "slug": "xero",

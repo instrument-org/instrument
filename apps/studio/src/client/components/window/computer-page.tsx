@@ -1,6 +1,8 @@
 import { undoOnShow } from "@/client/lib/undo-toast";
 import { MiddleTruncate } from "@/client/components/middle-truncate";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
+import { useLatest } from "@/client/hooks/use-latest";
+import { useIsNarrower } from "@/client/hooks/use-is-narrower";
 import { type ChosenItem } from "@/shared/drafts";
 import {
   computerColumnWidthAtom,
@@ -173,7 +175,6 @@ import {
   type ReactNode,
   useEffect,
   useEffectEvent,
-  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -190,6 +191,7 @@ import { pictureHoldingKeyboard } from "@/client/lib/picture-keys";
 import { openInNewWindow } from "./app-tabs";
 import { useWindow } from "./context";
 import { DROP_LOOK } from "./drag/tone";
+import { filesOfDrop } from "./drag/held-tabs";
 import { arrivalView } from "./files-step";
 import { useGroupTab } from "./group-tab";
 import { pressPlace } from "./drag/press-bookmark";
@@ -1342,30 +1344,17 @@ export function ComputerPage({
       ? row
       : null;
   };
-  const dropHandlers = useRef({
+  const isDropOpen = !isRecents && settled;
+  const dropHostPathOf = (prefix: string) =>
+    hostPathOf(prefix, rootHostPath ?? root);
+  const dropHandlers = useSteadyCallbacks({
     copyInto,
+    dropHostPathOf,
     dropIntoOf,
     go,
     moveInto,
     readAhead,
     springFolderOf,
-  });
-  useEffect(() => {
-    dropHandlers.current = {
-      copyInto,
-      dropIntoOf,
-      go,
-      moveInto,
-      readAhead,
-      springFolderOf,
-    };
-  });
-  const isDropOpen = !isRecents && settled;
-  const dropHostPathOf = (prefix: string) =>
-    hostPathOf(prefix, rootHostPath ?? root);
-  const dropHostPathRef = useRef(dropHostPathOf);
-  useEffect(() => {
-    dropHostPathRef.current = dropHostPathOf;
   });
   useEffect(() => {
     const browser = browserRef.current;
@@ -1387,7 +1376,7 @@ export function ComputerPage({
     const spring = springTimer(
       (folder) => {
         hasSprung = true;
-        dropHandlers.current.go({ path: folder, type: "spring" });
+        dropHandlers.go({ path: folder, type: "spring" });
       },
       {
         flash: () => {
@@ -1400,7 +1389,7 @@ export function ComputerPage({
       spring.stop();
       if (hasSprung) {
         hasSprung = false;
-        dropHandlers.current.go({ dropped, type: "endSpring" });
+        dropHandlers.go({ dropped, type: "endSpring" });
       }
     };
     // The system owns a drag, from here or from another app, and the page
@@ -1415,8 +1404,8 @@ export function ComputerPage({
       }
       event.preventDefault();
       event.stopPropagation();
-      const prefix = dropHandlers.current.dropIntoOf(event.target);
-      const into = dropHostPathRef.current(prefix);
+      const prefix = dropHandlers.dropIntoOf(event.target);
+      const into = dropHandlers.dropHostPathOf(prefix);
       const carried = ownFileDragInAir();
       // Files this app is dragging, over the folder they are in already or
       // inside themselves, go nowhere there (the drop below keeps none of
@@ -1435,9 +1424,9 @@ export function ComputerPage({
         goesNowhere || performance.now() < flashUntil ? null : prefix,
       );
       sawOwnFileDrag();
-      const resting = dropHandlers.current.springFolderOf(event.target);
+      const resting = dropHandlers.springFolderOf(event.target);
       if (resting !== null && event.type === "dragenter") {
-        dropHandlers.current.readAhead(resting);
+        dropHandlers.readAhead(resting);
       }
       spring.rest(resting);
       // `dragover` repeats while the drag is over the folder, so its silence
@@ -1479,24 +1468,13 @@ export function ComputerPage({
       hasSprung = false;
       // Dropped in a folder a rest opened, here or on a place of the
       // sidebar, the tab stays there.
-      dropHandlers.current.go({ dropped: true, type: "endSpring" });
+      dropHandlers.go({ dropped: true, type: "endSpring" });
       const wasSelfDrag = isSelfFileDrag();
       releaseSelfFileDrag();
-      const prefix = dropHandlers.current.dropIntoOf(event.target);
-      const dropped = { hostPath: dropHostPathRef.current(prefix), prefix };
+      const prefix = dropHandlers.dropIntoOf(event.target);
+      const dropped = { hostPath: dropHandlers.dropHostPathOf(prefix), prefix };
       // Read while the drop is being dispatched: the items empty after.
-      const sources = [...event.dataTransfer.items].flatMap((item) => {
-        const file = item.kind === "file" ? item.getAsFile() : null;
-        const hostPath = file ? window.api.getFilePath(file) : "";
-        return hostPath
-          ? [
-              {
-                hostPath,
-                isFolder: item.webkitGetAsEntry()?.isDirectory ?? false,
-              },
-            ]
-          : [];
-      });
+      const sources = filesOfDrop(event.dataTransfer);
       const isRowDrag = isOwnFileDragOf(
         sources.map((source) => source.hostPath),
       );
@@ -1520,8 +1498,8 @@ export function ComputerPage({
       // The Finder's own rows move, as its own drag does, unless Option is
       // held; everything from outside the app is copied in.
       void (isRowDrag && !event.altKey
-        ? dropHandlers.current.moveInto(kept, into)
-        : dropHandlers.current.copyInto(kept, into, {
+        ? dropHandlers.moveInto(kept, into)
+        : dropHandlers.copyInto(kept, into, {
             numbersInPlace: copies && isMacOS(),
           }));
     };
@@ -1555,7 +1533,7 @@ export function ComputerPage({
       browser.removeEventListener("dragleave", leave);
       browser.removeEventListener("drop", drop);
     };
-  }, [isDropOpen]);
+  }, [dropHandlers, isDropOpen]);
 
   // A paste lands in the folder the keyboard is in: the column it is in, in
   // the columns, and the folder on screen otherwise, or the folder a menu's
@@ -1575,7 +1553,7 @@ export function ComputerPage({
         : undefined) ??
       current;
     return {
-      hostPath: dropHostPathRef.current(prefix || current),
+      hostPath: dropHandlers.dropHostPathOf(prefix || current),
       prefix: prefix || current,
     };
   };
@@ -1586,7 +1564,7 @@ export function ComputerPage({
       .catch(() => ({ files: [] }))
       .then(({ files }) => {
         store.set(filesCutAtom, []);
-        return dropHandlers.current.moveInto(
+        return dropHandlers.moveInto(
           movableInto(filesToPaste(files, []), into.hostPath),
           into,
         );
@@ -1642,11 +1620,8 @@ export function ComputerPage({
           cut,
           sources.map((source) => source.hostPath),
         )
-          ? dropHandlers.current.moveInto(
-              movableInto(sources, into.hostPath),
-              into,
-            )
-          : dropHandlers.current.copyInto(sources, into);
+          ? dropHandlers.moveInto(movableInto(sources, into.hostPath), into)
+          : dropHandlers.copyInto(sources, into);
       });
   });
   useEffect(() => {
@@ -1948,10 +1923,7 @@ export function ComputerPage({
 
   // What was put back is selected, when it is under the root on screen now:
   // a toast's Undo can come after a move to another root.
-  const rootHostPathRef = useRef(rootHostPath);
-  useEffect(() => {
-    rootHostPathRef.current = rootHostPath;
-  });
+  const rootHostPathRef = useLatest(rootHostPath);
   const selectUndone = (undone: { isFolder: boolean; path: null | string }) => {
     const onScreenRoot = rootHostPathRef.current;
     if (undone.path === null || !onScreenRoot) {
@@ -2057,7 +2029,9 @@ export function ComputerPage({
   const [frame, setFrame] = useState<HTMLDivElement | null>(null);
   // Narrowed beside a file the folder is as wide as it was before it, so
   // the places slide away and back rather than standing over it.
-  const isFrameNarrow = useIsNarrow(frame);
+  // Measured, since the toggle that answers to it is drawn in the tab's
+  // row, outside the container.
+  const isFrameNarrow = useIsNarrower(frame, NARROW_FINDER_PX);
   const [wasNarrow, setWasNarrow] = useState(isFrameNarrow);
   if (beside === undefined && wasNarrow !== isFrameNarrow) {
     setWasNarrow(isFrameNarrow);
@@ -2348,7 +2322,7 @@ export function ComputerPage({
               afterMenu.current = () => {
                 focusBrowser();
                 moveClipboardInto({
-                  hostPath: dropHostPathRef.current(onScreen || current),
+                  hostPath: dropHandlers.dropHostPathOf(onScreen || current),
                   prefix: onScreen || current,
                 });
               };
@@ -5002,29 +4976,4 @@ function PlacesToggle({
       </Button>
     </ToolbarTooltip>
   );
-}
-
-/**
- * Whether the Finder is too narrow to keep its places beside the folder: the
- * width a container query of `@xl` names, measured, since the toggle that
- * answers to it is drawn in the tab's row, outside the container.
- */
-function useIsNarrow(frame: HTMLElement | null) {
-  const [isNarrow, setIsNarrow] = useState(false);
-  useLayoutEffect(() => {
-    if (!frame) {
-      return;
-    }
-    const measure = () => {
-      // Layout px, the units the container query reads, whatever the zoom.
-      setIsNarrow(frame.offsetWidth < NARROW_FINDER_PX);
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(frame);
-    return () => {
-      observer.disconnect();
-    };
-  }, [frame]);
-  return isNarrow;
 }

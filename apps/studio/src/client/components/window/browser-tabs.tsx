@@ -1,3 +1,4 @@
+import { useLatest } from "@/client/hooks/use-latest";
 import {
   type BrowserTab,
   originOf,
@@ -384,21 +385,12 @@ export function BrowserTabs({
 
   // The strip as it is at any moment, for the handle below and the listeners,
   // both of which are made once and read it when called.
-  const latest = useRef({
+  const latest = useLatest({
     active,
     activeByGroup,
     allTabs,
     group: groupOnScreen,
     tabs,
-  });
-  useEffect(() => {
-    latest.current = {
-      active,
-      activeByGroup,
-      allTabs,
-      group: groupOnScreen,
-      tabs,
-    };
   });
 
   // A tab closed anywhere takes its guest with it.

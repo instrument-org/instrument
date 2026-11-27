@@ -693,10 +693,6 @@ function WindowShell({
   const removeDraft = useSetAtom(removeDraftAtom);
   const [chatFilters, setChatFilters] = useAtom(chatFiltersUpAtom);
   const pickNewChatProject = useSetAtom(pickNewChatProjectAtom);
-  const sendContextRef = useRef<Shell["sendContext"]>(() =>
-    Promise.resolve(undefined),
-  );
-  const layoutContextRef = useRef<Shell["layoutContext"]>(() => undefined);
   // The card the tabs are drawn in, measured in layout px, which the inbox
   // sizes itself against.
   const [rowElement, setRowElement] = useState<HTMLDivElement | null>(null);
@@ -1130,9 +1126,10 @@ function WindowShell({
   // (`useStopBeforeClosing`); an agent's own closes ask no one. A close runs
   // once answered, so it reaches the closers as they stand then.
   const stopping = useStopBeforeClosing();
-  const closers = useRef({ closeGroups, closeSideOf, requestClose });
-  useLayoutEffect(() => {
-    closers.current = { closeGroups, closeSideOf, requestClose };
+  const closers = useSteadyCallbacks({
+    closeGroups,
+    closeSideOf,
+    requestClose,
   });
   const tabsOfGroups = (closing: readonly string[]) =>
     windowTabs.allTabs.filter(
@@ -1140,7 +1137,7 @@ function WindowShell({
     );
   const askToCloseGroups = (closing: string[], keep?: string) => {
     stopping.ask(tabsOfGroups(closing), "group", () => {
-      closers.current.closeGroups(closing, keep);
+      closers.closeGroups(closing, keep);
     });
   };
   const askToCloseTab = (id: string, options: { up?: string } = {}) => {
@@ -1148,7 +1145,7 @@ function WindowShell({
       windowTabs.allTabs.filter((tab) => tab.id === id),
       "tab",
       () => {
-        closers.current.requestClose(id, options);
+        closers.requestClose(id, options);
       },
     );
   };
@@ -1164,7 +1161,7 @@ function WindowShell({
         ? (layout.sides[side]?.tabs ?? [])
         : tabsOfGroups(group === undefined ? [] : [group]);
     stopping.ask(sideTabs, "split", () => {
-      closers.current.closeSideOf(id);
+      closers.closeSideOf(id);
     });
   };
   // Closing the window, which main asks about before it goes: every chat
@@ -1396,9 +1393,10 @@ function WindowShell({
     windowTabs.markPrompted(tabId);
     return layoutReadOf({ names, windowTabs }, tabId);
   };
-  useLayoutEffect(() => {
-    sendContextRef.current = (options) => readersNow().sendContext(options);
-    layoutContextRef.current = layoutNow;
+  const contexts = useSteadyCallbacks({
+    layoutContext: layoutNow,
+    sendContext: (options: Parameters<Shell["sendContext"]>[0]) =>
+      readersNow().sendContext(options),
   });
   const {
     arrivedId,
@@ -1416,7 +1414,7 @@ function WindowShell({
     folders: opened?.folders ?? {},
     draftContext,
     isOpen: opened !== undefined,
-    layoutOf: (tabId) => layoutContextRef.current(tabId),
+    layoutOf: contexts.layoutContext,
     isChat,
     openDraftInChat: (id) => {
       appTabs.navigate(newChatHref(id));
@@ -2115,8 +2113,8 @@ function WindowShell({
     chatTitles,
     drafts: listedDrafts,
     rowWidth,
-    layoutContext: (tabId) => layoutContextRef.current(tabId),
-    sendContext: (options) => sendContextRef.current(options),
+    layoutContext: contexts.layoutContext,
+    sendContext: contexts.sendContext,
     sentWords: (chatId) => sent.get(chatId)?.words,
     projects,
   };

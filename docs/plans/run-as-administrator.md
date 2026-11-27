@@ -1,6 +1,6 @@
 # Plan: the agent asks to run a command as administrator
 
-Status: open. Built on macOS and Windows, checked with unit tests, evals and the running app with a stand-in for the system's prompt; the evals for the card's other choices are written and not yet run. Left: a run through the real macOS password prompt and Windows' User Account Control (below), and the gaps under Open.
+Status: open. Built on macOS and Windows, checked with unit tests, evals (the card's other choices included) and the running app, and run through the real macOS password prompt on a Mac (allowed, removed, not allowed, canceled in the prompt). Left: a run through Windows' User Account Control (below), and the gaps under Open.
 
 A change only an administrator can make (the time zone, Remote Login, installing for every user) used to end with the agent trying `sudo`, being refused by the sandbox, and writing the steps out by hand. The agent now asks once, the person sees the exact command on a card, and the system's own prompt does the rest.
 

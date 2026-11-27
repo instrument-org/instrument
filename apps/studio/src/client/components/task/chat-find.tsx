@@ -161,7 +161,7 @@ export function ChatFind({
   }, [boxedTurns, contentRef, ranges, searchedFound]);
   const boxed = boxes.matches;
   const activeRange = useRef<Range | undefined>(undefined);
-  // A step running, which loads turns: one at a time.
+  // A step running, which draws or loads turns: one at a time.
   const stepping = useRef(false);
   const [isStepping, setIsStepping] = useState(false);
   const latestQuery = useRef(searched);
@@ -239,31 +239,6 @@ export function ChatFind({
       reveal(ranges[step.index]);
       return;
     }
-    if (step.kind === "draw") {
-      const content = contentRef.current;
-      if (!content) {
-        return;
-      }
-      const words = latestQuery.current;
-      // The turn stood on stays drawn too, until the find has moved off it.
-      const standing = activeRange.current && turnOf(activeRange.current);
-      farRows.keep(
-        FIND_KEEPS,
-        new Set(standing ? [standing, step.turn.id] : [step.turn.id]),
-      );
-      await drawn(() => isTurnDrawn(content, step.turn.id));
-      if (latestQuery.current !== words) {
-        return;
-      }
-      const next = findRanges(content, words);
-      const at = pickInTurn(next, step.turn.id, step.pick);
-      // Stood on from here, by a find again for the turn just drawn as well.
-      activeRange.current = next[at];
-      setRanges(next);
-      setActive(at);
-      reveal(next[at]);
-      return;
-    }
     const content = contentRef.current;
     if (!content || stepping.current) {
       return;
@@ -274,6 +249,22 @@ export function ChatFind({
     const before = ranges[0]?.cloneRange();
     // A promise's `finally` rather than a `try` one, which the React
     // Compiler does not lower yet.
+    const drawAndLand = async (turn: string, pick: "first" | "last") => {
+      // The turn stood on stays drawn too, until the find has moved off it.
+      const standing = activeRange.current && turnOf(activeRange.current);
+      farRows.keep(FIND_KEEPS, new Set(standing ? [standing, turn] : [turn]));
+      await drawn(() => isTurnDrawn(content, turn));
+      if (latestQuery.current !== words) {
+        return;
+      }
+      const next = findRanges(content, words);
+      const at = pickInTurn(next, turn, pick);
+      // Stood on from here, by a find again for the turn just drawn as well.
+      activeRange.current = next[at];
+      setRanges(next);
+      setActive(at);
+      reveal(next[at]);
+    };
     const loadAndLand = async () => {
       if (await loadOlderThrough(step.turn.id)) {
         await drawn(() => isLoaded(content, step.turn.id));
@@ -287,7 +278,12 @@ export function ChatFind({
       setActive(at);
       reveal(next[at]);
     };
-    await loadAndLand().finally(() => {
+    // One step that draws or loads turns at a time.
+    await (
+      step.kind === "draw"
+        ? drawAndLand(step.turn.id, step.pick)
+        : loadAndLand()
+    ).finally(() => {
       stepping.current = false;
       setIsStepping(false);
     });

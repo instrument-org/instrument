@@ -141,7 +141,7 @@ export class ScrollOwner {
     // The column's ref is attached before the viewport's, so a transcript
     // drawn whole opens here.
     if (!this.hasOpened) {
-      this.onRowsChanged();
+      this.onRowsChanged([]);
     }
   };
 
@@ -154,9 +154,11 @@ export class ScrollOwner {
     if (!element) {
       return;
     }
-    this.mutations = new MutationObserver(this.onRowsChanged);
+    this.mutations = new MutationObserver((records) => {
+      this.onRowsChanged(records);
+    });
     this.mutations.observe(element, { childList: true });
-    this.onRowsChanged();
+    this.onRowsChanged([]);
   };
 
   setSpacer = (element: HTMLElement | null) => {
@@ -378,7 +380,7 @@ export class ScrollOwner {
 
   // -- events -----------------------------------------------------------------
 
-  private onRowsChanged = () => {
+  private onRowsChanged(records: readonly MutationRecord[]) {
     const content = this.content;
     if (!content) {
       return;
@@ -427,8 +429,53 @@ export class ScrollOwner {
       this.anchorTo(sent);
       return;
     }
+    this.keepPlaceAtTop(records);
     this.reconcile();
-  };
+  }
+
+  /**
+   * Rows drawn in above a reader at the very top leave what they were reading
+   * where it was. The browser's scroll anchoring keeps the reader's place
+   * anywhere else, but anchors nothing at a scroll position of 0, so the page
+   * of history that loads as the reader reaches the top would push what they
+   * were reading down by its height. When the first rows are new, with
+   * nothing but rows that are not messages (the loader) above them, the
+   * first row that was there before goes back to where the first new row
+   * starts, which is where it was.
+   */
+  private keepPlaceAtTop(records: readonly MutationRecord[]) {
+    const viewport = this.viewport;
+    const content = this.content;
+    if (
+      !viewport ||
+      !content ||
+      this.mode.kind !== "keep" ||
+      viewport.scrollTop > SAME_POSITION / 2
+    ) {
+      return;
+    }
+    const added = new Set(records.flatMap((record) => [...record.addedNodes]));
+    const rows = [...content.children].filter(
+      (row): row is HTMLElement =>
+        row instanceof HTMLElement && row !== this.spacer,
+    );
+    const first = rows.findIndex((row) => added.has(row));
+    const kept = rows.slice(first + 1).find((row) => !added.has(row));
+    const drawnIn = rows[first];
+    if (
+      first === -1 ||
+      !drawnIn ||
+      !kept ||
+      rows
+        .slice(0, first)
+        .some((row) => row.hasAttribute("data-message-scroller-item"))
+    ) {
+      return;
+    }
+    this.writeScroll(
+      scrollTopOf(kept, viewport) - scrollTopOf(drawnIn, viewport),
+    );
+  }
 
   private onResize = () => {
     this.reconcile();

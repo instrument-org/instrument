@@ -375,3 +375,49 @@ it.each([
   expect(below()).toBeCloseTo(landsInView ? 0 : 80, 0);
   later.mockRestore();
 });
+
+let loadOlder: () => void = noop;
+
+/** A chat whose older turns load a page at a time above a loader row. */
+function Paged() {
+  const [first, setFirst] = useState(20);
+  loadOlder = () => {
+    setFirst((index) => index - 10);
+  };
+  return (
+    <MessageScrollerProvider>
+      <MessageScroller>
+        <MessageScrollerViewport style={{ height: 400 }}>
+          <MessageScrollerContent>
+            <div style={{ height: 24 }} />
+            {Array.from({ length: 30 - first }, (_, index) => (
+              <MessageScrollerItem
+                data-turn={first + index}
+                key={first + index}
+                scrollAnchor
+                style={{ height: 150 }}
+              />
+            ))}
+          </MessageScrollerContent>
+        </MessageScrollerViewport>
+      </MessageScroller>
+    </MessageScrollerProvider>
+  );
+}
+
+it("keeps the reader's place when a page of older turns loads at the very top", async () => {
+  await renderInBrowser(<Paged />);
+  await frames(100);
+  viewport().dispatchEvent(
+    new WheelEvent("wheel", { bubbles: true, deltaY: -40 }),
+  );
+  viewport().scrollTop = 0;
+  await frames(50);
+  const reading = document.querySelector('[data-turn="20"]');
+  const before = reading?.getBoundingClientRect().top;
+  loadOlder();
+  const seen = await frames(100);
+  // Painted in place from the first frame, without a step.
+  expect(new Set(seen.map(({ scrollTop }) => scrollTop)).size).toBe(1);
+  expect(reading?.getBoundingClientRect().top).toBeCloseTo(before ?? NaN, 0);
+});

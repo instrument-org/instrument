@@ -10,6 +10,7 @@ import { userEvent } from "vitest/browser";
 import { QuoteSelection } from "./quote-selection";
 
 vi.mock("@/client/components/ui/message-scroller", () => ({
+  useFarRows: () => undefined,
   useMessageScroller: () => ({
     releaseAutoScroll: noop,
     scrollToMessage: noop,

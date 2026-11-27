@@ -75,7 +75,11 @@ function Conversation({
           <MessageScrollerViewport>
             <MessageScrollerContent ref={contentRef}>
               {held.map((turn) => (
-                <MessageScrollerItem key={turn.id} messageId={turn.id}>
+                <MessageScrollerItem
+                  key={turn.id}
+                  messageId={turn.id}
+                  turnId={turn.id}
+                >
                   <p>{turn.text}</p>
                   {turn.folded !== undefined && opened.has(turn.id) && (
                     <p>{turn.folded}</p>
@@ -215,6 +219,39 @@ describe("ChatFind", () => {
     await expect.element(field()).toHaveFocus();
     await userEvent.keyboard("pear");
     await expect.poll(readout).toBe("1 of 1");
+    await expect.poll(activeMatchInView).toBe(true);
+  });
+
+  it("counts matches in turns drawn as boxes far up and draws the one a step reaches", async () => {
+    const turns = Array.from({ length: 20 }, (_, index) =>
+      turn(filler(index === 1 ? "A kiwi far up" : `Turn ${index.toString()}`)),
+    );
+    const last = turn(`A kiwi at the end. ${filler("Last")}`);
+    const far = turns[1];
+    rpc.find.mockResolvedValue([
+      { count: 1, folded: 0, id: far?.id ?? last.id },
+      { count: 1, folded: 0, id: last.id },
+    ]);
+    await renderInBrowser(<Conversation held={[...turns, last]} />);
+    const isBox = () =>
+      document
+        .querySelector(`[data-turn-id="${far?.id ?? ""}"]`)
+        ?.hasAttribute("data-placeholder");
+    await expect.poll(isBox).toBe(true);
+    viewport()?.focus();
+    openFindForKeyboard();
+    await expect.element(field()).toHaveFocus();
+    await userEvent.keyboard("kiwi");
+    await expect.poll(readout).toBe("2 of 2");
+    expect(activeMatchInView()).toBe(true);
+
+    await userEvent.keyboard("{Shift>}{Enter}{/Shift}");
+    await expect.poll(readout).toBe("1 of 2");
+    expect(isBox()).toBe(false);
+    await expect.poll(activeMatchInView).toBe(true);
+
+    await userEvent.keyboard("{Enter}");
+    await expect.poll(readout).toBe("2 of 2");
     await expect.poll(activeMatchInView).toBe(true);
   });
 

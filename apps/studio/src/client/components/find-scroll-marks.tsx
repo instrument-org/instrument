@@ -43,25 +43,27 @@ export function FindScrollMarks({
 }
 
 /**
- * Where `ranges` are down `viewport`'s scroll, for {@link FindScrollMarks}:
- * read again as the ranges change and as the viewport or what it scrolls
- * changes size. Matches closer than a tick's height share one, the active
- * one's if it is among them.
+ * Where `ranges` are down `viewport`'s scroll, for {@link FindScrollMarks},
+ * and `elements` holding matches not drawn (a transcript's turns far from
+ * view, drawn as boxes), one mark at the middle of each: read again as these
+ * change and as the viewport or what it scrolls changes size. Matches closer
+ * than a tick's height share one, the active one's if it is among them.
  */
 export function useRangeMarks(
   viewportRef: RefObject<HTMLElement | null>,
   ranges: readonly Range[],
   active: number,
+  elements: readonly HTMLElement[] = NO_ELEMENTS,
 ): FindMark[] {
   const [marks, setMarks] = useState<FindMark[]>([]);
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
-    if (!viewport || ranges.length === 0) {
+    if (!viewport || ranges.length + elements.length === 0) {
       setMarks([]);
       return;
     }
     const read = () => {
-      setMarks(rangeMarks(viewport, ranges, active));
+      setMarks(rangeMarks(viewport, [...ranges, ...elements], active));
     };
     read();
     const observer = new ResizeObserver(read);
@@ -72,13 +74,15 @@ export function useRangeMarks(
     return () => {
       observer.disconnect();
     };
-  }, [active, ranges, viewportRef]);
+  }, [active, elements, ranges, viewportRef]);
   return marks;
 }
 
+const NO_ELEMENTS: readonly HTMLElement[] = [];
+
 function rangeMarks(
   viewport: HTMLElement,
-  ranges: readonly Range[],
+  ranges: readonly (Element | Range)[],
   active: number,
 ): FindMark[] {
   const view = viewport.getBoundingClientRect();

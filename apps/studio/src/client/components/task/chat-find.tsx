@@ -14,7 +14,10 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from "@/client/components/ui/popover";
-import { useMessageScroller } from "@/client/components/ui/message-scroller";
+import {
+  useFarRows,
+  useMessageScroller,
+} from "@/client/components/ui/message-scroller";
 import { useFindTarget } from "@/client/hooks/use-find-target";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -31,9 +34,11 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 
 import {
+  type BoxedMatches,
   findReadout,
   type FindStep,
   stepFind,
@@ -54,7 +59,9 @@ const DRAW_WAIT_FRAMES = 120;
  * Highlight API so React's DOM is never touched. A chat loads from its end, so
  * the turns above what is drawn are searched in the records
  * (`message.find`), counted in the readout above the drawn matches, and
- * loaded when a step reaches one. The records also say which turns have
+ * loaded when a step reaches one. A turn far from view is drawn as a box, so
+ * its matches are counted from the records too, where it stands, and a step
+ * into it draws it and lands on its first or last. The records also say which turns have
  * matches in the work a Worked row folds, and the find holds those rows open
  * (`onFoldsToOpen`) while it has the words, so their matches are drawn.
  *
@@ -122,8 +129,37 @@ export function ChatFind({
     query === "" || rested !== query || searchedFound === undefined;
 
   const { releaseAutoScroll, scrollToMessage } = useMessageScroller();
+  const farRows = useFarRows();
+  const boxedTurns = useSyncExternalStore(
+    farRows.subscribeBoxed,
+    farRows.getBoxed,
+  );
   const [ranges, setRanges] = useState<Range[]>([]);
   const [active, setActive] = useState(0);
+  // The turns with matches drawn as boxes, and their first rows, read from
+  // the page as what is drawn changes.
+  const [boxes, setBoxes] = useState<{
+    matches: BoxedMatches[];
+    rows: HTMLElement[];
+  }>(NO_BOXES);
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    const matches = boxedMatches(searchedFound, boxedTurns, ranges, content);
+    setBoxes(
+      matches.length === 0
+        ? NO_BOXES
+        : {
+            matches,
+            rows: matches.flatMap((box) => {
+              const row = content?.querySelector<HTMLElement>(
+                turnSelector(box.turn.id),
+              );
+              return row ? [row] : [];
+            }),
+          },
+    );
+  }, [boxedTurns, contentRef, ranges, searchedFound]);
+  const boxed = boxes.matches;
   const activeRange = useRef<Range | undefined>(undefined);
   // A step running, which loads turns: one at a time.
   const stepping = useRef(false);
@@ -203,6 +239,31 @@ export function ChatFind({
       reveal(ranges[step.index]);
       return;
     }
+    if (step.kind === "draw") {
+      const content = contentRef.current;
+      if (!content) {
+        return;
+      }
+      const words = latestQuery.current;
+      // The turn stood on stays drawn too, until the find has moved off it.
+      const standing = activeRange.current && turnOf(activeRange.current);
+      farRows.keep(
+        FIND_KEEPS,
+        new Set(standing ? [standing, step.turn.id] : [step.turn.id]),
+      );
+      await drawn(() => isTurnDrawn(content, step.turn.id));
+      if (latestQuery.current !== words) {
+        return;
+      }
+      const next = findRanges(content, words);
+      const at = pickInTurn(next, step.turn.id, step.pick);
+      // Stood on from here, by a find again for the turn just drawn as well.
+      activeRange.current = next[at];
+      setRanges(next);
+      setActive(at);
+      reveal(next[at]);
+      return;
+    }
     const content = contentRef.current;
     if (!content || stepping.current) {
       return;
@@ -215,7 +276,7 @@ export function ChatFind({
     // Compiler does not lower yet.
     const loadAndLand = async () => {
       if (await loadOlderThrough(step.turn.id)) {
-        await drawn(content, step.turn.id);
+        await drawn(() => isLoaded(content, step.turn.id));
       }
       if (latestQuery.current !== words) {
         return;
@@ -238,37 +299,66 @@ export function ChatFind({
         drawn: ranges.length,
         forward,
         unloaded,
+        boxed,
       }),
     );
   };
 
   // With nothing drawn to stand on, the find goes up to the nearest match
-  // above, as soon as the records say there is one.
+  // above, as soon as the records say there is one: in a box above the view,
+  // else in the turns not loaded, else in the first box below.
   const jumpedFor = useRef("");
-  const nearest = unloaded.at(-1);
-  const jumpUp = useEffectEvent((turn: TurnMatches) => {
-    void run({ kind: "load", pick: "last", turn });
+  const hasUndrawn = unloaded.length + boxed.length > 0;
+  const jumpUp = useEffectEvent(() => {
+    const above = nearestBoxAbove(boxed, viewportOf(contentRef.current));
+    const newest = unloaded.at(-1);
+    const below = boxed[0]?.turn;
+    void run(
+      above
+        ? { kind: "draw", pick: "last", turn: above }
+        : newest
+          ? { kind: "load", pick: "last", turn: newest }
+          : below
+            ? { kind: "draw", pick: "first", turn: below }
+            : { kind: "none" },
+    );
   });
   useEffect(() => {
     if (
       isStepping ||
       ranges.length > 0 ||
-      nearest === undefined ||
+      !hasUndrawn ||
       searched === "" ||
       jumpedFor.current === searched
     ) {
       return;
     }
     jumpedFor.current = searched;
-    jumpUp(nearest);
-  }, [isStepping, nearest, ranges.length, searched]);
+    jumpUp();
+  }, [hasUndrawn, isStepping, ranges.length, searched]);
+
+  // The turn of the match the find stands on stays drawn while the find is
+  // up, so the match is still there to step on from wherever the reader goes.
+  const current = ranges[Math.min(active, ranges.length - 1)];
+  const currentTurn = open && current ? turnOf(current) : undefined;
+  useEffect(() => {
+    farRows.keep(
+      FIND_KEEPS,
+      new Set(currentTurn === undefined ? [] : [currentTurn]),
+    );
+  }, [currentTurn, farRows]);
+  useEffect(
+    () => () => {
+      farRows.keep(FIND_KEEPS, new Set());
+    },
+    [farRows],
+  );
 
   // Painted as two highlights per instance: one window can hold a chat in
   // several tabs, and the registry is the document's.
   const instanceId = useId().replaceAll(/[^\da-z]/gi, "");
   const matchName = `chat-find-${instanceId}`;
   const activeName = `chat-find-active-${instanceId}`;
-  const current = ranges[Math.min(active, ranges.length - 1)];
   const viewportRef = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     viewportRef.current =
@@ -276,7 +366,7 @@ export function ChatFind({
         '[data-slot="message-scroller-viewport"]',
       ) ?? null;
   });
-  const marks = useRangeMarks(viewportRef, ranges, active);
+  const marks = useRangeMarks(viewportRef, ranges, active, boxes.rows);
   useEffect(() => {
     if (ranges.length === 0) {
       return;
@@ -324,7 +414,12 @@ export function ChatFind({
     openFind,
   });
 
-  const readout = findReadout({ active, drawn: ranges.length, unloaded });
+  const readout = findReadout({
+    active,
+    boxed,
+    drawn: ranges.length,
+    unloaded,
+  });
   return (
     <>
       <style>
@@ -388,6 +483,123 @@ export function ChatFind({
   );
 }
 
+/** Who keeps turns drawn for the find (`FarRows.keep`). */
+const FIND_KEEPS = "find";
+
+const NO_BOXES = { matches: [], rows: [] };
+
+function turnSelector(id: string) {
+  return `[data-turn-id="${CSS.escape(id)}"]`;
+}
+
+function viewportOf(content: HTMLElement | null) {
+  return (
+    content?.closest<HTMLElement>('[data-slot="message-scroller-viewport"]') ??
+    null
+  );
+}
+
+/** The turn a match is drawn in, by its rows' `data-turn-id`. */
+function turnOf(range: Range): string | undefined {
+  const node = range.startContainer;
+  return (
+    (node instanceof Element ? node : node.parentElement)?.closest<HTMLElement>(
+      "[data-turn-id]",
+    )?.dataset.turnId ?? undefined
+  );
+}
+
+/**
+ * The turns with matches that are drawn as boxes, in order, each with how
+ * many drawn matches stand before it.
+ */
+function boxedMatches(
+  found: readonly TurnMatches[] | undefined,
+  boxedTurns: ReadonlySet<string>,
+  ranges: readonly Range[],
+  content: HTMLElement | null,
+): BoxedMatches[] {
+  if (!found || !content || boxedTurns.size === 0) {
+    return [];
+  }
+  return found.flatMap((turn) => {
+    if (!boxedTurns.has(turn.id)) {
+      return [];
+    }
+    const row = content.querySelector(turnSelector(turn.id));
+    if (!row) {
+      return [];
+    }
+    // The drawn matches come in order, so those before the box are a prefix.
+    let low = 0;
+    let high = ranges.length;
+    while (low < high) {
+      const middle = (low + high) >> 1;
+      if (ranges[middle]?.comparePoint(row, 0) === 1) {
+        low = middle + 1;
+      } else {
+        high = middle;
+      }
+    }
+    return [{ before: low, turn }];
+  });
+}
+
+/** The last box with matches above the top of the view, if any. */
+function nearestBoxAbove(
+  boxed: readonly BoxedMatches[],
+  viewport: HTMLElement | null,
+): TurnMatches | undefined {
+  if (!viewport) {
+    return undefined;
+  }
+  const top = viewport.getBoundingClientRect().top;
+  return boxed.findLast((box) => {
+    const row = viewport.querySelector(turnSelector(box.turn.id));
+    return row !== null && row.getBoundingClientRect().bottom <= top;
+  })?.turn;
+}
+
+/**
+ * The first or last match in the turn `id` among those found again once it
+ * is drawn. With none there (the records counted a match the drawn words do
+ * not have), the nearest one past it the way the step was going.
+ */
+function pickInTurn(
+  ranges: readonly Range[],
+  id: string,
+  pick: "first" | "last",
+): number {
+  if (ranges.length === 0) {
+    return 0;
+  }
+  const inTurn = ranges.flatMap((range, index) =>
+    turnOf(range) === id ? [index] : [],
+  );
+  const found = pick === "first" ? inTurn[0] : inTurn.at(-1);
+  if (found !== undefined) {
+    return found;
+  }
+  const row = ranges[0]?.startContainer.ownerDocument?.querySelector(
+    turnSelector(id),
+  );
+  if (!row) {
+    return 0;
+  }
+  const after = ranges.findIndex((range) => range.comparePoint(row, 0) !== 1);
+  if (pick === "first") {
+    return after === -1 ? 0 : after;
+  }
+  return after <= 0 ? ranges.length - 1 : after - 1;
+}
+
+/** Whether the rows of the turn `id` are drawn rather than boxes. */
+function isTurnDrawn(content: HTMLElement, id: string) {
+  return [...content.querySelectorAll(turnSelector(id))].every(
+    (row) => !row.hasAttribute("data-placeholder"),
+  );
+}
+
 /** The first match whose bottom is below the top of the view, else the last. */
 function firstInView(ranges: readonly Range[], viewport: HTMLElement | null) {
   if (!viewport || ranges.length === 0) {
@@ -434,11 +646,17 @@ function pickAfterLoad(
   return at === -1 ? ranges.length - 1 : at;
 }
 
-/** Waits for the scroller to draw the turn `id` opens, a frame at a time. */
-async function drawn(content: HTMLElement, id: string) {
-  const selector = `[data-message-id="${CSS.escape(id)}"]`;
+/** Whether the scroller has drawn the turn `id` opens. */
+function isLoaded(content: HTMLElement, id: string) {
+  return (
+    content.querySelector(`[data-message-id="${CSS.escape(id)}"]`) !== null
+  );
+}
+
+/** Waits for `isDrawn`, a frame at a time. */
+async function drawn(isDrawn: () => boolean) {
   for (let frame = 0; frame < DRAW_WAIT_FRAMES; frame++) {
-    if (content.querySelector(selector)) {
+    if (isDrawn()) {
       return;
     }
     await new Promise((resolve) => requestAnimationFrame(resolve));

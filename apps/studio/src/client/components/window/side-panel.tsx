@@ -3,6 +3,7 @@ import { useBookmarkFolders } from "@/client/bookmarks/folders";
 import {
   askedOfBookmark,
   bookmarksToOpen,
+  hrefOfTarget,
   useOpenAddress,
   useOpenAllBookmarks,
 } from "@/client/bookmarks/open-address";
@@ -62,7 +63,7 @@ import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { atom, useAtomValue, useSetAtom, useStore } from "jotai";
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, type RefObject, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { AddressMark } from "./app-chip";
@@ -101,7 +102,9 @@ import { TabRowControl } from "./tab-location-row";
 import { useOwnApps } from "./use-own-apps";
 import { useSidePanel } from "./side-panel-state";
 import { useWindowTabs } from "./window-tabs";
-import { chatHref } from "./window-href";
+import { isChatTab } from "./tab-model";
+import { useProjectShift } from "./use-project-shift";
+import { chatHref, matchScreen } from "./window-href";
 
 /** How many chats the panel lists before All chats, newest first. */
 const RECENT_CHATS_SHOWN = 4;
@@ -129,6 +132,16 @@ function sidePanelBounds(width: number): RailBounds {
     ),
     min: SIDE_PANEL_WIDTH_MIN,
   };
+}
+
+/**
+ * Whether a window whose group and panel share `width` has room for the
+ * panel at `panelWidth` beside the group at its narrowest. The share is the
+ * same with the panel out of the way, so the answer holds once the panel
+ * goes or comes back, and only a change of the window or the sidebar turns it.
+ */
+export function sidePanelRoomOf(width: number, panelWidth: number): boolean {
+  return width >= GROUP_WIDTH_MIN + panelWidth;
 }
 
 /**
@@ -230,9 +243,12 @@ type View = "bookmarks" | "chats" | "home";
 /**
  * Apps, Chats, Files and Bookmarks, each opening in the tab as a bookmark
  * does (`bookmarkClicks`): a click in place, Back returning, a Cmd-click in
- * a new tab, a drag to wherever it goes. A chat open in a tab group brings
- * that group up instead, with its panel open. All chats and All bookmarks
- * show the whole list in the panel, with Back to the rest.
+ * a new tab, a drag to wherever it goes. A chat that is all its group shows
+ * keeps its place: anything but a chat opens on the other side of it, which
+ * takes the keyboard and so the picks after it. A chat open in a tab group
+ * brings that group up instead, with its panel open. All chats and All
+ * bookmarks show the whole list in the panel, with Back to the rest,
+ * sliding in and back out as the sidebar steps into a project.
  */
 function SidePanel({
   group,
@@ -244,8 +260,27 @@ function SidePanel({
   onVisit: (href: string) => void;
 }) {
   const [view, setView] = useState<View>("home");
+  // The list and its name slide in from the right as a whole list opens,
+  // and back from the left to the rest, as the sidebar steps into a
+  // project; the close button stays put.
+  const headShiftRef = useRef<HTMLDivElement>(null);
+  const listShiftRef = useRef<HTMLDivElement>(null);
+  const shownList = view === "home" ? undefined : view;
+  useProjectShift(headShiftRef, shownList);
+  useProjectShift(listShiftRef, shownList);
   const { setOpen, keepForPick } = useSidePanel(group);
   const appWindow = useWindow();
+  const windowTabs = useWindowTabs();
+  // Whether a click on something at `href` (none for a site) opens beside
+  // the chat the group shows alone rather than in its place.
+  const opensBesideChat = (href: string | undefined) => {
+    if (href !== undefined && matchScreen(href).kind === "chat") {
+      return false;
+    }
+    const [only, other] = windowTabs.layoutOf(group).sides;
+    const up = only?.tabs.find((tab) => tab.id === only.up);
+    return other === undefined && up !== undefined && isChatTab(up);
+  };
   const openAddress = useOpenAddress({
     loadHere: (url) => {
       keepForPick();
@@ -259,13 +294,24 @@ function SidePanel({
   // A bookmark is an address the person chose, so opening a site's counts
   // the way typing it would.
   const open: OpenAddress = (address, asked) => {
-    if (targetOfAddress(address)?.kind === "page") {
+    const target = targetOfAddress(address);
+    if (target?.kind === "page") {
       noteTypedPage(address);
     }
-    openAddress(address, asked);
+    const href =
+      target === undefined || target.kind === "page"
+        ? undefined
+        : hrefOfTarget(target);
+    openAddress(
+      address,
+      asked ??
+        (target && opensBesideChat(href) ? { into: "split" } : undefined),
+    );
   };
   const openScreen: OpenAddress = (href, asked) => {
-    if (asked === undefined) {
+    if (asked === undefined && opensBesideChat(href)) {
+      appWindow.openScreen(href, { into: "split" });
+    } else if (asked === undefined) {
       keepForPick();
       onVisit(href);
     } else {
@@ -283,37 +329,40 @@ function SidePanel({
         onClose={() => {
           setOpen(false);
         }}
+        shiftRef={headShiftRef}
         {...(view !== "home" && {
           onBack: home,
           title: view === "chats" ? "Chats" : "Bookmarks",
         })}
       />
-      {view === "home" && (
-        <PanelScroll>
-          <AppsSection open={open} openScreen={openScreen} />
-          <ChatsSection
-            count={RECENT_CHATS_SHOWN}
-            group={group}
-            open={openScreen}
-            onAll={() => {
-              setView("chats");
-            }}
-          />
-          <FilesSection group={group} open={openScreen} />
-          <BookmarksSection
-            onAll={() => {
-              setView("bookmarks");
-            }}
-            open={open}
-          />
-        </PanelScroll>
-      )}
-      {view === "chats" && <AllChats group={group} open={openScreen} />}
-      {view === "bookmarks" && (
-        <PanelScroll>
-          <BookmarkTree isBarOpenAtFirst open={open} />
-        </PanelScroll>
-      )}
+      <div className="flex min-h-0 flex-1 flex-col" ref={listShiftRef}>
+        {view === "home" && (
+          <PanelScroll>
+            <AppsSection open={open} openScreen={openScreen} />
+            <ChatsSection
+              count={RECENT_CHATS_SHOWN}
+              group={group}
+              open={openScreen}
+              onAll={() => {
+                setView("chats");
+              }}
+            />
+            <FilesSection group={group} open={openScreen} />
+            <BookmarksSection
+              onAll={() => {
+                setView("bookmarks");
+              }}
+              open={open}
+            />
+          </PanelScroll>
+        )}
+        {view === "chats" && <AllChats group={group} open={openScreen} />}
+        {view === "bookmarks" && (
+          <PanelScroll>
+            <BookmarkTree isBarOpenAtFirst open={open} />
+          </PanelScroll>
+        )}
+      </div>
     </div>
   );
 }
@@ -325,29 +374,32 @@ function SidePanel({
 function PanelHead({
   onBack,
   onClose,
+  shiftRef,
   title,
 }: {
   onBack?: () => void;
   onClose: () => void;
+  /** What slides as a whole list opens or closes: Back and the list's name. */
+  shiftRef: RefObject<HTMLDivElement | null>;
   title?: string;
 }) {
   return (
     <div className="flex h-10 shrink-0 items-center gap-0.5 pl-0.5 [&_button]:[-webkit-app-region:no-drag]">
-      {onBack && (
-        <TabRowControl
-          disabled={false}
-          icon={<CaretLeftIcon className="size-4" />}
-          label="Back"
-          onClick={onBack}
-        />
-      )}
-      {title === undefined ? (
-        <span className="flex-1" />
-      ) : (
-        <h2 className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
-          {title}
-        </h2>
-      )}
+      <div className="flex min-w-0 flex-1 items-center gap-0.5" ref={shiftRef}>
+        {onBack && (
+          <TabRowControl
+            disabled={false}
+            icon={<CaretLeftIcon className="size-4" />}
+            label="Back"
+            onClick={onBack}
+          />
+        )}
+        {title !== undefined && (
+          <h2 className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground">
+            {title}
+          </h2>
+        )}
+      </div>
       <TabRowControl
         chord="toggleSidePanel"
         disabled={false}

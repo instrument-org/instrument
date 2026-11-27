@@ -235,8 +235,13 @@ import { forgetMovedAway, hasMovedAway, receiveTab } from "./move-tab";
 import { sitesLeaving, sitesNoLongerHere, sitesPutAway } from "./site-let-go";
 import { useBootMarks } from "./boot-marks";
 import { setStudioDriveOpenPage } from "@/client/lib/studio-drive";
-import { SidePanelRail } from "./side-panel";
-import { useSidePanel, useSidePanelUpkeep } from "./side-panel-state";
+import { SidePanelRail, sidePanelRoomOf } from "./side-panel";
+import {
+  setSidePanelRoomAtom,
+  sidePanelWindowResizedAtom,
+  useSidePanel,
+  useSidePanelUpkeep,
+} from "./side-panel-state";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
@@ -722,6 +727,22 @@ function WindowShell({
       observer.disconnect();
     };
   }, [rowElement]);
+  // The side panel steps out of the way in a window too narrow for it beside
+  // the group, and comes back as the window widens again.
+  const setSidePanelRoom = useSetAtom(setSidePanelRoomAtom);
+  const sidePanelRow = rowWidth + (sidePanel.isOpen ? sidePanelWidth : 0);
+  useEffect(() => {
+    if (rowWidth > 0) {
+      setSidePanelRoom(sidePanelRoomOf(sidePanelRow, sidePanelWidth));
+    }
+  }, [rowWidth, setSidePanelRoom, sidePanelRow, sidePanelWidth]);
+  const sidePanelWindowResized = useSetAtom(sidePanelWindowResizedAtom);
+  useEffect(() => {
+    window.addEventListener("resize", sidePanelWindowResized);
+    return () => {
+      window.removeEventListener("resize", sidePanelWindowResized);
+    };
+  }, [sidePanelWindowResized]);
   const [browser, setBrowser] = useState<BrowserTabsHandle | null>(null);
   const windowTabs = useWindowTabs();
   // Every screen a group's tab stands on is walked by a router of its own.
@@ -2078,7 +2099,7 @@ function WindowShell({
                 onCollapse={() => {
                   sidePanel.setOpen(false);
                 }}
-                width={rowWidth + (sidePanel.isOpen ? sidePanelWidth : 0)}
+                width={sidePanelRow}
               />
             }
             corner={<WindowCorner />}

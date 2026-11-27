@@ -1,3 +1,4 @@
+import { atom, useAtom, useAtomValue } from "jotai";
 import { useEffect, useEffectEvent, useRef } from "react";
 
 import { type GroupLayout, type GroupOwn, isNewChatTab } from "./tab-model";
@@ -21,19 +22,51 @@ function isSidePanelOpen(
   return other === undefined && up !== undefined && isNewChatTab(up);
 }
 
+/**
+ * Whether the window has room for the side panel beside the group up, which
+ * the window decides as it is resized (`sidePanelRoomOf`). Without room an
+ * open panel steps out of the way and comes back once there is room again.
+ */
+const sidePanelRoomAtom = atom(true);
+
+/** A panel the person showed while the window had no room for it, shown until the window is resized. */
+const shownWithoutRoomAtom = atom(false);
+
+/** Sets whether the window has room for the side panel. */
+export const setSidePanelRoomAtom = atom(
+  null,
+  (_get, set, hasRoom: boolean) => {
+    set(sidePanelRoomAtom, hasRoom);
+  },
+);
+
+/** A resize of the window: a panel shown without room for it follows the room again. */
+export const sidePanelWindowResizedAtom = atom(null, (_get, set) => {
+  set(shownWithoutRoomAtom, false);
+});
+
 /** Groups whose up tab is changing to a pick from their side panel. */
 const pickingIn = new Set<string>();
 
-/** A group's side panel, open or closed, and the way to open or close it there. */
+/**
+ * A group's side panel, shown or not, and the way to open or close it there.
+ * One open in a window without room for it is not shown, and opening it
+ * there shows it anyway until the window is resized.
+ */
 export function useSidePanel(group: string | undefined) {
   const windowTabs = useWindowTabs();
+  const hasRoom = useAtomValue(sidePanelRoomAtom);
+  const [isShownWithoutRoom, setShownWithoutRoom] =
+    useAtom(shownWithoutRoomAtom);
   const isOpen =
     group !== undefined &&
-    isSidePanelOpen(windowTabs.groupOwn[group], windowTabs.layoutOf(group));
+    isSidePanelOpen(windowTabs.groupOwn[group], windowTabs.layoutOf(group)) &&
+    (hasRoom || isShownWithoutRoom);
   return {
     isOpen,
     setOpen: (open: boolean) => {
       if (group !== undefined) {
+        setShownWithoutRoom(open && !hasRoom);
         windowTabs.setGroupOwn(group, { sidePanel: open });
       }
     },
@@ -63,7 +96,8 @@ export function useSidePanelUpkeep(group: string | undefined) {
   const up = side?.tabs.find((tab) => tab.id === side.up);
   const upId = up?.id;
   const isNew = up !== undefined && isNewChatTab(up);
-  const where = up === undefined ? undefined : up.kind === "screen" ? up.href : up.url;
+  const where =
+    up === undefined ? undefined : up.kind === "screen" ? up.href : up.url;
   const was = useRef<{ id: string; isNew: boolean } | undefined>(undefined);
   const sent = useEffectEvent((at: string) => {
     if (windowTabs.groupOwn[at]?.sidePanel === true) {

@@ -1048,6 +1048,14 @@ interface SpawnAgentBrowserOptions {
   cwd: string;
   env: Record<string, string | undefined>;
   input: Buffer | undefined;
+  /**
+   * Whether the CLI starts a Chromium of its own, as it does with no window
+   * to drive. Chromium sandboxes itself and Seatbelt does not nest, so such
+   * a run goes without the profile that closes listening ports: under it
+   * the daemon never answers ("Failed to read: Resource temporarily
+   * unavailable").
+   */
+  launchesBrowser: boolean;
   managedConfigPath: string | undefined;
   stateDir: string;
 }
@@ -1238,6 +1246,7 @@ export function createAgentBrowserCommand({
     const spawnOptions = {
       cwd: hostCwd,
       env: browserFreeRead ? browserFreeReadEnv(spawnEnv) : spawnEnv,
+      launchesBrowser: invocation.kind === "headless",
       managedConfigPath: isInfoOnly ? undefined : configPath,
       stateDir: agentBrowserStateDir,
     };
@@ -1685,6 +1694,7 @@ async function spawnAgentBrowser({
   args,
   cancelSignal,
   cwd,
+  launchesBrowser,
   env,
   input,
   managedConfigPath,
@@ -1694,7 +1704,8 @@ async function spawnAgentBrowser({
     ? ["--config", managedConfigPath, ...args]
     : args;
   // It drives the app's own browser, so the folder rules do not wrap it. The
-  // one thing its profile closes is a listening port: the daemon it starts
+  // one thing its profile closes, unless it launches a browser of its own
+  // (`launchesBrowser`), is a listening port: the daemon it starts
   // otherwise serves upstream's dashboard on loopback, which answers any
   // process on the computer and relays commands to the browser, and which
   // nothing here uses (`stream`, `dashboard` and `chat` are all refused).
@@ -1708,7 +1719,9 @@ async function spawnAgentBrowser({
   const { subcommand } = parseAgentBrowserArgs(args);
 
   if (process.platform !== "win32") {
-    const held = withTcpListenerClosed(agentBrowserPath(), managedArgs);
+    const held = launchesBrowser
+      ? { args: managedArgs, file: agentBrowserPath() }
+      : withTcpListenerClosed(agentBrowserPath(), managedArgs);
     const subprocess = execa(held.file, held.args, {
       cancelSignal,
       cwd,

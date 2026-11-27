@@ -4,7 +4,11 @@ import {
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ChatIdSchema } from "../../schemas/chat-id";
+import { StoreId } from "../../schemas/store-id";
 import { serveRegisteredClient } from "../../test/helpers/serve-registered-client";
+import { appsRequest } from "../capabilities/apps";
+import { capabilityContexts } from "../capabilities/context";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { performSignedInRequest } from "./api-oauth";
 import { resetServedAppCatalog } from "./catalog";
@@ -342,6 +346,78 @@ describe("an API app signed in with Instrument's Microsoft client", () => {
       `[Error: This app needs the user to sign in again. Ask with connect_app; if that sign-in fails or is refused, sign in on the web instead: \`instrument app new outlook --web https://outlook.office.com --force\`, then connect_app.]`,
     );
     expect(await store.getTokens("outlook")).toBeUndefined();
+  });
+
+  /**
+   * `app request` from `role` to a connected Outlook whose API refuses the
+   * access token both before and after a refresh, and what it threw.
+   */
+  async function requestRefusedAfterRefresh(role: "chat" | "task") {
+    const microsoft = serveMicrosoft();
+    microsoft.graph.accepts = "at-none";
+    // A refresh token for this role alone, since fetchForMcp shares a
+    // successful refresh of one token for a minute.
+    microsoft.refreshTokens.set(`rt-refused-${role}`, {
+      access_token: `at-refused-${role}`,
+      refresh_token: `rt-after-${role}`,
+    });
+    const slug = AppSlugSchema.parse(`outlook-refused-${role}`);
+    await writeApp({
+      guide: "Mail and calendar.",
+      manifest: {
+        auth: { kind: "oauth" },
+        service: "outlook",
+        test: { path: "/me" },
+        type: "api",
+        url: "https://graph.microsoft.com/v1.0",
+      },
+      name: "Outlook",
+      replacesGuide: true,
+      slug,
+    });
+    const { manifestHash } = (await loadApp(slug))._unsafeUnwrap();
+    await recordConnection(slug, {
+      connectedAt: 1,
+      manifestHash,
+      status: "connected",
+    });
+    await store.saveTokens(slug, {
+      origin: "https://graph.microsoft.com",
+      value: {
+        access_token: "at-1",
+        refresh_token: `rt-refused-${role}`,
+        token_type: "Bearer",
+      },
+    });
+    const failure = await appsRequest
+      .run(
+        { app: slug, method: "GET", params: {}, path: "/me" },
+        capabilityContexts(
+          {
+            chatId: ChatIdSchema.parse("api-oauth-request"),
+            role,
+            sessionId: StoreId.newSessionId(),
+          },
+          "script",
+        )(),
+      )
+      .catch((error: unknown) => error);
+    expect(
+      await getWorkspaceConfig().apps.connections.get(slug),
+    ).toMatchObject({ status: "needs-sign-in" });
+    return String(failure);
+  }
+
+  it("tells the chat the sign-in is gone when the API refuses a refreshed token", async () => {
+    expect(await requestRefusedAfterRefresh("chat")).toMatchInlineSnapshot(`
+      "CapabilityFailure: GET https://graph.microsoft.com/v1.0/me -> 401 (application/json)
+      {"error":{"code":"InvalidAuthenticationToken"}}
+      The sign-in is gone. Ask for it again with connect_app; if that sign-in fails or is refused, sign in on the web instead: \`instrument app new outlook-refused-chat --web https://outlook.office.com --force\`, then connect_app."
+    `);
+  });
+
+  it("hands a sign-in the API refuses after a refresh to the chat from a task", async () => {
+    expect(await requestRefusedAfterRefresh("task")).toMatchInlineSnapshot(`"CapabilityFailure: "outlook-refused-task" had its sign-in or key refused, so it needs the user again. Setting up and connecting apps is the chat's. End your last message with a needs fence naming the app and what it needs (set up, connected, or changed); the chat does it and sends you on."`);
   });
 
   it("keeps the sign-in and names the web when the token route is down", async () => {

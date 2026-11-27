@@ -894,6 +894,7 @@ export const appsRequest = defineCapability({
     // is kept out of what the agent reads.
     let keys: PlacedKey[];
     let result: Awaited<ReturnType<typeof performAppRequest>>;
+    let signInLost = false;
     if (app.manifest.auth.kind === "oauth") {
       const signed = await performSignedInRequest({
         ...request,
@@ -908,6 +909,7 @@ export const appsRequest = defineCapability({
       // just handed.
       if (result.isOk() && result.value.status === 401) {
         await noteSignInLost(app.slug);
+        signInLost = true;
       }
     } else {
       keys = await keysFor(app.slug, app.manifest, ctx.role);
@@ -929,8 +931,20 @@ export const appsRequest = defineCapability({
       url: redact(response.url),
     };
     if (response.status >= 400) {
+      if (signInLost) {
+        const forTask = taskNeedsChat(app.slug, ctx.role, {
+          reason: "unauthorized",
+        });
+        if (forTask !== undefined) {
+          throw forTask;
+        }
+      }
+      const web = `\`${webInsteadCommand(app.slug, webInsteadUrl(app.slug, app.manifest))}\`, then ${TOOL_NAMES.connectApp}`;
+      const next = signInLost
+        ? `The sign-in is gone. Ask for it again with ${TOOL_NAMES.connectApp}; if that sign-in fails or is refused, sign in on the web instead: ${web}.`
+        : "";
       throw new CapabilityFailure(
-        `${statusLine(method, output)}${text}\n${output.truncated ? TRUNCATED_NOTE : ""}`,
+        `${statusLine(method, output)}${text}\n${output.truncated ? TRUNCATED_NOTE : ""}${next}`,
       );
     }
     return output;

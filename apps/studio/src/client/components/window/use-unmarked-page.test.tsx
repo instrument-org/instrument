@@ -6,12 +6,12 @@ import { useUnmarkedPage } from "./use-unmarked-page";
 type Mark = "marked" | "missing" | "unmarked";
 
 const { downloadMark, marks } = vi.hoisted(() => {
-  const marks = new Map<string, Mark>();
+  const byPath = new Map<string, Mark>();
   return {
     downloadMark: vi.fn(({ path }: { path: string }) =>
-      Promise.resolve({ mark: marks.get(path) ?? "missing" }),
+      Promise.resolve({ mark: byPath.get(path) ?? "missing" }),
     ),
-    marks,
+    marks: byPath,
   };
 });
 

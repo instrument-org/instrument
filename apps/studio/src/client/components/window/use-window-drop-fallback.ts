@@ -3,7 +3,8 @@ import {
   isSelfFileDrag,
   releaseSelfFileDrag,
 } from "@/client/lib/self-file-drag";
-import { useEffect, useRef } from "react";
+import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
+import { useEffect } from "react";
 
 import { filesOfDrop } from "./drag/held-tabs";
 import { carriesFiles } from "./drag/native-drag";
@@ -25,10 +26,7 @@ import { type DroppedFile } from "./drag/types";
 export function useWindowDropFallback(
   onOpen: (dropped: readonly DroppedFile[]) => void,
 ) {
-  const onOpenRef = useRef(onOpen);
-  useEffect(() => {
-    onOpenRef.current = onOpen;
-  });
+  const handlers = useSteadyCallbacks({ onOpen });
 
   useEffect(() => {
     // Cancelled so the drop is allowed here at all.
@@ -58,7 +56,7 @@ export function useWindowDropFallback(
       }
       const dropped = filesOfDrop(event.dataTransfer);
       if (dropped.length > 0) {
-        onOpenRef.current(dropped);
+        handlers.onOpen(dropped);
       }
     };
 
@@ -70,5 +68,5 @@ export function useWindowDropFallback(
       window.removeEventListener("dragover", take);
       window.removeEventListener("drop", drop);
     };
-  }, []);
+  }, [handlers]);
 }

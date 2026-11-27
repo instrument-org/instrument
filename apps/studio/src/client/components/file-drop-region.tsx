@@ -9,6 +9,7 @@ import {
 import { DROP_LOOK } from "@/client/components/window/drag/tone";
 import { placeOf } from "@/client/components/window/drag/types";
 import { type DropHandlers } from "@/client/hooks/use-file-drop-region";
+import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import {
   isSelfFileDrag,
   releaseSelfFileDrag,
@@ -56,13 +57,9 @@ export function FileDropRegion({
   const dragDepthRef = useRef(0);
 
   // The handlers are rebuilt every render (one closes over the attachment
-  // list), so they are read through a ref: binding them would rebind the
-  // region's listeners mid-drag.
-  const handlers = useRef<DropHandlers>({ onFilesDropped, onFoldersDropped });
-
-  useEffect(() => {
-    handlers.current = { onFilesDropped, onFoldersDropped };
-  });
+  // list), so they are held steady: binding them would rebind the region's
+  // listeners mid-drag.
+  const handlers = useSteadyCallbacks({ onFilesDropped, onFoldersDropped });
 
   useDropTarget(
     enabled && onFoldersDropped
@@ -70,7 +67,7 @@ export function FileDropRegion({
           land: (held) => {
             const place = placeOf(held);
             if (place) {
-              handlers.current.onFoldersDropped?.([
+              handlers.onFoldersDropped?.([
                 { path: place.path, type: "folder" },
               ]);
             }
@@ -172,7 +169,7 @@ export function FileDropRegion({
       });
 
       if (folders.length > 0) {
-        handlers.current.onFoldersDropped?.(folders);
+        handlers.onFoldersDropped?.(folders);
       } else if (unresolvedFolders > 0) {
         captureException(
           new Error("Could not get folder paths from dropped items"),
@@ -184,7 +181,7 @@ export function FileDropRegion({
         for (const file of files) {
           fileList.items.add(file);
         }
-        handlers.current.onFilesDropped(fileList.files);
+        handlers.onFilesDropped(fileList.files);
       }
     };
 
@@ -200,7 +197,7 @@ export function FileDropRegion({
       region.removeEventListener("dragover", handleDragOver);
       region.removeEventListener("drop", handleDrop);
     };
-  }, [enabled]);
+  }, [enabled, handlers]);
 
   return (
     // `isolate` so the overlay stacks against this region's own contents and

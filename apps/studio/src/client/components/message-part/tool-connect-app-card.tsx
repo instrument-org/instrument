@@ -177,10 +177,13 @@ export function ConnectAppCard({
     const note = removed
       ? undefined
       : skipped.length > 0
-        ? `You skipped ${LIST.format(skipped.map((row) => row.name))}.`
+        ? `You skipped ${LIST.format(skipped.map((row) => (row.plan === undefined ? row.name : "the Grok plan")))}.`
         : onlyAlone && statuses[0] === "stale"
           ? rowLine("stale", onlyAlone, appOf)
-          : onlyAlone && appOf(onlyAlone.slug)?.connection?.account
+          : // The account a plan row's app names is its site's.
+            onlyAlone?.plan === undefined &&
+              onlyAlone &&
+              appOf(onlyAlone.slug)?.connection?.account
             ? rowLine("connected", onlyAlone, appOf)
             : undefined;
     return (
@@ -206,7 +209,7 @@ export function ConnectAppCard({
                 : connected.length === 0
                   ? "No apps connected"
                   : connected.length === 1
-                    ? `${connected[0]?.name ?? "One app"} connected`
+                    ? `${connected[0]?.plan === undefined ? (connected[0]?.name ?? "One app") : "Grok plan"} connected`
                     : `${connected.length} apps connected`}
             </p>
             {note ? (

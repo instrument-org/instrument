@@ -993,7 +993,7 @@ describe("X's row asking for the Grok plan", () => {
     expect(
       await screen.findByText("Sign in with Grok to search X."),
     ).toBeTruthy();
-    expect(screen.queryByText("X connected")).toBeNull();
+    expect(screen.queryByText("Grok plan connected")).toBeNull();
   });
 
   it("folds once a Grok account can search", async () => {
@@ -1003,7 +1003,7 @@ describe("X's row asking for the Grok plan", () => {
     });
     show();
 
-    expect(await screen.findByText("X connected")).toBeTruthy();
+    expect(await screen.findByText("Grok plan connected")).toBeTruthy();
   });
 
   it("turns down the plan alone on Not now", async () => {
@@ -1027,7 +1027,19 @@ describe("X's row asking for the Grok plan", () => {
     mocks.signIn.mockResolvedValue(asked("declined"));
     show("2026-11-27-x");
 
-    expect(await screen.findByText("You skipped X.")).toBeTruthy();
+    expect(await screen.findByText("You skipped the Grok plan.")).toBeTruthy();
+  });
+
+  it("names the Grok plan on another computer's card", async () => {
+    mocks.apps.mockResolvedValue(x("connected"));
+    mocks.signIn.mockResolvedValue({
+      ...asked("waiting"),
+      here: false,
+      live: true,
+    });
+    show("2026-11-27-x");
+
+    expect(await screen.findByText("Connect your Grok plan")).toBeTruthy();
   });
 
   it("counts no Grok account disabled in Settings, and enables it from the row", async () => {
@@ -1042,7 +1054,7 @@ describe("X's row asking for the Grok plan", () => {
     expect(
       await screen.findByText("Your Grok account is disabled."),
     ).toBeTruthy();
-    expect(screen.queryByText("X connected")).toBeNull();
+    expect(screen.queryByText("Grok plan connected")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Enable" }));
     await waitFor(() => {
       expect(mocks.setEnabled).toHaveBeenCalledWith(

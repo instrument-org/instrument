@@ -129,9 +129,11 @@ function RemoteSignInCard({
     <ToolCard>
       <div className="px-4 py-3">
         <p className="text-sm font-medium">
-          {ask.apps.length === 1
-            ? connectTitle(kind, only?.name ?? "the app", ask.computer)
-            : `Connect ${ask.apps.length} apps`}
+          {ask.apps.length > 1
+            ? `Connect ${ask.apps.length} apps`
+            : only?.plan === undefined
+              ? connectTitle(kind, only?.name ?? "the app", ask.computer)
+              : "Connect your Grok plan"}
         </p>
         <p className="text-xs leading-5 text-muted-foreground">{reason}</p>
       </div>

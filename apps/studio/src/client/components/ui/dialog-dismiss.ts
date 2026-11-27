@@ -18,3 +18,18 @@ export function keepOpenForToasts(event: {
     event.preventDefault();
   }
 }
+
+/**
+ * A short side-to-side shake for a dialog that stays open because a click
+ * outside would lose what was typed into it, so the click reads as refused
+ * rather than missed. Nothing under reduced motion.
+ */
+export function shakeInPlace(element: HTMLElement) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    return;
+  }
+  element.animate(
+    [0, -10, 10, -7, 7, -3, 0].map((x) => ({ transform: `translateX(${x}px)` })),
+    { duration: 400, easing: "ease-out" },
+  );
+}

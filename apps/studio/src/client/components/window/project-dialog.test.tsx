@@ -239,4 +239,36 @@ describe("ProjectDialog", () => {
     expect(showProjectInFiles).toHaveBeenCalledWith({ name: "Garden" });
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
+
+  it("asks before opening Files would discard changed instructions", async () => {
+    const onOpenChange = vi.fn();
+    showProjectInFiles.mockClear();
+    renderWithProviders(
+      <ProjectDialog
+        mode="edit"
+        onChange={vi.fn()}
+        onDelete={vi.fn()}
+        onOpenChange={onOpenChange}
+        open
+        otherNames={[]}
+        project={{ id: "top_1", name: "Garden" }}
+      />,
+    );
+
+    await screen.findByLabelText("Users › me › Instrument › Projects › Garden");
+    fireEvent.change(nameField(), { target: { value: "Greenhouse" } });
+    fireEvent.click(screen.getByRole("button", { name: "Open in Files" }));
+    expect(showProjectInFiles).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Keep editing" }),
+    );
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(nameField()).toMatchObject({ value: "Greenhouse" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Open in Files" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Discard" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(showProjectInFiles).toHaveBeenCalledWith({ name: "Garden" });
+  });
 });

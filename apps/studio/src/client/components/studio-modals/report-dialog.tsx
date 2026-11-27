@@ -161,7 +161,11 @@ function ReportDialogContent({
   };
 
   return (
-    <DialogContent maxWidth="35rem" onExitComplete={onExitComplete}>
+    <DialogContent
+      edits={note.trim() ? "unsaved" : undefined}
+      maxWidth="35rem"
+      onExitComplete={onExitComplete}
+    >
       <div className="flex flex-col gap-1">
         <DialogTitle>{request.dialogTitle}</DialogTitle>
         <DialogDescription>{request.intro}</DialogDescription>

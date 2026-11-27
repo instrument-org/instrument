@@ -18,6 +18,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogTitle,
+  useCloseDialog,
 } from "@/client/components/ui/dialog";
 import { Input } from "@/client/components/ui/input";
 import {
@@ -264,9 +265,10 @@ function ProjectFolders({
 }: {
   folders: ProjectFolder[];
   onChange: (folders: ProjectFolder[]) => void;
-  /** Opens a folder in Files, the dialog closing so the tab shows. */
+  /** Opens a folder in Files once the dialog has closed, so the tab shows. */
   onOpenFolder: (path: string) => void;
 }) {
+  const closeDialog = useCloseDialog();
   const remove = (folder: ProjectFolder) => {
     onChange(folders.filter((entry) => entry !== folder));
   };
@@ -332,7 +334,9 @@ function ProjectFolders({
                   },
                 ]}
                 onOpen={() => {
-                  onOpenFolder(folder.path);
+                  closeDialog(() => {
+                    onOpenFolder(folder.path);
+                  });
                 }}
                 path={folder.path}
               />
@@ -576,9 +580,18 @@ function ProjectForm({
     onOpenChange(false);
   };
 
+  const isEdited =
+    color !== initial.color ||
+    emoji !== initial.emoji ||
+    icon !== initial.icon ||
+    instructions !== initial.instructions ||
+    name !== initial.name ||
+    !samePaths(folders, initial.folders);
+
   return (
     <DialogContent
       className="h-full gap-0 overflow-hidden p-0"
+      edits={isEdited ? "unsaved" : undefined}
       maxHeight="60rem"
       maxWidth="80rem"
       // The name is what the dialog is for, so the caret starts in it, with
@@ -676,14 +689,12 @@ function ProjectForm({
                 edit({ folders: next });
               }}
               onOpenFolder={(path) => {
-                onOpenChange(false);
                 void showInFolder(path, { kind: "folder" });
               }}
             />
             {projectFolder !== undefined && (
               <ProjectOwnFolder
                 onOpenInFiles={() => {
-                  onOpenChange(false);
                   void showProjectInFiles({ name: folderName ?? name });
                 }}
                 path={projectFolder}
@@ -773,7 +784,7 @@ function ProjectForm({
 
 /**
  * The project's own folder, where its instructions are kept as a file, with
- * the way into it in Files.
+ * the way into it in Files once the dialog has closed.
  */
 function ProjectOwnFolder({
   onOpenInFiles,
@@ -782,6 +793,10 @@ function ProjectOwnFolder({
   onOpenInFiles: () => void;
   path: string;
 }) {
+  const closeDialog = useCloseDialog();
+  const open = () => {
+    closeDialog(onOpenInFiles);
+  };
   return (
     <div className="min-w-0">
       <p className="pb-1 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
@@ -791,12 +806,12 @@ function ProjectOwnFolder({
         <FolderRow
           className="gap-1 py-2 pr-1.5 pl-1"
           note="Its instructions are saved here, along with anything else you keep for it."
-          onOpen={onOpenInFiles}
+          onOpen={open}
           path={path}
         />
         <Button
           className="w-full rounded-none border-t"
-          onClick={onOpenInFiles}
+          onClick={open}
           variant="ghost"
         >
           Open in Files

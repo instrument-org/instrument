@@ -1,4 +1,17 @@
-import { keepOpenForToasts } from "@/client/components/ui/dialog-dismiss";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/client/components/ui/alert-dialog";
+import {
+  keepOpenForToasts,
+  shakeInPlace,
+} from "@/client/components/ui/dialog-dismiss";
 import { handleContentExitAnimation } from "@/client/components/ui/dialog-exit";
 import {
   DialogWindowContext,
@@ -40,6 +53,7 @@ function DialogClose({
 function DialogContent({
   children,
   className,
+  edits,
   maxHeight,
   maxWidth = "32rem",
   onAnimationEnd,
@@ -47,10 +61,19 @@ function DialogContent({
   onEscapeKeyDown,
   onInteractOutside,
   overlayClassName,
+  ref,
   showCloseButton = true,
   style,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
+  /**
+   * What the person typed into the dialog, when there is any. While there is,
+   * a click outside shakes the dialog instead of closing it. `unsaved` edits
+   * go with the dialog, so Escape and the tab chords ask before discarding
+   * them; `kept` ones are still there when it comes back, so those close it.
+   * Cancel and the close button never ask.
+   */
+  edits?: "kept" | "unsaved";
   /** Intrinsic height the dialog wants, capped by the window. Omit for as tall as fits. */
   maxHeight?: string;
   /** Intrinsic width the dialog wants, capped by the window. */
@@ -63,7 +86,28 @@ function DialogContent({
   overlayClassName?: string;
   showCloseButton?: boolean;
 }) {
-  useDialogWindowHold(onEscapeKeyDown);
+  const dialog = React.use(DialogWindowContext);
+  const content = React.useRef<HTMLDivElement>(null);
+  // Set while "Discard changes?" is up, with what to do once the dialog goes.
+  const [discarding, setDiscarding] = React.useState<{
+    after?: () => void;
+  }>();
+  const escape = (event: KeyboardEvent) => {
+    onEscapeKeyDown?.(event);
+    if (edits === "unsaved" && !event.defaultPrevented) {
+      event.preventDefault();
+      setDiscarding({});
+    }
+  };
+  const close = (after?: () => void) => {
+    if (edits === "unsaved") {
+      setDiscarding({ after });
+      return;
+    }
+    dialog?.onOpenChange(false);
+    after?.();
+  };
+  useDialogWindowHold(escape);
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay className={overlayClassName} />
@@ -73,7 +117,7 @@ function DialogContent({
           className,
         )}
         data-slot="dialog-content"
-        onEscapeKeyDown={onEscapeKeyDown}
+        onEscapeKeyDown={escape}
         onAnimationEnd={handleContentExitAnimation(
           onAnimationEnd,
           onExitComplete,
@@ -81,6 +125,24 @@ function DialogContent({
         onInteractOutside={(event) => {
           keepOpenForToasts(event);
           onInteractOutside?.(event);
+          if (edits !== undefined && !event.defaultPrevented) {
+            event.preventDefault();
+            if (
+              event.detail.originalEvent.type === "pointerdown" &&
+              content.current
+            ) {
+              shakeInPlace(content.current);
+            }
+          }
+        }}
+        ref={(node) => {
+          content.current = node;
+          if (typeof ref === "function") {
+            return ref(node);
+          }
+          if (ref) {
+            ref.current = node;
+          }
         }}
         style={useAppZoomStyle({
           ...style,
@@ -89,7 +151,7 @@ function DialogContent({
         })}
         {...props}
       >
-        {children}
+        <DialogCloseContext value={close}>{children}</DialogCloseContext>
         {showCloseButton && (
           <DialogPrimitive.Close
             className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background not-disabled:hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
@@ -99,9 +161,55 @@ function DialogContent({
             <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
         )}
+        <AlertDialog
+          onOpenChange={(open) => {
+            if (!open) {
+              setDiscarding(undefined);
+            }
+          }}
+          open={discarding !== undefined}
+        >
+          <AlertDialogContent maxWidth="24rem">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Your changes won’t be saved.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep editing</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  dialog?.onOpenChange(false);
+                  discarding?.after?.();
+                }}
+                variant="destructive"
+              >
+                Discard
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogPrimitive.Content>
     </DialogPortal>
   );
+}
+
+const DialogCloseContext = React.createContext<
+  ((after?: () => void) => void) | null
+>(null);
+
+/**
+ * Closes the dialog this is inside to go somewhere else, then runs `after`.
+ * With unsaved `edits` it asks "Discard changes?" first, and goes nowhere on
+ * Keep editing.
+ */
+function useCloseDialog() {
+  const close = React.use(DialogCloseContext);
+  if (!close) {
+    throw new Error("useCloseDialog is used outside a DialogContent");
+  }
+  return close;
 }
 
 /**
@@ -227,4 +335,5 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
+  useCloseDialog,
 };

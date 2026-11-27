@@ -557,6 +557,7 @@ export function FeedbackDialogContent({
   return (
     <DialogContent
       className="flex flex-col gap-0 p-0"
+      edits={isFeedbackWaiting(draft) ? "kept" : undefined}
       maxHeight={REVIEW_HEIGHT}
       maxWidth={DIALOG_WIDTH}
       onDragOver={(event) => {

@@ -104,7 +104,14 @@ export function AIProviderEditDialog({
 
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
-      <DialogContent maxWidth="425px">
+      <DialogContent
+        edits={
+          apiKey !== "" || displayName !== (config.displayName || "")
+            ? "unsaved"
+            : undefined
+        }
+        maxWidth="425px"
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AIProviderIcon company type={config.type} />

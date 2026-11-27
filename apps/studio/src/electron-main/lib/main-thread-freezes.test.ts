@@ -55,6 +55,7 @@ describe("createFreezeWatch", () => {
         cpu: { system: 0, user: 100 },
         frozenMs: 10_000,
         startedAt: START + 1_000,
+        starvedMs: 0,
       },
       kind: "frozen",
     });
@@ -71,32 +72,144 @@ describe("createFreezeWatch", () => {
   it("leaves out the time the whole process was held, its own checks late too", () => {
     const watch = drive();
     watch.check();
-    for (let second = 0; second < 5; second++) {
-      watch.check();
-    }
+    watch.beat();
+    watch.check();
     // The computer slept for an hour: no check ran, main's timer neither.
     expect(watch.check(3_600_000)).toBeUndefined();
-    for (let second = 0; second < 4; second++) {
+    for (let second = 0; second < 9; second++) {
       expect(watch.check()).toBeUndefined();
     }
 
     expect(watch.check()).toMatchObject({
-      freeze: { frozenMs: 10_000 },
+      freeze: { frozenMs: 10_000, starvedMs: 0 },
       kind: "frozen",
     });
+    expect(watch.heldMs()).toBe(3_600_000);
   });
 
-  it("never calls a sleep a freeze when main beats right after waking", () => {
+  it("counts late checks toward the freeze once main has missed the check before, the whole app starved", () => {
     const watch = drive();
     watch.check();
-    watch.check(3_600_000);
-    watch.beat();
-
-    expect(watch.check()).toBeUndefined();
-    for (let second = 0; second < 9; second++) {
-      expect(watch.check()).toBeUndefined();
+    // Main stops beating, then the process runs half a second in every three.
+    const found = [watch.check(1_000, 17)];
+    for (let check = 0; check < 6; check++) {
+      found.push(watch.check(3_000, 17));
     }
+    watch.beat();
+    found.push(watch.check(3_000, 17));
+
+    expect(found).toMatchInlineSnapshot(`
+      [
+        undefined,
+        undefined,
+        undefined,
+        {
+          "freeze": {
+            "cpu": {
+              "system": 0,
+              "user": 17,
+            },
+            "frozenMs": 10000,
+            "startedAt": 1794657601000,
+            "starvedMs": 9000,
+          },
+          "kind": "frozen",
+        },
+        undefined,
+        {
+          "freeze": {
+            "cpu": {
+              "system": 0,
+              "user": 17,
+            },
+            "frozenMs": 16000,
+            "startedAt": 1794657601000,
+            "starvedMs": 15000,
+          },
+          "kind": "still",
+        },
+        undefined,
+        {
+          "freeze": {
+            "cpu": {
+              "system": 0,
+              "user": 17,
+            },
+            "frozenMs": 19000,
+            "startedAt": 1794657601000,
+            "starvedMs": 18000,
+          },
+          "kind": "recovered",
+        },
+      ]
+    `);
+    // Only the gap main beat in counts as a hold.
+    expect(watch.heldMs()).toBe(3_000);
   });
+
+  it("calls main stuck then the computer asleep a freeze, since the two look alike", () => {
+    const watch = drive();
+    watch.check();
+    watch.check();
+    watch.check();
+
+    expect(watch.check(3_600_000)).toMatchObject({
+      freeze: { frozenMs: 3_602_000, starvedMs: 3_600_000 },
+      kind: "frozen",
+    });
+    expect(watch.heldMs()).toBe(0);
+  });
+
+  it.each([
+    ["the first check", 0],
+    ["the second check", 1],
+  ])(
+    "never calls a sleep a freeze when main beats by %s after waking",
+    (_, checksBeforeBeat) => {
+      const watch = drive();
+      watch.check();
+      for (let second = 0; second < 5; second++) {
+        watch.beat();
+        watch.check();
+      }
+      const found = [watch.check(3_600_000)];
+      for (let check = 0; check < checksBeforeBeat; check++) {
+        found.push(watch.check());
+      }
+      for (let second = 0; second < 20; second++) {
+        watch.beat();
+        found.push(watch.check());
+      }
+
+      expect(found.filter(Boolean)).toEqual([]);
+      expect(watch.heldMs()).toBe(3_600_000);
+    },
+  );
+
+  it.each([
+    ["stays short of a freeze", 5_000, []],
+    ["passes ten seconds", 9_000, ["frozen", "recovered"]],
+  ])(
+    "counts a single late check while main is stuck, then starts over at its next beat, when the total %s",
+    (_, lateMs, kinds) => {
+      const watch = drive();
+      watch.check();
+      watch.check();
+      watch.check();
+      const found = [watch.check(lateMs)];
+      watch.beat();
+      found.push(watch.check());
+      for (let second = 0; second < 15; second++) {
+        watch.beat();
+        found.push(watch.check());
+      }
+
+      expect(found.flatMap((check) => (check ? [check.kind] : []))).toEqual(
+        kinds,
+      );
+      expect(watch.heldMs()).toBe(0);
+    },
+  );
 
   it("adds up the time the process was held, whether main beat first or not", () => {
     const watch = drive();
@@ -123,6 +236,7 @@ describe("createFreezeWatch", () => {
         cpu: { system: 0, user: 100 },
         frozenMs: 23_000,
         startedAt: START + 1_000,
+        starvedMs: 0,
       },
       kind: "recovered",
     });
@@ -158,10 +272,39 @@ describe("createFreezeWatch", () => {
   });
 });
 
-it("describes a freeze by its length and CPU", () => {
+it("describes a freeze by its length, the part of it starved, and CPU", () => {
   expect(
-    describeFreeze({ cpu: { system: 1, user: 99 }, frozenMs: 42_400 }),
+    describeFreeze({
+      cpu: { system: 1, user: 99 },
+      frozenMs: 42_400,
+      starvedMs: 0,
+    }),
   ).toBe("42 s, CPU 99% user and 1% system");
+  expect(
+    describeFreeze({
+      cpu: { system: 0, user: 2 },
+      frozenMs: 3_000_000,
+      starvedMs: 2_820_000,
+    }),
+  ).toBe("3000 s, 2820 s of it with the whole app starved, CPU 2% user and 0% system");
+});
+
+it("reads a marker an earlier build wrote, with no starved time", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "freeze-marker-"));
+  const markerPath = path.join(dir, FREEZE_MARKER_FILE);
+  fs.writeFileSync(
+    markerPath,
+    JSON.stringify({
+      cpu: { system: 1, user: 99 },
+      frozenMs: 42_000,
+      pid: 4242,
+      startedAt: START,
+      version: "2.0.9",
+    }),
+  );
+
+  expect(readFreezeMarker(markerPath)?.starvedMs).toBe(0);
+  fs.rmSync(dir, { force: true, recursive: true });
 });
 
 describe("runFreezeWatchdog", () => {
@@ -214,6 +357,7 @@ describe("runFreezeWatchdog", () => {
       frozenMs: 10_000,
       pid: 4242,
       startedAt: START + 1_000,
+      starvedMs: 0,
       version: "2.0.9",
     });
 
@@ -231,6 +375,7 @@ describe("runFreezeWatchdog", () => {
           cpu: { system: 0, user: 100 },
           frozenMs: 15_000,
           startedAt: START + 1_000,
+          starvedMs: 0,
         },
       },
     ]);

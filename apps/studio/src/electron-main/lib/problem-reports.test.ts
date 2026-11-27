@@ -192,6 +192,7 @@ describe("problem reports", () => {
       cpu: { system: 1, user: 99 },
       frozenMs: 42_000,
       startedAt: Date.parse("2026-11-14T12:00:00.000Z"),
+      starvedMs: 0,
     };
     ended({ crashRecord: crashEvent(), dumps: 1, freeze });
     ended({});
@@ -213,7 +214,7 @@ describe("problem reports", () => {
   it("records a freeze in development too, where its marker says the session really froze", () => {
     electronApp.isPackaged = false;
     ended({
-      freeze: { cpu: { system: 0, user: 0 }, frozenMs: 12_000, startedAt: 0 },
+      freeze: { cpu: { system: 0, user: 0 }, frozenMs: 12_000, startedAt: 0, starvedMs: 0 },
     });
 
     expect(reports.listPendingProblems()).toMatchObject([

@@ -615,6 +615,7 @@ function reportPreviousFreeze(
           cpu: marker.cpu,
           frozenMs: marker.frozenMs,
           startedAt: marker.startedAt,
+          starvedMs: marker.starvedMs,
         }
       : undefined;
   } catch (error) {

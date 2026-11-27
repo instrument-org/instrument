@@ -719,6 +719,7 @@ describe("registerCrashDiagnostics", () => {
       cpu: { system: 1, user: 99 },
       frozenMs: 42_000,
       startedAt: Date.parse("2026-11-14T12:00:00.000Z"),
+      starvedMs: 0,
     };
     const writeMarkers = (freezePid: number) => {
       fs.writeFileSync(

@@ -130,7 +130,10 @@ import { servePageEditorBoot } from "./page-editor/sessions";
 import { startNetworkStatus } from "./lib/network-status";
 import { platformApiQueryClient } from "./platform-api/client";
 import { initializeRPC } from "./rpc/initialize";
-import { startFreezeWatchdog } from "./lib/freeze-watchdog";
+import {
+  freezeMainOnSignal,
+  startFreezeWatchdog,
+} from "./lib/freeze-watchdog";
 import { watchMainThreadStalls } from "./lib/main-thread-stalls";
 import { watchProcessCpu } from "./lib/process-cpu";
 
@@ -462,6 +465,9 @@ async function bootstrapPrimaryInstance() {
   registerFileDragHandler();
 
   watchMainThreadStalls({ onTick: startFreezeWatchdog().beat });
+  if (!app.isPackaged || APP_FLAVOR.kind === "preview") {
+    freezeMainOnSignal();
+  }
   watchProcessCpu();
 
   await timeBootStep("initializeRPC", () => {

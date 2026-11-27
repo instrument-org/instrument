@@ -11,7 +11,10 @@ import fs from "node:fs";
  * process held (the computer sleeping, the system napping the app), and that
  * time is not counted. The watchdog adds it up for main, which reads it as
  * `heldMs` (`@instrument-org/shared/process-holds`) to leave holds out of
- * what it measures.
+ * what it measures. A late check is not a hold when main had already missed
+ * the check before it as well: main is stuck, and the whole app is starved
+ * besides (the system swapping hard), so main gets no further when the
+ * process does run. That time counts toward the freeze as starved time.
  *
  * A freeze is written down from the worker, since main's own logger appends
  * from main's event loop and so writes nothing while main is stuck: one log
@@ -32,7 +35,8 @@ const FREEZE_AFTER_MS = 10_000;
 
 /**
  * A check this long after the one before means the worker was held too, so
- * the time between is the whole process's, not main's.
+ * the time between is the whole process's: held, or starved when main was
+ * already stuck.
  */
 const HELD_AFTER_MS = 2 * FREEZE_CHECK_MS;
 
@@ -52,14 +56,17 @@ type CpuTotals = { system: number; user: number };
 
 /**
  * A freeze as the worker measured it: when main last moved the counter, how
- * long it has been stuck since (time the process was held left out), and the
- * CPU the whole process used meanwhile, in percent of one core. A loop shows
- * near 100 user; a call waiting on something shows near nothing.
+ * long it has been stuck since (time the process was held left out), how much
+ * of that the whole process was starved too, and the CPU the whole process
+ * used meanwhile, in percent of one core. A loop shows near 100 user; a call
+ * waiting on something shows near nothing.
  */
 export type Freeze = {
   cpu: { system: number; user: number };
   frozenMs: number;
   startedAt: number;
+  /** The part of `frozenMs` the worker's own checks came late, the whole process starved. */
+  starvedMs: number;
 };
 
 /** What a check found worth acting on. */
@@ -78,11 +85,14 @@ export type FreezeCheck =
  * process's CPU totals, all read at one check.
  */
 export function createFreezeWatch() {
-  let last: { at: number; beats: number } | undefined;
+  let last: { at: number; beats: number; moved: boolean } | undefined;
   let heldMs = 0;
   // When the counter last moved, as the worker saw it.
   let since = { cpu: { system: 0, user: 0 }, now: 0 };
+  // Time since then from checks on time, and from late checks while main was
+  // already stuck.
   let stuckMs = 0;
+  let starvedMs = 0;
   let frozen: Freeze | undefined;
   let markedAtMs = 0;
 
@@ -101,42 +111,53 @@ export function createFreezeWatch() {
       now: number;
     }): FreezeCheck | undefined {
       const previous = last;
-      last = { at, beats };
-      // Before the counter, since main may beat first after a hold.
+      const moved = !previous || beats !== previous.beats;
+      last = { at, beats, moved };
       const gap = previous ? at - previous.at : 0;
-      if (gap > HELD_AFTER_MS) {
+      const late = gap > HELD_AFTER_MS;
+      // Main missed the check before too, so it was stuck before the process
+      // was: a check after waking, before main has beaten, is still a hold.
+      const starved = late && !moved && previous?.moved === false;
+      // Before the counter, since main may beat first after a hold.
+      if (late && !starved) {
         heldMs += gap;
       }
-      if (!previous || beats !== previous.beats) {
+      if (moved) {
         const ended = frozen;
         frozen = undefined;
         stuckMs = 0;
+        starvedMs = 0;
         since = { cpu, now };
         return ended && { freeze: ended, kind: "recovered" };
       }
-      if (gap > HELD_AFTER_MS) {
+      if (starved) {
+        starvedMs += gap;
+      } else if (late) {
         return undefined;
+      } else {
+        stuckMs += gap;
       }
-      stuckMs += gap;
-      if (stuckMs < FREEZE_AFTER_MS) {
+      const frozenMs = stuckMs + starvedMs;
+      if (frozenMs < FREEZE_AFTER_MS) {
         return undefined;
       }
       const freeze: Freeze = {
         cpu: {
-          system: percentOfCore(cpu.system - since.cpu.system, stuckMs),
-          user: percentOfCore(cpu.user - since.cpu.user, stuckMs),
+          system: percentOfCore(cpu.system - since.cpu.system, frozenMs),
+          user: percentOfCore(cpu.user - since.cpu.user, frozenMs),
         },
-        frozenMs: Math.round(stuckMs),
+        frozenMs: Math.round(frozenMs),
+        starvedMs: Math.round(starvedMs),
         startedAt: since.now,
       };
       const started = !frozen;
       frozen = freeze;
       if (started) {
-        markedAtMs = stuckMs;
+        markedAtMs = frozenMs;
         return { freeze, kind: "frozen" };
       }
-      if (stuckMs - markedAtMs >= markerEveryMs(markedAtMs)) {
-        markedAtMs = stuckMs;
+      if (frozenMs - markedAtMs >= markerEveryMs(markedAtMs)) {
+        markedAtMs = frozenMs;
         return { freeze, kind: "still" };
       }
       return undefined;
@@ -148,9 +169,17 @@ function percentOfCore(micros: number, ms: number) {
   return Math.max(0, Math.round(micros / 10 / ms));
 }
 
-/** A freeze in words, for the log and a report: `42 s, CPU 99% user and 1% system`. */
-export function describeFreeze(freeze: Pick<Freeze, "cpu" | "frozenMs">) {
-  return `${Math.round(freeze.frozenMs / 1000)} s, CPU ${freeze.cpu.user}% user and ${freeze.cpu.system}% system`;
+/**
+ * A freeze in words, for the log and a report: `42 s, CPU 99% user and 1%
+ * system`, or `3000 s, 2820 s of it with the whole app starved, CPU …`.
+ */
+export function describeFreeze(
+  freeze: Pick<Freeze, "cpu" | "frozenMs" | "starvedMs">,
+) {
+  const starvedS = Math.round(freeze.starvedMs / 1000);
+  const starved =
+    starvedS > 0 ? `, ${starvedS} s of it with the whole app starved` : "";
+  return `${Math.round(freeze.frozenMs / 1000)} s${starved}, CPU ${freeze.cpu.user}% user and ${freeze.cpu.system}% system`;
 }
 
 /** The marker's name in userData, beside the crash record and the session marker. */
@@ -187,6 +216,11 @@ export function readFreezeMarker(markerPath: string): FreezeMarker | undefined {
         frozenMs: parsed.frozenMs,
         pid: parsed.pid,
         startedAt: parsed.startedAt,
+        // A marker from a build that counted no starved time has none.
+        starvedMs:
+          "starvedMs" in parsed && typeof parsed.starvedMs === "number"
+            ? parsed.starvedMs
+            : 0,
         version: parsed.version,
       };
     }

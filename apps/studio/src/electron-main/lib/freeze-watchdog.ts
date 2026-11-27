@@ -67,3 +67,19 @@ export function startFreezeWatchdog(): { beat: () => void } {
     },
   };
 }
+
+/**
+ * TEST SEAM: keeps the main thread busy for a minute each time the process
+ * gets SIGUSR2 (`kill -USR2 <pid>`, macOS and Linux), a freeze to check the
+ * watchdog with in a build. Only a development run or a preview build
+ * listens.
+ */
+export function freezeMainOnSignal() {
+  process.on("SIGUSR2", () => {
+    log.warn("Freezing the main thread for 60 s on SIGUSR2");
+    const until = performance.now() + 60_000;
+    while (performance.now() < until) {
+      // Spin without yielding, as a loop that never ends would.
+    }
+  });
+}

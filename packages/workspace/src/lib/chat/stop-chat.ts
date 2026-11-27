@@ -13,11 +13,19 @@ import { type TakenBack, takeBackUnanswered } from "./take-back";
 import { noteTaskStoppedOnCard } from "./wake";
 
 /**
- * Whether the person's Stop of a whole chat has something to end: an agent
- * of it at work, or a card it waits on the person's answer to.
+ * What the person's Stop of a whole chat would end: whether an agent of it
+ * is at work, and how many cards it waits on the person's answer to.
  */
+export async function whatStopEnds(
+  chatId: ChatId,
+): Promise<{ asks: number; working: boolean }> {
+  return { asks: (await openAsks(chatId)).length, working: isWorking(chatId) };
+}
+
+/** Whether the person's Stop of a whole chat has something to end. */
 export async function hasSomethingToStop(chatId: ChatId): Promise<boolean> {
-  return isWorking(chatId) || (await openAsks(chatId)).length > 0;
+  const ends = await whatStopEnds(chatId);
+  return ends.working || ends.asks > 0;
 }
 
 /**

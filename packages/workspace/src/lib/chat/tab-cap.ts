@@ -48,24 +48,32 @@ export async function closeTabsOverCap(chatId: ChatId): Promise<void> {
 /**
  * Closes the tabs the chat's agents opened as the chat is archived, those
  * the person never used, or put in the trash, every one, since the chat is
- * gone; telling nobody: no session of it works on.
+ * gone; telling nobody: no session of it works on. `closed` answers how many
+ * close once the chat's state no longer lists them, and `done` settles once
+ * the window has been asked to close each.
  */
-export async function closeChatTabs(
+export function closeChatTabs(
   chatId: ChatId,
   { trashed }: { trashed: boolean },
-): Promise<void> {
-  await inTurn(chatId, async () => {
+): { closed: Promise<number>; done: Promise<void> } {
+  let count: (closed: number) => void = () => undefined;
+  const closed = new Promise<number>((resolve) => {
+    count = resolve;
+  });
+  const done = inTurn(chatId, async () => {
     const { openedTabs } = await getChatState(chatDir(chatId));
     const closing = trashed
       ? openedTabs
       : openedTabs.filter((tab) => isUnused(tab));
     if (closing.length === 0) {
+      count(0);
       return;
     }
     const ids = new Set(closing.map((tab) => tab.id));
     await updateChatState(chatDir(chatId), (state) => ({
       openedTabs: state.openedTabs.filter((tab) => !ids.has(tab.id)),
     }));
+    count(closing.length);
     for (const tab of closing) {
       forgetTab(tab.id);
       await askWindow({
@@ -75,6 +83,11 @@ export async function closeChatTabs(
       });
     }
   });
+  // A close that failed before the state changed closed none.
+  void done.catch(() => {
+    count(0);
+  });
+  return { closed, done };
 }
 
 /**

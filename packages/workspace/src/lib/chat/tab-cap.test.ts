@@ -82,7 +82,7 @@ const closePaths = [
     path: "archive",
     run: async (tab: OpenedTab) => {
       await setChatState(chatDir(chatId), { openedTabs: [tab] });
-      await closeChatTabs(chatId, { trashed: false });
+      await closeChatTabs(chatId, { trashed: false }).done;
     },
   },
   {
@@ -90,7 +90,7 @@ const closePaths = [
     path: "trash",
     run: async (tab: OpenedTab) => {
       await setChatState(chatDir(chatId), { openedTabs: [tab] });
-      await closeChatTabs(chatId, { trashed: true });
+      await closeChatTabs(chatId, { trashed: true }).done;
     },
   },
   {
@@ -126,6 +126,19 @@ describe.each(closePaths)("the $path", ({ closesUsed, run }) => {
     await run(tab);
 
     expect(closes.includes(tab.id)).toBe(closesUsed);
+  });
+});
+
+describe("closeChatTabs", () => {
+  it("answers how many tabs it closes as the chat is archived", async () => {
+    await setChatState(chatDir(chatId), {
+      openedTabs: [openedTab(1), openedTab(2), openedTab(3, true)],
+    });
+
+    const { closed, done } = closeChatTabs(chatId, { trashed: false });
+
+    expect(await closed).toBe(2);
+    await done;
   });
 });
 

@@ -14,25 +14,45 @@ import {
 } from "./chats";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { getWorkspaceConfig } from "../workspace-config";
-import { hasSomethingToStop, stopChat } from "./stop-chat";
+import { stopChat, whatStopEnds } from "./stop-chat";
 import { closeChatTabs } from "./tab-cap";
+
+/** What archiving a chat did. */
+export type ArchivedChat = {
+  archived: boolean;
+  /** How many cards waiting on the person's answer closed. */
+  asksClosed: number;
+  /** Whether an agent of the chat was at work and stopped. */
+  stoppedWork: boolean;
+  tabsClosed: number;
+};
 
 /**
  * Puts a chat away, as the person's Archive does, whoever asks. Archiving a
  * chat is being done with it, so whatever of it is at work or waiting on the
  * person stops as Stop stops it, and its agents' tabs go, but for the ones
- * the person used.
+ * the person used. Answers what it did, without waiting on the window to
+ * close the tabs.
  */
-export async function archiveChatAndTabs(chatId: ChatId): Promise<boolean> {
-  if (await hasSomethingToStop(chatId)) {
+export async function archiveChatAndTabs(
+  chatId: ChatId,
+): Promise<ArchivedChat> {
+  const ends = await whatStopEnds(chatId);
+  if (ends.working || ends.asks > 0) {
     await stopChat(chatId, {
       captureException: getWorkspaceConfig().captureException,
       workspaceRef: getWorkspaceActorRef(),
     });
   }
   const archived = await archiveChat(chatId);
-  void closeChatTabs(chatId, { trashed: false }).catch(() => undefined);
-  return archived;
+  const tabs = closeChatTabs(chatId, { trashed: false });
+  void tabs.done.catch(() => undefined);
+  return {
+    archived,
+    asksClosed: ends.asks,
+    stoppedWork: ends.working,
+    tabsClosed: await tabs.closed,
+  };
 }
 
 /**
@@ -71,7 +91,9 @@ async function undoChatChange(change: ChatChange): Promise<boolean> {
       if ((await chatById(chatId))?.archived !== change.after) {
         return false;
       }
-      return change.before ? archiveChatAndTabs(chatId) : unarchiveChat(chatId);
+      return change.before
+        ? (await archiveChatAndTabs(chatId)).archived
+        : unarchiveChat(chatId);
     }
     case "starred": {
       if ((await chatById(chatId))?.starred !== change.after) {

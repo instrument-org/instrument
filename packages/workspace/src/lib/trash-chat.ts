@@ -92,9 +92,11 @@ export async function trashChat({
       );
       // And every tab its agents opened, the ones the person used too, since
       // the chat they belong to is gone.
-      await closeChatTabs(id, { trashed: true }).catch((error: unknown) => {
-        workspaceConfig.captureException(error);
-      });
+      await closeChatTabs(id, { trashed: true }).done.catch(
+        (error: unknown) => {
+          workspaceConfig.captureException(error);
+        },
+      );
       forgetSessions(sessions);
 
       try {

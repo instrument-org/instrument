@@ -35,6 +35,8 @@ const running = vi.hoisted(() => {
 /** What reached the workspace machine; a stop ends the work it names. */
 const sent = vi.hoisted(() => ({ value: [] as unknown[] }));
 const closedTabs = vi.hoisted(() => ({ value: [] as string[] }));
+/** How many tabs each chat's close closes. */
+const tabsOf = vi.hoisted(() => ({ value: new Map<string, number>() }));
 
 // Which tasks are at work is the machine's to say, so it is a dial here.
 vi.mock(import("../chat/activity"), async (importOriginal) => ({
@@ -69,7 +71,10 @@ vi.mock(import("../chat/tab-cap"), async (importOriginal) => ({
   ...(await importOriginal()),
   closeChatTabs: (chatId: ChatId) => {
     closedTabs.value.push(chatId);
-    return Promise.resolve();
+    return {
+      closed: Promise.resolve(tabsOf.value.get(chatId) ?? 0),
+      done: Promise.resolve(),
+    };
   },
 }));
 
@@ -157,6 +162,7 @@ async function reply(chatId: ChatId, text: string) {
 beforeEach(async () => {
   running.value = [];
   closedTabs.value = [];
+  tabsOf.value = new Map();
   sent.value = [];
   createMockChatConfig(
     ChatIdSchema.parse(`chats-command-${Date.now()}-${(counter += 1)}`),
@@ -464,7 +470,7 @@ describe("instrument chats archive and unarchive", () => {
       "instrument chats archive lisbon groceries organizer",
     );
     expect(archived.stdout).toMatchInlineSnapshot(`
-      "Archived lisbon: Trip to Lisbon
+      "Archived lisbon: Trip to Lisbon (its turn and tasks stopped)
       Archived groceries: Groceries for the week
       "
     `);
@@ -489,6 +495,44 @@ describe("instrument chats archive and unarchive", () => {
     expect((await chatById(ChatIdSchema.parse("organizer")))?.archived).toBe(
       false,
     );
+  });
+
+  it("says what archiving stopped and closed", async () => {
+    running.value = [
+      {
+        chat: sessionOfChat(ChatIdSchema.parse("lisbon")),
+        sessionId: StoreId.newSessionId(),
+        title: "A task",
+        updatedAt: 0,
+      },
+    ];
+    const porto = ChatIdSchema.parse("porto");
+    const portoSession = sessionOfChat(porto);
+    if (!portoSession) {
+      throw new Error("porto has no session");
+    }
+    await recordAsk(
+      {
+        chatId: porto,
+        reason: "The timetable needs your account.",
+        sessionId: portoSession,
+        title: "Log in to the railway",
+      },
+      "page",
+      "tab_1",
+      { page: { title: "Railway", url: "https://rail.example.com/" } },
+    );
+    tabsOf.value.set("lisbon", 3);
+    tabsOf.value.set("groceries", 1);
+    const archived = await one(
+      "instrument chats archive lisbon porto groceries",
+    );
+    expect(archived.stdout).toMatchInlineSnapshot(`
+      "Archived lisbon: Trip to Lisbon (its turn and tasks stopped, 3 tabs closed)
+      Archived porto: about porto (its open question closed)
+      Archived groceries: Groceries for the week (1 tab closed)
+      "
+    `);
   });
 
   it("fails the line of a chat that could not be changed and goes on to the rest", async () => {

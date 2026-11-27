@@ -24,7 +24,7 @@ import {
   unarchiveChat,
 } from "../chat/chats";
 import { ChatStateSchema, chatStateOf, day } from "../chat/chat-state";
-import { archiveChatAndTabs } from "../chat/organize";
+import { type ArchivedChat, archiveChatAndTabs } from "../chat/organize";
 import { listProjects, type Project, projectsDir } from "../chat/projects";
 import {
   chatLatestWords,
@@ -332,7 +332,8 @@ function markCapability({
   /** What a line says was done: "Archived". */
   did: string;
   field: "archived" | "starred" | "unread";
-  mark: (chatId: ChatId) => Promise<boolean>;
+  /** Whether the mark was set, or what else setting it did, said after the line. */
+  mark: (chatId: ChatId) => Promise<boolean | { also: readonly string[] }>;
   /** Why the chat running the command is left as it is, where marking it would end the turn marking it. */
   notThisChat?: string;
   summary: string;
@@ -360,11 +361,16 @@ function markCapability({
           if (chat[field] === to) {
             return `${chat.id} was ${already}: ${chat.title}`;
           }
-          if (!(await mark(chat.id))) {
+          const marked = await mark(chat.id);
+          if (!marked) {
             return { couldNot: `${word}: ${chat.id} could not be changed.` };
           }
           recordChatChange({ after: to, before: !to, chat: chat.id, field });
-          return `${did} ${chat.id}: ${chat.title}`;
+          const also =
+            marked === true || marked.also.length === 0
+              ? ""
+              : ` (${marked.also.join(", ")})`;
+          return `${did} ${chat.id}: ${chat.title}${also}`;
         },
       ),
     summary,
@@ -376,11 +382,31 @@ function markCapability({
   });
 }
 
+/** What archiving a chat stopped and closed, each only when it did. */
+function archivedAlso({
+  archived,
+  asksClosed,
+  stoppedWork,
+  tabsClosed,
+}: ArchivedChat) {
+  return (
+    archived && {
+      also: [
+        ...(stoppedWork ? ["its turn and tasks stopped"] : []),
+        ...(asksClosed === 1 ? ["its open question closed"] : []),
+        ...(asksClosed > 1 ? [`its ${asksClosed} open questions closed`] : []),
+        ...(tabsClosed === 1 ? ["1 tab closed"] : []),
+        ...(tabsClosed > 1 ? [`${tabsClosed} tabs closed`] : []),
+      ],
+    }
+  );
+}
+
 export const chatsArchive = markCapability({
   already: "already archived",
   did: "Archived",
   field: "archived",
-  mark: archiveChatAndTabs,
+  mark: async (chatId) => archivedAlso(await archiveChatAndTabs(chatId)),
   notThisChat:
     "is this chat, which archiving would stop mid-turn; the user archives it.",
   summary:

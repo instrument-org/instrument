@@ -392,7 +392,7 @@ A browser extension's own pages (\`chrome-extension://\`) are the user's and are
 
 ## Downloads
 
-A file a page offers lands in \`downloads/\` under your work folder, under its own name when a \`click\` starts it (the result says where), or under a name you pick with \`agent-browser download @ref <name>\`.
+A file a page offers lands in \`downloads/\` under your work folder, under its own name when a \`click\` starts it (a later result of any command says where, and when it finished), or under a name you pick with \`agent-browser download @ref <name>\`.
 
 ---
 

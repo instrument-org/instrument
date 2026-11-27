@@ -17,6 +17,9 @@ import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model"
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { runTool } from "../test/helpers/run-tool";
 import { BashTool } from "./bash";
+import { notePageDownload } from "../lib/chat/page-downloads";
+import { noteTabCommand } from "../lib/tab-activity";
+import { browserTargetOf } from "../types";
 import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 
 const model = createMockAIGatewayModel();
@@ -260,6 +263,25 @@ describe("bash background processes, end to end", () => {
     ]);
     expect((await bash("echo again", 10_000)).jobsEnded).toBeUndefined();
   }, 30_000);
+
+  it("ends a call that never drove the browser with a download its page started, told once", async () => {
+    const tab = browserTargetOf(StoreId.newTabId());
+    noteTabCommand(tab, { chatId, sessionId });
+    notePageDownload(tab, "d1", {
+      path: path.join(chatRoot, "work", "downloads", "report.pdf"),
+      state: "running",
+    });
+
+    const next = await bash("ls", 10_000);
+
+    expect(next.pageDownloads).toEqual([
+      expect.stringContaining("is downloading report.pdf to "),
+    ]);
+    expect(next.pageDownloads?.[0]).toContain(
+      "the file is incomplete until a later result says it finished.",
+    );
+    expect((await bash("ls", 10_000)).pageDownloads).toBeUndefined();
+  });
 
   it("keeps the cards and hand-offs a command collected before it moved", async () => {
     const started = await bash(": RAISE; sleep 5", 300);

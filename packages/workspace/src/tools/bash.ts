@@ -30,6 +30,7 @@ import {
   unreportedBackgroundProcesses,
 } from "../lib/background-processes";
 import { jobEventOf } from "../lib/chat/job-wake";
+import { pageDownloadsNote } from "../lib/chat/page-downloads";
 import { jobEndedLine } from "../model-text/notes/job-event-model-text";
 import { type StoreId } from "../schemas/store-id";
 import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
@@ -272,6 +273,12 @@ const bashOutputSchema = z.object({
    * own since it was last told, one line each.
    */
   jobsEnded: z.array(z.string()).optional(),
+  /**
+   * Downloads the session's pages started, or finished, since it was last
+   * told, one line each: a call that never drove the browser still hears of
+   * them.
+   */
+  pageDownloads: z.array(z.string()).optional(),
   /**
    * The page after the call's agent-browser commands changed it, when
    * nothing in the call read it afterwards.
@@ -636,6 +643,8 @@ const bashCapability = defineCapability({
             : undefined;
         const guidesShown = appGuidesShown(appGuides, outcome.output);
         const jobsEnded = endedJobsOf(sessionId);
+        const pageDownloads =
+          pageDownloadsNote(sessionId)?.trimEnd().split("\n") ?? [];
 
         return ok({
           ...(guidesShown.length > 0 ? { appGuides: guidesShown } : {}),
@@ -650,6 +659,7 @@ const bashCapability = defineCapability({
           ...(asks.length > 0 ? { asks } : {}),
           ...(jobsEnded.length > 0 ? { jobsEnded } : {}),
           omittedBytes: 0,
+          ...(pageDownloads.length > 0 ? { pageDownloads } : {}),
           output,
           ...(pageAfter ? { pageAfter } : {}),
           ...ran(),
@@ -814,6 +824,7 @@ function bashOutputText(output: z.output<typeof bashOutputSchema>): {
         : []),
       ...(output.browserNews ? ["", ...output.browserNews] : []),
       ...(output.jobsEnded ? ["", ...output.jobsEnded] : []),
+      ...(output.pageDownloads ? ["", ...output.pageDownloads] : []),
     ];
     // Ahead of the page, since whether the user sees it is what a reply
     // about it turns on.

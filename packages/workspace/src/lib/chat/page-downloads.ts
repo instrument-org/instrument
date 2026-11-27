@@ -78,7 +78,7 @@ function pageDownloadLine({ from, path, state }: PageDownload): string {
       return `The page in tab ${from} downloaded ${name} to ${path}.`;
     }
     case "running": {
-      return `The page in tab ${from} is downloading ${name} to ${path}; a later result says when it finishes.`;
+      return `The page in tab ${from} is downloading ${name} to ${path}; the file is incomplete until a later result says it finished.`;
     }
   }
 }

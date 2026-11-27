@@ -53,7 +53,7 @@ describe("a download a page an agent drives starts", () => {
         note?.replace(tab, "<tab>"),
       ),
     ).toEqual([
-      `The page in tab <tab> is downloading report (1).csv to ${shellPath(saved)}; a later result says when it finishes.\n`,
+      `The page in tab <tab> is downloading report (1).csv to ${shellPath(saved)}; the file is incomplete until a later result says it finished.\n`,
       `The page in tab <tab> downloaded report (1).csv to ${shellPath(saved)}.\n`,
       undefined,
     ]);

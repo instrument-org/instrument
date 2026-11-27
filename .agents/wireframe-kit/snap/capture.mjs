@@ -448,17 +448,18 @@ export const STATES = {
     },
   },
   "tg-new-tab": {
-    about: "Tab groups: a new group just made with ⌘N, up above the pricing chat's group in the sidebar. The new tab as it ships: back, forward and reload off, + and New Tab in Split, the bookmarks bar with Apps, Chats and Files and the line on bookmarking (no bookmarks), the Instrument mark, \"How can I help?\" and the composer (+, Project, Auto), nothing typed.",
+    about: "Tab groups: a new group just made with ⌘N, up above the pricing chat's group in the sidebar. The new tab as it ships: back, forward and reload off, + at the toolbar's end, the Instrument mark, \"How can I help?\" and the composer (+, Project, Auto), nothing typed, and the side panel at the window's right with the folders (Instrument first) over Bookmarks and its line on bookmarking (no bookmarks).",
     themes: ["light", "dark"],
     run: async (h) => {
       await h.bookmarksBar(false);
       await h.chatAlone(h.chats.pricing);
       await h.app.words.press("Meta+n");
+      await h.sidePanel();
     },
   },
   "tg-page-beside-chat": {
     about: "Tab groups: the pricing chat's group with the chat's card on the left and a card of pages on the right, Zendesk pricing behind and Intercom pricing up, loaded, the keyboard on the page side. Bookmarks kept (the star filled on Intercom), the bookmarks bar off. The pages are a picture.",
-    themes: ["light"],
+    themes: ["light", "dark"],
     run: async (h) => {
       const { omnibar, press } = h.app.words;
       await h.bookmarksBar(false);
@@ -471,19 +472,19 @@ export const STATES = {
   },
   "tg-two-pages": {
     about: "Tab groups: a group of two pages split side by side, no chat card (its chat not started): Zendesk pricing on the left, Intercom pricing on the right with the keyboard, each side its own toolbar with no tab strip. The bookmarks bar off. The pages are a picture.",
-    themes: ["light"],
+    themes: ["light", "dark"],
     run: async (h) => {
-      const { click, omnibar } = h.app.words;
+      const { omnibar } = h.app.words;
       await h.bookmarksBar(false);
       await h.bookmarks();
       await omnibar.go("https://www.zendesk.com/pricing");
-      await click("New Tab in Split");
+      await h.app.words.press("Alt+Meta+n");
       await omnibar.go("https://www.intercom.com/pricing");
     },
   },
   "tg-page-more-menu": {
     about: "tg-page-beside-chat with the page toolbar's ⋮ (More actions) open and its Bookmarks submenu out: Bookmark this tab…, Bookmark all tabs…, Show bookmarks bar, Bookmark manager, then the Competitors folder, Notion pricing and Hacker News.",
-    themes: ["light"],
+    themes: ["light", "dark"],
     run: async (h) => {
       const { button, item, omnibar, press } = h.app.words;
       await h.bookmarksBar(false);
@@ -499,7 +500,7 @@ export const STATES = {
   },
   "tg-page-bar": {
     about: "tg-page-beside-chat with the bookmarks bar turned on: under the page's toolbar, Apps, Chats and Files, the Competitors folder, Notion pricing and Hacker News, and the All Bookmarks chip at the bar's right end (G2 and Wikipedia kept there). The pages are a picture.",
-    themes: ["light"],
+    themes: ["light", "dark"],
     run: async (h) => {
       const { omnibar, press } = h.app.words;
       await h.bookmarksBar(true);
@@ -512,7 +513,7 @@ export const STATES = {
   },
   "tg-page-bar-all-menu": {
     about: "tg-page-bar with the All Bookmarks chip's menu open: what it lists and offers today.",
-    themes: ["light"],
+    themes: ["light", "dark"],
     run: async (h) => {
       const { button, omnibar, press } = h.app.words;
       await h.bookmarksBar(true);
@@ -527,7 +528,7 @@ export const STATES = {
   },
   "tg-chat-alone": {
     about: "Tab groups: the pricing chat's group with the chat alone and no pages, bookmarks kept and the bookmarks bar off (a chat never shows it).",
-    themes: ["light"],
+    themes: ["light", "dark"],
     run: async (h) => {
       await h.bookmarksBar(false);
       await h.bookmarks();
@@ -536,7 +537,7 @@ export const STATES = {
   },
   "tg-chat-tabs": {
     about: "Tab groups: the pricing chat's group with two more chats opened from it, each a tab beside it (the SOC 2 quotes and the board update), the pricing chat's tab up. Bookmarks kept, the bookmarks bar off.",
-    themes: ["light"],
+    themes: ["light", "dark"],
     run: async (h) => {
       await h.bookmarksBar(false);
       await h.bookmarks();
@@ -553,12 +554,12 @@ export const STATES = {
   },
   "tg-three-groups-soc2": {
     about: "tg-three-groups with the SOC 2 quotes chat's group up.",
-    themes: ["light"],
+    themes: ["light", "dark"],
     run: async (h) => threeGroups(h, h.chats.soc2),
   },
   "tg-cmdk": {
     about: "Tab groups: the pricing chat alone in its group with ⌘K open and nothing typed.",
-    themes: ["light"],
+    themes: ["light", "dark"],
     run: async (h) => {
       await h.bookmarksBar(false);
       await h.bookmarks();
@@ -568,35 +569,32 @@ export const STATES = {
     },
   },
   "tg-files-beside-chat": {
-    about: "Tab groups: the pricing chat with Files open beside it, reached from a new tab's Files in the bookmarks bar.",
-    themes: ["light"],
+    about: "Tab groups: the pricing chat with Files open beside it, at the Instrument folder from the side panel.",
+    themes: ["light", "dark"],
     run: async (h) => {
-      const { click, omnibar, press } = h.app.words;
       await h.bookmarksBar(false);
       await h.bookmarks();
       await h.chatAlone(h.chats.pricing);
-      await omnibar.go("https://www.zendesk.com/pricing");
-      await press("Meta+t");
-      await click("Files");
+      await h.filesFromSidePanel();
       await wait(800);
     },
   },
   "tg-files-tab-in-chat": {
-    about: "Tab groups: the pricing chat alone in its group, then ⌘T and the new tab's Files in the bookmarks bar, with nothing opened beside the chat first.",
-    themes: ["light"],
+    about: "Tab groups: the pricing chat alone in its group, then ⌘T and the Instrument folder in the new tab's side panel, so Files is a second tab beside the chat's in one strip.",
+    themes: ["light", "dark"],
     run: async (h) => {
-      const { click, press } = h.app.words;
+      const { press } = h.app.words;
       await h.bookmarksBar(false);
       await h.bookmarks();
       await h.chatAlone(h.chats.pricing);
       await press("Meta+t");
-      await click("Files");
+      await h.filesFromSidePanel();
       await wait(800);
     },
   },
   "tg-chat-new-split": {
     about: "Tab groups: the pricing chat alone in its group, then New Tab in Split, so a narrow new tab sits beside the chat with the keyboard in it.",
-    themes: ["light"],
+    themes: ["light", "dark"],
     run: async (h) => {
       await h.bookmarksBar(false);
       await h.bookmarks();
@@ -606,22 +604,22 @@ export const STATES = {
     },
   },
   "tg-files-in-place": {
-    about: "Tab groups: a new group from ⌘N whose new tab's Files in the bookmarks bar opened Files in that same tab, so the group has one tab and Back goes to the new tab.",
-    themes: ["light"],
+    about: "Tab groups: a new group from ⌘N whose new tab's side panel opened the Instrument folder in that same tab, so the group has one tab and Back goes to the new tab.",
+    themes: ["light", "dark"],
     run: async (h) => {
-      const { click, press } = h.app.words;
+      const { press } = h.app.words;
       await h.bookmarksBar(false);
       await h.bookmarks();
       await h.chatAlone(h.chats.pricing);
       await press("Meta+n");
-      await click("Files");
+      await h.filesFromSidePanel();
       await wait(800);
       h.after(() => h.oneGroup());
     },
   },
   "tg-page-alone": {
     about: "Tab groups: a new group from ⌘N that went to Intercom's pricing page, a page alone with no chat beside it.",
-    themes: ["light"],
+    themes: ["light", "dark"],
     run: async (h) => {
       await h.bookmarksBar(false);
       await h.bookmarks();
@@ -634,14 +632,14 @@ export const STATES = {
   },
   "tg-three-tabs": {
     about: "Tab groups: a new group with three tabs, Files, example.com and a new tab, the new tab up.",
-    themes: ["light"],
+    themes: ["light", "dark"],
     run: async (h) => {
-      const { click, omnibar, press } = h.app.words;
+      const { omnibar, press } = h.app.words;
       await h.bookmarksBar(false);
       await h.bookmarks();
       await h.chatAlone(h.chats.pricing);
       await press("Meta+n");
-      await click("Files");
+      await h.filesFromSidePanel();
       await press("Meta+t");
       await omnibar.go("https://example.com");
       await press("Meta+t");
@@ -651,9 +649,9 @@ export const STATES = {
   },
   "tg-three-tabs-files": {
     about: "Tab groups: a new group with three tabs, example.com, a new tab and Files, Files up.",
-    themes: ["light"],
+    themes: ["light", "dark"],
     run: async (h) => {
-      const { click, omnibar, press } = h.app.words;
+      const { omnibar, press } = h.app.words;
       await h.bookmarksBar(false);
       await h.bookmarks();
       await h.chatAlone(h.chats.pricing);
@@ -661,36 +659,36 @@ export const STATES = {
       await omnibar.go("https://example.com");
       await press("Meta+t");
       await press("Meta+t");
-      await click("Files");
+      await h.filesFromSidePanel();
       await wait(800);
       h.after(() => h.oneGroup());
     },
   },
   "tg-file-alone": {
-    about: "Tab groups: a new group from ⌘N whose new tab's Files went to the workspace folder and opened q3-board-update.md, a file alone in its tab.",
-    themes: ["light"],
+    about: "Tab groups: a new group from ⌘N whose new tab's side panel went to the workspace folder and opened q3-board-update.md, a file alone in its tab.",
+    themes: ["light", "dark"],
     run: async (h) => {
-      const { button, click, files, press } = h.app.words;
+      const { files, press } = h.app.words;
       await h.bookmarksBar(false);
       await h.bookmarks();
       await h.chatAlone(h.chats.pricing);
       await press("Meta+n");
-      await click("Files");
-      await button("Instrument").click();
-      await wait(600);
+      await h.filesFromSidePanel();
       await files.item("q3-board-update.md").dblclick();
-      await wait(1200);
+      // The side panel is still moving two seconds after the file opens, and settled by ten.
+      await wait(10_000);
       h.after(() => h.oneGroup());
     },
   },
   "tg-new-tab-bar": {
-    about: "tg-new-tab with bookmarks: the new tab's bookmarks bar shows Apps, Chats and Files, then the Competitors folder, Notion pricing and Hacker News.",
-    themes: ["light"],
+    about: "tg-new-tab with bookmarks: the side panel's Bookmarks shows the Bookmarks bar folder with its three (the Competitors folder, Notion pricing and Hacker News).",
+    themes: ["light", "dark"],
     run: async (h) => {
       await h.bookmarksBar(false);
       await h.bookmarks();
       await h.chatAlone(h.chats.pricing);
       await h.app.words.press("Meta+n");
+      await h.sidePanel();
     },
   },
 };
@@ -715,6 +713,23 @@ export default async (app, args) => {
       await app.click({ text: view });
       await wait(400);
     },
+    // The group up's side panel shown, where it is closed (a new tab opens with it, but a
+    // window that once lacked room for it can leave it closed), and closed again after.
+    sidePanel: async () => {
+      if (!(await app.eval(`!!document.querySelector('[aria-label="Show Side Panel"]')`))) return;
+      await app.words.button("Show Side Panel").click();
+      h.after(async () => {
+        if (await app.eval(`!!document.querySelector('[aria-label="Close Side Panel"]')`)) await app.words.button("Close Side Panel").click();
+      });
+      await wait(400);
+    },
+    // Files at the Instrument folder from the side panel: in place in a tab of its own,
+    // beside a chat the group shows alone (side-panel.tsx).
+    filesFromSidePanel: async () => {
+      await h.sidePanel();
+      await app.words.button("Instrument").click();
+      await wait(800);
+    },
     oneTab: async () => {
       for (let i = 0; i < 20; i++) {
         const count = await app.eval(`document.querySelectorAll('[role=tablist][aria-label="Open tabs"] [role=tab]').length`);
@@ -727,9 +742,16 @@ export default async (app, args) => {
     oneGroup: async () => {
       if (!(await app.eval(`!!document.querySelector('nav[aria-label="Tab groups"]')`))) return;
       await app.words.press("Meta+n");
+      // The rows slide into place under the new one, so a click straight away can land on another row.
+      await wait(600);
       const rows = `nav[aria-label="Tab groups"] [data-group-row]`;
       const up = await app.eval(`document.querySelector('${rows}[data-up]')?.getAttribute('aria-label')?.replace(/ tab group$/, '') ?? ''`);
-      if (up && (await app.eval(`document.querySelectorAll('${rows}:not([data-up])').length`))) await app.words.group(up).menu("Close Other Tab Groups");
+      if (!up || !(await app.eval(`document.querySelectorAll('${rows}:not([data-up])').length`))) return;
+      // Earlier groups may share the up one's name ("New Tab"), so it is picked by where it sits among them.
+      const at = await app.eval(
+        `[...document.querySelectorAll('${rows}')].filter((r) => r.getAttribute('aria-label') === ${JSON.stringify(`${up} tab group`)}).findIndex((r) => r.hasAttribute('data-up'))`,
+      );
+      await app.words.group(up).nth(at).menu("Close Other Tab Groups");
     },
     // A chat's group up with the chat alone in it: its pages, which the chat keeps
     // from one run to the next, closed with the side they are on.

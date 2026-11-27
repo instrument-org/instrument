@@ -29,6 +29,33 @@ import {
   windowTabsAtom,
 } from "./window-tabs";
 
+/** What a page tells the window, sent down a stream the test feeds. */
+const pageEvents = vi.hoisted(() => {
+  const waiting: unknown[] = [];
+  let wake = () => {};
+  return {
+    send: (event: unknown) => {
+      waiting.push(event);
+      wake();
+    },
+    async *stream(signal: AbortSignal) {
+      while (!signal.aborted) {
+        const next = waiting.shift();
+        if (next) {
+          yield next;
+        } else {
+          await new Promise<void>((resolve) => {
+            wake = resolve;
+            signal.addEventListener("abort", () => {
+              resolve();
+            });
+          });
+        }
+      }
+    },
+  };
+});
+
 const { agent, tabDone } = vi.hoisted(() => {
   const waiting: WindowTabRequest[] = [];
   let wake = () => {};
@@ -125,6 +152,10 @@ vi.mock("@/client/rpc/client", () => ({
         bookmarkLink: { call: async () => silent() },
         openInNewTab: { call: async () => silent() },
         pageBecameDownload: { call: async () => silent() },
+        popupClosed: {
+          call: async (_input: undefined, options: { signal: AbortSignal }) =>
+            pageEvents.stream(options.signal),
+        },
       },
       pageMarks: { call: async () => spies.pageMarks },
     },
@@ -309,6 +340,18 @@ describe("an agent showing a tab already open", () => {
     const layout = result.current.windowTabs.layoutOf(GROUP);
     expect(layout.focused).toBe(0);
     expect(layout.sides.map((side) => side.up)).toEqual([LEFT_PAGE, RIGHT_UP]);
+  });
+});
+
+describe("a page's own asks", () => {
+  it("closes a popup's tab when the popup closes itself", async () => {
+    const { store } = windowOnTwoSides();
+    pageEvents.send({ openerId: LEFT_PAGE, targetId: RIGHT_BEHIND });
+    await waitFor(() => {
+      expect(store.get(windowTabsAtom).tabs.map((tab) => tab.id)).not.toContain(
+        RIGHT_BEHIND,
+      );
+    });
   });
 });
 

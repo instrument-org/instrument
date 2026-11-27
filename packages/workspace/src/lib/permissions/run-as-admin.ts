@@ -172,13 +172,27 @@ async function runOnMac(command: string): Promise<AdminRun> {
     ...script,
     command,
   ]);
-  if (code === 0) {
-    return parseMacosRun(stdout);
+  return code === 0 ? parseMacosRun(stdout) : readMacosFailure(stderr, code);
+}
+
+/**
+ * What a failed `osascript` run means. -128 is "User canceled." -60007 is
+ * Authorization Services refusing to ask at all, which AppleScript words as a
+ * wrong password: the app is not in the person's login session (started over
+ * SSH, say), so no prompt could show.
+ */
+export function readMacosFailure(stderr: string, code: number): AdminRun {
+  if (/\(-128\)/u.test(stderr)) {
+    return { is: "canceled" };
   }
-  // -128 is AppleScript's "User canceled."
-  return /\(-128\)/u.test(stderr)
-    ? { is: "canceled" }
-    : { is: "failed", message: stderr.trim() || `osascript exited ${code}` };
+  if (/\(-60007\)/u.test(stderr)) {
+    return {
+      is: "failed",
+      message:
+        "macOS couldn't show its password prompt, so no password was asked for. Instrument isn't running in the user's own login session.",
+    };
+  }
+  return { is: "failed", message: stderr.trim() || `osascript exited ${code}` };
 }
 
 async function runOnWindows(command: string): Promise<AdminRun> {

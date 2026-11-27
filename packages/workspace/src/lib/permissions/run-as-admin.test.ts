@@ -9,6 +9,7 @@ import {
   MACOS_ADMIN_PROMPT,
   macosAdminScript,
   parseMacosRun,
+  readMacosFailure,
   parseWindowsRun,
   powershellLiteral,
   windowsElevatedScript,
@@ -94,6 +95,29 @@ describe("parseMacosRun", () => {
 
   it("fails on output with no status", () => {
     expect(parseMacosRun("what").is).toBe("failed");
+  });
+});
+
+describe("readMacosFailure", () => {
+  it.each([
+    ["0:3: execution error: User canceled. (-128)", "canceled"],
+    [
+      "7:273: execution error: The administrator user name or password was incorrect. (-60007)",
+      "no prompt",
+    ],
+    ["7:273: execution error: Something else. (-1)", "other"],
+  ])("reads %s", (stderr, kind) => {
+    const read = readMacosFailure(stderr, 1);
+    if (kind === "canceled") {
+      expect(read).toEqual({ is: "canceled" });
+    } else if (kind === "no prompt") {
+      expect(read).toMatchObject({
+        is: "failed",
+        message: expect.stringContaining("couldn't show its password prompt"),
+      });
+    } else {
+      expect(read).toEqual({ is: "failed", message: stderr });
+    }
   });
 });
 

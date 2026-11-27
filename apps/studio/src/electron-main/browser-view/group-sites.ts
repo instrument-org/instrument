@@ -1,4 +1,7 @@
-import type { BrowserSite } from "@instrument-org/workspace/electron";
+import type {
+  BrowserSite,
+  UsedAddress,
+} from "@instrument-org/workspace/electron";
 import { getDomain } from "tldts";
 
 /** Where a site keeps data in the browser profile besides its cookies. */
@@ -124,4 +127,41 @@ export function groupSites(reads: SiteReads): BrowserSite[] {
       kinds.has(kind),
     ),
   }));
+}
+
+/**
+ * What the user used in the in-app browser, for the directory's services
+ * the Apps page offers from it: the pages they visited, each with when last,
+ * and the origins keeping site data, save on a site only agents visited:
+ * agents browse in the same profile, so that data is their work. Data on a
+ * site with no visits at all stays.
+ */
+export function usedByUser({
+  siteData,
+  visits,
+}: Pick<SiteReads, "siteData" | "visits">): UsedAddress[] {
+  const siteOf = (address: string) => {
+    const host = URL.parse(address)?.hostname;
+    return host ? siteOfHost(host) : undefined;
+  };
+  const visitedBy = { agent: new Set<string>(), user: new Set<string>() };
+  for (const { actor, url } of visits) {
+    const site = siteOf(url);
+    if (site !== undefined) {
+      visitedBy[actor].add(site);
+    }
+  }
+  return [
+    ...visits
+      .filter(({ actor }) => actor === "user")
+      .map(({ at, url }) => ({ address: url, at })),
+    ...siteData.flatMap(({ origin }) => {
+      const site = siteOf(origin);
+      return site !== undefined &&
+        visitedBy.agent.has(site) &&
+        !visitedBy.user.has(site)
+        ? []
+        : [{ address: origin }];
+    }),
+  ];
 }

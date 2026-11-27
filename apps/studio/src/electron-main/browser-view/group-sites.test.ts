@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { groupSites, indexedDbOrigin, localStorageOrigin } from "./group-sites";
+import {
+  groupSites,
+  indexedDbOrigin,
+  localStorageOrigin,
+  usedByUser,
+} from "./group-sites";
 
 const at = (hour: number) => Date.UTC(2026, 10, 27, hour);
 
@@ -148,6 +153,47 @@ describe("groupSites", () => {
         },
       ]
     `);
+  });
+});
+
+describe("usedByUser", () => {
+  it("takes the user's pages, and site data on every site but one only agents visited", () => {
+    expect(
+      usedByUser({
+        siteData: [
+          // Visited by both.
+          { kind: "Local Storage", origin: "https://app.tasky.example" },
+          // Visited by agents alone, on another of its hosts.
+          { kind: "IndexedDB", origin: "https://www.research.example" },
+          // Never visited.
+          { kind: "Local Storage", origin: "https://www.notes.example" },
+        ],
+        visits: [
+          {
+            actor: "user",
+            at: at(10),
+            count: 1,
+            url: "https://app.tasky.example/today",
+          },
+          {
+            actor: "agent",
+            at: at(11),
+            count: 1,
+            url: "https://tasky.example/pricing",
+          },
+          {
+            actor: "agent",
+            at: at(12),
+            count: 3,
+            url: "https://research.example/paper",
+          },
+        ],
+      }),
+    ).toEqual([
+      { address: "https://app.tasky.example/today", at: at(10) },
+      { address: "https://app.tasky.example" },
+      { address: "https://www.notes.example" },
+    ]);
   });
 });
 

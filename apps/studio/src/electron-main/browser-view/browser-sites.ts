@@ -13,6 +13,7 @@ import {
   indexedDbOrigin,
   localStorageOrigin,
   type SiteReads,
+  usedByUser,
 } from "./group-sites";
 import { configureGuestSession } from "./guest-session";
 import { getHistoryStore } from "./history-store";
@@ -128,17 +129,11 @@ export async function browserSites(): Promise<BrowserSite[]> {
 
 /**
  * What the person used in the in-app browser, for the directory's services
- * the Apps page offers from it: the pages they visited, each with when last,
- * and the origins keeping site data. An agent's visits are its own work, not
- * a sign the person uses a site.
+ * the Apps page offers from it (`usedByUser`).
  */
 export async function usedInBrowser(): Promise<UsedAddress[]> {
-  const siteData = await siteDataOrigins(getBrowserSessionDir());
-  return [
-    ...getHistoryStore()
-      .visitedPages()
-      .filter((page) => page.actor === "user")
-      .map(({ at, url }) => ({ address: url, at })),
-    ...siteData.map(({ origin }) => ({ address: origin })),
-  ];
+  return usedByUser({
+    siteData: await siteDataOrigins(getBrowserSessionDir()),
+    visits: getHistoryStore().visitedPages(),
+  });
 }

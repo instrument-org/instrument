@@ -107,6 +107,54 @@ function Harness({ zoom = 1 }: { zoom?: number }) {
   );
 }
 
+let setProseZoom: (zoom: number) => void = () => undefined;
+
+/** Words enough to wrap onto a few lines or many, by turn. */
+const prose = (index: number) =>
+  `Reply ${index.toString()}: ${"the harbor wall and its berths ".repeat(8 + ((index * 7) % 30))}`;
+
+/**
+ * Turns of words that wrap, in a window whose width on screen stays put, so a
+ * zoom gives the column fewer layout px and the words more lines, as the
+ * app's zoom does.
+ */
+function ProseHarness() {
+  const [zoom, setZoom] = useState(1);
+  setProseZoom = setZoom;
+  return (
+    <div style={{ width: 480 }}>
+      <div style={{ width: "100%", zoom }}>
+        <MessageScrollerProvider>
+          <Grab />
+          <MessageScroller>
+            <MessageScrollerViewport style={{ height: VIEW, width: "100%" }}>
+              <MessageScrollerContent
+                style={{ display: "flex", flexDirection: "column", gap: 24 }}
+              >
+                {Array.from({ length: TURNS }, (_, index) => {
+                  const id = `turn-${index.toString()}`;
+                  return (
+                    <MessageScrollerItem
+                      key={id}
+                      keepDrawn={index === TURNS - 1}
+                      messageId={id}
+                      scrollAnchor
+                      style={{ padding: 8 }}
+                      turnId={id}
+                    >
+                      <p style={{ margin: 0 }}>{prose(index)}</p>
+                    </MessageScrollerItem>
+                  );
+                })}
+              </MessageScrollerContent>
+            </MessageScrollerViewport>
+          </MessageScroller>
+        </MessageScrollerProvider>
+      </div>
+    </div>
+  );
+}
+
 function viewport() {
   const element = document.querySelector<HTMLElement>(
     "[data-slot=message-scroller-viewport]",
@@ -294,6 +342,50 @@ describe("FarRows", () => {
           ),
         ).toBeLessThanOrEqual(1);
       }
+    },
+  );
+
+  it.each([1.5, 0.75])(
+    "keeps the boxes near their true heights through a zoom to %fx",
+    async (zoom) => {
+      await renderInBrowser(<ProseHarness />);
+      await expect.poll(() => boxedTurns().size).toBeGreaterThan(20);
+      const view = viewport();
+      view.dispatchEvent(
+        new WheelEvent("wheel", { bubbles: true, deltaY: -100 }),
+      );
+      view.scrollTop = view.scrollHeight / 2;
+      await frames(10);
+      setProseZoom(zoom);
+      await frames(3);
+      const landed = topRow();
+      await frames(10);
+      // The reader's place holds as the boxes take their new heights.
+      expect(
+        Math.abs(
+          (landed?.row.getBoundingClientRect().top ?? 0) - (landed?.top ?? 0),
+        ),
+      ).toBeLessThanOrEqual(1);
+      const estimated = view.scrollHeight;
+      expect(boxedTurns().size).toBeGreaterThan(20);
+      farRows?.keep(
+        "test",
+        new Set(
+          Array.from(
+            { length: TURNS },
+            (_, index) => `turn-${index.toString()}`,
+          ),
+        ),
+      );
+      await expect.poll(() => boxedTurns().size).toBe(0);
+      await frames(2);
+      // Within a few screens of the column drawn whole, which runs to some
+      // seventy: a line a turn ends part way along does not scale. Left at
+      // the heights taken before the zoom, the boxes were 6,600 px short at
+      // 1.5x and 3,600 px long at 0.75x.
+      expect(Math.abs(estimated - view.scrollHeight)).toBeLessThan(
+        3 * view.clientHeight,
+      );
     },
   );
 

@@ -126,6 +126,7 @@ export class FarRows {
       height: undefined,
       inner: undefined,
       isNear: true,
+      width: undefined,
       keep,
       turn,
     });
@@ -285,11 +286,21 @@ export class FarRows {
 
   private onResize(entries: ResizeObserverEntry[]) {
     const touched = new Set<string>();
+    const rescaled = new Set<string>();
     for (const entry of entries) {
       const row = entry.target;
       const state = row instanceof HTMLElement ? this.rows.get(row) : undefined;
-      // A box keeps the height it was drawn at.
-      if (!state || this.boxed.has(state.turn)) {
+      if (!state) {
+        continue;
+      }
+      const width = entry.contentBoxSize[0]?.inlineSize ?? 0;
+      if (this.boxed.has(state.turn)) {
+        // A box keeps the height it was drawn at, but for its width: a zoom
+        // or a narrower window wraps its words onto more lines, so its height
+        // goes as its width does the other way.
+        if (rescale(state, width)) {
+          rescaled.add(state.turn);
+        }
         continue;
       }
       if (state.height === undefined) {
@@ -297,9 +308,15 @@ export class FarRows {
       }
       state.height = entry.borderBoxSize[0]?.blockSize ?? 0;
       state.inner = entry.contentBoxSize[0]?.blockSize ?? 0;
+      state.width = width;
     }
     for (const turn of touched) {
       this.update(turn);
+    }
+    for (const turn of rescaled) {
+      for (const listener of this.listeners.get(turn) ?? []) {
+        listener();
+      }
     }
   }
 
@@ -403,11 +420,35 @@ interface RowState {
   height: number | undefined;
   /** Its content box's height when last measured, in layout px. */
   inner: number | undefined;
+  /** Its content box's width when last measured, in layout px. */
+  width: number | undefined;
   /** Within the band: came within `NEAR_SCREENS` and has not gone past `FAR_SCREENS`. */
   isNear: boolean;
   /** Its item asks to stay drawn. */
   keep: boolean;
   turn: string;
+}
+
+/**
+ * Scales a box's heights for its new `width`, as wrapped words take lines in
+ * the inverse of the width they have; whether they changed.
+ */
+function rescale(state: RowState, width: number): boolean {
+  const { height, inner } = state;
+  if (
+    width <= 0 ||
+    state.width === undefined ||
+    state.width === width ||
+    height === undefined ||
+    inner === undefined
+  ) {
+    return false;
+  }
+  const next = (inner * state.width) / width;
+  state.height = height + next - inner;
+  state.inner = next;
+  state.width = width;
+  return true;
 }
 
 export interface RowPlace {

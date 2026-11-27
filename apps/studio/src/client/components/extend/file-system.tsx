@@ -4952,13 +4952,13 @@ function SearchMoreFolders({
 }
 
 /**
- * The folders a search stepped over, as the status bar names them: three by
- * name and a count of the rest, so the line fits beside a chat.
+ * The folders a search stepped over, as the status bar names them: up to four
+ * by name, or three and a count of the rest, so the line fits beside a chat.
  */
 function notSearchedLine(asks: FolderAsks) {
   const names = asks.map((folder) => folder.name);
   const shown =
-    names.length > 3
+    names.length > 4
       ? [...names.slice(0, 3), `${names.length - 3} more`]
       : names;
   return `${new Intl.ListFormat(displayLocale, { type: "conjunction" }).format(shown)} not searched`;

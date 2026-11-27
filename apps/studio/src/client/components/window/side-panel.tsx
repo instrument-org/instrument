@@ -527,6 +527,10 @@ function Heading({
 const ROW =
   "flex h-7 w-full shrink-0 cursor-default items-center gap-2 rounded-lg px-2 text-left text-[13px] text-foreground/85 hover:bg-foreground/6 hover:text-foreground data-[state=open]:bg-foreground/6";
 
+/** A section with nothing in it yet: a dashed slot with an icon, set apart from the heading over it. */
+const EMPTY_SLOT =
+  "flex min-h-9 w-full shrink-0 cursor-default items-center gap-2 rounded-lg border border-dashed border-foreground/15 px-2.5 py-2 text-left text-[13px] text-muted-foreground";
+
 /** A row that shows more of a section in the panel. */
 function MoreRow({
   className,
@@ -564,7 +568,17 @@ function AppsSection({
     return (
       <>
         <Heading opens={{ onClick: onAll }}>Apps</Heading>
-        <AddAppRow openScreen={openScreen} />
+        <button
+          className={cn(
+            EMPTY_SLOT,
+            "text-foreground/85 hover:border-foreground/30 hover:bg-foreground/4 hover:text-foreground",
+          )}
+          {...bookmarkClicks(APPS_HREF, openScreen)}
+          type="button"
+        >
+          <PlusIcon className="size-4 shrink-0 text-muted-foreground" />
+          Add an app
+        </button>
       </>
     );
   }
@@ -1084,12 +1098,8 @@ function BookmarksSection({
       {isEmpty ? (
         <AllBookmarksDrop>
           {(className) => (
-            <p
-              className={cn(
-                "rounded-lg px-2 py-1 text-[13px] text-muted-foreground",
-                className,
-              )}
-            >
+            <p className={cn(EMPTY_SLOT, className)}>
+              <BookmarksSimpleIcon className="size-4 shrink-0" />
               Bookmarks you keep show up here.
             </p>
           )}

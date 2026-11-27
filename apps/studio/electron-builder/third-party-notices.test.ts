@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { finished } from "node:stream/promises";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -223,7 +224,9 @@ describe("writeThirdPartyNotices", () => {
       "out/main/index.js": "",
     });
     const asarPath = path.join(tempDir(), "app.asar");
-    await createPackage(app, asarPath);
+    // createPackage resolves once the archive stream is ended, before it is
+    // flushed to disk, so a read right after can find it half written.
+    await finished(await createPackage(app, asarPath));
 
     const dep = writeFiles(tempDir(), {
       "LICENSE.md": "dep license",

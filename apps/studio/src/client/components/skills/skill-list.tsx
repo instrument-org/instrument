@@ -1,4 +1,3 @@
-import { FolderTrail } from "@/client/components/folder-trail";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { RevealPath } from "@/client/components/reveal-path";
@@ -148,12 +147,6 @@ export function SkillList({
                   </Button>
                 ) : null}
               </div>
-              {skillsFolder === undefined ? null : (
-                <FolderTrail
-                  className="mb-2 text-xs text-muted-foreground"
-                  path={skillsFolder}
-                />
-              )}
               {ownGroup ? rows(ownGroup) : empty}
             </section>
           )}

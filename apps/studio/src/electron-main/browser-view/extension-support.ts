@@ -18,7 +18,6 @@ const BLOCKING_PERMISSIONS = [
  *   request handling (docs/findings/extension-request-rules-never-run.md).
  * - Missing: neither Electron nor `electron-chrome-extensions` defines the
  *   API, so calling it throws; or nothing acts on the manifest key.
- * - Stand-ins: the library answers `downloads` without doing anything.
  *
  * Only what the manifest requires is read: an optional permission is asked
  * for later, if ever. `privacy` is left out on purpose: its stand-in answers
@@ -36,7 +35,6 @@ const FEATURES: [feature: string, permissions: string[]][] = [
   ["Recording tabs or the screen", ["tabCapture", "desktopCapture"]],
   ["Controlling pages as a developer tool", ["debugger"]],
   ["Saving pages", ["pageCapture"]],
-  ["Downloads", ["downloads"]],
   ["Bookmarks", ["bookmarks"]],
   ["Browsing history", ["history"]],
   ["Recently closed tabs", ["sessions"]],

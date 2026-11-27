@@ -179,6 +179,15 @@ export function routeGuestDownloads(
       saveForPerson(item, null);
       return;
     }
+    // So is one an extension asked for, from its own page or the session.
+    const extensionAsk = takeExtensionAsk(item);
+    if (extensionAsk) {
+      log.info(
+        `download for=extension ${extensionAsk.extensionId} ${describeDownload(item)}`,
+      );
+      extensionAsk.started(saveForExtension(item, extensionAsk));
+      return;
+    }
     const entry = registry.entryOf(webContents.id);
     if (!entry) {
       log.info(
@@ -381,6 +390,96 @@ function takeRetry(item: DownloadItem): boolean {
   return [item.getURLChain()[0], item.getURL()].some(
     (url) => url !== undefined && retries.delete(url),
   );
+}
+
+/** What an extension asked of a download (`chrome.downloads.download`). */
+export interface ExtensionDownloadAsk {
+  conflictAction: "overwrite" | "prompt" | "uniquify";
+  extensionId: string;
+  /** A path below the Downloads folder, already checked to stay there. */
+  filename?: string;
+  saveAs: boolean;
+  /** Called with the download's id on the list once it starts. */
+  started: (id: string) => void;
+}
+
+// The downloads extensions asked for, by address. Each is taken by the
+// download it starts.
+const extensionAsks = new Map<string, ExtensionDownloadAsk[]>();
+
+function takeExtensionAsk(
+  item: DownloadItem,
+): ExtensionDownloadAsk | undefined {
+  for (const url of [item.getURLChain()[0], item.getURL()]) {
+    const asks = url === undefined ? undefined : extensionAsks.get(url);
+    const ask = asks?.shift();
+    if (url !== undefined && asks?.length === 0) {
+      extensionAsks.delete(url);
+    }
+    if (ask) {
+      return ask;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Downloads an address an extension asked for, from `starter` (the
+ * extension's own page, for a `blob:` address only it can read, or the
+ * session), the way a person's download goes: onto the list, into their
+ * Downloads folder. Returns what takes the ask back, for one that never
+ * started.
+ */
+export function downloadForExtension(
+  starter: Pick<Session | WebContents, "downloadURL">,
+  url: string,
+  headers: Record<string, string>,
+  ask: ExtensionDownloadAsk,
+): () => void {
+  extensionAsks.set(url, [...(extensionAsks.get(url) ?? []), ask]);
+  starter.downloadURL(
+    url,
+    Object.keys(headers).length > 0 ? { headers } : undefined,
+  );
+  return () => {
+    const asks = extensionAsks.get(url)?.filter((other) => other !== ask);
+    if (asks?.length) {
+      extensionAsks.set(url, asks);
+    } else {
+      extensionAsks.delete(url);
+    }
+  };
+}
+
+// Where an extension's download goes: the person's Downloads folder, at the
+// path below it the extension named, or wherever the person says when the
+// extension asked for them to be asked, the name is taken and it said to
+// ask, or no folder takes the file. Returns its id on the list.
+function saveForExtension(item: DownloadItem, ask: ExtensionDownloadAsk) {
+  const dir = personDownloadsDir();
+  const wanted = path.join(dir ?? "", ask.filename ?? item.getFilename());
+  const isTaken = fs.existsSync(wanted);
+  const folder = path.dirname(wanted);
+  const hasFolder =
+    dir !== null &&
+    (() => {
+      try {
+        fs.mkdirSync(folder, { recursive: true });
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+  if (!hasFolder || ask.saveAs || (isTaken && ask.conflictAction === "prompt")) {
+    item.setSaveDialogOptions({ defaultPath: wanted });
+    return trackDownload(item, null, { asked: true });
+  }
+  const savePath =
+    isTaken && ask.conflictAction === "uniquify"
+      ? path.join(folder, availableFilename(folder, path.basename(wanted)))
+      : wanted;
+  item.setSavePath(savePath);
+  return trackDownload(item, savePath);
 }
 
 /**

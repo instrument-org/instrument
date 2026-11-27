@@ -35,6 +35,9 @@ export interface DownloadOrigin {
 
 const origins = new Map<string, DownloadOrigin>();
 let progressTimer: null | ReturnType<typeof setTimeout> = null;
+// What hears of every change to the list, a running download's progress
+// included, as often as the window does.
+const watchers = new Set<() => void>();
 
 // The list as last saved. A download that was running when the app last quit
 // stopped with it, so it reads as failed.
@@ -56,6 +59,9 @@ function changed() {
   }
   getDownloadsStore().set("downloads", list());
   publisher.publish("browser.downloads-changed", null);
+  for (const watcher of watchers) {
+    watcher();
+  }
 }
 
 // Progress is said to the window but not saved: a relaunch reads a running
@@ -64,6 +70,9 @@ function progressed() {
   progressTimer ??= setTimeout(() => {
     progressTimer = null;
     publisher.publish("browser.downloads-changed", null);
+    for (const watcher of watchers) {
+      watcher();
+    }
   }, PROGRESS_INTERVAL_MS);
 }
 
@@ -80,6 +89,7 @@ function update(id: string, patch: Partial<BrowserDownload>) {
  * the list reads off the transfer once they have picked, and otherwise one
  * that failed before it began because no folder took it. `agent` marks one
  * an agent saved in its work folder, which is not the person's own.
+ * Returns its id on the list.
  */
 export function trackDownload(
   item: DownloadItem,
@@ -93,7 +103,7 @@ export function trackDownload(
     asked?: boolean;
     origin?: DownloadOrigin | null;
   } = {},
-) {
+): string {
   const id = crypto.randomUUID();
   if (origin) {
     origins.set(id, origin);
@@ -114,7 +124,7 @@ export function trackDownload(
   downloads = [download, ...list().filter((entry) => !dropped.has(entry.id))];
   changed();
   if (!savePath && !asked) {
-    return;
+    return id;
   }
   running.set(id, item);
   item.on("updated", (_event, state) => {
@@ -141,6 +151,25 @@ export function trackDownload(
       totalBytes: item.getTotalBytes(),
     });
     changed();
+  });
+  return id;
+}
+
+/** Calls `watcher` on every change to the list until the returned function is called. */
+export function watchDownloads(watcher: () => void): () => void {
+  watchers.add(watcher);
+  return () => {
+    watchers.delete(watcher);
+  };
+}
+
+/** The whole list, newest first, each with its transfer while it runs. */
+export function allDownloads(): (BrowserDownload & {
+  running?: DownloadItem;
+})[] {
+  return list().map((download) => {
+    const item = running.get(download.id);
+    return item ? { ...download, running: item } : download;
   });
 }
 

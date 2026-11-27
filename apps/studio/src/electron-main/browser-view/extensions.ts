@@ -60,6 +60,7 @@ import {
   type ExtensionCommand,
   reportedCommand,
 } from "./extension-commands";
+import { answerDownloadCalls } from "./extension-download-calls";
 import { unsupportedFeatures } from "./extension-support";
 import {
   addVersion,
@@ -281,6 +282,7 @@ export function enableBrowserExtensions(
       .filter((command) => command.extensionId === extension.id)
       .map((command) => reportedCommand(command, OS)),
   );
+  answerDownloadCalls(extensions, guestSession);
   installChromeWebStore({
     autoUpdate: false,
     beforeInstall: confirmInstall,

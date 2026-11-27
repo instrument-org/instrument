@@ -63,7 +63,6 @@ describe("unsupportedFeatures", () => {
       {
         "1Password": [
           "Blocking content on pages",
-          "Downloads",
         ],
         "Google Keep": [
           "Signing in through the browser",

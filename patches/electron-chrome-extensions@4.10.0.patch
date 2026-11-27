@@ -1,5 +1,5 @@
 diff --git a/dist/chrome-extension-api.preload.js b/dist/chrome-extension-api.preload.js
-index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..bebb663332e79265ae1c5a95faf816ff481f735e 100644
+index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..9cb78674e860d6615de8a57121dcbc185d33961d 100644
 --- a/dist/chrome-extension-api.preload.js	
 +++ b/dist/chrome-extension-api.preload.js	
 @@ -114,6 +114,34 @@
@@ -37,7 +37,45 @@ index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..bebb663332e79265ae1c5a95faf816ff
        class ExtensionEvent {
          constructor(name) {
            this.name = name;
-@@ -442,6 +470,9 @@
+@@ -319,24 +347,25 @@
+             };
+           }
+         },
+-        // TODO: implement
++        // Answered by the app over its own download list, but for the
++        // stand-ins left marked noop.
+         downloads: {
+           factory: (base) => {
+             return {
+               ...base,
+               acceptDanger: invokeExtension2("downloads.acceptDanger", { noop: true }),
+-              cancel: invokeExtension2("downloads.cancel", { noop: true }),
+-              download: invokeExtension2("downloads.download", { noop: true }),
+-              erase: invokeExtension2("downloads.erase", { noop: true }),
+-              getFileIcon: invokeExtension2("downloads.getFileIcon", { noop: true }),
+-              open: invokeExtension2("downloads.open", { noop: true }),
+-              pause: invokeExtension2("downloads.pause", { noop: true }),
+-              removeFile: invokeExtension2("downloads.removeFile", { noop: true }),
+-              resume: invokeExtension2("downloads.resume", { noop: true }),
+-              search: invokeExtension2("downloads.search", { noop: true }),
++              cancel: invokeExtension2("downloads.cancel"),
++              download: invokeExtension2("downloads.download"),
++              erase: invokeExtension2("downloads.erase"),
++              getFileIcon: invokeExtension2("downloads.getFileIcon"),
++              open: invokeExtension2("downloads.open"),
++              pause: invokeExtension2("downloads.pause"),
++              removeFile: invokeExtension2("downloads.removeFile"),
++              resume: invokeExtension2("downloads.resume"),
++              search: invokeExtension2("downloads.search"),
+               setUiOptions: invokeExtension2("downloads.setUiOptions", { noop: true }),
+-              show: invokeExtension2("downloads.show", { noop: true }),
+-              showDefaultFolder: invokeExtension2("downloads.showDefaultFolder", { noop: true }),
++              show: invokeExtension2("downloads.show"),
++              showDefaultFolder: invokeExtension2("downloads.showDefaultFolder"),
+               onChanged: new ExtensionEvent("downloads.onChanged"),
+               onCreated: new ExtensionEvent("downloads.onCreated"),
+               onDeterminingFilename: new ExtensionEvent("downloads.onDeterminingFilename"),
+@@ -442,6 +471,9 @@
                  electron.connectNative(extensionId, application, receive, disconnect, callback);
                  return port;
                },
@@ -47,7 +85,7 @@ index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..bebb663332e79265ae1c5a95faf816ff
                openOptionsPage: invokeExtension2("runtime.openOptionsPage"),
                sendNativeMessage: invokeExtension2("runtime.sendNativeMessage")
              };
-@@ -568,6 +599,14 @@
+@@ -568,6 +600,14 @@
        });
        delete globalThis.electron;
        Object.freeze(chrome);

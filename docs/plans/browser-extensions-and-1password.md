@@ -55,7 +55,8 @@ Read from the extension's manifest (8.12.44, MV3, minimum Chrome 140; Studio's E
 | `alarms`, `idle` | Chromium's core extension providers, which Electron registers whole apart from `webstorePrivate`. The throwaway spike on 44.1 needed a stand-in for each to get the worker up; inside Studio on 44.9 the worker came up with neither, so no stand-in is carried. Alarms do not survive a relaunch on 44 (fixed in 45); `idle` only drives auto-lock, which the desktop app does anyway. |
 | `management` | Electron, since 45; 44 refused it to an extension declaring the permission, and the worker ran fully in the spike there regardless. |
 | `tabs`, `webNavigation`, `contextMenus`, `notifications`, `nativeMessaging` | The library. |
-| `privacy`, `downloads` | The library's stand-ins. |
+| `privacy` | The library's stand-in. |
+| `downloads` | Studio, over the browser's own download list ([`extension-download-calls.ts`](../../apps/studio/src/electron-main/browser-view/extension-download-calls.ts)). |
 | `webRequestAuthProvider` | Nothing. Only reached for proxy sign-in. |
 | `commands` (`_execute_action`, `lock`) | Studio ([`extension-commands.ts`](../../apps/studio/src/electron-main/browser-view/extension-commands.ts)): a suggested key pressed while a page has the keyboard presses the extension's button for `_execute_action` and reaches `chrome.commands.onCommand` for the rest, unless the app's menu binds it. |
 

@@ -27,6 +27,7 @@ describe("catalogEntryAt", () => {
     ["https://docs.google.com/spreadsheets/d/abc/edit", "google-sheets"],
     ["https://docs.google.com/presentation/d/abc/edit", "google-slides"],
     ["https://docs.google.com/forms/d/abc/edit", undefined],
+    ["https://docs.google.com/spreadsheetsfoo", undefined],
     ["https://example.invalid/", undefined],
   ])("finds %s as %s", (address, slug) => {
     expect(catalogEntryAt(address)?.slug).toBe(slug);

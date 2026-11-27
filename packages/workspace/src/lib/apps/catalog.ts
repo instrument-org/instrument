@@ -481,6 +481,16 @@ export function findCatalogEntry(
 }
 
 /**
+ * Whether a path is a web app's path or below it, a whole segment at a time:
+ * `/spreadsheets/d/abc` is within `/spreadsheets/`, `/spreadsheetsfoo` is
+ * not, and every path is within `/`.
+ */
+function isPathWithin(pathname: string, appPath: string): boolean {
+  const path = appPath.replace(/\/+$/, "");
+  return path === "" || pathname === path || pathname.startsWith(`${path}/`);
+}
+
+/**
  * The directory's entry for a web address: the one whose signed-in web app
  * the address is in, the longest such app winning so a page of
  * docs.google.com/spreadsheets is Sheets and not Docs; failing that, the one
@@ -505,7 +515,7 @@ export function catalogEntryAt(
       ({ home }) =>
         home !== null &&
         home.host === url.host &&
-        url.pathname.startsWith(home.pathname.replace(/\/+$/, "")),
+        isPathWithin(url.pathname, home.pathname),
     )
     .sort(
       (a, b) => (b.home?.pathname.length ?? 0) - (a.home?.pathname.length ?? 0),

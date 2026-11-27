@@ -113,6 +113,7 @@ const config: KnipConfig = {
         "reg.exe", // Windows' registry tool, for the build the MXC canary's verdict is kept per (src/lib/mxc-canary.ts)
         "mkfifo", // Makes the FIFO a tier B uutils file must not be (unsandboxed-uutils-operand.test.ts)
         "chflags", // macOS tool that locks the file the locked-file eval case writes to (evals/cases/permissions.ts)
+        "openssl", // Makes the certificate the evals' site stand-ins serve (evals/lib/site-stand-ins.ts)
         "uv", // Finds a managed Python for the instrument module's test (src/lib/capabilities/python-runtime.test.ts)
         "msiexec", // Windows Installer, which unpacks the LibreOffice MSI (src/lib/office/unpack.ts)
         "reg", // Windows' registry tool, which finds a LibreOffice the person installed (src/lib/office/install.ts)

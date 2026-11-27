@@ -100,7 +100,6 @@ import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
-import { ShieldSlashIcon } from "@phosphor-icons/react/ShieldSlash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -293,17 +292,6 @@ export function BrowserPanel({
     targetId,
   });
 
-  const { data: preferences } = useQuery(
-    rpcClient.preferences.live.get.experimental_liveOptions(),
-  );
-  const setBlockAds = useMutation(
-    rpcClient.preferences.setBlockAds.mutationOptions(),
-  );
-  // The blocker reads the choice per request, so the page reloads to show
-  // it the way it looks under the new one.
-  const setBlocking = (enabled: boolean) => {
-    setBlockAds.mutate({ enabled }, { onSuccess: () => guestNow()?.reload() });
-  };
   const openExternalLink = useMutation(
     rpcClient.utils.openExternalLink.mutationOptions(),
   );
@@ -646,7 +634,6 @@ export function BrowserPanel({
         // The page's menu, the same in either shape of the bar.
         const menu = (
           <BrowserPageMenu
-            afterBlockAds={() => guestNow()?.reload()}
             {...(inWindow
               ? {
                   bookmark: { canBookmark: Boolean(pageUrl) },
@@ -817,22 +804,6 @@ export function BrowserPanel({
         );
         // Reload becomes Stop for as long as the page loads, which is also
         // how a reload that changes nothing on the page still shows it ran.
-        // Said in the address field only while ads are let through, since
-        // the choice holds for every page from then on and is easy to forget
-        // once the page that needed it is gone. A press turns blocking back on.
-        const fieldShield = preferences?.blockAds === false && (
-          <ToolbarTooltip label="Turn on ad blocking">
-            <button
-              className="grid size-5 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
-              onClick={() => {
-                setBlocking(true);
-              }}
-              type="button"
-            >
-              <ShieldSlashIcon className="size-3.5" />
-            </button>
-          </ToolbarTooltip>
-        );
         const rowReload = nav.isLoading ? (
           <TabRowControl
             disabled={!active}
@@ -915,7 +886,6 @@ export function BrowserPanel({
                 <LoadProgress stage={nav.loadStage} />
                 <InputGroupAddon align="inline-end" className="empty:hidden">
                   <PageCaptureMark targetId={targetId} />
-                  {fieldShield}
                 </InputGroupAddon>
                 <InputGroupAddon
                   align="inline-end"
@@ -937,7 +907,7 @@ export function BrowserPanel({
                 </InputGroupAddon>
               </InputGroup>
             </form>
-            <BrowserExtensionButtons />
+            <BrowserExtensionButtons targetId={targetId} />
             <BrowserDownloadsButton
               surfaceRef={surfaceRef}
               targetId={targetId}
@@ -954,7 +924,6 @@ export function BrowserPanel({
                 createPortal(
                   <>
                     <PageCaptureMark targetId={targetId} />
-                    {fieldShield}
                     {fieldZoom}
                     <LoadProgress stage={nav.loadStage} />
                   </>,

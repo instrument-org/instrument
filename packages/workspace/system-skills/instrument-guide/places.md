@@ -25,7 +25,7 @@ Read one section, `sed -n '/^## Tabs/,/^## /p'` on this file; the sections are S
 
 ## A website's tab
 
-- More actions, the ⋮ at the toolbar's right end: History › [<recent pages>; Show All History], Bookmarks › [Bookmark this tab… (⌘D / Ctrl+D), Bookmark all tabs… (⇧⌘D / Ctrl+Shift+D), Show bookmarks bar (⇧⌘B / Ctrl+Shift+B), Bookmark manager (⌥⌘B / Ctrl+Shift+O)], Clear browsing data…; Zoom out, 100% › [50%, 75%, 100%, 125%, 150%, 200%, 300%, 400%], Zoom in; Print… (⌘P / Ctrl+P), Find in page (⌘F / Ctrl+F), Save page as…, Copy URL, Share… (Mac only), Open in <default browser>; Extensions › [Manage extensions, Chrome Web Store]; View as › [Actual size; Mobile (390×844), Tablet (820×1180), Desktop (1440×900)], Hard reload, Block ads, Developer tools
+- More actions, the ⋮ at the toolbar's right end: History › [<recent pages>; Show All History], Bookmarks › [Bookmark this tab… (⌘D / Ctrl+D), Bookmark all tabs… (⇧⌘D / Ctrl+Shift+D), Show bookmarks bar (⇧⌘B / Ctrl+Shift+B), Bookmark manager (⌥⌘B / Ctrl+Shift+O)], Clear browsing data…; Zoom out, 100% › [50%, 75%, 100%, 125%, 150%, 200%, 300%, 400%], Zoom in; Print… (⌘P / Ctrl+P), Find in page (⌘F / Ctrl+F), Save page as…, Copy URL, Share… (Mac only), Open in <default browser>; Extensions › [Manage extensions, Chrome Web Store]; View as › [Actual size; Mobile (390×844), Tablet (820×1180), Desktop (1440×900)], Hard reload, Developer tools
 - Downloads, in the toolbar once something was downloaded: Downloads, Clear, Show in File Manager (Linux only), Show in File Explorer (Windows only), Show in Finder (Mac only), Remove from list
 
 ## Bookmarks bar

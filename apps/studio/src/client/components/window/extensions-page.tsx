@@ -5,6 +5,7 @@ import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { StorefrontIcon } from "@phosphor-icons/react/Storefront";
 import { useId } from "react";
 
+import { AdBlockingExtensionRow } from "./ad-blocking";
 import {
   type BrowserExtension,
   ExtensionIcon,
@@ -16,7 +17,7 @@ import {
 
 /**
  * The Extensions screen, a window tab of its own the way Chrome's page is:
- * every extension the in-app browser runs, with its words, what of it does
+ * ad blocking, built in, and every extension the in-app browser runs, with its words, what of it does
  * not work here, what to do when
  * its desktop app does not take this browser yet or an update asks for more,
  * whether it is on, whether its button is in the browser's row, and Remove; and the way to the Chrome Web Store.
@@ -50,6 +51,7 @@ export function ExtensionsPage() {
           </Button>
         </div>
         <div className="mt-6 divide-y rounded-xl bg-card shadow-sm ring-1 ring-black/5 dark:ring-white/10">
+          <AdBlockingExtensionRow />
           {extensions.length === 0 ? (
             <p className="px-5 py-12 text-center text-[13px] text-muted-foreground">
               Nothing is installed yet. Anything you add from the Chrome Web

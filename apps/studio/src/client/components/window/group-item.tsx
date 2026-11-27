@@ -407,7 +407,9 @@ export function GroupItem({
           trailing={
             <>
               {/* The extensions' buttons go before the page's own controls. */}
-              {location.kind === "page" && <BrowserExtensionButtons />}
+              {location.kind === "page" && (
+                <BrowserExtensionButtons targetId={targetId} />
+              )}
               {isFileAlone && versions && <FileVersionsButton {...versions} />}
               {rowProps.trailing}
             </>

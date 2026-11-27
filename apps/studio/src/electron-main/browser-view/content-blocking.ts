@@ -1,4 +1,5 @@
 import { logger } from "@/electron-main/lib/electron-logger";
+import { publisher } from "@/electron-main/rpc/publisher";
 import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
 import type * as Adblocker from "@ghostery/adblocker";
 import type { IBackgroundCallback } from "@ghostery/adblocker-electron-preload";
@@ -12,6 +13,7 @@ import {
   type OnBeforeRequestListenerDetails,
   type OnHeadersReceivedListenerDetails,
   type Session,
+  type WebContents,
 } from "electron";
 import { createRequire } from "node:module";
 import fs from "node:fs/promises";
@@ -34,8 +36,9 @@ import { parse } from "tldts";
  * them, which are served from its own origin).
  *
  * A document is never blocked, only what it loads, so a navigation the person
- * or the agent makes always lands. Turned off per workspace from the page
- * menu; the change applies from the next load.
+ * or the agent makes always lands. Turned off for the workspace, or for one
+ * site, from the shield in the browser's row and the Extensions page; the
+ * change applies from the next load.
  */
 
 /** How long a built engine serves before the lists are fetched again. */
@@ -78,6 +81,16 @@ let engine: Adblocker.FiltersEngine | null = null;
 let adblocker: typeof Adblocker | null = null;
 let loading: Promise<void> | null = null;
 let blockAds: boolean | null = null;
+let offSites: ReadonlySet<string> | null = null;
+/** When the lists the engine was built from were fetched, once it has loaded. */
+let listsUpdatedAt: null | number = null;
+/**
+ * Each page's site and the hosts refused it since it began, by its web
+ * contents id: what the shield says about a tab, and which site's choice
+ * applies to everything the page loads.
+ */
+const pages = new Map<number, { blocked: Set<string>; site: string }>();
+let changeTimer: NodeJS.Timeout | null = null;
 let isExempt: (webContentsId: number) => boolean = () => false;
 /** The guest session, whose pages alone ask the engine for anything. */
 let blockingSession: null | Session = null;
@@ -93,13 +106,18 @@ export function enableContentBlocking(
 ) {
   isExempt = exempt;
   blockingSession = guestSession;
+  app.on("web-contents-created", (_event, contents) => {
+    if (contents.session === guestSession) {
+      followPages(contents);
+    }
+  });
   loading ??= loadEngine();
   ipcMain.handle(INJECT_CHANNEL, injectCosmeticFilters);
   ipcMain.handle(
     MUTATION_OBSERVER_CHANNEL,
     (event) =>
       event.sender.session === blockingSession &&
-      !isExempt(event.sender.id) &&
+      isBlockingIn(event.sender.id) &&
       engine?.config.enableMutationObserver === true,
   );
   guestSession.registerPreloadScript({
@@ -114,12 +132,8 @@ export function enableContentBlocking(
 export function blockedRequestResponse(
   details: OnBeforeRequestListenerDetails,
 ): CallbackResponse {
-  if (
-    !engine ||
-    !adblocker ||
-    !isBlocking() ||
-    (details.webContentsId !== undefined && isExempt(details.webContentsId))
-  ) {
+  const id = details.webContentsId;
+  if (!engine || !adblocker || !isBlockingIn(id)) {
     return {};
   }
   const request = requestFrom(adblocker, details);
@@ -127,6 +141,9 @@ export function blockedRequestResponse(
     return {};
   }
   const { match, redirect } = engine.match(request);
+  if ((match || redirect) && id !== undefined) {
+    noteBlocked(id, request.hostname);
+  }
   if (redirect) {
     return { redirectURL: redirect.dataUrl };
   }
@@ -137,11 +154,17 @@ export function blockedRequestResponse(
 export function cspResponse(
   details: OnHeadersReceivedListenerDetails,
 ): HeadersReceivedResponse {
+  // A page's own document is judged by its own site, since the tab is still
+  // on the page it is leaving.
   if (
     !engine ||
     !adblocker ||
-    !isBlocking() ||
-    (details.webContentsId !== undefined && isExempt(details.webContentsId)) ||
+    !isBlockingIn(
+      details.webContentsId,
+      details.resourceType === "mainFrame"
+        ? adBlockingSiteOf(details.url)
+        : undefined,
+    ) ||
     (details.resourceType !== "mainFrame" &&
       details.resourceType !== "subFrame")
   ) {
@@ -215,10 +238,9 @@ function injectCosmeticFilters(
 ) {
   if (
     !engine ||
-    !isBlocking() ||
     typeof url !== "string" ||
     event.sender.session !== blockingSession ||
-    isExempt(event.sender.id)
+    !isBlockingIn(event.sender.id)
   ) {
     return;
   }
@@ -282,6 +304,118 @@ export function isBlocking() {
 }
 
 /**
+ * Whether what the page in `webContentsId` loads is blocked: blocking is on
+ * for the workspace, no agent turned it off in the page's tab, and the person
+ * did not turn it off on the page's site, or on `pageSite` when given.
+ */
+function isBlockingIn(
+  webContentsId: number | undefined,
+  pageSite?: string,
+) {
+  if (!isBlocking()) {
+    return false;
+  }
+  if (webContentsId === undefined) {
+    return true;
+  }
+  const site = pageSite ?? pages.get(webContentsId)?.site;
+  return (
+    !isExempt(webContentsId) &&
+    (site === undefined || !sitesOff().has(site))
+  );
+}
+
+/** The sites the person turned blocking off on, kept current with the preference. */
+function sitesOff(): ReadonlySet<string> {
+  if (offSites === null) {
+    const preferences = getWorkspacePreferences();
+    offSites = new Set(preferences.get("adBlockOffSites"));
+    preferences.onDidChange("adBlockOffSites", (value) => {
+      offSites = new Set(value);
+    });
+  }
+  return offSites;
+}
+
+/**
+ * The site an address is on, which blocking is turned off for: its
+ * registrable domain, so `www.` and a site's other hosts go together, or the
+ * host itself where it has none (an IP address, `localhost`).
+ */
+export function adBlockingSiteOf(url: string): string {
+  const { domain, hostname } = parse(url);
+  return domain ?? hostname ?? "";
+}
+
+/**
+ * Keeps `pages` current for one of the session's contents: what was blocked
+ * starts over when a new document starts loading in its main frame, and the
+ * site is the one that document commits on, after any redirects. Read from
+ * the contents rather than its requests, since Electron gives a document's
+ * own request no web contents id.
+ */
+function followPages(contents: WebContents) {
+  const id = contents.id;
+  contents.on("did-start-navigation", ({ isMainFrame, isSameDocument }) => {
+    const page = pages.get(id);
+    if (isMainFrame && !isSameDocument && page && page.blocked.size > 0) {
+      page.blocked = new Set();
+      changed();
+    }
+  });
+  contents.on("did-navigate", (_event, url) => {
+    pages.set(id, {
+      blocked: pages.get(id)?.blocked ?? new Set(),
+      site: adBlockingSiteOf(url),
+    });
+    changed();
+  });
+  contents.once("destroyed", () => {
+    pages.delete(id);
+    changed();
+  });
+}
+
+function noteBlocked(webContentsId: number, hostname: string) {
+  const page = pages.get(webContentsId);
+  const host = hostname.replace(/^www\./, "");
+  if (page && host && !page.blocked.has(host)) {
+    page.blocked.add(host);
+    changed();
+  }
+}
+
+/**
+ * Says that what the shield shows changed, at most every quarter second: a
+ * page loading refuses many hosts in a burst.
+ */
+export function adBlockingChanged() {
+  changeTimer ??= setTimeout(() => {
+    changeTimer = null;
+    publisher.publish("browser.ad-blocking-changed", null);
+  }, 250);
+}
+const changed = adBlockingChanged;
+
+/**
+ * What blocking did on each page, by its web contents id, and when its lists
+ * were fetched.
+ */
+export function adBlockingReport(): {
+  listsUpdatedAt: null | number;
+  pages: { blocked: string[]; site: string; webContentsId: number }[];
+} {
+  return {
+    listsUpdatedAt,
+    pages: [...pages].map(([webContentsId, page]) => ({
+      blocked: [...page.blocked],
+      site: page.site,
+      webContentsId,
+    })),
+  };
+}
+
+/**
  * The engine last built, from disk, then rebuilt from the published lists when
  * there is none or it is a week old. A failed fetch keeps whatever loaded; with
  * nothing on disk either, pages load unblocked until the next launch.
@@ -310,6 +444,7 @@ async function loadEngine() {
       const [buffer, stat] = cached;
       engine = FiltersEngine.deserialize(buffer);
       age = Date.now() - stat.mtimeMs;
+      listsUpdatedAt = stat.mtimeMs;
     }
   } catch {
     // An engine an older version of the engine wrote.
@@ -325,6 +460,8 @@ async function loadEngine() {
     const fresh = FiltersEngine.parse(lists.join("\n"));
     fresh.updateResources(resources, `${resources.length}`);
     engine = fresh;
+    listsUpdatedAt = Date.now();
+    changed();
     await fs.writeFile(cachePath, fresh.serialize());
   } catch (error) {
     log.warn("could not refresh the block lists", error);

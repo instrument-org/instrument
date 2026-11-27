@@ -24,16 +24,19 @@ import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { BROWSER_EXTENSIONS_SESSION } from "@/shared/browser-extensions";
 import { APP_NAME } from "@instrument-org/shared";
+import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
 import { PowerIcon } from "@phosphor-icons/react/Power";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
+import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { SlidersHorizontalIcon } from "@phosphor-icons/react/SlidersHorizontal";
 import { StorefrontIcon } from "@phosphor-icons/react/Storefront";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useEffect, useRef, useState } from "react";
 
+import { AdBlockingButton, useAdBlocking } from "./ad-blocking";
 import {
   type BrowserExtension,
   ExtensionIcon,
@@ -80,11 +83,22 @@ function markPinsDrawn(pinnedIds: string[]) {
  * right-click menu on each button. An extension whose desktop app refuses
  * this browser gets an amber dot and, once, a popover with the steps.
  * With nothing installed the puzzle piece stands alone, so the menu that
- * leads to the store is in sight.
+ * leads to the store is in sight. Ad blocking's shield leads the group, as
+ * the built-in extension it is, for the page in `targetId`.
  */
-export function BrowserExtensionButtons() {
+export function BrowserExtensionButtons({
+  targetId,
+}: {
+  targetId?: BrowserTargetId | undefined;
+}) {
   const extensions = useBrowserExtensions().filter(({ enabled }) => enabled);
+  const adBlocking = useAdBlocking();
+  const [shieldOpen, setShieldOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const opensShield = useRef(false);
+  const hasShield = adBlocking.pinned || shieldOpen;
   const hasPinned = extensions.some((extension) => extension.pinned);
+  const isGrouped = hasPinned || hasShield;
   const shown = useIsTaskPageVisible();
   const listRef = useRef<HTMLElement>(null);
   const [buttonMenu, setButtonMenu] = useState<null | {
@@ -182,7 +196,7 @@ export function BrowserExtensionButtons() {
     >
       <PopoverAnchor asChild>
         <div
-          className={cn(TOOLBAR_GROUP_CLASSNAME, !hasPinned && "gap-0 px-0")}
+          className={cn(TOOLBAR_GROUP_CLASSNAME, !isGrouped && "gap-0 px-0")}
           // The buttons live in the list's shadow root, which stops a
           // right-click on its own; this runs first and takes it for the
           // button's menu.
@@ -202,19 +216,29 @@ export function BrowserExtensionButtons() {
             setButtonMenu({ extension, x: event.clientX, y: event.clientY });
           }}
         >
+          <AdBlockingButton
+            compact={isGrouped}
+            onOpenChange={setShieldOpen}
+            open={shieldOpen}
+            targetId={targetId}
+          />
           <browser-action-list
             className={cn(!hasPinned && "hidden")}
             partition={BROWSER_EXTENSIONS_SESSION}
             ref={listRef}
           />
-          <DropdownMenu modal={false}>
+          <DropdownMenu
+            modal={false}
+            onOpenChange={setMenuOpen}
+            open={menuOpen}
+          >
             <ToolbarTooltip label="Extensions">
               <DropdownMenuTrigger asChild>
                 <button
                   aria-label="Extensions"
                   className={cn(
                     "grid shrink-0 place-items-center text-foreground/60 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground",
-                    hasPinned
+                    isGrouped
                       ? "size-7 rounded-[calc(var(--radius-xl)-2px)]"
                       : "size-8 rounded-xl",
                   )}
@@ -224,8 +248,27 @@ export function BrowserExtensionButtons() {
                 </button>
               </DropdownMenuTrigger>
             </ToolbarTooltip>
-            <DropdownMenuContent align="end" className="w-72">
+            <DropdownMenuContent
+              align="end"
+              className="w-72"
+              // The shield's popover opens once the menu has gone, and keeps
+              // the focus the menu would hand back to the puzzle piece, which
+              // would close it again.
+              onCloseAutoFocus={(event) => {
+                if (opensShield.current) {
+                  opensShield.current = false;
+                  event.preventDefault();
+                  setShieldOpen(true);
+                }
+              }}
+            >
               <DropdownMenuLabel>Extensions</DropdownMenuLabel>
+              <AdBlockingRow
+                onActivate={() => {
+                  opensShield.current = true;
+                  setMenuOpen(false);
+                }}
+              />
               {extensions.map((extension) => (
                 <ExtensionRow
                   extension={extension}
@@ -239,11 +282,6 @@ export function BrowserExtensionButtons() {
                   }}
                 />
               ))}
-              {extensions.length === 0 && (
-                <p className="px-2 py-1.5 text-sm text-muted-foreground">
-                  Nothing is installed yet.
-                </p>
-              )}
               <DropdownMenuSeparator />
               <ManageItems />
             </DropdownMenuContent>
@@ -291,6 +329,53 @@ export function BrowserExtensionButtons() {
   );
 }
 
+/** Ad blocking in the puzzle piece's menu: its name to open the shield's popover, and its pin. */
+function AdBlockingRow({ onActivate }: { onActivate: () => void }) {
+  const adBlocking = useAdBlocking();
+  return (
+    <div className="flex items-center gap-1 rounded-sm pl-2 hover:bg-accent">
+      <button
+        className="flex min-w-0 flex-1 items-center gap-2.5 py-1.5 text-left text-sm"
+        onClick={onActivate}
+        type="button"
+      >
+        <ShieldCheckIcon className="size-5 shrink-0" />
+        <span className="truncate">Ad blocking</span>
+      </button>
+      <PinButton
+        onPinnedChange={adBlocking.setPinned}
+        pinned={adBlocking.pinned}
+      />
+      {/* Lines up with the extensions' More buttons below. */}
+      <span className="size-7 shrink-0" />
+    </div>
+  );
+}
+
+function PinButton({
+  onPinnedChange,
+  pinned,
+}: {
+  onPinnedChange: (pinned: boolean) => void;
+  pinned: boolean;
+}) {
+  return (
+    <ToolbarTooltip label={pinned ? "Unpin" : "Pin"}>
+      <Button
+        aria-label={pinned ? "Unpin" : "Pin"}
+        className={cn("size-7", !pinned && "text-muted-foreground")}
+        onClick={() => {
+          onPinnedChange(!pinned);
+        }}
+        size="icon-sm"
+        variant="ghost"
+      >
+        <PushPinIcon className="size-3.5" weight={pinned ? "fill" : "regular"} />
+      </Button>
+    </ToolbarTooltip>
+  );
+}
+
 /** An extension in the puzzle piece's menu: its name to open it, its pin, and more. */
 function ExtensionRow({
   extension,
@@ -317,22 +402,12 @@ function ExtensionRow({
           </span>
         )}
       </button>
-      <ToolbarTooltip label={extension.pinned ? "Unpin" : "Pin"}>
-        <Button
-          aria-label={extension.pinned ? "Unpin" : "Pin"}
-          className={cn("size-7", !extension.pinned && "text-muted-foreground")}
-          onClick={() => {
-            actions.setPinned(extension, !extension.pinned);
-          }}
-          size="icon-sm"
-          variant="ghost"
-        >
-          <PushPinIcon
-            className="size-3.5"
-            weight={extension.pinned ? "fill" : "regular"}
-          />
-        </Button>
-      </ToolbarTooltip>
+      <PinButton
+        onPinnedChange={(pinned) => {
+          actions.setPinned(extension, pinned);
+        }}
+        pinned={extension.pinned}
+      />
       <DropdownMenuSub>
         <DropdownMenuSubTrigger
           aria-label="More"

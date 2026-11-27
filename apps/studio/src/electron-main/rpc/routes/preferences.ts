@@ -137,6 +137,27 @@ const setBlockAds = base
     getWorkspacePreferences().set("blockAds", input.enabled);
   });
 
+/** Turns ad blocking off on one site, by the site the shield names, or back on. */
+const setBlockAdsOnSite = base
+  .input(z.object({ enabled: z.boolean(), site: z.string().min(1) }))
+  .handler(({ input }) => {
+    const preferences = getWorkspacePreferences();
+    const others = preferences
+      .get("adBlockOffSites")
+      .filter((site) => site !== input.site);
+    preferences.set(
+      "adBlockOffSites",
+      input.enabled ? others : [...others, input.site],
+    );
+  });
+
+/** Shows or hides ad blocking's shield in the browser's row. */
+const setAdBlockingPinned = base
+  .input(z.object({ pinned: z.boolean() }))
+  .handler(({ input }) => {
+    getWorkspacePreferences().set("adBlockingPinned", input.pinned);
+  });
+
 /** Shows or hides the bookmarks bar in every window. */
 const setShowBookmarksBar = base
   .input(z.object({ enabled: z.boolean() }))
@@ -327,7 +348,9 @@ export const preferences = {
   quitAndInstall,
   sendTestNotification,
   setAgentCompletionNotifications,
+  setAdBlockingPinned,
   setBlockAds,
+  setBlockAdsOnSite,
   setRunProgramsWithoutSandbox,
   setDefaultModelURI,
   setDeveloperMode,

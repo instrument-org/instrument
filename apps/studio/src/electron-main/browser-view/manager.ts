@@ -64,7 +64,7 @@ import {
   createFocusGuard,
   isAgentDrivenCommand,
 } from "./focus-guard";
-import { isBlocking } from "./content-blocking";
+import { adBlockingChanged, isBlocking } from "./content-blocking";
 import { attachGuestInteractions } from "./guest-interactions";
 import { forgetRasterBudget } from "./guest-surface";
 import {
@@ -1593,10 +1593,13 @@ function createBrowserViewManager(): BrowserViewManager {
         ? guests.documentOf(guest.id, guest.mainFrame)
         : undefined;
     },
-    contentBlocking: (targets, blocking) => ({
-      task: guests.setAdBlocking(targets, blocking),
-      workspace: isBlocking(),
-    }),
+    contentBlocking: (targets, blocking) => {
+      const task = guests.setAdBlocking(targets, blocking);
+      if (blocking !== undefined) {
+        adBlockingChanged();
+      }
+      return { task, workspace: isBlocking() };
+    },
     listTargets,
     loadPage: async (targetId, url) => {
       await sendToGuest(targetId, "Page.navigate", { url }, undefined, {

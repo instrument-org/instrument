@@ -39,6 +39,9 @@ interface PublisherEvents {
   // A tab's page started or stopped using the microphone or camera, was
   // refused them, or left for another page.
   "browser.capture-changed": null;
+  // Ad blocking refused something on a tab's page, a page began, its lists
+  // were fetched again, or an agent turned it off or on in a tab.
+  "browser.ad-blocking-changed": null;
   // The browser's extensions changed: one was added, removed, turned on or
   // off, or has an update waiting on the person.
   "browser.extensions-changed": null;

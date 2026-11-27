@@ -151,6 +151,24 @@ export interface CaptureDevices {
 /** What a person told the browser about one device on one site: always, never, or ask each time. */
 export type SiteCaptureSetting = "allow" | "ask" | "block";
 
+/** What ad blocking did on a tab's page. */
+export interface AdBlockingPage {
+  /** An agent turned blocking off in the tab. */
+  agentOff: boolean;
+  /** The hosts refused since the page began, in the order they were. */
+  blocked: string[];
+  /** The page's site, which blocking is turned off for. */
+  site: string;
+  targetId: BrowserTargetId;
+}
+
+/** What the shield and the Extensions page say about ad blocking. */
+export interface AdBlockingReport {
+  /** When the block lists were last fetched; null before they have loaded. */
+  listsUpdatedAt: null | number;
+  pages: AdBlockingPage[];
+}
+
 /**
  * Where a tab's page stands with the microphone and camera: what it is
  * using now, the ask waiting on the person, what it was refused and why, and

@@ -127,6 +127,11 @@ const ROUTES: Record<string, Mapper> = {
   "preferences.setBlockAds": setting("Block ads", Enabled, ({ enabled }) =>
     onOff(enabled),
   ),
+  "preferences.setBlockAdsOnSite": setting(
+    "Block ads",
+    z.object({ enabled: z.boolean(), site: z.string() }),
+    ({ enabled, site }) => `${onOff(enabled)} on ${site}`,
+  ),
   // The model by its name alone: the rest of its address names the
   // provider's setup on this computer.
   "preferences.setDefaultModelURI": setting(

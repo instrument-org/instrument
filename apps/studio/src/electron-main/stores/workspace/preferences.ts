@@ -52,6 +52,10 @@ function featuresAllOff(): Features {
 export const WorkspacePreferencesSchema = z.object({
   agentCompletionNotifications:
     AgentCompletionNotificationModeSchema.catch("unfocused"),
+  // The sites ads and trackers load on anyway, by registrable domain.
+  adBlockOffSites: z.array(z.string()).catch([]),
+  // Whether ad blocking's shield shows in the browser's row.
+  adBlockingPinned: z.boolean().catch(true),
   // Ads and trackers blocked in the in-app browser; see content-blocking.ts.
   blockAds: z.boolean().catch(true),
   // What was chosen for the model below when it was last started with.

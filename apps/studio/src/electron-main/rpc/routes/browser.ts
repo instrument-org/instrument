@@ -39,13 +39,21 @@ import {
   readPageThumbnail,
 } from "@/electron-main/browser-view/page-thumbnails";
 import { pageDialogs } from "@/electron-main/browser-view/page-dialogs";
+import {
+  adBlockingChanged,
+  adBlockingReport,
+} from "@/electron-main/browser-view/content-blocking";
+import { guests } from "@/electron-main/browser-view/guest-registry";
 import { suggestSearches } from "@/electron-main/browser-view/search-engine";
 import { siteIconDeps } from "@/electron-main/lib/app-protocol";
 import { rememberPageIcon as keepPageIcon } from "@/electron-main/lib/site-icons";
 import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { type BrowserGuestTarget } from "@/shared/browser";
+import {
+  type AdBlockingReport,
+  type BrowserGuestTarget,
+} from "@/shared/browser";
 import {
   type BrowserTargetId,
   BrowserTargetIdSchema,
@@ -190,7 +198,35 @@ const events = {
   }),
 };
 
+/** What ad blocking did on each tab's page, by its tab rather than its web contents. */
+function readAdBlocking(): AdBlockingReport {
+  const { listsUpdatedAt, pages } = adBlockingReport();
+  return {
+    listsUpdatedAt,
+    pages: pages.flatMap(({ blocked, site, webContentsId }) => {
+      const targetId = guests.get(webContentsId)?.entry?.targetId;
+      return targetId
+        ? [
+            {
+              agentOff: guests.isAdBlockExempt(webContentsId),
+              blocked,
+              site,
+              targetId,
+            },
+          ]
+        : [];
+    }),
+  };
+}
+
 const live = {
+  // What ad blocking did on each tab's page, sent again as that changes.
+  adBlocking: base.handler(async function* ({ signal }) {
+    yield* liveRead({
+      changes: [publisher.subscribe("browser.ad-blocking-changed", { signal })],
+      read: readAdBlocking,
+    });
+  }),
   // What each tab's page is using of the microphone and camera, or was
   // refused, sent again whenever that changes.
   captures: base.handler(async function* ({ signal }) {
@@ -824,6 +860,14 @@ const popup = {
   }),
 };
 
+/** Undoes an agent's `adblock off` in one tab, from the shield. */
+const turnOnAdBlocking = base
+  .input(z.object({ targetId: BrowserTargetIdSchema }))
+  .handler(({ input }) => {
+    guests.setAdBlocking([input.targetId], true);
+    adBlockingChanged();
+  });
+
 export const browser = {
   allowPageCapture,
   answerPageCapture,
@@ -856,4 +900,5 @@ export const browser = {
   syncHostFocus,
   syncRasterBudget,
   thumbnails,
+  turnOnAdBlocking,
 };

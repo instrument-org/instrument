@@ -4,7 +4,6 @@ import { TOOLBAR_ICON_BUTTON_CLASSNAME } from "@/client/components/toolbar-contr
 import { Button } from "@/client/components/ui/button";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -25,7 +24,6 @@ import {
 import { type OpenInAppTarget } from "@/client/hooks/use-open-in-app";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { isMacOS } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
@@ -39,9 +37,7 @@ import { FloppyDiskIcon } from "@phosphor-icons/react/FloppyDisk";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PrinterIcon } from "@phosphor-icons/react/Printer";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
-import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { TerminalWindowIcon } from "@phosphor-icons/react/TerminalWindow";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode } from "react";
 
 /** What the menu does to the page loaded under it. */
@@ -61,12 +57,11 @@ export type MenuPage = {
 
 /**
  * The browser's ⋮, the same over a page and over a tab with no page loaded
- * (a new tab, the browser's start): History, Bookmarks, Extensions, ads and
- * zoom work anywhere, and the rows that act on a page show disabled until
+ * (a new tab, the browser's start): History, Bookmarks, Extensions and zoom
+ * work anywhere, and the rows that act on a page show disabled until
  * there is one (`page`), the way Chrome's menu reads on its new tab page.
  */
 export function BrowserPageMenu({
-  afterBlockAds,
   bookmark,
   editPage,
   editSource,
@@ -77,8 +72,6 @@ export function BrowserPageMenu({
   page,
   zoom,
 }: {
-  /** Run once the ad choice is saved: a page reloads to show it. */
-  afterBlockAds?: () => void;
   /** The Bookmarks submenu, and whether the tab has an address to keep; absent where nothing keeps bookmarks. */
   bookmark?: { canBookmark: boolean };
   /** The page's Edit row, drawn beside Edit source. */
@@ -94,12 +87,6 @@ export function BrowserPageMenu({
   /** The zoom stepper of what is under the menu. */
   zoom?: ReactNode;
 }) {
-  const { data: preferences } = useQuery(
-    rpcClient.preferences.live.get.experimental_liveOptions(),
-  );
-  const setBlockAds = useMutation(
-    rpcClient.preferences.setBlockAds.mutationOptions(),
-  );
   const shortcut = (name: "findInPage" | "printPage") => (
     <DropdownMenuShortcut>
       {formatAcceleratorText(WINDOW_SHORTCUTS[name].accelerator)}
@@ -200,18 +187,6 @@ export function BrowserPageMenu({
           <ArrowCounterClockwiseIcon className="size-4" />
           Hard reload
         </DropdownMenuItem>
-        <DropdownMenuCheckboxItem
-          checked={preferences?.blockAds ?? true}
-          onCheckedChange={(enabled) => {
-            setBlockAds.mutate(
-              { enabled },
-              afterBlockAds ? { onSuccess: afterBlockAds } : {},
-            );
-          }}
-        >
-          <ShieldCheckIcon className="size-4" />
-          Block ads
-        </DropdownMenuCheckboxItem>
         {editPage}
         {editSource && (
           <DropdownMenuItem onSelect={editSource}>

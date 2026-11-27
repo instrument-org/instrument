@@ -116,6 +116,7 @@ import {
   MessageScroller,
   MessageScrollerButton,
   MessageScrollerContent,
+  MessageScrollerFoot,
   MessageScrollerProvider,
   MessageScrollerViewport,
   useMessageScroller,
@@ -1342,6 +1343,16 @@ export function ChatConversation({
                     </NextStepsContext>
                   )}
                 </MessageScrollerContent>
+                <MessageScrollerFoot>
+                  {/* Fade the transcript into the composer with a background
+                  gradient rather than a viewport mask, so the scrollbar stays
+                  crisp. The column is centered and padded, so its text stays
+                  fully within the fade. */}
+                  <div className="absolute inset-x-0 bottom-0 h-6 bg-linear-to-t from-background to-transparent" />
+                  <div className="absolute inset-x-0 bottom-4 flex justify-center">
+                    <JumpToLatest busy={isAgentRunning} waiting={isWaiting} />
+                  </div>
+                </MessageScrollerFoot>
               </MessageScrollerViewport>
 
               <TranscriptTopFade />
@@ -1372,16 +1383,6 @@ export function ChatConversation({
                 sessionId={selectedSessionId}
                 surfaceRef={conversationRef}
               />
-
-              {/* Fade the transcript into the composer with a background gradient
-              rather than a viewport mask, so the scrollbar stays crisp. The
-              right inset clears the scrollbar; the content column is centered
-              and padded, so its text stays fully within the fade. */}
-              <div className="pointer-events-none absolute right-3 bottom-0 left-0 h-6 bg-linear-to-t from-background to-transparent" />
-
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-4">
-                <JumpToLatest busy={isAgentRunning} waiting={isWaiting} />
-              </div>
             </MessageScroller>
 
             {/* isolate: keep the prompt input's z-10 contained to the composer. */}

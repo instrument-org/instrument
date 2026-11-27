@@ -307,7 +307,7 @@ function MessageScrollerContent({
   return (
     <div
       aria-relevant="additions"
-      className={cn("flex h-max flex-col gap-6", className)}
+      className={cn("isolate flex h-max flex-col gap-6", className)}
       data-slot="message-scroller-content"
       ref={attach}
       role="log"
@@ -442,8 +442,9 @@ function noop() {
 // would come and go and rewrap the rows inside the owner's resize callback.
 //
 // `isolate` keeps what a message raises (a file card's `z-10` text) under the
-// scroller's own overlays, the jump-to-end button and the fades, which follow
-// the viewport in the tree without a z-index of their own.
+// scroller's own overlays drawn beside the viewport, such as the top fade,
+// which follow it in the tree without a z-index of their own. What floats over
+// the foot is inside it instead (`MessageScrollerFoot`).
 function MessageScrollerViewport({
   className,
   ref,
@@ -471,6 +472,32 @@ function MessageScrollerViewport({
       ref={attach}
       role="region"
       tabIndex={tabIndex}
+      {...props}
+    />
+  );
+}
+
+/**
+ * What floats over the foot of the transcript, such as the button to the end
+ * and the fade into the composer, placed up from its bottom edge with
+ * `absolute bottom-*`. It goes in the viewport after the column, so a wheel or
+ * trackpad scroll over a control in it scrolls the transcript as it does
+ * anywhere else: a sticky row of no height, so it sits at the viewport's foot
+ * whenever the column runs past it, adds nothing to the scroll height, and is
+ * never what the browser anchors the reader's place to. `isolate` on the column keeps what a message
+ * raises under it.
+ */
+function MessageScrollerFoot({
+  className,
+  ...props
+}: React.ComponentProps<"div">) {
+  return (
+    <div
+      className={cn(
+        "pointer-events-none sticky bottom-0 h-0 [overflow-anchor:none]",
+        className,
+      )}
+      data-slot="message-scroller-foot"
       {...props}
     />
   );
@@ -509,6 +536,7 @@ export {
   useMessageScrollerScrollable,
   MessageScrollerButton,
   MessageScrollerContent,
+  MessageScrollerFoot,
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,

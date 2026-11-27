@@ -811,6 +811,26 @@ describe("instrument chats project", () => {
     `);
   });
 
+  it("tells the chat filing itself which folders are granted under the project", async () => {
+    const taxDocs = fs.mkdtempSync(path.join(os.tmpdir(), "tax-docs-"));
+    await createProject({
+      folders: [{ path: taxDocs }, { path: path.join(taxDocs, "gone") }],
+      name: "Taxes",
+    });
+    const filed = await one("instrument chats project taxes organizer");
+    expect(
+      filed.stdout
+        ?.replaceAll(shellPath(getWorkspaceConfig().rootDir), "<workspace>")
+        .replaceAll(shellPath(taxDocs), "<tax-docs>"),
+    ).toMatchInlineSnapshot(`
+      "Filed organizer under Taxes: Tidy up my chats
+      This chat's project folder is <workspace>/Projects/Taxes/, $INSTRUMENT_PROJECT from your next command. It has no AGENTS.md.
+      Folders granted under it, open to you from your next command: <tax-docs>.
+      "
+    `);
+    fs.rmSync(taxDocs, { force: true, recursive: true });
+  });
+
   it("refuses a project the workspace does not have, with the list", async () => {
     await createProject({ name: "Travel" });
     const refused = await one("instrument chats project Trips lisbon");

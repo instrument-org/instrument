@@ -25,6 +25,7 @@ import {
 } from "../chat/chats";
 import { ChatStateSchema, chatStateOf, day } from "../chat/chat-state";
 import { type ArchivedChat, archiveChatAndTabs } from "../chat/organize";
+import { folderReach, reachedProjectFolders } from "../chat/folder-reach";
 import { listProjects, type Project, projectsDir } from "../chat/projects";
 import {
   chatLatestWords,
@@ -111,16 +112,21 @@ const INSTRUCTIONS_LINES_SHOWN = 5;
 /**
  * What the chat running the command is told when it files itself under a
  * project, since the project's note reaches it only with the next message:
- * the project's folder, and how its instructions begin.
+ * the project's folder, how its instructions begin, and the folders granted
+ * under it.
  */
-function filedHere(project: Project): string {
+function filedHere(project: Project, granted: string[]): string {
   const folder = shellPath(path.join(projectsDir(), project.name));
   const lines = project.instructions?.trim().split("\n") ?? [];
   const instructions =
     lines.length === 0 || lines[0] === ""
       ? `It has no ${PROJECT_FILE_NAME}.`
       : `Its ${PROJECT_FILE_NAME}, which every chat under it follows, begins:\n${lines.slice(0, INSTRUCTIONS_LINES_SHOWN).join("\n")}${lines.length > INSTRUCTIONS_LINES_SHOWN ? `\n[The rest is in ${folder}/${PROJECT_FILE_NAME}.]` : ""}`;
-  return `This chat's project folder is ${folder}/, $${FOLDER_VARIABLES.project} from your next command. ${instructions}`;
+  const folders =
+    granted.length > 0
+      ? `\nFolders granted under it, open to you from your next command: ${granted.join(", ")}.`
+      : "";
+  return `This chat's project folder is ${folder}/, $${FOLDER_VARIABLES.project} from your next command. ${instructions}${folders}`;
 }
 
 const WHICH_CHATS = `which chats? ${NAME} list names them.`;
@@ -545,7 +551,14 @@ export const chatsProject = defineCapability({
       recordChatChange({ after, before, chat: chat.id, field: "project" });
       const filed = `Filed ${chat.id} ${where}: ${chat.title}`;
       return found && chat.id === ctx.chatId
-        ? `${filed}\n${filedHere(found)}`
+        ? `${filed}\n${filedHere(
+            found,
+            reachedProjectFolders(
+              await folderReach(chat.id),
+              (await listProjects()).find((entry) => entry.id === found.id)
+                ?.folders ?? [],
+            ),
+          )}`
         : filed;
     });
   },

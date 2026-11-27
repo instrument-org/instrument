@@ -7,7 +7,6 @@ import { err, ok, ResultAsync } from "neverthrow";
 
 import { type FileUpload } from "../schemas/file-upload";
 import { type LayoutRead } from "../schemas/group-layout";
-import { type MountedFolder } from "../schemas/mounted-folder";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
@@ -29,8 +28,8 @@ import { ChatReads } from "./chat-reads";
 import { detectMessageGap } from "./message-gap";
 import { createActionsPart } from "./actions/actions-part";
 import { pathExists } from "./path-exists";
-import { folderReach } from "./chat/folder-reach";
-import { listProjects, type ProjectFolder } from "./chat/projects";
+import { folderReach, reachedProjectFolders } from "./chat/folder-reach";
+import { listProjects } from "./chat/projects";
 import { tabHolders } from "./chat/chat-tabs";
 import { chatDir, resolveChat } from "./record-folders";
 import {
@@ -496,7 +495,7 @@ async function createProjectPart({
   const known = await listProjects();
   const filed = known.find((entry) => entry.id === session.value.project);
   const folders = filed
-    ? projectFolderPaths(await folderReach(chatId), filed.folders ?? [])
+    ? reachedProjectFolders(await folderReach(chatId), filed.folders ?? [])
     : [];
   return {
     data: {
@@ -514,23 +513,6 @@ async function createProjectPart({
     metadata: { createdAt, id: StoreId.newPartId(), messageId, sessionId },
     type: "data-project",
   };
-}
-
-/**
- * The path of each of a project's folders the chat reaches. A folder no longer
- * on disk is not reached, and is left out so the agent is not pointed at
- * nothing.
- */
-function projectFolderPaths(
-  reach: Record<string, MountedFolder.Type>,
-  folders: ProjectFolder[],
-): string[] {
-  return folders.flatMap((folder) => {
-    const reached = Object.values(reach).find(
-      (entry) => entry.path === folder.path,
-    );
-    return reached ? [shellPath(reached.path)] : [];
-  });
 }
 
 /**

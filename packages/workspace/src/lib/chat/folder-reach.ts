@@ -12,7 +12,8 @@ import { chatGrants } from "./grants";
 import { type PlaceId, placePaths } from "../permissions/places";
 import { readPermissionSettings } from "../permissions/rules";
 import { outputFolderPath } from "./output-folder";
-import { listProjects, projectsDir } from "./projects";
+import { listProjects, type ProjectFolder, projectsDir } from "./projects";
+import { shellPath } from "../shell-path";
 import { type ChatId } from "../../schemas/chat-id";
 
 /**
@@ -157,4 +158,21 @@ async function projectFolderPaths(chatId: ChatId): Promise<string[]> {
     }
   }
   return paths;
+}
+
+/**
+ * The path of each of a project's folders the chat reaches. A folder no longer
+ * on disk is not reached, and is left out so the agent is not pointed at
+ * nothing.
+ */
+export function reachedProjectFolders(
+  reach: Record<string, MountedFolder.Type>,
+  folders: ProjectFolder[],
+): string[] {
+  return folders.flatMap((folder) => {
+    const reached = Object.values(reach).find(
+      (entry) => entry.path === folder.path,
+    );
+    return reached ? [shellPath(reached.path)] : [];
+  });
 }

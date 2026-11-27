@@ -222,25 +222,25 @@ export function GroupRowLines({
   );
 }
 
-/** A row's second line in words. */
+/** A row's second line in words, fading out at its end when it runs long, as the title does. */
 function SecondLine({ lines }: { lines: RowLines }) {
   if (lines.line === "") {
     return null;
   }
   if (lines.tone === "work") {
     return (
-      <span className="brand-shiny-text min-w-0 truncate">
+      <FadeTitle className="brand-shiny-text min-w-0">
         {lines.line}
         <ShimmerSweep text={lines.line} />
-      </span>
+      </FadeTitle>
     );
   }
   return lines.trail && lines.trail.length > 1 ? (
     <TrailLine className={TONE_INK[lines.tone]} trail={lines.trail} />
   ) : (
-    <span className={cn("min-w-0 truncate", TONE_INK[lines.tone])}>
+    <FadeTitle className={cn("min-w-0", TONE_INK[lines.tone])}>
       {lines.line}
-    </span>
+    </FadeTitle>
   );
 }
 
@@ -268,17 +268,17 @@ function TrailLine({
         )}
       >
         {trail
-          .map((name, index) => (
-            <span
-              className={cn(
-                "max-w-full",
-                index === last ? "truncate" : "shrink-0 whitespace-pre",
-              )}
-              key={index}
-            >
-              {index === last ? name : `${name} › `}
-            </span>
-          ))
+          .map((name, index) =>
+            index === last ? (
+              <FadeTitle className="max-w-full" key={index}>
+                {name}
+              </FadeTitle>
+            ) : (
+              <span className="max-w-full shrink-0 whitespace-pre" key={index}>
+                {`${name} › `}
+              </span>
+            ),
+          )
           .toReversed()}
       </span>
     </span>

@@ -390,7 +390,7 @@ export function GroupSidebar({
         <SidebarTop />
         <div className="flex min-h-0 flex-1 flex-col" ref={shiftRef}>
           {/* Search stays put while the list under it scrolls. */}
-          <div className="shrink-0 pl-2">
+          <div className="shrink-0 pr-1 pl-2">
             <SidebarSearch />
           </div>
           <GroupList>
@@ -686,7 +686,7 @@ function GroupList({ children }: { children: ReactNode }) {
   return (
     <div
       className={cn(
-        "relative flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-2 pl-2",
+        "relative flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pr-1 pb-2 pl-2",
         isScrollable && "scroll-fade-y",
       )}
       data-group-list=""

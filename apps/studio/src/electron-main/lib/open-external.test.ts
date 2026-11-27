@@ -32,6 +32,22 @@ describe("openExternal", () => {
 
   // The URL originates in model output and can name a local file path, so the
   // captured message says what was blocked and never what the URL was.
+  // A Mac opens a pane of its own System Settings, and never another
+  // system's settings or another program's scheme.
+  it.each([
+    ["x-apple.systempreferences:com.apple.Date-Time-Settings.extension", true],
+    [
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+      true,
+    ],
+    ["X-Apple.SystemPreferences:com.apple.Sound-Settings.extension", true],
+    ["ms-settings:dateandtime", false],
+    ["vscode://file/Users/someone/project", false],
+    ["javascript:alert(1)", false],
+  ])("opens %s: %s", async (url, opens) => {
+    await expect(openExternal(url)).resolves.toBe(opens);
+  });
+
   it("keeps a blocked URL out of the captured exception", async () => {
     const opened = await openExternal("file:///Users/someone/.ssh/id_rsa");
 

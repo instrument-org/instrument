@@ -303,6 +303,46 @@ describe("Markdown links", () => {
     );
   });
 
+  // A change only an administrator can make is the person's, through a link
+  // to the pane where they make it.
+  it("keeps a link to a settings pane", () => {
+    renderMarkdown(
+      "[Open Date & Time settings](x-apple.systempreferences:com.apple.Date-Time-Settings.extension)",
+    );
+
+    expect(
+      screen.getByRole("link", { name: "Open Date & Time settings" }),
+    ).toHaveProperty(
+      "href",
+      "x-apple.systempreferences:com.apple.Date-Time-Settings.extension",
+    );
+  });
+
+  it("keeps a link to a settings page through the pass that sanitizes raw HTML", async () => {
+    const { container } = renderMarkdown(
+      "[Open Date & time settings](ms-settings:dateandtime)\n\n<details><summary>More</summary>x</details>",
+    );
+
+    await waitFor(
+      () => {
+        expect(container.querySelector("details")).not.toBeNull();
+      },
+      { timeout: RAW_HTML_TIMEOUT },
+    );
+    expect(
+      screen.getByRole("link", { name: "Open Date & time settings" }),
+    ).toHaveProperty("href", "ms-settings:dateandtime");
+  });
+
+  it("leaves a link to another program's scheme as plain text", () => {
+    const { container } = renderMarkdown(
+      "Open [the project](vscode://file/Users/someone/project).",
+    );
+
+    expect(container.querySelector("a")).toBeNull();
+    expect(container.textContent).toContain("the project");
+  });
+
   // Where it goes is in the tooltip and the site's icon, so the sentence reads
   // the way it was written.
   it("draws a link as its label alone", () => {

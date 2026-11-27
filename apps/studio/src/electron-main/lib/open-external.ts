@@ -1,5 +1,6 @@
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { logger } from "@/electron-main/lib/electron-logger";
+import { settingsLinkSchemeOf } from "@/shared/settings-links";
 import { shell } from "electron";
 import { exec, spawn } from "node:child_process";
 import os from "node:os";
@@ -9,7 +10,18 @@ const execAsync = promisify(exec);
 
 const log = logger.scope("openExternal");
 
-const SAFE_PROTOCOLS = new Set(["http:", "https:", "mailto:", "tel:"]);
+// Beside the web, mail and phone, a link may open a page of this system's own
+// settings, and only this system's: it shows a pane, and the person makes the
+// change there.
+const SAFE_PROTOCOLS = new Set(
+  [
+    "http:",
+    "https:",
+    "mailto:",
+    "tel:",
+    settingsLinkSchemeOf(os.platform()),
+  ].filter((protocol) => protocol !== undefined),
+);
 
 export async function openExternal(url: string): Promise<boolean> {
   // Only allow safe protocols for external links

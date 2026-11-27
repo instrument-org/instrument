@@ -15,6 +15,7 @@ import {
 import { fileAddressOf } from "@/client/bookmarks/address";
 import { PlaceItems } from "@/client/components/window/place-items";
 import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
+import { isSettingsLink, SETTINGS_LINK_SCHEMES } from "@/shared/settings-links";
 import {
   APP_NAME_SLUG,
   APP_PROTOCOL,
@@ -205,7 +206,7 @@ function containsMathSyntax(markdown: string) {
  * download or a folder the user shared -- so the allow-list is what makes
  * parsing it at all safe.
  *
- * Five departures from the default. `file:` is how a model spells a link to a
+ * Six departures from the default. `file:` is how a model spells a link to a
  * file it just wrote, which `markdownUrlTransform` reduces to a path and
  * `ChatFileLink` then judges against the chat's folder and the folders it
  * reaches. The app's own
@@ -221,6 +222,10 @@ function containsMathSyntax(markdown: string) {
  * for. What a `data:` src may actually carry is still the image policy's
  * question, one place rather than two, and the tag names below are what keep
  * this reaching an `<img>` rather than an `iframe`, an `embed`, or a `script`.
+ *
+ * A settings link (`shared/settings-links.ts`) keeps its href too, so a
+ * reply's link to a pane of System Settings opens it, as the transform below
+ * lets it in prose.
  *
  * And `picture` and `source` come off that tag list, leaving the `<img>` as the
  * only shape a picture takes here. A `<source srcset>` is fetched exactly as an
@@ -242,6 +247,9 @@ const sanitizeSchema = {
       "file",
       APP_NAME_SLUG,
       APP_PROTOCOL,
+      ...Object.values(SETTINGS_LINK_SCHEMES).map((scheme) =>
+        scheme.slice(0, -1),
+      ),
     ],
     src: [...(defaultSchema.protocols?.src ?? []), "data"],
   },
@@ -927,6 +935,10 @@ const MarkdownLink = ({
 // `ExternalLink`, where the protocol allowlist refuses it: a blocked-link toast
 // and a captured exception, never an opened file.
 //
+// A settings link, which opens a pane of the system's own settings where the
+// person makes a change the agent cannot, is a scheme the default drops too,
+// and passes whole for `openExternal` to judge.
+//
 // A link into the app is the same scheme the default drops, passed through
 // whole for `InlineLink` to read: only an address that names something here
 // goes, so one with a noun the app has no screen for is dropped as any unknown
@@ -938,6 +950,9 @@ const markdownUrlTransform: UrlTransform = (url, key, node) => {
     return url;
   }
   if (key === "href" && instrumentLinkOf(url)) {
+    return url;
+  }
+  if (key === "href" && isSettingsLink(url)) {
     return url;
   }
   const filePath = key === "href" ? filePathOfInstrumentLink(url) : undefined;

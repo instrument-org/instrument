@@ -1,3 +1,4 @@
+import { useFoldedRowItems } from "@/client/components/window/folded-row-items";
 import { fileViewerWrapLinesAtom } from "@/client/atoms/file-viewer-wrap-lines";
 import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
@@ -1066,6 +1067,8 @@ export function FileViewer({
     }
   }, [markUpdated, pullsWrites, url]);
   const fileActions = useFileActionVisibility(file);
+  // In the tab's row, the controls the row folds come first in the menu.
+  const folded = useFoldedRowItems();
   // Copying the whole file is rare enough to live in the menu rather than
   // take a place in the head beside opening it.
   const canCopy = fileActions.showCopy && !imageLoadError;
@@ -1207,9 +1210,10 @@ export function FileViewer({
         />
       )}
       {showOverflowMenu && (
-        <DropdownMenu>
+        <DropdownMenu onOpenChange={folded.onOpenChange}>
           <DropdownMenuTrigger asChild>
             <Button
+              {...(isInRow ? folded.triggerProps : {})}
               aria-label="More actions"
               className={
                 isInRow
@@ -1225,9 +1229,13 @@ export function FileViewer({
               <DotsThreeOutlineVerticalIcon className="size-4" weight="fill" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent
+            align="end"
+            onCloseAutoFocus={folded.onCloseAutoFocus}
+          >
             {isInRow && (
               <>
+                {folded.items}
                 <OpenInAppMenuItems
                   menuComponents={dropdownMenuComponents}
                   target={{ hostPath }}

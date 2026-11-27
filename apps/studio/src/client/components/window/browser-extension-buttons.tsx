@@ -37,7 +37,7 @@ import { SlidersHorizontalIcon } from "@phosphor-icons/react/SlidersHorizontal";
 import { StorefrontIcon } from "@phosphor-icons/react/Storefront";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { min } from "radashi";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { AdBlockingButton, useAdBlocking } from "./ad-blocking";
 import {
@@ -52,14 +52,7 @@ import {
   closeExtensionSidePanel,
   useIsExtensionSidePanelShown,
 } from "./extension-side-panel";
-
-/**
- * What a tab row too narrow for its address hides of the group: the pinned
- * buttons, which the puzzle piece's menu still lists, as Chrome folds them
- * into it when the toolbar runs out of room. Left in, the field's end
- * (its site icon and star) would draw over them.
- */
-const NARROW_ROW_HIDDEN = "@max-[32rem]/tabrow:hidden";
+import { PINNED_EXTENSIONS_FOLD, rowFold } from "./tab-row-folds";
 
 /** The refusals already put to the person this launch, by extension id, so each is said once. */
 const noticed = new Set<string>();
@@ -89,6 +82,17 @@ function markPinsDrawn(pinnedIds: string[]) {
     drawnPins.ids.add(id);
   }
 }
+
+/**
+ * The extensions' groups on screen, each with the element it is drawn as,
+ * for the ⋮ menu of a row that folded its group away to act through
+ * (`FoldedExtensionsItems`).
+ */
+const groups = new Set<{
+  activate: (extension: BrowserExtension) => void;
+  element: () => HTMLElement | null;
+  openShield: () => void;
+}>();
 
 /**
  * Presses an extension's button, as a click on it does, for its shortcut:
@@ -125,6 +129,11 @@ export function openExtensionPopup(extensionId: string): void {
  * button acts on; while ad blocking is off for every site the shield shows
  * unpinned too, so blocking left off is in sight. While that page's
  * extension side panel shows, a button after the puzzle piece closes it.
+ *
+ * A narrow row folds the pinned buttons and the shield into the puzzle
+ * piece's menu, and narrower still the whole group into its ⋮ menu
+ * (`ROW_FOLDS`), which shows the group again while one of its menus or
+ * cards is up.
  */
 export function BrowserExtensionButtons({
   targetId,
@@ -227,6 +236,34 @@ export function BrowserExtensionButtons({
       ?.querySelector<HTMLElement>(`#${extension.id}`)
       ?.click();
   };
+  const press = (extension: BrowserExtension) => {
+    if (isRefused(extension)) {
+      setNoticeId(extension.id);
+    } else {
+      activate(extension);
+    }
+  };
+  const groupRef = useRef<HTMLDivElement>(null);
+  const pressFromMenu = useEffectEvent(press);
+  useEffect(() => {
+    const group = {
+      activate: (extension: BrowserExtension) => {
+        pressFromMenu(extension);
+      },
+      element: () => groupRef.current,
+      openShield: () => {
+        setShieldOpen(true);
+      },
+    };
+    groups.add(group);
+    return () => {
+      groups.delete(group);
+    };
+  }, []);
+  const fold = rowFold(
+    "extensions",
+    menuOpen || shieldOpen || notice !== null || buttonMenu !== null,
+  );
 
   return (
     <Popover
@@ -240,7 +277,13 @@ export function BrowserExtensionButtons({
     >
       <PopoverAnchor asChild>
         <div
-          className={cn(TOOLBAR_GROUP_CLASSNAME, !isGrouped && "gap-0 px-0")}
+          className={cn(
+            TOOLBAR_GROUP_CLASSNAME,
+            !isGrouped && "gap-0 px-0",
+            fold.className,
+          )}
+          data-row-fold={fold["data-row-fold"]}
+          ref={groupRef}
           // The buttons live in the list's shadow root, which stops a
           // right-click on its own; this runs first and takes it for the
           // button's menu.
@@ -261,14 +304,14 @@ export function BrowserExtensionButtons({
           }}
         >
           <AdBlockingButton
-            className={cn(!shieldOpen && NARROW_ROW_HIDDEN)}
+            className={cn(!shieldOpen && PINNED_EXTENSIONS_FOLD)}
             compact={isGrouped}
             onOpenChange={setShieldOpen}
             open={shieldOpen}
             targetId={targetId}
           />
           <browser-action-list
-            className={cn(!hasPinned && "hidden", NARROW_ROW_HIDDEN)}
+            className={cn(!hasPinned && "hidden", PINNED_EXTENSIONS_FOLD)}
             partition={BROWSER_EXTENSIONS_SESSION}
             ref={listRef}
             {...(tabId === undefined ? {} : { tab: tabId })}
@@ -320,11 +363,7 @@ export function BrowserExtensionButtons({
                   extension={extension}
                   key={extension.id}
                   onActivate={() => {
-                    if (isRefused(extension)) {
-                      setNoticeId(extension.id);
-                    } else {
-                      activate(extension);
-                    }
+                    press(extension);
                   }}
                 />
               ))}
@@ -386,6 +425,70 @@ export function BrowserExtensionButtons({
         </PopoverContent>
       )}
     </Popover>
+  );
+}
+
+/**
+ * The extensions group in a row's ⋮ menu, once the row has folded it away:
+ * Ad blocking and each extension, a press on which does what it does from
+ * the puzzle piece's menu, Close Side Panel while the page's side panel
+ * shows, and the ways out. `onPress` takes what a press does, which runs once
+ * the menu has gone, so a card it opens keeps its focus.
+ */
+export function FoldedExtensionsItems({
+  onPress,
+  row,
+  targetId,
+}: {
+  onPress: (press: () => void) => void;
+  /** The row the menu is in, whose group the presses act through. */
+  row: Element | null;
+  targetId: BrowserTargetId | undefined;
+}) {
+  const extensions = useBrowserExtensions().filter(({ enabled }) => enabled);
+  const isPanelShown = useIsExtensionSidePanelShown(targetId);
+  const groupOf = () =>
+    [...groups].find((group) => {
+      const element = group.element();
+      return element !== null && row?.contains(element) === true;
+    });
+  return (
+    <>
+      <DropdownMenuItem
+        onSelect={() => {
+          onPress(() => groupOf()?.openShield());
+        }}
+      >
+        <ShieldCheckIcon className="size-4" />
+        Ad blocking
+      </DropdownMenuItem>
+      {extensions.map((extension) => (
+        <DropdownMenuItem
+          key={extension.id}
+          onSelect={() => {
+            onPress(() => groupOf()?.activate(extension));
+          }}
+        >
+          <ExtensionIcon className="size-4" extension={extension} />
+          <span className="truncate">{extension.name}</span>
+          {isRefused(extension) && (
+            <span className="ml-auto size-1.5 shrink-0 rounded-full bg-warning-500" />
+          )}
+        </DropdownMenuItem>
+      ))}
+      {isPanelShown && targetId && (
+        <DropdownMenuItem
+          onSelect={() => {
+            closeExtensionSidePanel(targetId);
+          }}
+        >
+          <CloseSidePanelIcon className="size-4" />
+          Close Side Panel
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuSeparator />
+      <ManageItems />
+    </>
   );
 }
 

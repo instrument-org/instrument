@@ -78,6 +78,7 @@ import {
   type TabLocation,
 } from "./tab-location";
 import { PANE_TOP_ROW, usePaneTop } from "./pane-top";
+import { OPEN_IN_APP_FOLD, rowFold, type RowFold } from "./tab-row-folds";
 
 /**
  * The row every tab wears: back, forward, a page's reload, home, and where
@@ -185,9 +186,10 @@ export function TabLocationRow({
   return (
     <div
       // A container, so what a screen or a page draws into the row can give
-      // up its words for its mark when the row is narrow.
+      // up its words for its mark when the row is narrow, and a group, so
+      // its controls fold only where its menu lists them (`ROW_FOLDS`).
       className={cn(
-        "@container/tabrow flex h-10 shrink-0 items-center gap-1.5 border-b border-border bg-background px-1.5",
+        "group/tabrow @container/tabrow flex h-10 shrink-0 items-center gap-1.5 border-b border-border bg-background px-1.5",
         top && PANE_TOP_ROW,
         className,
       )}
@@ -216,6 +218,7 @@ export function TabLocationRow({
             <TabRowControl
               chord="forward"
               disabled={!canGoForward}
+              fold="forward"
               icon={<ArrowRightIcon className="size-4" />}
               label="Forward"
               onClick={onForward}
@@ -229,11 +232,15 @@ export function TabLocationRow({
         edge to edge, puts the caret in the input the way a browser's address
         bar does. Its fill is a solid shade of the row's own ground, named as
         `--field-fill` so what covers the words at its end (the open-in
-        button, as it grows) paints the same color. */}
+        button, as it grows) paints the same color. It is never narrower
+        than the marks at its ends with a few letters between, the zoom's
+        too while it shows, so a row with no room left runs out past its
+        end rather than drawing the field's marks over its neighbors; as a
+        container its width never comes from what it holds. */}
       {hasField ? (
         <div
           className={cn(
-            "group/field @container/field relative flex h-8 min-w-0 flex-1 cursor-text items-center gap-2 rounded-xl bg-(--field-fill) px-3 text-[13px] ring-1 ring-foreground/[0.06] [-webkit-app-region:no-drag] [--field-fill:color-mix(in_oklab,var(--foreground)_4.5%,var(--background))] focus-within:ring-foreground/20 focus-within:[--field-fill:var(--card)]",
+            "group/field @container/field relative flex h-8 min-w-26 flex-1 cursor-text items-center gap-2 rounded-xl bg-(--field-fill) px-3 text-[13px] ring-1 ring-foreground/[0.06] [--field-fill:color-mix(in_oklab,var(--foreground)_4.5%,var(--background))] [-webkit-app-region:no-drag] focus-within:ring-foreground/20 focus-within:[--field-fill:var(--card)] has-[[data-field-zoom]]:min-w-36",
             // The app's icon and the star sit at the field's end, with room
             // to breathe inside the curve.
             (openIn || address) && "pr-2",
@@ -336,13 +343,14 @@ export function TabLocationRow({
           )}
           {openIn && (
             <OpenInAppButton
-              className="@max-[12rem]/field:hidden"
+              className={cn("@max-[12rem]/field:hidden", OPEN_IN_APP_FOLD)}
               target={openIn}
             />
           )}
           {address && !isWebStart && (
             <BookmarkStar
               address={address}
+              isFolding
               title={title || bookmarkTitleOf(location)}
             />
           )}
@@ -385,10 +393,13 @@ export function ChatBesideChip({ onClick }: { onClick: () => void }) {
  * One of the row's own controls: a mark, what it is called, and what it
  * does, with the chord that does the same in the tooltip where it has one.
  * `word` is shown after the mark, where the mark alone would not say enough.
+ * `fold` names the rung at which a narrow row gives it up to its ⋮ menu
+ * (`ROW_FOLDS`).
  */
 export function TabRowControl({
   chord,
   disabled,
+  fold,
   icon,
   label,
   onClick,
@@ -396,16 +407,20 @@ export function TabRowControl({
 }: {
   chord?: WindowShortcutId;
   disabled: boolean;
+  fold?: RowFold;
   icon: ReactNode;
   label: string;
   onClick: () => void;
   word?: string;
 }) {
+  const folds = fold ? rowFold(fold) : undefined;
   return (
     <ToolbarTooltip chord={chord} label={label}>
       <button
+        data-row-fold={folds?.["data-row-fold"]}
         className={cn(
           "shrink-0 rounded-lg",
+          folds?.className,
           word === undefined
             ? "grid size-7 place-items-center"
             : "flex h-7 items-center gap-1.5 pr-2.5 pl-2 text-[13px] font-medium",

@@ -26,6 +26,8 @@ import { motion, useAnimate, useReducedMotion } from "motion/react";
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import { rowFold } from "./tab-row-folds";
+
 type Download =
   RPCOutput["browser"]["live"]["downloads"] extends AsyncIterable<(infer D)[]>
     ? D
@@ -36,7 +38,8 @@ type Download =
  * only while the list has something on it. While a download runs, a ring
  * around the button fills with how far along the running ones are; a press
  * shows the list, where each file can be opened, shown in its folder,
- * stopped, or taken off the list.
+ * stopped, or taken off the list. A narrow row folds it into its ⋮ menu
+ * (`ROW_FOLDS`) while nothing runs and the list is shut.
  */
 export function BrowserDownloadsButton({
   surfaceRef,
@@ -79,13 +82,19 @@ export function BrowserDownloadsButton({
   }
   const running = downloads.filter(isRunning);
   const hasFinished = running.length < downloads.length;
+  const fold = rowFold("downloads", running.length > 0 || open);
 
   return (
     <Popover modal={false} onOpenChange={setOpen} open={open}>
       <ToolbarTooltip label="Downloads">
         <PopoverTrigger asChild>
           <Button
-            className={cn(TOOLBAR_ICON_BUTTON_CLASSNAME, "relative")}
+            className={cn(
+              TOOLBAR_ICON_BUTTON_CLASSNAME,
+              "relative",
+              fold.className,
+            )}
+            data-row-fold={fold["data-row-fold"]}
             ref={buttonScope}
             size="icon-sm"
             variant="ghost"

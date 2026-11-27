@@ -35,6 +35,7 @@ import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 
 import { AddressMark } from "./app-chip";
 import { BookmarkEditor, PlaceIndent } from "./bookmark-editor";
+import { rowFold } from "./tab-row-folds";
 
 /**
  * The stars on screen that ⌘D may mean, each with the element it is drawn
@@ -57,7 +58,13 @@ export function requestBookmarkTab() {
   let best: { depth: number; press: () => void } | undefined;
   for (const star of stars) {
     const element = star.element();
-    if (!element?.checkVisibility({ visibilityProperty: true })) {
+    // A star its narrow row folded away still answers, through the field
+    // it stands in, and shows again with its card.
+    const shown =
+      element?.dataset.rowFold === undefined
+        ? element
+        : element.parentElement;
+    if (!shown?.checkVisibility({ visibilityProperty: true })) {
       continue;
     }
     let depth = 0;
@@ -94,10 +101,13 @@ function isFixedOnBar(address: string) {
  */
 export function BookmarkStar({
   address,
+  isFolding = false,
   title,
 }: {
   /** What is kept: a site's address, or the app's own `instrument://` one. */
   address: string;
+  /** Whether a narrow row folds it into its ⋮ menu (`ROW_FOLDS`), which shows it again while its card is up. */
+  isFolding?: boolean;
   /** What the bookmark is called until it is renamed. */
   title: string;
 }) {
@@ -115,6 +125,7 @@ export function BookmarkStar({
     setCard(undefined);
   });
   const button = useRef<HTMLButtonElement>(null);
+  const fold = isFolding ? rowFold("star", card !== undefined) : undefined;
 
   const press = () => {
     if (!isLoaded) {
@@ -182,7 +193,9 @@ export function BookmarkStar({
                 !isLoaded &&
                   "text-foreground/20 hover:bg-transparent hover:text-foreground/20",
                 isOutOfSight && "pointer-events-none opacity-0",
+                fold?.className,
               )}
+              data-row-fold={fold?.["data-row-fold"]}
               data-bookmark-star={isLoaded ? (kept ? "kept" : "") : "loading"}
               disabled={!isLoaded}
               onClick={press}

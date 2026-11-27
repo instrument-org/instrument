@@ -1079,6 +1079,7 @@ function SideCard({
                             <TabRowControl
                               chord="newTab"
                               disabled={false}
+                              fold="newTab"
                               icon={<PlusIcon className="size-4" />}
                               label="New Tab"
                               onClick={newTabHere}

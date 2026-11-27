@@ -43,6 +43,8 @@ Portalled dialogs are a legitimate media-query case: they are sized against the 
 
 A panel kept beside what a person reads in a tab (Files' folder beside a file, a Markdown file's outline) shows as a Mac sidebar does ([`panel-fold.ts`](../../apps/studio/src/client/lib/panel-fold.ts)): kept until put away by hand, folded while its tab is too narrow, back once there is room, with a margin so a divider drag does not flap. A built-in page folds under `PAGE_FOLD_PX` (`useIsNarrower`). A new in-tab panel uses the same rule. A width changes how a layout looks, never what a press on it does.
 
+A tab's row (`@container/tabrow`, [`tab-location-row.tsx`](../../apps/studio/src/client/components/window/tab-location-row.tsx)) gives up its controls a rung at a time as its side narrows, as a browser's toolbar does, so the address keeps its room down to the narrowest side (`SIDE_WIDTH_MIN`, 320px). The rungs are in [`tab-row-folds.ts`](../../apps/studio/src/client/components/window/tab-row-folds.ts); a folded control is listed at the top of the row's ⋮ menu, where a press presses the control itself, and a control stays in the row while its own card or menu is open. The address field is never narrower than the marks at its ends with a few letters between, so a row that still runs out of room runs past its end instead of drawing its controls over each other.
+
 ## Sizing portalled content under zoom
 
 Radix portals to `document.body`, outside the zoom root, so floating content self-applies `zoom` via `useAppZoomStyle` (`apps/studio/src/client/hooks/use-app-zoom.ts`). On a self-zoomed element, units do not all behave the same way, and getting this backwards is silent:

@@ -14,7 +14,10 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
-import { ManageItems } from "@/client/components/window/browser-extension-buttons";
+import {
+  FoldedExtensionsItems,
+  ManageItems,
+} from "@/client/components/window/browser-extension-buttons";
 import { BrowserHistoryMenu } from "@/client/components/window/browser-history-menu";
 import { BookmarksSubmenu } from "@/client/components/window/bookmarks-submenu";
 import {
@@ -39,6 +42,8 @@ import { PrinterIcon } from "@phosphor-icons/react/Printer";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { TerminalWindowIcon } from "@phosphor-icons/react/TerminalWindow";
 import { type ReactNode } from "react";
+
+import { useFoldedRowItems } from "./folded-row-items";
 
 /** What the menu does to the page loaded under it. */
 export type MenuPage = {
@@ -87,6 +92,16 @@ export function BrowserPageMenu({
   /** The zoom stepper of what is under the menu. */
   zoom?: ReactNode;
 }) {
+  // Over a row that folds its controls, they come first here (`ROW_FOLDS`).
+  const folded = useFoldedRowItems({
+    extensions: (row, onPress) => (
+      <FoldedExtensionsItems
+        onPress={onPress}
+        row={row}
+        targetId={page?.targetId}
+      />
+    ),
+  });
   const shortcut = (name: "findInPage" | "printPage") => (
     <DropdownMenuShortcut>
       {formatAcceleratorText(WINDOW_SHORTCUTS[name].accelerator)}
@@ -97,11 +112,15 @@ export function BrowserPageMenu({
       // Non-modal so clicking into the guest `<webview>` (a separate
       // WebContents) isn't blocked by the modal body `pointer-events: none`.
       modal={false}
-      {...(onOpenChange ? { onOpenChange } : {})}
+      onOpenChange={(isOpen) => {
+        folded.onOpenChange(isOpen);
+        onOpenChange?.(isOpen);
+      }}
       {...(open === undefined ? {} : { open })}
     >
       <DropdownMenuTrigger asChild>
         <Button
+          {...folded.triggerProps}
           aria-label="More actions"
           className={TOOLBAR_ICON_BUTTON_CLASSNAME}
           size="icon-sm"
@@ -110,7 +129,12 @@ export function BrowserPageMenu({
           <DotsThreeVerticalIcon className="size-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent
+        align="end"
+        className="w-56"
+        onCloseAutoFocus={folded.onCloseAutoFocus}
+      >
+        {folded.items}
         {openInBrowserTab && (
           <>
             <DropdownMenuItem disabled={!page} onSelect={openInBrowserTab}>
@@ -178,7 +202,7 @@ export function BrowserPageMenu({
             Extensions
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
-            <ManageItems />
+            {folded.extensionItems ?? <ManageItems />}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
         <DropdownMenuSeparator />

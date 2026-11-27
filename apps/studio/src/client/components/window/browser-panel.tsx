@@ -733,6 +733,8 @@ export function BrowserPanel({
         const zoomTrigger = (
           <DropdownMenuTrigger
             aria-label={agentZoomed ? agentZoomText : "Zoom"}
+            // The address field leaves room for it (`data-field-zoom`).
+            data-field-zoom=""
             className={cn(
               "flex h-5 shrink-0 items-center rounded-full px-1.5 font-medium tabular-nums",
               agentZoomed

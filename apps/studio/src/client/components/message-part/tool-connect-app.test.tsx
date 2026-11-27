@@ -16,6 +16,7 @@ import { ToolConnectApp } from "./tool-connect-app";
 const { mocks, mutation, query } = vi.hoisted(() => ({
   mocks: {
     apps: vi.fn<() => Promise<unknown>>(),
+    grok: vi.fn<() => Promise<unknown>>(),
     signIn: vi.fn<() => Promise<unknown>>(),
     declineSignIn:
       vi.fn<(input: { askId: string; id: string }) => Promise<unknown>>(),
@@ -71,6 +72,7 @@ vi.mock("@/client/rpc/client", () => ({
       },
       startWebSignIn: mutation(),
     },
+    grokAccount: { live: { status: query("grok", mocks.grok) } },
     workspace: {
       chats: {
         declineSignIn: {
@@ -207,6 +209,8 @@ beforeEach(() => {
   mocks.signIn.mockResolvedValue(null);
   mocks.declineSignIn.mockReset();
   mocks.apps.mockReset();
+  mocks.grok.mockReset();
+  mocks.grok.mockResolvedValue({ accounts: [] });
   mocks.dismiss.mockReset();
   mocks.markWebSignedIn.mockReset();
   mocks.startOAuth.mockReset();
@@ -913,5 +917,61 @@ describe("a sign-in card another computer put up", () => {
     expect(
       await screen.findAllByRole("button", { name: /sign in/i }),
     ).not.toEqual([]);
+  });
+});
+
+describe("X's row asking for the Grok plan", () => {
+  const x = (status: "connected" | "needs-sign-in") => ({
+    apps: [
+      {
+        connection: { status, updatedAt: 1 },
+        credentialOrigin: "https://x.com",
+        endpoint: "https://x.com",
+        hasCredential: false,
+        keys: [],
+        name: "X",
+        plan: "grok",
+        signIn: "https://x.com",
+        site: "https://x.com",
+        slug: "x",
+        status,
+        type: "web",
+      },
+    ],
+  });
+  const show = () => {
+    renderCard(undefined, {
+      apps: [
+        {
+          kind: "web",
+          name: "X",
+          plan: "grok",
+          site: "https://x.com",
+          slug: "x",
+          state: "asked",
+          url: "https://x.com",
+        },
+      ],
+    });
+  };
+
+  it("asks for the plan, whatever the site's sign-in", async () => {
+    mocks.apps.mockResolvedValue(x("connected"));
+    show();
+
+    expect(
+      await screen.findByText("Sign in with Grok to search X."),
+    ).toBeTruthy();
+    expect(screen.queryByText("X connected")).toBeNull();
+  });
+
+  it("folds once a Grok account can search", async () => {
+    mocks.apps.mockResolvedValue(x("needs-sign-in"));
+    mocks.grok.mockResolvedValue({
+      accounts: [{ id: "g1", label: "sam@example.com", state: "signed-in" }],
+    });
+    show();
+
+    expect(await screen.findByText("X connected")).toBeTruthy();
   });
 });

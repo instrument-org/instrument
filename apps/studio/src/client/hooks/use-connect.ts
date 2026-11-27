@@ -187,10 +187,12 @@ export function useClaudeConnect() {
 /**
  * Signing in with Grok through xAI's device code: `userCode` is the code the
  * browser page asks for, while it waits. xAI names the plan at sign-in, so an
- * account without an eligible paid plan answers at once.
+ * account without an eligible paid plan answers at once. `forApp` is the app
+ * whose card row asked for the plan, which a sign-in turned down on xAI's
+ * page turns down too.
  */
 export function useGrokConnect() {
-  const flow = useConnectFlow<SignInPlace | void>({
+  const flow = useConnectFlow<(SignInPlace & { forApp?: string }) | void>({
     onCancel: (phase) => {
       void (phase === "checking"
         ? rpcClient.accountCheck.cancel.call({ provider: "grok" })
@@ -198,7 +200,7 @@ export function useGrokConnect() {
     },
     run: async (input, { onPhase, signal }) => {
       const result = await rpcClient.grokAccount.signIn
-        .call({ opensIn: input?.opensIn }, { signal })
+        .call({ forApp: input?.forApp, opensIn: input?.opensIn }, { signal })
         .catch((error: unknown) => ({
           error: error instanceof Error ? error.message : String(error),
           outcome: "failed" as const,

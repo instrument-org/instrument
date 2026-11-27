@@ -105,7 +105,7 @@ export function AiAppAccounts({
   );
 }
 
-function DisconnectSite({ name, slug }: { name: string; slug: string }) {
+export function DisconnectSite({ name, slug }: { name: string; slug: string }) {
   const disconnect = useMutation(
     rpcClient.apps.disconnect.mutationOptions({
       onError: (error) => {

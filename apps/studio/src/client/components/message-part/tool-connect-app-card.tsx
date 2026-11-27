@@ -3,16 +3,19 @@ import { AppIcon } from "@/client/components/window/app-icon";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { ConnectControls } from "@/client/components/window/connect-controls";
 import { WindowContext } from "@/client/components/window/context";
+import { useOptionalPlanSignIns } from "@/client/components/window/plan-sign-in";
 import {
   FixWithInstrumentButton,
   useFixConnection,
 } from "@/client/components/window/fix-connection";
 import {
+  SignInButton,
   SignInWaitingLine,
   WaitingLine,
 } from "@/client/components/window/sign-in-button";
 import { useSiteSignIns } from "@/client/components/window/site-sign-in";
 import { signInsWaitingAtom } from "@/client/components/window/use-sign-in-landing";
+import { connectLine } from "@/client/lib/connect-copy";
 import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
@@ -62,6 +65,7 @@ export function ConnectAppCard({
   const drawn = useAppsBySlug();
   const signInsWaiting = useAtomValue(signInsWaitingAtom);
   const siteSignIns = useSiteSignIns();
+  const plan = useGrokPlanRow(rows.some((row) => row.plan !== undefined));
   // The row the user pressed, up for as long as it has anything to press.
   const [picked, setPicked] = useState<string>();
   const dismiss = useMutation(rpcClient.apps.dismiss.mutationOptions());
@@ -75,6 +79,9 @@ export function ConnectAppCard({
     const app = appOf(row.slug);
     if (app === undefined) {
       return "removed";
+    }
+    if (row.plan !== undefined) {
+      return plan.status(app.status);
     }
     // Another try at a failed sign-in waits like any other.
     if (signInsWaiting.has(row.slug) && app.status !== "connected") {
@@ -229,7 +236,9 @@ export function ConnectAppCard({
             <ConnectRow
               key={row.slug}
               line={
-                status === "waiting" ? (
+                row.plan !== undefined ? (
+                  plan.line(status, row.name)
+                ) : status === "waiting" ? (
                   <SignInWaitingLine
                     where={signInsWaiting.get(row.slug)?.where ?? "external"}
                   />
@@ -427,6 +436,8 @@ function ConnectRow({
             className="size-4 shrink-0 text-brand-600 dark:text-brand-400"
             weight="bold"
           />
+        ) : actionable && row.plan !== undefined ? (
+          <GrokPlanSignIn slug={row.slug} />
         ) : actionable &&
           (kind === "sign-in" ||
             kind === "web" ||
@@ -457,5 +468,76 @@ function ConnectRow({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * A row asking for the Grok plan X's search runs on: it stands by the plan
+ * on this computer, connected once any account of it can be used, and its
+ * button is the plan's own sign-in, the one Settings and X's page start.
+ */
+function useGrokPlanRow(enabled: boolean) {
+  const { data } = useQuery({
+    ...rpcClient.grokAccount.live.status.experimental_liveOptions(),
+    enabled,
+  });
+  const signIn = useOptionalPlanSignIns()?.grok;
+  const isBusy = signIn !== undefined && signIn.phase !== "idle";
+  return {
+    line: (status: RowStatus, name: string): ReactNode => {
+      switch (status) {
+        case "connected": {
+          return "Grok plan connected";
+        }
+        case "waiting": {
+          return <SignInWaitingLine where={signIn?.waitingIn ?? "app"} />;
+        }
+        case "declined": {
+          return "Skipped";
+        }
+        default: {
+          const answer =
+            signIn?.outcome === undefined
+              ? undefined
+              : connectLine(signIn.outcome, "grok");
+          return answer ?? `Sign in with Grok to search ${name}.`;
+        }
+      }
+    },
+    status: (appStatus: ListedApp["status"]): RowStatus =>
+      data?.accounts.some((account) => account.state === "signed-in")
+        ? "connected"
+        : appStatus === "declined"
+          ? "declined"
+          : isBusy
+            ? "waiting"
+            : "open",
+  };
+}
+
+/** The Grok plan's sign-in, from a row asking for it, which opens in a tab of the window where it can. */
+function GrokPlanSignIn({ slug }: { slug: string }) {
+  const shell = useContext(WindowContext);
+  const signIn = useOptionalPlanSignIns()?.grok;
+  if (shell === null || signIn === undefined) {
+    return null;
+  }
+  const isBusy = signIn.phase !== "idle";
+  return (
+    <SignInButton
+      busy={isBusy}
+      canSignInHere={shell.browser !== null}
+      first="app"
+      onCancel={signIn.cancel}
+      onStart={(where) => {
+        signIn.start({
+          accountId: undefined,
+          forApp: slug,
+          openPage: shell.openPage,
+          where: shell.browser === null ? "external" : where,
+        });
+      }}
+      waiting={isBusy}
+    />
   );
 }

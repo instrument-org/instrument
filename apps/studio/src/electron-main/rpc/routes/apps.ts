@@ -58,6 +58,7 @@ import {
   ChatIdSchema,
   findAppIcon,
   type AppManifest,
+  isXApp,
   waitInChat,
 } from "@instrument-org/workspace/electron";
 import { call, eventIterator, ORPCError } from "@orpc/server";
@@ -221,6 +222,8 @@ const AppListItemSchema = z.discriminatedUnion("type", [
     type: z.literal("mcp-local"),
   }),
   AppListItemBaseSchema.extend({
+    /** For an app on X's site, the plan its search runs on, which signs in apart from the site. */
+    plan: z.literal("grok").optional(),
     /** The page its sign-in opens in the window's browser. */
     signIn: z.string(),
     type: z.literal("web"),
@@ -381,6 +384,7 @@ const list = base.output(AppListSchema).handler(async () => {
             return {
               ...listed,
               endpoint: manifest.url,
+              ...(isXApp(manifest) && { plan: "grok" as const }),
               signIn: manifest.signIn ?? manifest.url,
               type: manifest.type,
               ...updateOf(app, listed.status),

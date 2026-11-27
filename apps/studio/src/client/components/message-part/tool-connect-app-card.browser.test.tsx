@@ -72,6 +72,9 @@ vi.mock("@/client/rpc/client", () => ({
       ),
       startWebSignIn: mutation(() => Promise.resolve()),
     },
+    grokAccount: {
+      live: { status: query("grok", () => Promise.resolve({ accounts: [] })) },
+    },
     utils: {
       browserOpenTarget: {
         queryOptions: (options: object) => ({

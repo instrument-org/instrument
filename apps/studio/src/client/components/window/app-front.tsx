@@ -9,6 +9,7 @@ import {
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { AiAppAccounts } from "@/client/components/window/ai-app-accounts";
+import { XAppAccounts } from "@/client/components/window/x-app-accounts";
 import { AppCapabilities } from "@/client/components/window/app-capabilities";
 import { AppIcon } from "@/client/components/window/app-icon";
 import {
@@ -184,16 +185,19 @@ export function AppFront({
   // An AI signs in to its site and its plan in rows of their own.
   const plan = planOfApp({ service, slug });
   const isOnAiSite = plan !== undefined && (app === undefined || isWeb);
+  // X searches on the Grok plan and is worked on its site, a row each.
+  const xApp = app?.type === "web" && app.plan === "grok" ? app : undefined;
   // Every account of the service is a row once one of them is connected.
   const accounts = [...(app ? [app] : []), ...otherAccounts];
   const hasRows = accounts.some((each) => each.status === "connected");
-  const rows = isOnAiSite
-    ? otherAccounts
-    : hasRows
-      ? accounts.filter(
-          (each) => each.slug !== slug || isConnected || asksForSignIn(each),
-        )
-      : otherAccounts;
+  const rows =
+    isOnAiSite || xApp
+      ? otherAccounts
+      : hasRows
+        ? accounts.filter(
+            (each) => each.slug !== slug || isConnected || asksForSignIn(each),
+          )
+        : otherAccounts;
   const isRow = rows.some((each) => each.slug === slug);
   const openHome = () => {
     if (home && browser) {
@@ -277,7 +281,16 @@ export function AppFront({
           />
         ) : null}
 
-        {isConnected || isOnAiSite || isRow ? null : (
+        {xApp ? (
+          <XAppAccounts
+            app={xApp}
+            entrySlug={service}
+            name={name}
+            slug={slug}
+          />
+        ) : null}
+
+        {isConnected || isOnAiSite || isRow || xApp ? null : (
           <AppSetUp app={app} entry={entry} name={name} slug={slug} />
         )}
 

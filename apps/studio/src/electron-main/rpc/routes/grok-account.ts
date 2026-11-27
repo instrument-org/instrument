@@ -1,4 +1,8 @@
-import { liveRead } from "@instrument-org/workspace/electron";
+import {
+  grokPlanSignedInHere,
+  liveRead,
+} from "@instrument-org/workspace/electron";
+import { settleConnection } from "@/electron-main/lib/app-connection";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import {
   cancelGrokSignIn,
@@ -29,16 +33,40 @@ const live = {
 /**
  * Signs in with a Grok account in the browser, through xAI's device code,
  * adding it when it is new. Answers how it ended, with what went wrong when
- * it failed.
+ * it failed. A plan signed in is what X's search runs on, so X hears of it
+ * (`grokPlanSignedInHere`); one turned down on xAI's page turns down the
+ * row of the app that asked for it, if one did.
  */
 const signIn = base
-  .input(z.object({ opensIn: PlanSignInOpensInSchema }))
+  .input(
+    z.object({
+      /** The app whose sign-in card row asked for the plan. */
+      forApp: z.string().optional(),
+      opensIn: PlanSignInOpensInSchema,
+    }),
+  )
   .handler(
     async ({
-      input,
+      input: { forApp, opensIn },
     }): Promise<GrokSignInResult | { error: string; outcome: "failed" }> => {
       try {
-        const result = await signInWithGrok(input);
+        const result = await signInWithGrok({ opensIn });
+        if (
+          result.outcome === "signed-in" &&
+          result.account?.state === "signed-in"
+        ) {
+          await grokPlanSignedInHere().catch((error: unknown) => {
+            captureServerException(
+              new Error("Setting up X after a Grok sign-in failed", {
+                cause: error,
+              }),
+              { area: "auth" },
+            );
+          });
+        }
+        if (result.outcome === "declined" && forApp !== undefined) {
+          await settleConnection(forApp, { status: "declined" });
+        }
         return result;
       } catch (error) {
         captureServerException(

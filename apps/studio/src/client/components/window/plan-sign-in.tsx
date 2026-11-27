@@ -35,6 +35,8 @@ import { useWindowTabs } from "./window-tabs";
 /** One attempt at a plan's sign-in, as it was pressed. */
 interface Attempt {
   accountId: string | undefined;
+  /** The app whose sign-in card row asked for the plan. */
+  forApp?: string;
   openPage: WindowContextValue["openPage"];
   /** The app's page to bring up once it is done with; without one, its tab just closes. */
   slug?: string;
@@ -151,7 +153,11 @@ async function readPages(
 
 function usePlanSignIn(
   provider: PlanProvider,
-  flow: ConnectFlow<{ accountId?: string; opensIn?: SignInDestination } | void>,
+  flow: ConnectFlow<{
+    accountId?: string;
+    forApp?: string;
+    opensIn?: SignInDestination;
+  } | void>,
   isShown: (provider: PlanProvider) => boolean,
 ): PlanSignIn & { takePage: (url: string) => void } {
   const windowTabs = useWindowTabs();
@@ -170,6 +176,7 @@ function usePlanSignIn(
     void flow.start({
       opensIn: next.where,
       ...(next.accountId === undefined ? {} : { accountId: next.accountId }),
+      ...(next.forApp === undefined ? {} : { forApp: next.forApp }),
     });
   };
   const cancel = () => {

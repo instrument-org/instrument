@@ -18,6 +18,7 @@ export {
   type KeyFolderName,
   PROJECT_FILE_NAME,
   PROJECTS_FOLDER_NAME,
+  SKILLS_FOLDER_NAME,
   TOOL_EXPLANATION_PARAM_NAME,
 } from "./constants";
 export { appEventModelNote } from "./model-text/notes/app-event-model-text";

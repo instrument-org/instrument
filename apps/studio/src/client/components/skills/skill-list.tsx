@@ -1,14 +1,25 @@
+import { FolderTrail } from "@/client/components/folder-trail";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
+import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
 import { RevealPath } from "@/client/components/reveal-path";
-import { SkillBadges } from "@/client/components/skill-badges";
+import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
+import { joinHostPath } from "@/client/components/window/host-path";
+import { FolderMark } from "@/client/components/window/folder-mark";
+import { useWorkspaceFolder } from "@/client/lib/output-folder";
 import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
-import { isProvidedSource, skillSourceLabel } from "@/client/lib/skill-source";
+import {
+  isProvidedSource,
+  skillPickRank,
+  skillSourceLabel,
+} from "@/client/lib/skill-source";
 import { SKILL_NAME_MATCH_CLASS_NAME } from "@/client/lib/skill-tokens";
+import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { APP_NAME_SLUG } from "@instrument-org/shared";
-import { FilesIcon } from "@phosphor-icons/react/Files";
+import { APP_NAME } from "@instrument-org/shared";
+import { SKILLS_FOLDER_NAME } from "@instrument-org/workspace/client";
+import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
@@ -16,66 +27,73 @@ import { type ReactNode, useDeferredValue, useState } from "react";
 
 type Skill = RPCOutput["workspace"]["skill"]["list"][number];
 
-// Where a group sits in the list. The user's own workspace first, since it is
-// the one they author; then Instrument's provided skills; then skills found in
-// the folders other agents keep theirs in.
-const SOURCE_RANK: Record<Skill["source"], number> = {
-  agents: 3,
-  antigravity: 3,
-  [APP_NAME_SLUG]: 1,
-  claude: 3,
-  codex: 3,
-  copilot: 3,
-  cursor: 3,
-  gemini: 3,
-  goose: 3,
-  kiro: 3,
-  opencode: 3,
-  system: 1,
-  windsurf: 3,
-  workspace: 0,
-};
-
 /**
- * Every skill a task can load, searchable and grouped by where it comes
- * from, each a row that `onOpen` takes to the skill's folder (except the ones
- * the app ships), with `menu` drawn at its end.
+ * Every skill a task can load, searchable: the person's own first, under the
+ * workspace's Skills folder, then each other agent's, then a line saying how
+ * many the app ships, which are listed only when a search finds them. A row
+ * of a skill the app doesn't ship opens its folder through `onOpen`, and
+ * `menu` sits at its end. `empty` stands in for the person's own rows while
+ * they have none, counting no other agent's and no built-in.
  */
 export function SkillList({
+  empty,
   menu,
   onOpen,
 }: {
+  empty: ReactNode;
   menu: (skill: Skill) => ReactNode;
   onOpen: (skill: Skill) => void;
 }) {
   const { data: skills = [], isLoading } = useQuery(
-    rpcClient.workspace.skill.list.queryOptions({
-      input: { fileCounts: true },
-    }),
+    rpcClient.workspace.skill.list.queryOptions(),
   );
+  const workspaceFolder = useWorkspaceFolder();
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
+  const isSearching = deferredQuery.trim() !== "";
   const matches = matchSkills(skills, deferredQuery, {
     scope: "name-and-description",
   });
   const matchBySkill = new Map(matches.map((match) => [match.skill, match]));
   const groups = groupSkills(matches.map((match) => match.skill));
+  const ownCount = skills.filter(
+    (skill) => skill.source === "workspace",
+  ).length;
+  const builtInCount = skills.filter((skill) =>
+    isProvidedSource(skill.source),
+  ).length;
+  const skillsFolder =
+    workspaceFolder === undefined
+      ? undefined
+      : joinHostPath(workspaceFolder, SKILLS_FOLDER_NAME);
 
   if (isLoading) {
     return (
       <p className="text-sm text-muted-foreground">Finding installed skills…</p>
     );
   }
-  if (skills.length === 0) {
-    return (
-      <div className="rounded-2xl border border-dashed p-10 text-center">
-        <p className="font-medium">No skills yet</p>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {`Add a skill folder to Skills, or ask a chat for one.`}
-        </p>
-      </div>
-    );
-  }
+
+  const rows = (group: SkillGroup) => (
+    <ul className="divide-y overflow-hidden rounded-xl border border-border bg-card">
+      {group.skills.map((skill) => (
+        <li className="min-w-0" key={skill.id}>
+          <SkillRow
+            menu={menu(skill)}
+            onOpen={onOpen}
+            ranges={matchBySkill.get(skill)}
+            skill={skill}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+  const ownGroup = groups.find((group) => group.source === "workspace");
+  // Searching shows only the groups with a match, built-ins among them;
+  // otherwise the person's own group stays, with `empty` while it has none,
+  // and the built-ins are the one line at the foot.
+  const shownGroups = isSearching
+    ? groups
+    : groups.filter((group) => !isProvidedSource(group.source));
 
   return (
     <>
@@ -104,58 +122,84 @@ export function SkillList({
         ) : null}
       </div>
 
-      {groups.length === 0 ? (
+      {isSearching && groups.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {`No skills match “${deferredQuery}”.`}
         </p>
       ) : (
-        <div className="grid gap-10">
-          {groups.map((group) => {
-            const sourcePaths = showsSourcePaths(group.source)
-              ? group.dirs
-              : [];
-
-            return (
+        <div className="grid gap-8">
+          {isSearching ? null : (
+            <section className="min-w-0">
+              <div className="mb-1.5 flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <h4 className="text-sm font-medium text-muted-foreground">
+                  Your skills
+                </h4>
+                {skillsFolder !== undefined && ownCount > 0 ? (
+                  <Button
+                    className="text-foreground"
+                    onClick={() => {
+                      void showInFolder(skillsFolder, { kind: "folder" });
+                    }}
+                    size="xs"
+                    variant="outline"
+                  >
+                    <ShowInFolderIcon kind="folder" />
+                    {showInFolderLabel("folder")}
+                  </Button>
+                ) : null}
+              </div>
+              {skillsFolder === undefined ? null : (
+                <FolderTrail
+                  className="mb-2 text-xs text-muted-foreground"
+                  path={skillsFolder}
+                />
+              )}
+              {ownGroup ? rows(ownGroup) : empty}
+            </section>
+          )}
+          {shownGroups
+            .filter((group) => isSearching || group.source !== "workspace")
+            .map((group) => (
               <section className="min-w-0" key={group.key}>
-                <div className="mb-3 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-                  <h2 className="text-lg font-medium text-muted-foreground">
-                    {group.label}
-                  </h2>
-                  {sourcePaths.map((dir) => (
-                    <RevealPath
-                      className="max-w-full min-w-0"
-                      hideIcon
-                      key={dir}
-                      path={dir}
-                    />
-                  ))}
+                <div className="mb-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+                  <h4 className="text-sm font-medium text-muted-foreground">
+                    {groupLabel(group.source)}
+                  </h4>
                 </div>
-                <ul className="divide-y overflow-hidden rounded-2xl border border-border bg-card shadow-xs">
-                  {group.skills.map((skill) => (
-                    <li className="min-w-0" key={skill.id}>
-                      <SkillRow
-                        menu={menu(skill)}
-                        onOpen={onOpen}
-                        ranges={matchBySkill.get(skill)}
-                        skill={skill}
+                {group.source === "workspace" || isProvidedSource(group.source)
+                  ? null
+                  : group.dirs.map((dir) => (
+                      <RevealPath
+                        className="mb-2 max-w-full min-w-0"
+                        key={dir}
+                        path={dir}
                       />
-                    </li>
-                  ))}
-                </ul>
+                    ))}
+                {rows(group)}
               </section>
-            );
-          })}
+            ))}
+          {!isSearching && builtInCount > 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {`${APP_NAME} also has ${builtInCount} built-in ${builtInCount === 1 ? "skill" : "skills"}.`}
+            </p>
+          ) : null}
         </div>
       )}
     </>
   );
 }
 
-// Every skill has a SKILL.md, so a count of one says nothing; what is worth
-// knowing at a glance is that a skill brings scripts and references with it.
-function fileCountLabel({ fileCount = 0, filesTruncated }: Skill) {
-  return `${fileCount}${filesTruncated === true ? "+" : ""} files`;
+/** A group's heading: the person's own, the app's, or the other agent's name. */
+function groupLabel(source: Skill["source"]) {
+  if (source === "workspace") {
+    return "Your skills";
+  }
+  return isProvidedSource(source)
+    ? `Built into ${APP_NAME}`
+    : skillSourceLabel(source);
 }
+
+type SkillGroup = ReturnType<typeof groupSkills>[number];
 
 function groupSkills(skills: Skill[]) {
   const groups = new Map<
@@ -185,13 +229,12 @@ function groupSkills(skills: Skill[]) {
     .map(([key, group]) => ({
       dirs: [...group.dirs].sort(),
       key,
-      label: skillSourceLabel(group.source),
       skills: group.skills.sort((a, b) => a.name.localeCompare(b.name)),
       source: group.source,
     }))
     .sort(
       (a, b) =>
-        SOURCE_RANK[a.source] - SOURCE_RANK[b.source] ||
+        skillPickRank(a.source) - skillPickRank(b.source) ||
         a.key.localeCompare(b.key),
     );
 }
@@ -204,21 +247,15 @@ function parentDir(path: string) {
   return index > 0 ? path.slice(0, index) : path;
 }
 
-// Where another agent keeps its skills is worth naming: it is how someone works
-// out what those skills are and where they came from. The workspace's own
-// folder is not, since nobody chose to put anything there.
-function showsSourcePaths(source: Skill["source"]) {
-  return !isProvidedSource(source) && source !== "workspace";
-}
-
 /**
- * One skill: its title, the `/slash` form it is invoked by (which is the
- * title too when the two match), what it is, and how much it brings with it. The row opens the skill's folder unless the app ships the
- * skill, and `menu` sits at its end.
+ * One skill: its title, the `/slash` form it is invoked by beside it (which
+ * is the title too when the two match), and what it is. The row opens the
+ * skill's folder unless the app ships the skill, and `menu` sits at its end.
  *
  * Two lines rather than columns, because the pane this stands in is narrow:
  * a name column wide enough for the longest name left the description no
- * room at all.
+ * room at all. At the narrowest the folder mark and the hover label give
+ * their room to the words.
  */
 function SkillRow({
   menu,
@@ -231,65 +268,77 @@ function SkillRow({
   ranges: SkillMatch<Skill> | undefined;
   skill: Skill;
 }) {
+  // A skill the app ships lives deep in its own files, where there is
+  // nothing for a person to read or change, so its row opens nothing.
+  const opens = !isProvidedSource(skill.source);
   const rowClassName = cn(
-    "flex min-w-0 flex-1 items-start gap-3 py-2.5 pl-4 text-left",
-    menu ? "pr-2" : "pr-4",
+    "flex min-w-0 flex-1 items-start gap-3 py-2.5 pl-3.5 text-left @max-sm/app-content:gap-2 @max-sm/app-content:pl-3",
+    menu ? "pr-2" : "pr-3.5",
+  );
+  const name = (
+    <FuzzyHighlight
+      matchClassName={SKILL_NAME_MATCH_CLASS_NAME}
+      ranges={ranges?.nameRanges ?? null}
+      text={skill.name}
+    />
   );
   const content = (
     <>
+      <span className="mt-0.5 flex w-6 shrink-0 justify-center @max-sm/app-content:hidden">
+        {opens ? (
+          <FolderMark path={skill.path} size="row" />
+        ) : (
+          <CubeIcon className="size-5 text-muted-foreground" />
+        )}
+      </span>
       <span className="min-w-0 flex-1">
-        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          {skill.title === skill.name ? null : (
-            <span className="truncate text-sm font-medium">{skill.title}</span>
-          )}
-          {skill.userInvocable || skill.title === skill.name ? (
-            <span
-              className={cn(
-                "truncate text-sm",
-                skill.title === skill.name
-                  ? "font-medium"
-                  : "text-muted-foreground",
-              )}
-            >
+        <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+          {skill.title === skill.name ? (
+            <span className="truncate text-sm font-medium">
               {skill.userInvocable ? "/" : null}
-              <FuzzyHighlight
-                matchClassName={SKILL_NAME_MATCH_CLASS_NAME}
-                ranges={ranges?.nameRanges ?? null}
-                text={skill.name}
-              />
+              {name}
             </span>
-          ) : null}
-          <SkillBadges
-            className="flex shrink-0 flex-wrap gap-1"
-            skill={skill}
-          />
+          ) : (
+            <>
+              <span className="truncate text-sm font-medium @max-sm/app-content:whitespace-normal">
+                {skill.title}
+              </span>
+              {skill.userInvocable ? (
+                <span className="truncate text-xs text-muted-foreground">
+                  /{name}
+                </span>
+              ) : null}
+            </>
+          )}
         </span>
-        <span className="mt-0.5 block truncate text-sm text-muted-foreground">
+        <span className="mt-0.5 block truncate text-sm text-muted-foreground @max-sm/app-content:line-clamp-2 @max-sm/app-content:whitespace-normal">
           <FuzzyHighlight
             ranges={ranges?.descriptionRanges ?? null}
             text={skill.description}
           />
         </span>
       </span>
-      {(skill.fileCount ?? 0) > 1 ? (
-        <span className="flex shrink-0 items-center gap-1 pt-1 text-xs text-muted-foreground">
-          <FilesIcon className="size-3.5" />
-          {fileCountLabel(skill)}
+      {opens ? (
+        <span className="shrink-0 self-center text-xs text-muted-foreground opacity-0 group-hover/skill-row:opacity-100 group-focus-within/skill-row:opacity-100 @max-sm/app-content:hidden">
+          {showInFolderLabel("folder")}
         </span>
       ) : null}
     </>
   );
-  // A skill the app ships lives deep in its own files, where there is
-  // nothing for a person to read or change, so its row opens nothing.
-  const opens = !isProvidedSource(skill.source);
   return (
-    <div className={cn("flex items-center", opens && "hover:bg-accent/40")}>
+    <div
+      className={cn(
+        "group/skill-row flex items-center",
+        opens && "hover:bg-accent/40",
+      )}
+    >
       {opens ? (
         <button
           className={rowClassName}
           onClick={() => {
             onOpen(skill);
           }}
+          title={showInFolderLabel("folder")}
           type="button"
         >
           {content}

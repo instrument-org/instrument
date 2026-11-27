@@ -16,11 +16,16 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { WindowContext } from "@/client/components/window/context";
 import { useGroupTab } from "@/client/components/window/group-tab";
-import { showInFolder } from "@/client/lib/show-in-files";
+import { showInFolder, showInFolderLabel } from "@/client/lib/show-in-files";
+import { ShowInFolderIcon } from "@/client/components/icons/reveal-in-folder";
+import { joinHostPath } from "@/client/components/window/host-path";
+import { useWorkspaceFolder } from "@/client/lib/output-folder";
+import { SKILLS_FOLDER_NAME } from "@instrument-org/workspace/client";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
@@ -40,14 +45,20 @@ import {
 type Skill = RPCOutput["workspace"]["skill"]["list"][number];
 
 /**
- * The skills a task can load. A skill is a folder, so a row of one the app
- * doesn't ship opens that folder in Files, where it can be read, changed, or
- * handed to a chat.
+ * The skills a task can load, the person's own first. A skill is a folder,
+ * so a row of one the app doesn't ship opens that folder in Files, where it
+ * can be read, changed, or handed to a chat.
  * Making a skill is an ask like any other: it opens a draft with the start
  * of the sentence in it.
  */
 export function SkillsSection() {
   const ask = useAsk();
+  const workspaceFolder = useWorkspaceFolder();
+  const newSkill = ask
+    ? () => {
+        ask(NEW_SKILL_ASK);
+      }
+    : undefined;
   return (
     <div className="space-y-8">
       {/* New skill drops under the words when both don't fit. */}
@@ -58,15 +69,13 @@ export function SkillsSection() {
         <div className="min-w-0 flex-1 basis-56">
           <h3 className="text-base font-semibold">Skills</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            {`What ${APP_NAME} knows how to do beyond the basics, and where each skill comes from`}
+            {`A skill teaches ${APP_NAME} how to do one kind of work, such as a weekly report.`}
           </p>
         </div>
-        {ask ? (
+        {newSkill ? (
           <Button
             className="text-foreground"
-            onClick={() => {
-              ask(NEW_SKILL_ASK);
-            }}
+            onClick={newSkill}
             size="sm"
             variant="outline"
           >
@@ -77,11 +86,64 @@ export function SkillsSection() {
       <SkippedSkillFolders />
       <BrokenSkills ask={ask} />
       <SkillList
+        empty={
+          <NoSkills
+            onNewSkill={newSkill}
+            skillsFolder={
+              workspaceFolder === undefined
+                ? undefined
+                : joinHostPath(workspaceFolder, SKILLS_FOLDER_NAME)
+            }
+          />
+        }
         menu={(skill) => (skill.editable ? <SkillMenu skill={skill} /> : null)}
         onOpen={(skill) => {
           void showInFolder(skill.path, { kind: "folder" });
         }}
       />
+    </div>
+  );
+}
+
+/** Where the person's own skills would be listed while they have none. */
+function NoSkills({
+  onNewSkill,
+  skillsFolder,
+}: {
+  onNewSkill: (() => void) | undefined;
+  skillsFolder: string | undefined;
+}) {
+  return (
+    <div className="rounded-xl border border-dashed px-6 py-7 text-center @max-sm/app-content:px-4">
+      <p className="text-sm font-medium">No skills yet</p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Skills you make, or add to your Skills folder, show here.
+      </p>
+      <div className="mt-4 flex flex-wrap justify-center gap-2">
+        {onNewSkill ? (
+          <Button
+            className="text-foreground"
+            onClick={onNewSkill}
+            size="sm"
+            variant="outline"
+          >
+            New skill
+          </Button>
+        ) : null}
+        {skillsFolder === undefined ? null : (
+          <Button
+            className="text-foreground"
+            onClick={() => {
+              void showInFolder(skillsFolder, { kind: "folder" });
+            }}
+            size="sm"
+            variant="outline"
+          >
+            <ShowInFolderIcon kind="folder" />
+            {showInFolderLabel("folder")}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -182,7 +244,8 @@ function BrokenSkills({ ask }: { ask: ((words: string) => void) | undefined }) {
       <div className="divide-y overflow-hidden rounded-lg border">
         {broken.data.map((skill) => (
           <FolderRow
-            className="p-3"
+            // At the narrowest the words take the row and Fix in chat goes under them.
+            className="p-3 @max-sm/app-content:flex-wrap @max-sm/app-content:[&>button]:basis-full"
             end={
               ask ? (
                 <Button
@@ -216,8 +279,9 @@ function fixSkillAsk(skill: BrokenSkill) {
 
 /**
  * The "⋯" on a row of the workspace's own skills, the ones it can move to the
- * Trash. It goes as Files moves a folder there, so the toast's Undo, or ⌘Z in
- * Files, puts it back.
+ * Trash: it opens the skill's folder, or moves the skill to the Trash as
+ * Files moves a folder there, so the toast's Undo, or ⌘Z in Files, puts it
+ * back.
  */
 function SkillMenu({ skill }: { skill: Skill }) {
   const queryClient = useQueryClient();
@@ -270,6 +334,15 @@ function SkillMenu({ skill }: { skill: Skill }) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            onSelect={() => {
+              void showInFolder(skill.path, { kind: "folder" });
+            }}
+          >
+            <ShowInFolderIcon className="size-4" kind="folder" />
+            <span>{showInFolderLabel("folder")}</span>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => {
               setConfirming(true);

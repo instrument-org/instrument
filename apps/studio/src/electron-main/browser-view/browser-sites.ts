@@ -23,20 +23,31 @@ import { log } from "./log";
 const CHROMIUM_EPOCH_MS = 11_644_473_600_000;
 
 /**
+ * Where a profile's cookie database can be, first found first: `Network/`,
+ * where Chromium's network service keeps it (always under Windows' network
+ * sandbox), then the profile's own folder.
+ */
+const COOKIE_DATABASES = [path.join("Network", "Cookies"), "Cookies"];
+
+/**
  * The browser's cookies counted by the host each was set for, expired ones
  * left out, with when one of them was last sent: read from the profile's
- * `Cookies` database once the session has written out what it holds, and
- * never a cookie's name or value. Where the database can't be opened
- * (another process holding it locked), the session's own list, which says
- * nothing of when.
+ * cookie database once the session has written out what it holds, and
+ * never a cookie's name or value. Where the database can't be found or
+ * opened (another process holding it locked), the session's own list, which
+ * says nothing of when.
  */
 async function cookieCounts(profileDir: string): Promise<SiteReads["cookies"]> {
   const session = configureGuestSession(profileDir);
   await session.cookies.flushStore();
   try {
-    const database = new DatabaseSync(path.join(profileDir, "Cookies"), {
-      readOnly: true,
-    });
+    const file = COOKIE_DATABASES.map((name) =>
+      path.join(profileDir, name),
+    ).find((candidate) => fs.existsSync(candidate));
+    if (file === undefined) {
+      throw new Error("The profile has no cookie database");
+    }
+    const database = new DatabaseSync(file, { readOnly: true });
     try {
       // Chromium's times are microseconds since 1601, more than a number
       // holds exactly, so the query makes them milliseconds.

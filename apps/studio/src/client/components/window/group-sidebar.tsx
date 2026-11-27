@@ -15,7 +15,10 @@ import {
 } from "@/client/components/ui/avatar";
 import { UpdateStatusIndicator } from "@/client/components/update-status-indicator";
 import { useIsScrollable } from "@/client/hooks/use-is-scrollable";
+import { useInlineRename } from "@/client/hooks/use-inline-rename";
 import { useLiveUser } from "@/client/hooks/use-live-user";
+import { Input } from "@/client/components/ui/input";
+import { plainGroupName } from "@instrument-org/shared";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { getInitials } from "@/client/lib/get-initials";
 import { showProjectInFiles } from "@/client/lib/show-in-files";
@@ -68,7 +71,9 @@ import {
 } from "@/client/components/ui/tooltip";
 import { HoverPicture } from "./hover-picture";
 import { useGroupPicture } from "./hover-pictures";
-import { groupNameOf, rowSidesOf } from "./group-leads";
+import { groupTitleOf, leadTabOf, rowSidesOf } from "./group-leads";
+import { stopHere } from "./row-shell";
+import { chatOfTab } from "./tab-model";
 import { GroupRowLines } from "./group-row-lines";
 import { RowLinesView } from "./row-half";
 import { quiet } from "./row-lines";
@@ -91,7 +96,7 @@ import { groupsInProject, isPinnedGroup, type TabGroup } from "./tab-groups";
 import {
   useGroupLayout,
   useGroupLead,
-  useLinkGroup,
+  useGroupName,
   useWindowTabs,
 } from "./window-tabs";
 import { TabMenuAtPoint } from "./tab-menu-items";
@@ -178,7 +183,7 @@ export function GroupSidebar({
   }
   const washProject = project ?? lastProject;
 
-  const { chatUpIn, groupOwn, setGroupOwn } = useWindowTabs();
+  const { chatUpIn, setGroupOwn } = useWindowTabs();
   const listed = groupsInProject(open, project?.id, projects);
   const pinned = listed.filter((entry) => isPinnedGroup(entry));
   const rest = listed.filter((entry) => !isPinnedGroup(entry));
@@ -238,12 +243,9 @@ export function GroupSidebar({
       onNewWindow: () => {
         onShow(entry.group, { newWindow: true });
       },
-      onRemoveLabel:
-        groupOwn[entry.group]?.linkGroup === undefined
-          ? undefined
-          : () => {
-              setGroupOwn(entry.group, { linkGroup: undefined });
-            },
+      onName: (name) => {
+        setGroupOwn(entry.group, { name });
+      },
       onTogglePin: () => {
         onPin(entry.group, !entry.pinned);
       },
@@ -460,7 +462,7 @@ function steadyMenu(
     onCloseOthers: closer((now) => now.onCloseOthers),
     onDuplicate: () => latest(group)?.onDuplicate(),
     onNewWindow: () => latest(group)?.onNewWindow(),
-    onRemoveLabel: closer((now) => now.onRemoveLabel),
+    onName: (name) => latest(group)?.onName(name),
     onTogglePin: () => latest(group)?.onTogglePin(),
   };
 }
@@ -472,7 +474,6 @@ function offersOf(menu: GroupRowMenuActions): string {
     menu.onCloseAbove !== undefined,
     menu.onCloseBelow !== undefined,
     menu.onCloseOthers !== undefined,
-    menu.onRemoveLabel !== undefined,
   ].join();
 }
 
@@ -791,13 +792,21 @@ export function GroupRow({
 }) {
   const names = useTabNames(chatTitles);
   const held = useGroupLead(entry.group);
-  const linkGroup = useLinkGroup(entry.group);
+  const name = useGroupName(entry.group);
+  const naming = useInlineRename({
+    allowsBlank: true,
+    onSave: (next) => {
+      menu?.onName(plainGroupName(next));
+      return Promise.resolve();
+    },
+    value: name ?? "",
+  });
   const layout = useGroupLayout(entry.group);
   const sides = rowSidesOf(layout);
-  // Named as a group, by the name its row shows, so a row whose tab is a
+  // Named as a group, by the title its row shows, so a row whose tab is a
   // page the sidebar also has a button for (Activity) is told apart from
   // that button.
-  const label = `${groupNameOf(layout, held, names) ?? entry.title} tab group`;
+  const label = `${groupTitleOf(layout, held, names) ?? entry.title} tab group`;
   const close = onClose && {
     label: "Close Tab Group",
     run: () => {
@@ -811,7 +820,27 @@ export function GroupRow({
       held={held}
       isCloseShown={isCloseShown}
       isOnScreen={isUp}
-      linkGroup={linkGroup}
+      name={name}
+      nameField={
+        naming.isEditing ? (
+          // Clicks, presses and keys in the field are the field's, not the row's.
+          <span
+            className="-my-0.5 flex min-w-0 flex-1"
+            onAuxClick={stopHere}
+            onClick={stopHere}
+            onKeyDown={stopHere}
+            onMouseDown={stopHere}
+            onPointerDown={stopHere}
+          >
+            <Input
+              aria-label="Tab group name"
+              className="h-6 px-1.5 text-[12px] focus-visible:-outline-offset-3"
+              placeholder="Name"
+              {...naming.inputProps}
+            />
+          </span>
+        ) : undefined
+      }
       sides={sides}
     />
   ) : (
@@ -880,7 +909,18 @@ export function GroupRow({
       group={entry.group}
       isUp={isUp}
       label={label}
-      wrap={(trigger) => <GroupRowMenu menu={menu}>{trigger}</GroupRowMenu>}
+      wrap={(trigger) => (
+        <GroupRowMenu
+          menu={menu}
+          naming={
+            sides && chatOfTab(leadTabOf(sides, held)) === undefined
+              ? { hasName: name !== undefined, start: naming.start }
+              : undefined
+          }
+        >
+          {trigger}
+        </GroupRowMenu>
+      )}
     >
       {shown}
     </GroupRowPicture>

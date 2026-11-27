@@ -44,11 +44,11 @@ interface MarkRun {
  * on (one file open twice) has none. Only the first few marks are drawn, so
  * a group of many tabs still shows its title. A chat that is not the lead
  * has no line to say it is at work, so its mark wears the working pulse.
- * A group an outside link named by a word (`linkGroup`) shows the word on the
- * second line as a gray filled label, set apart from a folder path without a
- * color, which in the sidebar means a project; it stands in place of the lead
- * tab's folders or site, unless the lead is a chat, whose line says what it is
- * doing.
+ * A group with a name (`GroupOwn.name`) shows it on the second line as a
+ * gray filled chip, set apart from a folder path without a color, which in
+ * the sidebar means a project; it stands in place of the lead tab's folders
+ * or site, unless the lead is a chat, whose line says what it is doing. While
+ * the person names the group, the field for it (`nameField`) stands there.
  */
 export function GroupRowLines({
   chatTitles,
@@ -57,7 +57,8 @@ export function GroupRowLines({
   held,
   isCloseShown = false,
   isOnScreen,
-  linkGroup,
+  name,
+  nameField,
   sides,
   titleRanges = null,
 }: {
@@ -70,8 +71,10 @@ export function GroupRowLines({
   isCloseShown?: boolean;
   /** Whether the group is up: the tabs in front then wear no unread dot, as in their strips. */
   isOnScreen: boolean;
-  /** The word an outside link named the group by (`GroupOwn.linkGroup`). */
-  linkGroup?: string | undefined;
+  /** The name the group was given (`GroupOwn.name`). */
+  name?: string | undefined;
+  /** The field the person names the group in, shown in place of the second line while they do. */
+  nameField?: ReactNode;
   sides: RowSides;
   /** What a search matched in the title. */
   titleRanges?: null | number[];
@@ -82,15 +85,13 @@ export function GroupRowLines({
   const { chats } = useRowSources();
   const lead = leadTabOf(sides, held);
   const leadLines = useRowLines(lead, chatTitles);
-  const label =
-    linkGroup === undefined || chatOfTab(lead) !== undefined
-      ? undefined
-      : linkGroup;
+  const shownName =
+    name === undefined || chatOfTab(lead) !== undefined ? undefined : name;
   const lines: RowLines =
-    label === undefined
+    shownName === undefined
       ? leadLines
       : {
-          line: label,
+          line: shownName,
           strong: leadLines.strong,
           title: leadLines.title,
           tone: "quiet",
@@ -206,15 +207,16 @@ export function GroupRowLines({
         )}
         {end}
       </div>
-      {(lines.line !== "" || otherMarks) && (
+      {(lines.line !== "" || otherMarks || nameField) && (
         <div className="flex h-5 min-w-0 items-center gap-2 pl-6 text-[12px] leading-5">
-          {label === undefined ? (
-            <SecondLine lines={lines} />
-          ) : (
-            <span className="min-w-0 truncate rounded-[5px] bg-foreground/8 px-1.5 text-[11px] leading-4 font-semibold text-foreground/70">
-              {label}
-            </span>
-          )}
+          {nameField ??
+            (shownName === undefined ? (
+              <SecondLine lines={lines} />
+            ) : (
+              <span className="min-w-0 truncate rounded-[5px] bg-foreground/8 px-1.5 text-[11px] leading-4 font-semibold text-foreground/70">
+                {shownName}
+              </span>
+            ))}
           {otherMarks}
         </div>
       )}

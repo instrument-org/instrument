@@ -42,7 +42,7 @@ export function leadTabOf(
  * row, what the command menu lists it by, and what the agent names it by
  * (`ListedGroup.name`). None for a group whose tabs are not in yet.
  */
-export function groupNameOf(
+export function groupTitleOf(
   layout: GroupLayout,
   held: string | undefined,
   names: ScreenNames,

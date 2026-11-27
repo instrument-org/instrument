@@ -110,7 +110,8 @@ const OTHER_GROUPS = [
   {
     focused: 0 as const,
     group: { id: "group:docs" },
-    name: "report.md",
+    title: "report.md",
+    name: "Launch plan",
     isShown: false,
     drafts: { tab_new: "Ask about rent" },
     marks: STOPPED_TASK,
@@ -160,7 +161,7 @@ const OTHER_GROUPS = [
   {
     focused: 0 as const,
     group: { id: "group:notes" },
-    name: "Meeting notes",
+    title: "Meeting notes",
     isShown: false,
     marks: {
       tab_ex: { failed: true as const },
@@ -223,7 +224,7 @@ const HISTORY = [
 const ELSEWHERE = {
   focused: 0 as const,
   group: { id: "group:far" },
-  name: "report.md",
+  title: "report.md",
   sides: [
     {
       tabs: [
@@ -306,7 +307,7 @@ function answeringWindow() {
     const own = {
       focused: 1 as const,
       group: { id: "group_a" },
-      name: "Prices",
+      title: "Prices",
       sides: [
         {
           tabs: [
@@ -367,6 +368,7 @@ function answeringWindow() {
               action.kind === "closeGroup" ||
               action.kind === "joinSides" ||
               action.kind === "pinGroup" ||
+              action.kind === "nameGroup" ||
               action.kind === "placeGroup"
             ? groups.has(action.group)
               ? action.kind === "closeGroup"
@@ -505,7 +507,7 @@ describe("tabStanding", () => {
         },
         "gone": undefined,
         "otherGroup": {
-          "place": "in the tab group "report.md" instrument://group/group:docs, hidden in the group's one side, behind /Users/me/Instrument/report.md, since the user is working on that side; the window shows another tab group now, so it is not on screen",
+          "place": "in the tab group "Launch plan" instrument://group/group:docs, hidden in the group's one side, behind /Users/me/Instrument/report.md, since the user is working on that side; the window shows another tab group now, so it is not on screen",
           "shown": false,
         },
         "otherGroupUp": {
@@ -867,7 +869,7 @@ describe("window list", () => {
         right (keyboard):
           <page>  right    Suite plans · https://www.zendesk.com/pricing/  instrument://tab/<page>  task t1 is working in it
       Showing: you on the left; zendesk.com/pricing on the right, beside you.
-      2 other tab groups in this window: "report.md" (pinned), "Meeting notes". 1 other window has 1 tab group. \`instrument window list --all\` lists their tabs.
+      2 other tab groups in this window: "Launch plan" (pinned), "Meeting notes". 1 other window has 1 tab group. \`instrument window list --all\` lists their tabs.
       "
     `);
   });
@@ -885,7 +887,7 @@ describe("window list", () => {
         right (keyboard):
           <page>  right    Suite plans · https://www.zendesk.com/pricing/  instrument://tab/<page>  you are working in it
       Showing: you on the left; zendesk.com/pricing on the right, beside you.
-      2 other tab groups in this window: "report.md" (pinned), "Meeting notes". 1 other window has 1 tab group. \`instrument window list --all\` lists their tabs.
+      2 other tab groups in this window: "Launch plan" (pinned), "Meeting notes". 1 other window has 1 tab group. \`instrument window list --all\` lists their tabs.
       "
     `);
   });
@@ -936,7 +938,7 @@ describe("window list, of other groups", () => {
             tab_known  left     [chat] Prices (you)  instrument://chat/this
           right (keyboard):
             <page>  right    Suite plans · https://www.zendesk.com/pricing/  instrument://tab/<page>
-        Tab group "report.md" instrument://group/group:docs, pinned, in the project "Launch", not on screen, last brought up 2026-11-24T09:12Z:
+        Tab group "report.md" named "Launch plan" instrument://group/group:docs, pinned, in the project "Launch", not on screen, last brought up 2026-11-24T09:12Z:
           tab_docs  showing  /Users/me/Instrument/report.md  instrument://tab/tab_docs
           tab_settings  hidden   [app] Settings · instrument://screen/settings  instrument://tab/tab_settings
           tab_new  hidden   New Tab  instrument://tab/tab_new  (unsent: "Ask about rent", kept in Drafts if closed)
@@ -967,7 +969,7 @@ describe("window list, of other groups", () => {
           tab_hn  right    Hacker News · https://news.ycombinator.com/  instrument://tab/tab_hn  (using the user's camera and microphone)
           tab_ex  hidden   Example · https://example.com/  instrument://tab/tab_ex  (opened by an agent, can't connect)
       The window shows another tab group now, so none of this is on screen. This group shows: [chat] Meeting notes on the left; news.ycombinator.com on the right.
-      2 other tab groups in this window: "Prices", "report.md" (pinned). 1 other window has 1 tab group. \`instrument window list --all\` lists their tabs.
+      2 other tab groups in this window: "Prices", "Launch plan" (pinned). 1 other window has 1 tab group. \`instrument window list --all\` lists their tabs.
       "
     `);
   });
@@ -996,7 +998,7 @@ describe("window show and close, of a group", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatchInlineSnapshot(`
-      "Tab group "report.md" instrument://group/group:docs: on screen, its window in front.
+      "Tab group "Launch plan" instrument://group/group:docs: on screen, its window in front.
       "
     `);
     expect(asked[0]?.action).toEqual({
@@ -1010,7 +1012,7 @@ describe("window show and close, of a group", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatchInlineSnapshot(`
-      "Tab tab_docs: in the tab group "report.md" instrument://group/group:docs, showing in the group's one side; the window shows another tab group now, so it is not on screen.
+      "Tab tab_docs: in the tab group "Launch plan" instrument://group/group:docs, showing in the group's one side; the window shows another tab group now, so it is not on screen.
       "
     `);
     expect(asked[0]?.action).toEqual({ kind: "show", tabId: "tab_docs" });
@@ -1053,7 +1055,7 @@ describe("window show and close, of a group", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatchInlineSnapshot(`
-      "Closed the tab group "report.md" instrument://group/group:docs, its 5 tabs.
+      "Closed the tab group "Launch plan" instrument://group/group:docs, its 5 tabs.
       "
     `);
   });
@@ -1083,7 +1085,7 @@ describe("window group, move, history and restore", () => {
       tabIds: ["tab_docs", "tab_hn"],
     });
     expect(result.stdout).toMatchInlineSnapshot(`
-      "Made the tab group "report.md" instrument://group/group:docs of tab_docs, tab_hn; the window stays on the group it shows.
+      "Made the tab group "Launch plan" instrument://group/group:docs of tab_docs, tab_hn; the window stays on the group it shows.
       "
     `);
   });
@@ -1282,18 +1284,44 @@ describe("window group, move, history and restore", () => {
     ];
     expect(results.map(({ stderr, stdout }) => stdout + stderr))
       .toMatchInlineSnapshot(`
-      [
-        "Pinned the tab group "Meeting notes" instrument://group/group:notes.
-      The tab group "report.md" instrument://group/group:docs is already pinned.
-      ",
-        "Unpinned the tab group "report.md" instrument://group/group:docs.
-      ",
-        "Placed the tab group "Meeting notes" instrument://group/group:notes just below "report.md" instrument://group/group:docs.
-      ",
-        "instrument window: place takes one of --before and --after: instrument window place <group> --before <group>.
-      ",
-      ]
-    `);
+        [
+          "Pinned the tab group "Meeting notes" instrument://group/group:notes.
+        The tab group "Launch plan" instrument://group/group:docs is already pinned.
+        ",
+          "Unpinned the tab group "Launch plan" instrument://group/group:docs.
+        ",
+          "Placed the tab group "Meeting notes" instrument://group/group:notes just below "Launch plan" instrument://group/group:docs.
+        ",
+          "instrument window: place takes one of --before and --after: instrument window place <group> --before <group>.
+        ",
+        ]
+      `);
+  });
+
+  it("names a group, finds it by its name, and takes the name off", async () => {
+    const results = [
+      await run({}, "name", "Meeting notes", "Side   panel"),
+      await run({}, "pin", "launch PLAN"),
+      await run({}, "name", "group:docs", "--clear"),
+      await run({}, "name", "group:docs"),
+    ];
+    expect(asked.map(({ action }) => action).filter((action) => action.kind === "nameGroup")).toEqual([
+      { group: "group:notes", kind: "nameGroup", name: "Side panel" },
+      { group: "group:docs", kind: "nameGroup" },
+    ]);
+    expect(results.map(({ stderr, stdout }) => stdout + stderr))
+      .toMatchInlineSnapshot(`
+        [
+          "Named the tab group "Meeting notes" instrument://group/group:notes "Side panel"; a link or \`--group\` that names "Side panel" opens into it.
+        ",
+          "The tab group "Launch plan" instrument://group/group:docs is already pinned.
+        ",
+          "Took the name off the tab group "Launch plan" instrument://group/group:docs.
+        ",
+          "instrument window: name takes a name or --clear: instrument window name <group> '<name>', or instrument window name <group> --clear.
+        ",
+        ]
+      `);
   });
 
   it("lists History newest first, the closed entries by the id restore takes", async () => {

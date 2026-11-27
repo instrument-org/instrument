@@ -1,9 +1,11 @@
 import {
   chatAddressOf,
   filePathOfInstrumentLink,
+  GROUP_NAME_MAX,
   groupAddressOf,
   instrumentLinkOf,
   isInstrumentAddress,
+  plainGroupName,
 } from "@instrument-org/shared";
 import { z } from "zod";
 
@@ -143,9 +145,9 @@ async function windowsOf(ctx: CapabilityContext): Promise<WindowGroups> {
   return (await ask({ kind: "list" }, ctx))?.windows ?? [];
 }
 
-/** A group's name and address, as a result line names it. */
+/** A group's name, or its title where it has none, and its address, as a result line names it. */
 function groupWords(layout: ListedGroup): string {
-  return `"${layout.name}" ${groupAddressOf(layout.group.id)}`;
+  return `"${layout.name ?? layout.title}" ${groupAddressOf(layout.group.id)}`;
 }
 
 function describeTarget(target: WindowTabTarget) {
@@ -350,13 +352,13 @@ export const windowList = defineCapability({
       .find((each) => each.group.id === own.group.id);
     return {
       all,
-      layout: listed ?? { ...own, name: own.group.id },
+      layout: listed ?? { ...own, title: own.group.id },
       ...facts,
       windows,
     };
   },
   summary:
-    "A tab group's sides and tabs, one line each, by default the group the chat works in: the group's address, whether it is pinned, its project, whether it is on screen and when it was last brought up (absent when not known), each tab's id (which every other subcommand and `agent-browser tab` take), where it stands, what it has open and the address a reply links it by, which task is at work in it, whether an agent opened it, words in a new tab not sent yet, whether a page uses the microphone or camera or can't connect, the step of a task's page or that its task stopped, and whether its chat is working, waiting on the user or unread, its latest line and when it was last active; then what the user sees, and the other groups there are. A group is named by its id or its name; --all lists every window's groups, the pinned first.",
+    "A tab group's sides and tabs, one line each, by default the group the chat works in: the group's title, the name it was given where it has one, its address, whether it is pinned, its project, whether it is on screen and when it was last brought up (absent when not known), each tab's id (which every other subcommand and `agent-browser tab` take), where it stands, what it has open and the address a reply links it by, which task is at work in it, whether an agent opened it, words in a new tab not sent yet, whether a page uses the microphone or camera or can't connect, the step of a task's page or that its task stopped, and whether its chat is working, waiting on the user or unread, its latest line and when it was last active; then what the user sees, and the other groups there are. A group is named by its id, its name or its title; --all lists every window's groups, the pinned first.",
   surfaces: {
     cli: { help: "", positional: ["group"], words: ["window", "list"] },
     script: { positional: ["group"] },
@@ -1105,7 +1107,7 @@ export const windowJoin = defineCapability({
         .find((each) => each.group.id === own.group.id);
     const named =
       group === undefined
-        ? own && { group: listed ?? { ...own, name: own.group.id } }
+        ? own && { group: listed ?? { ...own, title: own.group.id } }
         : groupNamed(list.windows ?? [], idOf(group));
     if (named === undefined) {
       throw new Error(
@@ -1255,6 +1257,69 @@ export const windowUnpin = defineCapability({
     cli: { help: "", positional: ["groups"], words: ["window", "unpin"] },
   },
   text: (outcomes) => outcomes.map((each) => each.said).join("\n"),
+  where: CHATS,
+});
+
+export const windowName = defineCapability({
+  input: z.object({
+    group: z.string({
+      error: `name needs a tab group: ${NAME} name <group> '<name>'.`,
+    }),
+    name: z.string().optional().meta({
+      description:
+        "What the group's work is for, in the user's words ('Best running shoes'), never what a tab already shows (a site, a file's name).",
+    }),
+    clear: z.boolean().default(false).meta({
+      description: "Take the group's name off.",
+    }),
+  }),
+  name: "window.name",
+  output: z.string(),
+  async run({ clear, group, name }, ctx) {
+    if (clear === (name !== undefined)) {
+      throw new Error(
+        `name takes a name or --clear: ${NAME} name <group> '<name>', or ${NAME} name <group> --clear.`,
+      );
+    }
+    const plain = name === undefined ? undefined : plainGroupName(name);
+    if (name !== undefined && plain === undefined) {
+      throw new Error(
+        `a tab group's name is a few words, at most ${GROUP_NAME_MAX} characters.`,
+      );
+    }
+    const named = groupNamed(await windowsOf(ctx), idOf(group));
+    if ("error" in named) {
+      throw new Error(named.error);
+    }
+    const words = groupWords(named.group);
+    const answer = await ask(
+      {
+        group: named.group.group.id,
+        kind: "nameGroup",
+        ...(plain === undefined ? {} : { name: plain }),
+      },
+      ctx,
+    );
+    if (!answer) {
+      throw new Error(NO_WINDOW);
+    }
+    if (answer.error !== undefined) {
+      throw new Error(answer.error);
+    }
+    return plain === undefined
+      ? `Took the name off the tab group ${words}.`
+      : `Named the tab group ${words} "${plain}"; a link or \`--group\` that names "${plain}" opens into it.`;
+  },
+  summary:
+    "Name a tab group, by id or name, for what its work is for, shown under its row's title, as Name Tab Group does; --clear takes the name off.",
+  surfaces: {
+    cli: {
+      help: "",
+      positional: ["group", "name"],
+      words: ["window", "name"],
+    },
+  },
+  text: (said) => said,
   where: CHATS,
 });
 

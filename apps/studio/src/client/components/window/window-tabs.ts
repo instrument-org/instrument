@@ -362,11 +362,11 @@ export function useGroupLead(group: string): string | undefined {
   return useAtomValue(lead);
 }
 
-/** The word an outside link named a group by (`GroupOwn.linkGroup`), read for the group alone. */
-export function useLinkGroup(group: string): string | undefined {
+/** The name a group was given (`GroupOwn.name`), read for the group alone. */
+export function useGroupName(group: string): string | undefined {
   const word = useMemo(
     () =>
-      selectAtom(windowTabsAtom, (state) => state.groups?.[group]?.linkGroup),
+      selectAtom(windowTabsAtom, (state) => state.groups?.[group]?.name),
     [group],
   );
   return useAtomValue(word);

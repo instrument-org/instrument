@@ -2,7 +2,7 @@ import { type WindowTab } from "@/client/atoms/window";
 import { renderWithProviders } from "@/tests/render";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { groupNameOf, leadTabOf, useGroupLeadUpkeep } from "./group-leads";
+import { groupTitleOf, leadTabOf, useGroupLeadUpkeep } from "./group-leads";
 import { type GroupOwn, groupLayoutOf } from "./tab-model";
 import { chatHref, newChatHref } from "./window-href";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
@@ -148,7 +148,7 @@ describe("a group's name", () => {
     ],
   ])("is %s", (_case, tabs, up, held, name) => {
     expect(
-      groupNameOf(
+      groupTitleOf(
         groupLayoutOf({ activeByGroup: { a: up }, tabs }, "a"),
         held,
         {

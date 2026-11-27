@@ -98,9 +98,7 @@ export const WINDOW_CHANGE_ANSWERS = {
 
   "group.chatSide": FOLLOWING,
   "group.lead": FOLLOWING,
-  "group.linkGroup": {
-    not: "set as an outside link makes a group, from the group word the link names",
-  },
+  "group.name": "nameGroup",
   "group.pinned": "pinGroup",
   "group.project": {
     not: "set as a group is made, from the project the sidebar is in; a person moves a chat to a project (chats.project), never a group",
@@ -149,6 +147,6 @@ export const ROW_FACT_ANSWERS = {
   "line.quiet": ["tab.address", "chat.latest", "chat.stopped_for"],
   "line.work": ["chat.latest", "facts.steps"],
   strong: "chat.unread",
-  title: "group.name",
+  title: "group.title",
   trail: "tab.address",
 } as const satisfies Record<RowFact, AgentAnswer<ListField>>;

@@ -483,7 +483,7 @@ describe("an agent and the window's other tab groups", () => {
     ]);
   });
 
-  it("names each group as its sidebar row does, by the tab held for it", async () => {
+  it("titles each group as its sidebar row does, by the tab held for it", async () => {
     const { result } = windowOnTwoSides();
     act(() => {
       result.current.windowTabs.setGroupOwn(OTHER_GROUP, {
@@ -492,9 +492,9 @@ describe("an agent and the window's other tab groups", () => {
     });
     const answer = await answerTo({ kind: "list" }, "l3");
     const windows = (answer as { windows?: unknown }).windows as {
-      groups: { name: string }[];
+      groups: { title: string }[];
     }[];
-    expect(windows[0]?.groups.map(({ name }) => name)).toEqual([
+    expect(windows[0]?.groups.map(({ title }) => title)).toEqual([
       "New Tab",
       "example.com/behind",
     ]);

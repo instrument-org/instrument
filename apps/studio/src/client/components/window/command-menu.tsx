@@ -1577,7 +1577,7 @@ function GroupRowText({
       chatTitles={chatTitles}
       held={own?.lead}
       isOnScreen={isHere}
-      linkGroup={own?.linkGroup}
+      name={own?.name}
       sides={row.sides}
       titleRanges={ranges}
     />

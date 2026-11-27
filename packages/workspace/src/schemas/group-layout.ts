@@ -80,8 +80,14 @@ export const ListedGroupSchema = LayoutSnapshotSchema.extend({
   drafts: z.record(z.string(), z.string()).optional(),
   /** What a page's tab is marked with, by the tab's id. */
   marks: z.record(z.string(), PageMarkSchema).optional(),
-  /** What its sidebar row calls it, which the person reads out and a command names it by. */
-  name: z.string(),
+  /**
+   * The name it was given (`GroupOwn.name`): by a link that named its group,
+   * by the person, or by an agent; none for a group nobody named. Shown under
+   * its row's title, and a command finds a group by it.
+   */
+  name: z.string().optional(),
+  /** What its sidebar row's title says, from the tab it goes by, which a command also finds a group by. */
+  title: z.string(),
   /** Pinned above the sidebar's other groups. */
   pinned: z.boolean().optional(),
   /** The project whose set of groups it is in, by its id. */

@@ -90,7 +90,7 @@ import {
 import { type WindowTab } from "@/client/atoms/window";
 import { type OpenTarget } from "@/client/lib/open-target";
 import { osConventions } from "@/client/lib/utils";
-import { instrumentUrlOf } from "@instrument-org/shared";
+import { instrumentUrlOf, plainGroupName } from "@instrument-org/shared";
 import { draftsAtom } from "@/client/drafts/store";
 import { appTabsAtom } from "./app-tabs";
 import { draftTitle } from "./chats";
@@ -104,7 +104,7 @@ import {
   draftOfTab,
 } from "./tab-model";
 import { describedTab, groupLayoutFor, groupReadOf } from "./group-awareness";
-import { groupNameOf, leadTabOf, rowSidesOf } from "./group-leads";
+import { groupTitleOf, leadTabOf, rowSidesOf } from "./group-leads";
 import { readFileTabTitles } from "./file-tab-titles";
 import { tabTitle } from "./tab-title";
 import { computerTabOf } from "./file-tabs";
@@ -1153,8 +1153,9 @@ export function useOpeners({
           return {
             ...layout,
             ...(Object.keys(marks).length === 0 ? {} : { marks }),
-            name:
-              groupNameOf(
+            ...(own?.name === undefined ? {} : { name: own.name }),
+            title:
+              groupTitleOf(
                 windowTabs.layoutOf(group),
                 heldIn(group),
                 groupNames,
@@ -1435,6 +1436,15 @@ export function useOpeners({
       }
       windowTabs.setGroupOwn(action.group, {
         pinned: action.pinned ? true : undefined,
+      });
+      return {};
+    }
+    if (action.kind === "nameGroup") {
+      if (!windowTabs.allTabs.some((tab) => tab.group === action.group)) {
+        return { error: `no tab group ${action.group} is open.` };
+      }
+      windowTabs.setGroupOwn(action.group, {
+        name: action.name === undefined ? undefined : plainGroupName(action.name),
       });
       return {};
     }

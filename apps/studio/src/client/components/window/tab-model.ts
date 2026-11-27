@@ -57,17 +57,18 @@ export interface WindowTabs {
   tabs: WindowTab[];
 }
 
-/** What a group keeps of its own: its pin, the project it was made in, the group word a link named it by, how its two sides are sized (`sideShare`), whether its side panel was opened or closed, and when it last came up. */
+/** What a group keeps of its own: its pin, the project it was made in, the name it was given, how its two sides are sized (`sideShare`), whether its side panel was opened or closed, and when it last came up. */
 export interface GroupOwn {
   /** The side sized as a chat while the group has two, set as it gets them (`withChatSides`). */
   chatSide?: 0 | 1;
   /** The tab it goes by where it has no chat, by id (`useGroupLeadUpkeep`). */
   lead?: string;
   /**
-   * The word an outside link named the group by (`group` in a `files` link),
-   * which later links with the same word join and its row's second line shows.
+   * The name it was given, by a link that named its group (`group` in a
+   * `files` link), the person or an agent; later links with the same name
+   * join it, and its row shows it under its title.
    */
-  linkGroup?: string;
+  name?: string;
   pinned?: true;
   /** The project whose set of groups it was made in, by its id. */
   project?: string;
@@ -89,7 +90,7 @@ export function withGroupOwn(
   const own: GroupOwn = {
     ...(merged.chatSide === undefined ? {} : { chatSide: merged.chatSide }),
     ...(merged.lead === undefined ? {} : { lead: merged.lead }),
-    ...(merged.linkGroup === undefined ? {} : { linkGroup: merged.linkGroup }),
+    ...(merged.name === undefined ? {} : { name: merged.name }),
     ...(merged.pinned ? { pinned: true } : {}),
     ...(merged.project === undefined ? {} : { project: merged.project }),
     ...(merged.share === undefined ? {} : { share: merged.share }),

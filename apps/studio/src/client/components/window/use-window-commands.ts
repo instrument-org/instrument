@@ -129,8 +129,8 @@ export function useWindowCommands(
     openFile: (hostPath: string) => void;
     /** A screen by its route, from outside the app, so in no tab yet. */
     openScreen: (href: string) => void;
-    /** Files, folders and pages from outside the app, as one new tab group of a tab each, the first up, or into the group open under the word a link named (`linkGroup`). */
-    openGroup: (hrefs: readonly string[], linkGroup?: string) => void;
+    /** Files, folders and pages from outside the app, as one new tab group of a tab each, the first up, or into the group with the name a link gave (`groupName`). */
+    openGroup: (hrefs: readonly string[], groupName?: string) => void;
     /** The tab up to a window of its own. */
     moveTabToNewWindow: () => void;
     /** A new tab on the other side of the group on screen, made where it has one side. */
@@ -616,7 +616,7 @@ function answer(
     newChat: () => void;
     newChatFromLink: (words: string, projectId?: string) => void;
     openFile: (hostPath: string) => void;
-    openGroup: (hrefs: readonly string[], linkGroup?: string) => void;
+    openGroup: (hrefs: readonly string[], groupName?: string) => void;
     openScreen: (href: string) => void;
   },
   ask: RPCOutput["window"]["takePending"][number],

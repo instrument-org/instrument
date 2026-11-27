@@ -11,10 +11,10 @@ import { ArrowLineUpIcon } from "@phosphor-icons/react/ArrowLineUp";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
-import { TagSimpleIcon } from "@phosphor-icons/react/TagSimple";
+import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { XIcon } from "@phosphor-icons/react/X";
 import { XSquareIcon } from "@phosphor-icons/react/XSquare";
-import { type ReactNode } from "react";
+import { type ReactNode, useRef } from "react";
 
 /** What a row's menu does, which the sidebar answers for every row. */
 export interface GroupRowMenuActions {
@@ -32,16 +32,16 @@ export interface GroupRowMenuActions {
   /** A copy of the group just below it, with its tabs, up in the window. */
   onDuplicate: () => void;
   onNewWindow: () => void;
-  /** Takes off the label an outside link gave the group, so later links with its word make a group of their own; none for a group with no label. */
-  onRemoveLabel: (() => void) | undefined;
   /** Pins the group, or takes its pin off. */
   onTogglePin: () => void;
+  /** Gives the group a name, or takes its name off where none is given. */
+  onName: (name: string | undefined) => void;
 }
 
 /**
  * A tab group row's menu, which acts on the group as a whole whatever its
- * tabs show: Open in New Window and Duplicate Tab Group; pinning it and
- * taking off a link's label; and
+ * tabs show: Open in New Window and Duplicate Tab Group; pinning and naming
+ * it; and
  * closing the group, or the groups around it, as a
  * tab's menu closes tabs. What acts on one chat in the group is in that
  * chat's tab menu. Not modal, as the chat row's is not, so the click that
@@ -50,14 +50,27 @@ export interface GroupRowMenuActions {
 export function GroupRowMenu({
   children,
   menu,
+  naming,
 }: {
   children: ReactNode;
   menu: GroupRowMenuActions;
+  /** Naming the group in its row: whether it has a name, and opening the field; none for a row that shows no name. */
+  naming?: { hasName: boolean; start: () => void } | undefined;
 }) {
+  // The menu hands focus back to the row as it closes, which would land
+  // after the field took it and blur the field shut.
+  const isStartingName = useRef(false);
   return (
     <ContextMenu modal={false}>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent>
+      <ContextMenuContent
+        onCloseAutoFocus={(event) => {
+          if (isStartingName.current) {
+            isStartingName.current = false;
+            event.preventDefault();
+          }
+        }}
+      >
         <ContextMenuItem onSelect={menu.onNewWindow}>
           <AppWindowIcon className="size-4" />
           Open in New Window
@@ -75,10 +88,15 @@ export function GroupRowMenu({
           )}
           {menu.isPinned ? "Unpin" : "Pin"}
         </ContextMenuItem>
-        {menu.onRemoveLabel && (
-          <ContextMenuItem onSelect={menu.onRemoveLabel}>
-            <TagSimpleIcon className="size-4" />
-            Remove Label
+        {naming && (
+          <ContextMenuItem
+            onSelect={() => {
+              isStartingName.current = true;
+              naming.start();
+            }}
+          >
+            <PencilSimpleIcon className="size-4" />
+            {naming.hasName ? "Rename Tab Group" : "Name Tab Group"}
           </ContextMenuItem>
         )}
         <ContextMenuSeparator />

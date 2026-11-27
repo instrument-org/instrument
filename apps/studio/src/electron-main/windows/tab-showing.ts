@@ -1,5 +1,5 @@
 import { fileHref } from "@/shared/computer-href";
-import { isSameLinkGroup } from "@instrument-org/shared";
+import { isSameGroupName } from "@instrument-org/shared";
 import { isSameTabIdentity } from "@/shared/tab-identity";
 import { type TabsModel } from "@/shared/tabs";
 import { fileURLToPath } from "node:url";
@@ -80,17 +80,17 @@ export function windowListingGroup<W>(
 }
 
 /**
- * Of the windows in the order given, the one listing the tab group a link's
- * group word names (`isSameLinkGroup`): of several such groups, the one that
+ * Of the windows in the order given, the one listing the tab group named as
+ * a link's `group` names it (`isSameGroupName`): of several such groups, the one that
  * came up last (`shownAt`). Null where no window lists one.
  */
-export function windowWithLinkGroup<W>(
-  word: string,
+export function windowWithGroupNamed<W>(
+  name: string,
   windows: readonly { listed: readonly string[]; window: W }[],
-  named: readonly { group: string; linkGroup: string; shownAt?: number }[],
+  named: readonly { group: string; name: string; shownAt?: number }[],
 ): W | null {
   const [last] = named
-    .filter(({ linkGroup }) => isSameLinkGroup(linkGroup, word))
+    .filter((each) => isSameGroupName(each.name, name))
     .flatMap(({ group, shownAt }) => {
       const holder = windows.find(({ listed }) => listed.includes(group));
       return holder ? [{ shownAt: shownAt ?? 0, window: holder.window }] : [];

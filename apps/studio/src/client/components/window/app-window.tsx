@@ -5,7 +5,7 @@ import { describeTabs } from "@/client/lib/studio-drive";
 import { keyboardSide } from "@/client/lib/keyboard-place";
 import {
   APP_NAME,
-  isSameLinkGroup,
+  isSameGroupName,
   OUTSIDE_FILES_MAX,
 } from "@instrument-org/shared";
 import {
@@ -187,7 +187,7 @@ import { backfillCandidates } from "./use-project-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
-import { groupNameOf, useGroupLeadUpkeep } from "./group-leads";
+import { groupTitleOf, useGroupLeadUpkeep } from "./group-leads";
 import { GroupSidebar, sidebarBounds } from "./group-sidebar";
 import { WindowCorner } from "./inbox-toggle";
 import { isGroupScreenHref } from "./group-screen";
@@ -900,7 +900,7 @@ function WindowShell({
   const windowTitle =
     (groupUp === undefined
       ? undefined
-      : groupNameOf(
+      : groupTitleOf(
           windowTabs.layoutOf(groupUp),
           windowTabs.groupOwn[groupUp]?.lead,
           names,
@@ -1719,18 +1719,18 @@ function WindowShell({
       },
       // Several at once are always one new group, a tab each in the order
       // handed over, on one side, with the first up, even where a tab already
-      // shows one of them. A link that named a group word joins this
-      // window's group open under it, the one up last of several: each tab
+      // shows one of them. A link that names a group joins this
+      // window's group with that name, the one up last of several: each tab
       // not in it yet goes at the end of its right side, or its one side, and
       // the first of them comes up and lights, the group keeping its place.
-      openGroup: (hrefs, linkGroup) => {
+      openGroup: (hrefs, groupName) => {
         const joined =
-          linkGroup === undefined
+          groupName === undefined
             ? undefined
             : (store.get(windowTabGroupsAtom) ?? [])
                 .filter((group) => {
-                  const word = windowTabs.groupOwn[group]?.linkGroup;
-                  return word !== undefined && isSameLinkGroup(word, linkGroup);
+                  const name = windowTabs.groupOwn[group]?.name;
+                  return name !== undefined && isSameGroupName(name, groupName);
                 })
                 .toSorted(
                   (a, b) =>
@@ -1770,8 +1770,8 @@ function WindowShell({
         }
         groups.make({
           fill: (group) => {
-            if (linkGroup !== undefined) {
-              windowTabs.setGroupOwn(group, { linkGroup });
+            if (groupName !== undefined) {
+              windowTabs.setGroupOwn(group, { name: groupName });
             }
             const [first] = hrefs.map((href) =>
               windowTabs.openScreen(href, { group }),

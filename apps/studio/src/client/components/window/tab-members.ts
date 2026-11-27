@@ -23,7 +23,9 @@ const TabGroupMemberSchema = z.object({
     .catch(undefined),
   focused: z.number().int().min(0),
   lead: z.string().optional(),
+  /** A group's name as a build that took names only from links kept it. */
   linkGroup: z.string().optional(),
+  name: z.string().optional(),
   pinned: z.boolean().optional(),
   project: z.string().optional(),
   share: z.number().optional(),
@@ -132,9 +134,9 @@ export function joinTabGroups(members: Map<string, unknown>): WindowTabs {
     const own: GroupOwn = {
       ...(chatSide === undefined ? {} : { chatSide }),
       ...(member.lead === undefined ? {} : { lead: member.lead }),
-      ...(member.linkGroup === undefined
+      ...((member.name ?? member.linkGroup) === undefined
         ? {}
-        : { linkGroup: member.linkGroup }),
+        : { name: member.name ?? member.linkGroup }),
       ...(member.pinned === true ? { pinned: true } : {}),
       ...(member.project === undefined ? {} : { project: member.project }),
       ...(member.share === undefined || isEarlier

@@ -8,7 +8,7 @@ import {
   instrumentUrlOf,
   isOutsideLinkHost,
   OUTSIDE_FILES_MAX,
-  OUTSIDE_GROUP_MAX,
+  GROUP_NAME_MAX,
   OUTSIDE_WORDS_MAX,
   onlyPathOfFilesLink,
   outsideLinkOf,
@@ -415,7 +415,7 @@ describe("outsideLinkOf", () => {
       });
     });
 
-    it("reads the group word the paths belong in, made plain", () => {
+    it("reads the name of the group the paths belong in, made plain", () => {
       expect(
         outsideLinkOf(
           "instrument://files?path=%2Fa.md&group=%20New%20%20tab%E2%80%8B%20row%20",
@@ -431,7 +431,7 @@ describe("outsideLinkOf", () => {
     it.each([
       ["empty", ""],
       ["only spaces", "%20%20"],
-      ["too long", "x".repeat(OUTSIDE_GROUP_MAX + 1)],
+      ["too long", "x".repeat(GROUP_NAME_MAX + 1)],
     ])("names no group for a word %s", (_case, word) => {
       expect(
         outsideLinkOf(`instrument://files?path=%2Fa.md&group=${word}`),

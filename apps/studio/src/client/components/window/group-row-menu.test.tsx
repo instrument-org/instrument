@@ -3,7 +3,7 @@ import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { type GroupRowMenuActions } from "./group-row-menu";
+import { GroupRowMenu, type GroupRowMenuActions } from "./group-row-menu";
 import { GroupRow } from "./group-sidebar";
 import { type TabGroup } from "./tab-groups";
 
@@ -85,7 +85,7 @@ function menuFor(entry: TabGroup): GroupRowMenuActions {
     onCloseOthers: vi.fn(),
     onDuplicate: vi.fn(),
     onNewWindow: vi.fn(),
-    onRemoveLabel: undefined,
+    onName: vi.fn(),
     onTogglePin: vi.fn(),
   };
 }
@@ -142,26 +142,27 @@ describe("a tab group row's menu", () => {
     expect(menu.onTogglePin).toHaveBeenCalledTimes(1);
   });
 
-  it("offers Remove Label on a group a link named, and takes it off", async () => {
-    const entry = GROUPS[0]?.[1];
-    if (!entry) {
-      throw new Error("no group");
-    }
-    const menu = { ...menuFor(entry), onRemoveLabel: vi.fn() };
-    renderWithProviders(
-      <GroupRow
-        chatTitles={new Map()}
-        entry={entry}
-        isUp={false}
-        menu={menu}
-      />,
-    );
+  it.each([
+    [false, "Name Tab Group"],
+    [true, "Rename Tab Group"],
+  ])(
+    "offers naming a row that shows a name (named: %s) as %s",
+    async (hasName, item) => {
+      const entry = GROUPS[0]?.[1];
+      if (!entry) {
+        throw new Error("no group");
+      }
+      const start = vi.fn();
+      renderWithProviders(
+        <GroupRowMenu menu={menuFor(entry)} naming={{ hasName, start }}>
+          <button type="button">row</button>
+        </GroupRowMenu>,
+      );
 
-    fireEvent.contextMenu(screen.getByRole("button"));
-    fireEvent.click(
-      await screen.findByRole("menuitem", { name: "Remove Label" }),
-    );
+      fireEvent.contextMenu(screen.getByRole("button"));
+      fireEvent.click(await screen.findByRole("menuitem", { name: item }));
 
-    expect(menu.onRemoveLabel).toHaveBeenCalledTimes(1);
-  });
+      expect(start).toHaveBeenCalledTimes(1);
+    },
+  );
 });

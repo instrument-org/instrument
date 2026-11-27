@@ -41,7 +41,7 @@ const SIDE_NAMES = ["left", "right"] as const;
 /** The most group names the line about the other groups spells out. */
 const NAMED_GROUPS_MAX = 6;
 
-/** A tab group's header: its name, its address, its pin and project, whether the person sees it, and when they last did. */
+/** A tab group's header: its title and name, its address, its pin and project, whether the person sees it, and when they last did. */
 function groupHeader(layout: ListedGroup, { projects }: ListFacts): string {
   const pinned = layout.pinned === true ? ", pinned" : "";
   const named =
@@ -53,7 +53,8 @@ function groupHeader(layout: ListedGroup, { projects }: ListFacts): string {
       : "";
   const split = layout.sides.length === 2 ? ", split" : "";
   const shown = layout.isShown === false ? "not on screen" : "on screen";
-  return `Tab group "${layout.name}" ${groupAddressOf(layout.group.id)}${pinned}${project}${split}, ${shown}${last}:`;
+  const name = layout.name === undefined ? "" : ` named "${layout.name}"`;
+  return `Tab group "${layout.title}"${name} ${groupAddressOf(layout.group.id)}${pinned}${project}${split}, ${shown}${last}:`;
 }
 
 /**
@@ -178,7 +179,8 @@ function someNames(groups: readonly ListedGroup[]): string {
   const named = groups
     .slice(0, NAMED_GROUPS_MAX)
     .map(
-      (group) => `"${group.name}"${group.pinned === true ? " (pinned)" : ""}`,
+      (group) =>
+        `"${group.name ?? group.title}"${group.pinned === true ? " (pinned)" : ""}`,
     )
     .join(", ");
   return groups.length > NAMED_GROUPS_MAX ? `${named}…` : named;
@@ -236,8 +238,9 @@ export function allWindowsLines(
 }
 
 /**
- * The group a name or id names among every window's: by its id, then by its
- * name exactly, then by its name in any case where only one has it.
+ * The group a word names among every window's: by its id, then by the name
+ * it was given, then by its title, each exactly and then in any case, taking
+ * the first of these that only one group has.
  */
 export function groupNamed(
   windows: WindowGroups,
@@ -251,13 +254,14 @@ export function groupNamed(
   if (byId) {
     return { group: byId };
   }
-  const exact = groups.filter((each) => each.name === named);
+  const lowered = named.toLowerCase();
   const matches =
-    exact.length > 0
-      ? exact
-      : groups.filter(
-          (each) => each.name.toLowerCase() === named.toLowerCase(),
-        );
+    [
+      groups.filter((each) => each.name === named),
+      groups.filter((each) => each.name?.toLowerCase() === lowered),
+      groups.filter((each) => each.title === named),
+      groups.filter((each) => each.title.toLowerCase() === lowered),
+    ].find((found) => found.length > 0) ?? [];
   const [only] = matches;
   if (only !== undefined && matches.length === 1) {
     return { group: only };

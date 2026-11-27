@@ -7,7 +7,7 @@ import {
   stripShowing,
   windowListingGroup,
   windowWithGroupTabShowing,
-  windowWithLinkGroup,
+  windowWithGroupNamed,
 } from "./tab-showing";
 
 const HOME = "/Users/mac-user";
@@ -113,40 +113,40 @@ describe("windowListingGroup", () => {
   });
 });
 
-describe("windowWithLinkGroup", () => {
+describe("windowWithGroupNamed", () => {
   const windows = [
     { listed: ["a", "b"], window: "first" },
     { listed: ["c"], window: "second" },
   ];
 
   it.each<
-    [string, { group: string; linkGroup: string; shownAt?: number }[], string | null]
+    [string, { group: string; name: string; shownAt?: number }[], string | null]
   >([
     [
       "finds the window listing the group, whatever the word's case",
-      [{ group: "c", linkGroup: "New Tab Row" }],
+      [{ group: "c", name: "New Tab Row" }],
       "second",
     ],
     [
       "takes the group up last of several",
       [
-        { group: "a", linkGroup: "new tab row", shownAt: 1 },
-        { group: "c", linkGroup: "new tab row", shownAt: 2 },
+        { group: "a", name: "new tab row", shownAt: 1 },
+        { group: "c", name: "new tab row", shownAt: 2 },
       ],
       "second",
     ],
     [
       "passes over a group no open window lists",
-      [{ group: "closed", linkGroup: "new tab row", shownAt: 9 }],
+      [{ group: "closed", name: "new tab row", shownAt: 9 }],
       null,
     ],
     [
       "finds none for another word",
-      [{ group: "a", linkGroup: "Command menu" }],
+      [{ group: "a", name: "Command menu" }],
       null,
     ],
   ])("%s", (_label, named, expected) => {
-    expect(windowWithLinkGroup("new tab row", windows, named)).toBe(expected);
+    expect(windowWithGroupNamed("new tab row", windows, named)).toBe(expected);
   });
 });
 

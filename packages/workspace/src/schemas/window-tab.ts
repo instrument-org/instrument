@@ -96,6 +96,12 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("pinGroup"),
     pinned: z.boolean(),
   }),
+  /** Gives a tab group a name, shown under its row's title, or takes its name off where none is given, as its menu's Name Tab Group does. */
+  z.object({
+    group: z.string(),
+    kind: z.literal("nameGroup"),
+    name: z.string().optional(),
+  }),
   /** Moves a tab group to just before or after another in the sidebar, both of the window's own and in the same part of it. */
   z.object({
     anchor: z.string(),

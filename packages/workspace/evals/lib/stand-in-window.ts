@@ -208,13 +208,13 @@ export function createStandInWindow(chrome?: SharedChrome) {
       ...answer,
       windows: [
         // A stand-in group goes by its id, as a list names one it has no row for.
-        { groups: [{ ...own, name: own.group.id }], isThisWindow: true },
+        { groups: [{ ...own, title: own.group.id }], isThisWindow: true },
         {
           groups: [
             {
               focused: 0,
               group: { id: NEW_WINDOW_GROUP },
-              name: NEW_WINDOW_GROUP,
+              title: NEW_WINDOW_GROUP,
               sides: [
                 {
                   tabs: [...apart.values()].map((tab, at) => ({
@@ -379,6 +379,7 @@ export function createStandInWindow(chrome?: SharedChrome) {
       action.kind === "closeGroup" ||
       action.kind === "joinSides" ||
       action.kind === "pinGroup" ||
+      action.kind === "nameGroup" ||
       action.kind === "placeGroup"
     ) {
       return { error: `no tab group ${action.group} is open.` };

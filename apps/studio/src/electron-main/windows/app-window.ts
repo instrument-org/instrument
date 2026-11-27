@@ -27,7 +27,7 @@ import {
   getKeptState,
   getWindowKeptState,
   keptGroupedTabs,
-  keptLinkGroups,
+  keptGroupNames,
   keptLoneGroupOfTab,
   KeptTabGroupSchema,
   setKeptState,
@@ -106,7 +106,7 @@ import {
   stripShowing,
   windowListingGroup,
   windowWithGroupTabShowing,
-  windowWithLinkGroup,
+  windowWithGroupNamed,
 } from "@/electron-main/windows/tab-showing";
 import { windowsMayOpen } from "@/electron-main/windows/launch";
 import { commandWindow } from "@/electron-main/windows/window-command";
@@ -527,15 +527,15 @@ export function showFromOutside(
 /**
  * The window with a tab already showing what an ask puts up (`tabHrefOfAsk`):
  * in its strip, or in a tab group it lists (`windowWithGroupTabShowing`).
- * For a group a link named by its word, the window listing the group open
- * under that word (`windowWithLinkGroup`).
+ * For a group a link names, the window listing the group with that name
+ * (`windowWithGroupNamed`).
  */
 function windowHolding(ask: AppWindowAsk) {
   if (ask.type === "openGroup" && ask.group !== undefined) {
-    return windowWithLinkGroup(
+    return windowWithGroupNamed(
       ask.group,
       groupListsOf(getAppWindows()),
-      keptLinkGroups(),
+      keptGroupNames(),
     );
   }
   const href = tabHrefOfAsk(ask);

@@ -290,8 +290,8 @@ export function StudioSidebarRail({
           }}
           className={
             side === "left"
-              ? "right-0 translate-x-full"
-              : "left-0 -translate-x-full"
+              ? "right-0 translate-x-1/2"
+              : "left-0 -translate-x-1/2"
           }
           collapse={
             bounds.collapse === undefined

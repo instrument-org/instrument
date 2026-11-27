@@ -55,11 +55,6 @@ const EVENTS: [string, SettledStep, FilesIntent][] = [
     DOCS,
     { path: "Music/", root: "~", type: "arrive", view: "table" },
   ],
-  [
-    "the folder the tab is rooted at gone",
-    BESIDE,
-    { root: "/Users/sam", type: "leaveGone" },
-  ],
   ["double-click a folder", DOCS, { path: "Documents/Old/", type: "walk" }],
   [
     "a drag resting on a folder",
@@ -228,7 +223,6 @@ describe("the step a change leads to", () => {
       [
         "a place: push path= root=/Users/sam/Downloads view=columns",
         "a place with a folder under it: push path=Music/ root=~ view=table",
-        "the folder the tab is rooted at gone: replace path= root=/Users/sam view=table",
         "double-click a folder: push path=Documents/Old/ root=~ view=icons",
         "a drag resting on a folder: replace path=Documents/Old/ root=~ view=icons",
         "a drag resting on a folder in the columns: replace path=Documents/Old/ query=report root=~ select=Documents/Old/ view=columns",

@@ -137,6 +137,8 @@ import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClo
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { EyeIcon } from "@phosphor-icons/react/Eye";
+import { FileDashedIcon } from "@phosphor-icons/react/FileDashed";
+import { FolderDashedIcon } from "@phosphor-icons/react/FolderDashed";
 import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
 import { MonitorIcon } from "@phosphor-icons/react/Monitor";
@@ -1113,42 +1115,59 @@ export function ComputerPage({
         : root;
   // The folder the tab is rooted at going ends its listing with a failed
   // read, as a folder under it does, and the listing the cache still holds
-  // would go on showing what was in it. The tab goes up to the nearest
-  // folder above it still there instead, the way a file gone from beside
-  // the folder is put away. A read that failed for a folder still there
-  // leaves the tab where it is.
+  // would go on showing what was in it. The tab stays at it, as a browser
+  // tab stays at a page that failed to load, and says so where its contents
+  // were, with the way up to the nearest folder above it still there. A read
+  // that failed for a folder still there shows what it last listed.
   const isRootUnread = settled && listings[0]?.isError === true;
-  const leaveGone = useEffectEvent((gone: string, there: string) => {
-    toast(`${nameOf(gone)} is no longer there`);
-    go({ root: there, type: "leaveGone" });
-  });
+  const [goneRoot, setGoneRoot] = useState<{ root: string; there: string }>();
   useEffect(() => {
     if (!isRootUnread || !rootHostPath) {
       return;
     }
-    const chain: string[] = [];
-    for (
-      let at: null | string = rootHostPath;
-      at !== null;
-      at = parentFolderOf(at)
-    ) {
-      chain.push(at);
-    }
     let isCurrent = true;
-    void rpcClient.files.missing
-      .call({ paths: chain })
-      .then(({ missing }) => {
-        const there = chain.find((at) => !missing.includes(at));
-        if (!isCurrent || there === rootHostPath) {
-          return;
+    void nearestFolderThere(rootHostPath)
+      .then((there) => {
+        if (isCurrent && there !== rootHostPath) {
+          setGoneRoot({ root, there });
         }
-        leaveGone(rootHostPath, there ?? COMPUTER_ROOT);
       })
       .catch(() => undefined);
     return () => {
       isCurrent = false;
     };
-  }, [isRootUnread, rootHostPath]);
+  }, [isRootUnread, rootHostPath, root]);
+  const isRootNotFound =
+    isRootUnread && rootHostPath !== undefined && goneRoot?.root === root;
+  // Asked again while it is on screen, so a folder put back shows again.
+  const rereadRoot = () => {
+    void queryClient.invalidateQueries({
+      queryKey: computerFolderOptions({ id: WINDOW_ID, path: hostPathOf("") })
+        .queryKey,
+    });
+  };
+  const recheckRoot = useEffectEvent(rereadRoot);
+  const isRootNotFoundShown = useIsActiveTab() && isRootNotFound;
+  useEffect(() => {
+    if (!isRootNotFoundShown) {
+      return;
+    }
+    const timer = setInterval(recheckRoot, ROOT_RECHECK_MS);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [isRootNotFoundShown]);
+  const rootNotFound =
+    isRootNotFound && rootHostPath && goneRoot ? (
+      <NotFound
+        hostPath={rootHostPath}
+        kind="folder"
+        onShowFolder={() => {
+          go({ path: "", root: goneRoot.there, type: "walk" });
+        }}
+        onTryAgain={rereadRoot}
+      />
+    ) : null;
 
   // The layout and order go the way a Finder window's do. The layout belongs
   // to the tab: walking from folder to folder (a double-click, the columns,
@@ -2981,6 +3000,9 @@ export function ComputerPage({
                   // the folder on screen, its column's place beside the folder
                   // above it in the columns, a line under it in the list.
                   renderUnreadable={(prefix, place) => {
+                    if (prefix === "" && place === "pane" && rootNotFound) {
+                      return rootNotFound;
+                    }
                     const refusal = refusalOf(prefix);
                     if (!refusal) {
                       return null;
@@ -4459,6 +4481,65 @@ export function NotPermitted({
     </div>
   );
 }
+
+/**
+ * A file or folder a tab shows that is not where the tab says, drawn where it
+ * would be. The tab keeps its place and its name, as a browser tab keeps a
+ * page that failed to load, so a move or a delete outside the app never
+ * closes or walks a tab on its own.
+ */
+export function NotFound({
+  hostPath,
+  kind,
+  onShowFolder,
+  onTryAgain,
+}: {
+  hostPath: string;
+  kind: "file" | "folder";
+  /** Opens the nearest folder above it that is still there. */
+  onShowFolder: () => void;
+  onTryAgain: () => void;
+}) {
+  const name = segmentsOf(hostPath).at(-1) ?? hostPath;
+  const Glyph = kind === "file" ? FileDashedIcon : FolderDashedIcon;
+  return (
+    <div className="flex size-full items-center justify-center p-8">
+      <div className="flex max-w-sm flex-col items-center gap-4 text-center">
+        <Glyph className="size-10 text-muted-foreground opacity-60" />
+        <div>
+          <p className="text-sm font-medium break-all">{`Can’t find “${name}”`}</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            It may have been moved or deleted.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={onShowFolder} size="sm">
+            Show Folder
+          </Button>
+          <Button onClick={onTryAgain} size="sm" variant="outline">
+            Try Again
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The nearest folder that is still there, from `hostPath` itself up to the
+ * top of the computer.
+ */
+export async function nearestFolderThere(hostPath: string): Promise<string> {
+  const chain: string[] = [];
+  for (let at: null | string = hostPath; at !== null; at = parentFolderOf(at)) {
+    chain.push(at);
+  }
+  const { missing } = await rpcClient.files.missing.call({ paths: chain });
+  return chain.find((at) => !missing.includes(at)) ?? COMPUTER_ROOT;
+}
+
+/** How often a tab whose folder is gone looks for it again while it is up. */
+const ROOT_RECHECK_MS = 3000;
 
 /** A folder prefix and every folder above it, root first: `a/b/` is `""`, `a/`, `a/b/`. */
 function prefixesOf(folder: string): string[] {

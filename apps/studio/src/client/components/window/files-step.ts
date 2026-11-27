@@ -104,12 +104,6 @@ export type FilesIntent =
    */
   | { path: string; root?: string; type: "spring" }
   /**
-   * The folder the tab is rooted at went (thrown away, moved in the Finder):
-   * the tab stands in `root`, the nearest folder above it still there, in
-   * place of the step on screen, so going back never finds it again.
-   */
-  | { root: string; type: "leaveGone" }
-  /**
    * The selection moved: `path` is the one the keyboard is on, and `several`
    * whether more are held beside it.
    */
@@ -248,8 +242,6 @@ function applied(
         },
         "push",
       ];
-    case "leaveGone":
-      return [{ path: "", root: intent.root, view: step.view }, "replace"];
     case "spring":
       // A place of the sidebar opens at its own top, in the layout on
       // screen; in the columns a folder in them opens as selecting it does,

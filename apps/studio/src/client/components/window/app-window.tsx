@@ -1618,9 +1618,9 @@ function WindowShell({
       // Said alone: the folder it was in opens in the hand-over's tab group.
       missingFile: (name, folder) => {
         toast(
-          `${name} is no longer there`,
+          `Can’t find “${name}”`,
           folder === undefined
-            ? { description: "The folder it was in is gone too." }
+            ? { description: "Its folder can’t be found either." }
             : undefined,
         );
       },

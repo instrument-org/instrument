@@ -74,6 +74,8 @@ import {
   BESIDE_MOTION_CLASSNAME,
   ComputerPage,
   type FolderOnScreen,
+  nearestFolderThere,
+  NotFound,
   NotPermitted,
   RECENTS_ROOT,
 } from "./computer-page";
@@ -554,7 +556,12 @@ export function FilesScreen({
   // drawn. Its reload and zoom go into the row the way a page tab's do; its
   // menu is the file's own.
   const hostGroup = hostGroupOf(tabId);
-  const hostedFile = isPageFile ? activeFile.hostPath : undefined;
+  // The file the tab shows when it was not there when last asked, which the
+  // tab shows in its place (`NotFound`) until it is back.
+  const [missing, setMissing] = useState<string>();
+  const isMissing = activeFile !== undefined && missing === activeFile.hostPath;
+  const hostedFile =
+    isPageFile && !isMissing ? activeFile.hostPath : undefined;
   // A group's tab is drawn only while it is up on its side, so this screen
   // goes whenever another tab comes up there; its page stays live for it.
   const keepsHostedPage = useKeepsHostedPage(tabId);
@@ -735,36 +742,33 @@ export function FilesScreen({
     },
   );
 
-  // A missing file returns to the preceding visit, or closes its dedicated
-  // tab; beside its folder, it slides away and leaves the folder. The app's
-  // own data goes the same way, which the channel forbids. Asked as the file
-  // opens and again whenever its watch says it went, so trashing it from the
-  // folder beside it, or moving a folder above it, puts it away. A file the
-  // system refuses stays, saying whose refusal it is in place of the viewer
-  // (with the ways past one macOS made), and is asked again once the person
-  // picks its folder.
+  // A missing file stays in its tab, saying so in place of the viewer, as a
+  // browser tab stays at a page that failed to load: a tab never closes or
+  // steps back on its own because something outside the app moved its file.
+  // Beside its folder, it slides away and leaves the folder, which is where
+  // the tab stands. Asked as the file opens and again whenever its watch says
+  // it went or came back, so it shows again once it is back. A file the
+  // system refuses, or the app's own data the channel forbids, stays the same
+  // way, saying whose refusal it is in place of the viewer (with the ways past
+  // one macOS made), and is asked again once the person picks its folder.
   const isFileGone = useWatchedFileGone(file);
   const [refused, setRefused] = useState<{
     file: string;
     reason: ComputerRefusal["reason"];
   } | null>(null);
   const [askedAgain, setAskedAgain] = useState(0);
-  const putAway = useEffectEvent(() => {
-    if (isFileOpen) {
-      closeBeside();
-    } else {
-      leaveFile();
-    }
-  });
-  const fileGone = useEffectEvent((name: string) => {
+  const fileGone = useEffectEvent((gone: string) => {
     // A version shown over a file that has gone since takes the file's
     // place, where Restore puts the file back.
     if (version !== undefined) {
       showFile(version, { replace: true });
       return;
     }
-    toast(`${name} is no longer there`);
-    putAway();
+    if (isFileOpen) {
+      closeBeside();
+      return;
+    }
+    setMissing(gone);
   });
   // A version shown over the file whose copy has gone since, as a chat keeps
   // only so many, leaves the file showing.
@@ -773,9 +777,7 @@ export function FilesScreen({
     if (file === undefined) {
       return;
     }
-    toast(
-      `That version of ${segmentsOf(file).at(-1) ?? file} is no longer there`,
-    );
+    toast(`Can’t find that version of “${segmentsOf(file).at(-1) ?? file}”`);
     showFile(file, { replace: true });
   });
   useEffect(() => {
@@ -801,25 +803,22 @@ export function FilesScreen({
       if (!response || controller.signal.aborted) {
         return;
       }
-      const name = segmentsOf(file).at(-1) ?? file;
       const reason =
         response.status === 403
           ? response.headers.get(COMPUTER_FILE_REFUSAL_HEADER)
           : null;
+      // A refusal with no reason the system gave is the app's own data.
       const refusal =
-        reason === "system" || reason === "account" ? reason : null;
+        response.status !== 403
+          ? null
+          : reason === "system" || reason === "account"
+            ? reason
+            : "app";
       setRefused(refusal ? { file, reason: refusal } : null);
-      if (refusal) {
-        return;
-      }
-      if (response.status === 403) {
-        toast(`“${name}” is protected`, {
-          description:
-            "It’s part of Instrument’s data and can’t be opened here.",
-        });
-        putAway();
-      } else if (response.status === 404) {
-        fileGone(name);
+      if (response.status === 404) {
+        fileGone(file);
+      } else {
+        setMissing(undefined);
       }
     });
     return () => {
@@ -837,8 +836,27 @@ export function FilesScreen({
         refusal={{
           display: folderOf(activeFile.hostPath),
           kind: "refused",
-          path: folderOf(activeFile.hostPath),
+          // The app's own data is named by the file itself.
+          path:
+            refused.reason === "app"
+              ? activeFile.hostPath
+              : folderOf(activeFile.hostPath),
           reason: refused.reason,
+        }}
+      />
+    ) : isMissing ? (
+      <NotFound
+        hostPath={activeFile.hostPath}
+        kind="file"
+        onShowFolder={() => {
+          void nearestFolderThere(folderOf(activeFile.hostPath)).then(
+            (there) => {
+              router.history.push(folderHref(there));
+            },
+          );
+        }}
+        onTryAgain={() => {
+          setAskedAgain((count) => count + 1);
         }}
       />
     ) : null;

@@ -52,7 +52,7 @@ An agent usually links a file again because it has just rewritten it, and every 
 
 ## A file that isn't there
 
-A link to a path with nothing at it opens the folder it was in as a tab of the link's group, where the file would have been, and the window says the file is no longer there. Where the folder is gone too, nothing opens and the window says that as well. A path the system won't say anything about (a folder the app may not read) is not counted as missing, so the file opens and its viewer says whose refusal it is.
+A link to a path with nothing at it opens the folder it was in as a tab of the link's group, where the file would have been, and the window says it can’t find the file. Where the folder is gone too, nothing opens and the window says that as well. A path the system won't say anything about (a folder the app may not read) is not counted as missing, so the file opens and its viewer says whose refusal it is.
 
 ## Several files at once
 

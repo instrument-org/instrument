@@ -53,7 +53,7 @@ export function AppsMark({
         type="button"
       >
         <ShapesIcon className="size-3.5 shrink-0 text-foreground/70" />
-        Apps
+        <span className="@max-[24rem]/bookmarks:sr-only">Apps</span>
       </button>
       <DropdownMenu modal={false} onOpenChange={setOpen} open={isOpen}>
         <DropdownMenuTrigger

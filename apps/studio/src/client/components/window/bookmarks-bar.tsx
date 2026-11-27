@@ -220,7 +220,10 @@ function Bar({ bleeds = false, files, onOpen, onVisit }: BarProps) {
           <div
             aria-label="Bookmarks"
             className={cn(
-              "flex h-8 shrink-0 items-center gap-1 px-1.5",
+              // The `bookmarks` container: Apps, Chats and Files are their
+              // marks alone in a narrow bar, so the bookmarks and the
+              // chevron for the rest keep some room.
+              "@container/bookmarks flex h-8 shrink-0 items-center gap-1 px-1.5",
               !bleeds && "border-b border-border bg-background",
             )}
             ref={bar}
@@ -497,7 +500,7 @@ function FilesMark({ group, open }: { group: string; open: OpenAddress }) {
         type="button"
       >
         <FileSystemFolderGlyph className="h-3 w-auto" />
-        Files
+        <span className="@max-[24rem]/bookmarks:sr-only">Files</span>
       </button>
       <DropdownMenu modal={false} onOpenChange={setOpen} open={isOpen}>
         <DropdownMenuTrigger

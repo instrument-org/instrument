@@ -58,7 +58,7 @@ export function ChatsMark({ open }: { open: OpenAddress }) {
         type="button"
       >
         <ChatsCircleIcon className="size-3.5 shrink-0 text-foreground/70" />
-        Chats
+        <span className="@max-[24rem]/bookmarks:sr-only">Chats</span>
       </button>
       <Popover onOpenChange={setOpen} open={isOpen}>
         <PopoverTrigger

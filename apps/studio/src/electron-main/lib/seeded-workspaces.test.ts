@@ -260,7 +260,8 @@ describe.each(names)("the %s fixture, after a launch", (name) => {
     );
     expect(preferences).toMatchObject(fixture.settings.preferences ?? {});
     expect(failures).toEqual([]);
-  });
+    // Seeding is about 20 ms a turn, and long-work-chat has 300.
+  }, 30_000);
 });
 
 /**

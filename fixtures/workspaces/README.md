@@ -22,7 +22,7 @@ documents/
                                             Instrument/red-blue-squares/…
 ```
 
-A fixture describes what the app makes today: **chats**, each with the tasks it started inside it. A top-level `tasks:` entry is a task no chat owns, which is what a 1.x build made: the seeder writes it under `tasks/<key>/` with its conversation in a 1.x `task.db`, and the launch makes it into a chat under a name of its own, by its title. `legacy-tasks` is the fixture for that migration, and nothing else wants one. `long-chat` is one chat of 60 generated turns, each with work that folds and a reply, longer than a chat loads at first, for checking what reads back older turns: find, scrolling back, the fold. A fixture holds chats or 1.x tasks, never both, since no workspace does.
+A fixture describes what the app makes today: **chats**, each with the tasks it started inside it. A top-level `tasks:` entry is a task no chat owns, which is what a 1.x build made: the seeder writes it under `tasks/<key>/` with its conversation in a 1.x `task.db`, and the launch makes it into a chat under a name of its own, by its title. `legacy-tasks` is the fixture for that migration, and nothing else wants one. `long-chat` is one chat of 60 generated turns, each with work that folds and a reply, longer than a chat loads at first, for checking what reads back older turns: find, scrolling back, the fold. `long-work-chat` is one chat of 300 generated turns of tool work, each ending in a reply with a table, code or file cards, for measuring a transcript read back a long way (`perf-long-transcript.mjs` in the `studio-chrome-devtools` skill); `generate.ts` beside it writes its transcript. A fixture holds chats or 1.x tasks, never both, since no workspace does.
 
 ## Using one
 

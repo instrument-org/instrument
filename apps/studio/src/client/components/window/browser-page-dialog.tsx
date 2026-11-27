@@ -28,14 +28,21 @@ export function PageDialogSheet({ dialog }: { dialog: PageDialog }) {
   const answer = (given: PageDialogAnswer) => {
     mutate({ answer: given, id: dialog.id });
   };
-  const leave = dialog.kind === "leave";
+  // Chromium's own words for a page that holds its going up.
+  const going =
+    dialog.kind === "leave"
+      ? { button: "Leave", title: "Leave site?" }
+      : dialog.kind === "reload"
+        ? { button: "Reload", title: "Reload site?" }
+        : undefined;
+  const title = going?.title ?? `${dialog.site} says`;
   return (
     <div
       className="absolute inset-0 z-20 flex items-start justify-center p-6"
       role="presentation"
     >
       <form
-        aria-label={leave ? "Leave site?" : `${dialog.site} says`}
+        aria-label={title}
         className="w-full max-w-md space-y-4 rounded-xl border bg-popover p-5 shadow-float-lg"
         onKeyDown={(event) => {
           if (event.key === "Escape") {
@@ -54,11 +61,9 @@ export function PageDialogSheet({ dialog }: { dialog: PageDialog }) {
         role="dialog"
       >
         <div className="space-y-1">
-          <p className="font-medium break-words">
-            {leave ? "Leave site?" : `${dialog.site} says`}
-          </p>
+          <p className="font-medium break-words">{title}</p>
           <p className="text-sm break-words whitespace-pre-wrap text-muted-foreground">
-            {leave ? "Changes you made may not be saved." : dialog.message}
+            {going ? "Changes you made may not be saved." : dialog.message}
           </p>
         </div>
         {dialog.kind === "prompt" && (
@@ -92,7 +97,7 @@ export function PageDialogSheet({ dialog }: { dialog: PageDialog }) {
             size="sm"
             type="submit"
           >
-            {leave ? "Leave" : "OK"}
+            {going?.button ?? "OK"}
           </Button>
         </div>
       </form>

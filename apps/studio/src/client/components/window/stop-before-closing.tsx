@@ -11,6 +11,7 @@ import {
 } from "@/client/components/ui/alert-dialog";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
+import { browserTargetOf } from "@instrument-org/workspace/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { unique } from "radashi";
 import { useRef, useState } from "react";
@@ -58,7 +59,42 @@ export function useStopBeforeClosing() {
   const [shown, setShown] = useState<Asking>();
   const [isOpen, setOpen] = useState(false);
 
+  // Pages asked "Leave site?" one close at a time, as each comes up in turn.
+  const leaving = useRef<Promise<unknown>>(Promise.resolve());
+
+  /**
+   * Asks each page among the closing tabs that holds its close up "Leave
+   * site?" first, as Chromium does (`askBeforeClosingPages`); Cancel there
+   * keeps everything open. Then asks about the chats the close stops.
+   */
   const ask = (
+    tabs: readonly WindowTab[],
+    what: ClosingWhat,
+    close: (stopped: Promise<unknown>) => void,
+    cancel?: () => void,
+  ) => {
+    const pages = tabs
+      .filter((tab) => tab.kind === "page")
+      .map((tab) => browserTargetOf(tab.id));
+    if (pages.length === 0) {
+      askToStop(tabs, what, close, cancel);
+      return;
+    }
+    leaving.current = leaving.current.then(() =>
+      rpcClient.browser.askBeforeClosingPages
+        .call({ targetIds: pages })
+        .catch(() => true)
+        .then((isLeaving) => {
+          if (isLeaving) {
+            askToStop(tabs, what, close, cancel);
+          } else {
+            cancel?.();
+          }
+        }),
+    );
+  };
+
+  const askToStop = (
     tabs: readonly WindowTab[],
     what: ClosingWhat,
     close: (stopped: Promise<unknown>) => void,

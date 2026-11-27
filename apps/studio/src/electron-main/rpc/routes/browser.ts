@@ -77,6 +77,15 @@ const events = {
       }
     }
   }),
+  showPage: base.handler(async function* ({ context, signal }) {
+    for await (const event of publisher.subscribe("browser.show-page", {
+      signal,
+    })) {
+      if (isForHost(context.webContentsId, event.targetId)) {
+        yield event;
+      }
+    }
+  }),
   pagePressed: base.handler(async function* ({ context, signal }) {
     for await (const event of publisher.subscribe("browser.page-pressed", {
       signal,
@@ -486,6 +495,18 @@ const answerSignIn = base
     guestSignIns.answer(input.id, input.credentials);
   });
 
+/**
+ * A close of these tabs the person asked for: each page among them that asks
+ * before it goes is brought up and asked "Leave site?". True to close.
+ */
+const askBeforeClosingPages = base
+  .input(z.object({ targetIds: z.array(BrowserTargetIdSchema) }))
+  .handler(({ input }) =>
+    getBrowserViewManager().askBeforeClosingPages({
+      targetIds: input.targetIds,
+    }),
+  );
+
 const answerPageDialog = base
   .input(
     z.object({
@@ -808,6 +829,7 @@ export const browser = {
   answerPageCapture,
   answerPageDialog,
   answerSignIn,
+  askBeforeClosingPages,
   askSystemForCapture,
   continueDespiteCertificate,
   pausePageCapture,

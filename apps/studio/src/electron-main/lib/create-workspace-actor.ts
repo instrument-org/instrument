@@ -445,9 +445,13 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
           if (is.dev && !isQuitGuardForcedInDev()) {
             return Promise.resolve(true);
           }
-          return confirmQuitWhileDictating().then(
-            (quit) => quit && confirmQuitWithRunningWork(),
-          );
+          // Then each page that holds its close up asks "Leave site?" in its
+          // tab, one at a time, as Chromium does on quit.
+          return confirmQuitWhileDictating()
+            .then((quit) => quit && confirmQuitWithRunningWork())
+            .then(
+              (quit) => quit && browserViewManager.askBeforeClosingPages("all"),
+            );
         }),
         closeBrowserSessions: fromPromise(() => closeAllAgentBrowserSessions()),
         finishWindows: fromPromise(() =>

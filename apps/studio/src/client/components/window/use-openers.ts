@@ -1764,6 +1764,18 @@ export function useOpeners({
     }
   };
 
+  /** A page main is about to ask "Leave site?" for, up in its window so the person sees the question. */
+  const showPage = (targetId: string) => {
+    const tab = windowTabs.allTabs.find((each) => each.id === targetId);
+    if (!tab) {
+      return;
+    }
+    windowTabs.select(tab.id);
+    if (tab.group !== undefined) {
+      showGroup(tab.group);
+    }
+  };
+
   const addBookmark = useAddBookmark();
   // Each listener calls the latest of these, though it starts listening once.
   const latest = useSteadyCallbacks({
@@ -1773,6 +1785,7 @@ export function useOpeners({
     pageBecameDownload: windowTabs.pageBecameDownload,
     popupClosed: windowTabs.popupClosed,
     showLinked,
+    showPage,
   });
   useEffect(() => {
     setLinkedShower(latest.showLinked);
@@ -1812,6 +1825,15 @@ export function useOpeners({
         rpcClient.browser.events.popupClosed.call(undefined, { signal }),
       onEach: ({ openerId, targetId }) => {
         latest.popupClosed(targetId, openerId);
+      },
+    });
+    // A page about to ask whether to leave, as a close reaches it.
+    void keepListening({
+      signal: controller.signal,
+      start: (signal) =>
+        rpcClient.browser.events.showPage.call(undefined, { signal }),
+      onEach: ({ targetId }) => {
+        latest.showPage(targetId);
       },
     });
     // A page whose first navigation became a download, left with nothing to show.

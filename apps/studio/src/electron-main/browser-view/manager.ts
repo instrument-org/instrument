@@ -99,9 +99,11 @@ import { noteFrameSession } from "./keyboard-without-focus";
 import { mayPageNavigateTo } from "./local-file-policy";
 import { log } from "./log";
 import {
+  askBeforeClosingPage,
   guardPageLeaving,
   isDebuggerDialogEvent,
   pageDialogs,
+  pageMayAskToLeave,
   servePageDialogs,
   takePageDialogs,
 } from "./page-dialogs";
@@ -181,6 +183,16 @@ export interface BrowserViewManager {
   // Whether a window's renderer mounts this target, so that what is asked of
   // its guest goes to that window alone.
   isHostOf: (webContentsId: number, targetId: BrowserTargetId) => boolean;
+  // A close the person asked for, of these tabs' pages or of every page one
+  // window (`hostId`) or the app shows: each page that may ask is brought up
+  // in its window and asked, one at a time, as Chromium does. True to close;
+  // false once one page's "Leave site?" was answered Cancel.
+  askBeforeClosingPages: (
+    closing:
+      | { hostId: number }
+      | { targetIds: readonly BrowserTargetId[] }
+      | "all",
+  ) => Promise<boolean>;
   // The guest goes to this window now, as its tab does, with nothing left for
   // the windows to settle between them. Resolves with its page loaded there
   // and scrolled back to where it stood, or once that is no longer worth
@@ -1740,6 +1752,32 @@ function createBrowserViewManager(): BrowserViewManager {
         const entry = entries.get(target);
         return entry !== undefined && isUsed(entry);
       }),
+    askBeforeClosingPages: async (closing) => {
+      const asked = [...entries.values()].filter((entry) =>
+        closing === "all"
+          ? true
+          : "hostId" in closing
+            ? hostIdOf(entry) === closing.hostId
+            : closing.targetIds.includes(entry.targetId),
+      );
+      for (const entry of asked) {
+        const guest = entry.webContents;
+        if (
+          !guest ||
+          guest.isDestroyed() ||
+          !(await pageMayAskToLeave(guest))
+        ) {
+          continue;
+        }
+        publisher.publish("browser.show-page", { targetId: entry.targetId });
+        if (
+          !(await askBeforeClosingPage(guest, entry, { dialogs: pageDialogs }))
+        ) {
+          return false;
+        }
+      }
+      return true;
+    },
     isHostOf: (webContentsId, targetId) => {
       const entry = entries.get(targetId);
       return entry !== undefined && hostIdOf(entry) === webContentsId;

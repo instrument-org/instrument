@@ -69,7 +69,8 @@ export interface PageDialog {
   /** What a `prompt` offers as the answer before anything is typed. */
   defaultValue?: string;
   id: string;
-  kind: "alert" | "confirm" | "leave" | "prompt";
+  /** `leave` and `reload` are a page's `beforeunload` asking before it goes, as "Leave site?" and "Reload site?". */
+  kind: "alert" | "confirm" | "leave" | "prompt" | "reload";
   message: string;
   /** The host of the page asking, with its port when not the default. */
   site: string;

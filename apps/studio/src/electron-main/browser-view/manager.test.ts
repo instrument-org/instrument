@@ -16,10 +16,12 @@ vi.mock("electron", () => ({
 }));
 vi.mock("./page-dialogs", () => ({
   answerAgentDialog: () => ({}),
+  askBeforeClosingPage: () => Promise.resolve(true),
   guardPageLeaving: vi.fn(),
   isDebuggerDialogEvent: () => false,
   noteAgentLeaving: vi.fn(),
   pageDialogs: {},
+  pageMayAskToLeave: () => Promise.resolve(false),
   servePageDialogs: vi.fn(),
   takePageDialogs: vi.fn(),
 }));

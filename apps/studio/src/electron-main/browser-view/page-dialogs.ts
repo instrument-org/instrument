@@ -253,6 +253,11 @@ export function guardPageLeaving(
   const guestId = guest.id;
   rememberGoing(guest);
   guest.on("will-prevent-unload", (event) => {
+    // A close asks in the tab itself (`askBeforeClosingPage`); left held, the
+    // close is called off for the page to stay until the person answers.
+    if (closingChecks.has(guestId)) {
+      return;
+    }
     const agentAt = agentLeaving.get(guestId);
     agentLeaving.delete(guestId);
     if (
@@ -264,7 +269,8 @@ export function guardPageLeaving(
     }
     const askedAt = Date.now();
     setTimeout(() => {
-      if (guest.isDestroyed() || dialogs.oldestOf(guestId)?.kind === "leave") {
+      const waiting = dialogs.oldestOf(guestId)?.kind;
+      if (guest.isDestroyed() || waiting === "leave" || waiting === "reload") {
         return;
       }
       const leaving = leavingByGuest.get(guestId);
@@ -273,7 +279,7 @@ export function guardPageLeaving(
       void ask({
         dialogs,
         dialog: {
-          kind: "leave",
+          kind: going?.kind === "reload" ? "reload" : "leave",
           message: "",
           site: siteOf(guest),
           targetId: entry.targetId,
@@ -289,6 +295,7 @@ export function guardPageLeaving(
     }, LEAVING_WAIT_MS);
   });
   guest.once("destroyed", () => {
+    closingChecks.delete(guestId);
     leavingByGuest.delete(guestId);
     leaveOnce.delete(guestId);
     agentLeaving.delete(guestId);
@@ -343,6 +350,139 @@ function rememberGoing(guest: WebContents) {
     going("traverse", "", index - history.getActiveIndex());
     goToIndex(index);
   };
+}
+
+/** Guests whose `beforeunload` is being run for a close (`askBeforeClosingPage`). */
+const closingChecks = new Set<number>();
+
+/** How long a page's `beforeunload` may take to answer a close before the close goes ahead. */
+const CLOSE_CHECK_MS = 3000;
+
+/**
+ * Whether closing the page could ask first, as Chromium's own check would:
+ * a `beforeunload` handler on its window, in a page someone has used
+ * (`navigator.userActivation.hasBeenActive`), since Chromium asks for no
+ * other. Read through the guest's debugger, which the page cannot see. A
+ * page that cannot be read asks nothing.
+ */
+export async function pageMayAskToLeave(guest: WebContents): Promise<boolean> {
+  if (guest.isDestroyed() || !guest.debugger.isAttached()) {
+    return false;
+  }
+  try {
+    const { result } = PageWindowSchema.parse(
+      await guest.debugger.sendCommand("Runtime.evaluate", {
+        expression: "navigator.userActivation.hasBeenActive ? window : null",
+      }),
+    );
+    if (!result.objectId) {
+      return false;
+    }
+    try {
+      if (await hasOnBeforeUnload(guest, result.objectId)) {
+        return true;
+      }
+      const { listeners } = PageListenersSchema.parse(
+        await guest.debugger.sendCommand("DOMDebugger.getEventListeners", {
+          objectId: result.objectId,
+        }),
+      );
+      return listeners.some(({ type }) => type === "beforeunload");
+    } finally {
+      void guest.debugger
+        .sendCommand("Runtime.releaseObject", { objectId: result.objectId })
+        .catch(() => {});
+    }
+  } catch (error) {
+    log.info(`reading whether a page asks to leave failed: ${String(error)}`);
+    return false;
+  }
+}
+
+async function hasOnBeforeUnload(guest: WebContents, objectId: string) {
+  const { result } = PageValueSchema.parse(
+    await guest.debugger.sendCommand("Runtime.callFunctionOn", {
+      functionDeclaration:
+        "function () { return typeof this.onbeforeunload === 'function'; }",
+      objectId,
+      returnByValue: true,
+    }),
+  );
+  return result.value === true;
+}
+
+const PageWindowSchema = z.object({
+  result: z.object({ objectId: z.string().optional() }),
+});
+const PageValueSchema = z.object({ result: z.object({ value: z.unknown() }) });
+const PageListenersSchema = z.object({
+  listeners: z.array(z.object({ type: z.string() })),
+});
+
+/**
+ * Runs a page's `beforeunload` for a close the person asked for and, when
+ * the page asks, asks "Leave site?" in its tab, as Chromium does before it
+ * closes a tab or a window. True to close. The close itself is left to the
+ * caller: a guest's own close would go ahead whatever the page says, so it
+ * is always called off here (`-before-unload-fired`, Electron's internal
+ * word on the answer), and only the page's answer read from it.
+ */
+export function askBeforeClosingPage(
+  guest: WebContents,
+  entry: BrowserEntry,
+  { dialogs }: { dialogs: PageDialogs },
+): Promise<boolean> {
+  const guestId = guest.id;
+  if (guest.isDestroyed() || closingChecks.has(guestId)) {
+    return Promise.resolve(true);
+  }
+  const events: NodeJS.EventEmitter = guest;
+  const pageSaid = new Promise<boolean>((resolve) => {
+    const settle = (proceed: boolean) => {
+      clearTimeout(timer);
+      events.off("-before-unload-fired", onFired);
+      guest.off("destroyed", onGone);
+      closingChecks.delete(guestId);
+      resolve(proceed);
+    };
+    const onFired = (
+      event: { preventDefault: () => void },
+      proceed: boolean,
+    ) => {
+      event.preventDefault();
+      settle(proceed);
+    };
+    const onGone = () => {
+      settle(true);
+    };
+    const timer = setTimeout(() => {
+      log.info(`a page's beforeunload did not answer a close guest=${guestId}`);
+      settle(true);
+    }, CLOSE_CHECK_MS);
+    closingChecks.add(guestId);
+    events.on("-before-unload-fired", onFired);
+    guest.once("destroyed", onGone);
+    guest.close({ waitForBeforeUnload: true });
+  });
+  return pageSaid.then(async (proceed) => {
+    if (proceed || guest.isDestroyed()) {
+      return true;
+    }
+    const { accept } = await ask({
+      dialogs,
+      dialog: {
+        kind: "leave",
+        message: "",
+        site: siteOf(guest),
+        targetId: entry.targetId,
+      },
+      entry,
+      guest,
+      // The person's close: theirs to answer, whoever else works in the tab.
+      personUsedAt: Date.now(),
+    });
+    return accept;
+  });
 }
 
 /** How long after an agent's `Page.navigate` or `Page.reload` a held navigation is taken as that one. */
@@ -448,7 +588,10 @@ async function ask({
         frameId: entry.targetId,
         hasBrowserHandler: true,
         message: dialog.message,
-        type: dialog.kind === "leave" ? "beforeunload" : dialog.kind,
+        type:
+          dialog.kind === "leave" || dialog.kind === "reload"
+            ? "beforeunload"
+            : dialog.kind,
         url: guest.getURL(),
       });
     }

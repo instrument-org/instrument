@@ -14,8 +14,13 @@ vi.mock("@/electron-main/rpc/publisher", () => ({
   publisher: { publish: vi.fn() },
 }));
 
-const { createPageDialogs, guardPageLeaving, noteGoing, takePageDialogs } =
-  await import("./page-dialogs");
+const {
+  askBeforeClosingPage,
+  createPageDialogs,
+  guardPageLeaving,
+  noteGoing,
+  takePageDialogs,
+} = await import("./page-dialogs");
 
 const tab = "tab-1" as BrowserTargetId;
 
@@ -143,7 +148,7 @@ describe("leaving a page that holds its navigation up", () => {
       expect(held.preventDefault).not.toHaveBeenCalled();
       await vi.advanceTimersByTimeAsync(200);
       const [dialog] = dialogs.list();
-      expect(dialog?.kind).toBe("leave");
+      expect(dialog?.kind).toBe(method === "reload" ? "reload" : "leave");
       dialogs.answer(dialog!.id, { accept: true });
       await vi.advanceTimersByTimeAsync(0);
       const calls = {
@@ -243,4 +248,78 @@ describe("a page's alert and confirm", () => {
     expect(dialogs.list()).toEqual([]);
     expect(reply).not.toHaveBeenCalled();
   });
+});
+
+describe("closing a page that holds its going up", () => {
+  /** A guest whose `beforeunload` answers a close with `proceed`, the page asking first when it holds the close up. */
+  const guestAnswering = (proceed: boolean) => {
+    const guest = Object.assign(new EventEmitter(), {
+      close: vi.fn(() => {
+        if (!proceed) {
+          guest.emit("will-prevent-unload", { preventDefault: vi.fn() });
+        }
+        const fired = { preventDefault: vi.fn() };
+        guest.emit("-before-unload-fired", fired, proceed);
+        vetoes.push(fired.preventDefault);
+      }),
+      getURL: () => "https://example.com/draft",
+      id: 31,
+      isDestroyed: () => false,
+      loadURL: vi.fn(() => Promise.resolve()),
+      navigationHistory: {
+        getActiveIndex: () => 0,
+        goBack: vi.fn(),
+        goForward: vi.fn(),
+        goToIndex: vi.fn(),
+        goToOffset: vi.fn(),
+      },
+      reload: vi.fn(),
+      reloadIgnoringCache: vi.fn(),
+    });
+    const vetoes: ReturnType<typeof vi.fn>[] = [];
+    return { guest, vetoes };
+  };
+
+  it("closes at once when the page does not hold the close up, keeping the page for the caller to close", async () => {
+    const dialogs = createPageDialogs(vi.fn());
+    const { guest, vetoes } = guestAnswering(true);
+    await expect(
+      askBeforeClosingPage(
+        guest as unknown as WebContents,
+        { targetId: tab } as BrowserEntry,
+        { dialogs },
+      ),
+    ).resolves.toBe(true);
+    expect(dialogs.list()).toEqual([]);
+    expect(vetoes[0]).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    [{ accept: true }, true],
+    [{ accept: false }, false],
+  ] as const)(
+    "asks Leave site? in the tab when the page holds it up: %o closes %s",
+    async (answer, closes) => {
+      const dialogs = createPageDialogs(vi.fn());
+      const { guest } = guestAnswering(false);
+      guardPageLeaving(
+        guest as unknown as WebContents,
+        { targetId: tab } as BrowserEntry,
+        { dialogs, personUsedAt: () => undefined },
+      );
+      const asked = askBeforeClosingPage(
+        guest as unknown as WebContents,
+        { targetId: tab } as BrowserEntry,
+        { dialogs },
+      );
+      await vi.waitFor(() => {
+        expect(dialogs.list().map(({ kind }) => kind)).toEqual(["leave"]);
+      });
+      dialogs.answer(dialogs.list()[0]!.id, answer);
+      await expect(asked).resolves.toBe(closes);
+      // The close's own hold never also asks as a navigation would.
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(dialogs.list()).toEqual([]);
+    },
+  );
 });

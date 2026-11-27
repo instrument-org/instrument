@@ -32,6 +32,9 @@ interface PublisherEvents {
   "browser.certificate-exceptions-changed": null;
   // A tab's page asked for a username and password, or stopped waiting for one.
   "browser.page-dialogs-changed": null;
+  // A page that asks before it closes, brought up in its window so the
+  // person sees the question, as Chromium shows each such tab in turn.
+  "browser.show-page": { targetId: BrowserTargetId };
   "browser.sign-ins-changed": null;
   // A tab's page started or stopped using the microphone or camera, was
   // refused them, or left for another page.

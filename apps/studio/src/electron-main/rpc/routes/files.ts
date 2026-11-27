@@ -49,7 +49,8 @@ import {
   videoStoryboardDeps,
 } from "@/electron-main/lib/video-storyboard";
 import { folderItemCount, folderSize } from "@/electron-main/lib/folder-size";
-import { walkFolder } from "@/electron-main/lib/folder-walk";
+import { folderWalkSkips, walkFolder } from "@/electron-main/lib/folder-walk";
+import { spotlightMatches } from "@/electron-main/lib/spotlight-matches";
 import { probeMedia } from "@/electron-main/lib/media-probe";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
@@ -1171,23 +1172,23 @@ const folderSizeRoute = base
  * (`walkFolder`), or null where it cannot be read. The query going away
  * aborts the walk.
  */
+const WalkedEntrySchema = z.object({
+  createdAt: z.number(),
+  folder: z.string(),
+  isFolder: z.boolean(),
+  modifiedAt: z.number(),
+  name: z.string(),
+  package: z.literal(true).optional(),
+  path: z.string(),
+  size: z.number().optional(),
+});
+
 const walkFolderRoute = base
   .input(z.object({ path: HostPathSchema }))
   .output(
     z
       .object({
-        entries: z.array(
-          z.object({
-            createdAt: z.number(),
-            folder: z.string(),
-            isFolder: z.boolean(),
-            modifiedAt: z.number(),
-            name: z.string(),
-            package: z.literal(true).optional(),
-            path: z.string(),
-            size: z.number().optional(),
-          }),
-        ),
+        entries: z.array(WalkedEntrySchema),
         notSearched: z.array(z.string()),
         stalledAt: z.string().optional(),
         truncated: z.boolean(),
@@ -1200,6 +1201,29 @@ const walkFolderRoute = base
       return null;
     }
     return walkFolder(folderPath, { signal });
+  });
+
+/**
+ * What Spotlight finds by name in the folders a search of a folder stepped
+ * over, shaped as `walkFolder` lists them: on a Mac, only from the folders
+ * macOS lets this app read, and nothing anywhere else.
+ */
+const spotlightMatchesRoute = base
+  .input(z.object({ path: HostPathSchema, word: z.string().min(1) }))
+  .output(z.array(WalkedEntrySchema))
+  .handler(async ({ input }) => {
+    if (process.platform !== "darwin") {
+      return [];
+    }
+    const folderPath = await followAliases(input.path);
+    if (await isClosed(input.path, folderPath)) {
+      return [];
+    }
+    const [root, home] = await Promise.all([
+      fs.realpath(folderPath).catch(() => folderPath),
+      fs.realpath(os.homedir()).catch(() => os.homedir()),
+    ]);
+    return spotlightMatches(root, input.word, folderWalkSkips({ home }));
   });
 
 /**
@@ -1300,6 +1324,7 @@ export const files = {
   storyboard,
   trash,
   undo,
+  spotlightMatches: spotlightMatchesRoute,
   walkFolder: walkFolderRoute,
   write,
 };

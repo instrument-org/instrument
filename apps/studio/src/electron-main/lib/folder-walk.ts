@@ -10,7 +10,7 @@ import os from "node:os";
 import path from "node:path";
 
 /** One thing a walk found under the folder it started at. */
-type WalkedEntry = {
+export type WalkedEntry = {
   createdAt: number;
   /** The folder it is in, as a path from the folder walked, `/` between the names; "" for that folder itself. */
   folder: string;
@@ -72,7 +72,7 @@ export function folderWalkSkips({
  * Folders a Mac shows as one file, by extension. Each is listed as a file
  * and never entered: what is inside is the program's own.
  */
-const PACKAGE_EXTENSIONS: ReadonlySet<string> = new Set([
+export const PACKAGE_EXTENSIONS: ReadonlySet<string> = new Set([
   ".app",
   ".appex",
   ".bundle",

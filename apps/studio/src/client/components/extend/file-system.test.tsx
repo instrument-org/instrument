@@ -6,7 +6,7 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { renderWithProviders } from "@/tests/render";
 import { installWindowStubs } from "@/tests/window-stubs";
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import * as React from "react";
 import {
   afterEach,
@@ -966,9 +966,7 @@ describe("FileSystem", () => {
       expect(names()).toEqual(["plan.md", "plan.txt"]);
       expect(
         document.querySelector("[data-file-system-status]")?.textContent,
-      ).toBe(
-        "2 itemsShowing the first 2 items · Desktop, Documents, and Downloads not searched",
-      );
+      ).toMatchInlineSnapshot(`"2 found in the first 2 items under FilesDesktop, Documents, and Downloads not searched"`);
 
       fireEvent.click(screen.getByRole("button", { name: "Search: plan" }));
       fireEvent.change(screen.getByRole("searchbox"), {
@@ -976,6 +974,79 @@ describe("FileSystem", () => {
       });
       expect(screen.getByText("Nothing here matches “zebra”.")).toBeTruthy();
       expect(screen.queryByText(/Search everywhere/)).toBeNull();
+    });
+
+    it("says how many it found under the folder once it is read", () => {
+      renderWithProviders(
+        <FileSystem
+          defaultSearch="plan"
+          items={FOLDERS}
+          searchResults={{
+            items: [{ kind: "file", path: "deep/plan.txt" }],
+            notSearched: [],
+            truncated: false,
+          }}
+          searchResultsPending={false}
+        />,
+      );
+
+      expect(
+        document.querySelector("[data-file-system-status]")?.textContent,
+      ).toMatchInlineSnapshot(`"1 found in Files and its folders"`);
+    });
+
+    it("says it is searching the folders below only once that takes a moment", async () => {
+      renderWithProviders(
+        <FileSystem
+          defaultSearch="draft"
+          items={FOLDERS}
+          searchResultsPending
+        />,
+      );
+      const status = () =>
+        document.querySelector("[data-file-system-status]")?.textContent;
+
+      expect(status()).toBe("");
+      expect(
+        await screen.findByText(/^Searching .* and its folders…$/),
+      ).toBeTruthy();
+      expect(status()).toMatchInlineSnapshot(`"Searching Files and its folders…"`);
+    });
+
+    it("lists a kind picked alone from every folder the caller read", () => {
+      const onSearchKindsChange = vi.fn();
+      renderWithProviders(
+        <FileSystem
+          defaultView="columns"
+          items={FOLDERS}
+          onSearchKindsChange={onSearchKindsChange}
+          searchResults={{
+            items: [
+              { kind: "file", path: "deep/down/plan.md" },
+              { kind: "file", path: "deep/plan.txt" },
+              { kind: "file", path: "notes.txt" },
+            ],
+            notSearched: [],
+            truncated: false,
+          }}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Search" }));
+      const kinds = screen.getByRole("listbox", { name: "Kinds" });
+      expect(
+        within(kinds)
+          .getAllByRole("option")
+          .map((option) => option.textContent),
+      ).toMatchInlineSnapshot(`
+        [
+          "Folder",
+          "Plain Text",
+        ]
+      `);
+      fireEvent.click(within(kinds).getByRole("option", { name: "Plain Text" }));
+
+      expect(onSearchKindsChange).toHaveBeenLastCalledWith(["Plain Text"]);
+      expect(names()).toEqual(["notes.txt", "plan.txt"]);
     });
 
     it("says the search is emptied by walking into a folder", () => {

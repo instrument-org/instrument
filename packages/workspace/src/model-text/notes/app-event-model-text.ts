@@ -98,7 +98,7 @@ function cookieSitesLine({ signInCookieSites: sites }: AppEventLine): string {
   const listed = sites
     .map(({ cookies, site }) => `${site} (${cookies})`)
     .join(", ");
-  return `\n  While they signed in, other sites set cookies in ${APP_NAME}'s browser: ${listed}. Signing in with another account (with X, with Google) leaves that site signed in here too; ad and analytics sites set cookies on any visit.`;
+  return `\n  While they signed in, other sites set cookies in ${APP_NAME}'s browser: ${listed}. Signing in with another account (with X, with Google) leaves that site signed in here too; ad and analytics sites set cookies on any visit. Before you reply, open each one the user could use as an app and has not set up: one that loads signed in is theirs here too, so set it up (\`${APP_COMMAND.name} new <slug> --web <url>\`), record it with ${TOOL_NAMES.connectApp}'s \`signedIn\`, and name it in your reply.`;
 }
 
 /** Which browser a sign-in went through, from which the agent can tell whose sessions it left. */

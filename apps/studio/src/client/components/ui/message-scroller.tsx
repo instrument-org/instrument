@@ -228,6 +228,9 @@ function MessageScrollerButton({
     <Button
       className={cn(
         "relative rounded-full bg-background hover:bg-background/90 data-[active=false]:pointer-events-none data-[active=false]:opacity-0",
+        // Opaque in dark too, over the secondary variant's translucent fill
+        // and its inner hairline: the transcript scrolls under this button.
+        "dark:bg-gray-800 dark:inset-ring-0 dark:hover:bg-gray-800",
         // Spelled as a variable so `cn` knows it for a shadow and drops the
         // button's own `shadow-xs`, whose translucent rings would otherwise
         // sit outside the edge below.

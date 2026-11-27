@@ -1,3 +1,4 @@
+import { fileHref } from "@/shared/computer-href";
 import { hostGroupOf } from "@/shared/kept-state";
 import { TabIdSchema } from "@/shared/tabs";
 import {
@@ -178,6 +179,13 @@ vi.mock("@/client/rpc/client", () => ({
           },
         },
         tasks: { call: async () => spies.tasks },
+        // Every path is where the agent says it is.
+        files: {
+          hostPaths: {
+            call: async ({ filePaths }: { filePaths: string[] }) =>
+              Object.fromEntries(filePaths.map((path) => [path, path])),
+          },
+        },
       },
       window: {
         events: {
@@ -1688,5 +1696,141 @@ describe("an open asked beside a group's tab", () => {
           side.tabs.map((tab) => (tab.kind === "screen" ? tab.href : tab.id)),
         ),
     ).toEqual([["/apps", LEFT_PAGE], ["/settings/general"]]);
+  });
+});
+
+// A tab on an HTML file is named by one id for its whole life, whether its
+// page is drawn yet or not, and as it turns from a page into a file's tab;
+// the page's own id, which an earlier build handed out, still names it.
+describe("an agent naming a tab on an HTML file", () => {
+  const REPORT = "/Users/mac-user/site/report.html";
+
+  /** A window whose browser opens a file tab's page as the window does, and reads each page's text by its id. */
+  function windowWithPages() {
+    const opened: string[] = [];
+    const window: { current?: ReturnType<typeof windowOnTwoSides> } = {};
+    const readPageText = vi.fn(async (id: string) => `text of ${id}`);
+    const browser = {
+      openOrFocus: (url: string, options?: OpenOptions) => {
+        const id = StoreId.newTabId();
+        opened.push(id);
+        window.current?.result.current.change("openPageTab", {
+          behind: false,
+          into: options?.group,
+          newTab: false,
+          page: { id, openedAt: 7, url },
+          show: false,
+        });
+        return id;
+      },
+      readPageText,
+      restore: () => true,
+    } as Partial<BrowserTabsHandle> as BrowserTabsHandle;
+    window.current = windowOnTwoSides({ browser });
+    return { opened, readPageText, ...window.current };
+  }
+
+  const fileTabOf = (store: ReturnType<typeof windowOnTwoSides>["store"]) =>
+    store
+      .get(windowTabsAtom)
+      .tabs.find(
+        (tab) => tab.kind === "screen" && tab.href === fileHref(REPORT),
+      )?.id;
+
+  const read = async (requestId: string) =>
+    (await answerTo({ group: OTHER_GROUP, kind: "list" }, requestId)) as {
+      pages?: { id: string; targetId?: string }[];
+      read?: { layout: { sides: { tabs: { id: string }[] }[] } };
+    };
+
+  it("answers an open, a list and a read with the file tab's id, and drives its page", async () => {
+    const { opened, readPageText, store } = windowWithPages();
+    const open = await answerTo(
+      {
+        group: OTHER_GROUP,
+        kind: "open",
+        show: false,
+        target: { kind: "path", path: REPORT },
+      },
+      "o1",
+    );
+    const file = fileTabOf(store);
+    const [page] = opened;
+    expect(file).toBeDefined();
+    expect(page).toBeDefined();
+    expect(open).toMatchObject({ tabId: file });
+    const listed = await read("o2");
+    expect(listed.pages?.find((each) => each.id === file)).toMatchObject({
+      id: file,
+      targetId: page,
+    });
+    expect(
+      listed.read?.layout.sides.flatMap((side) =>
+        side.tabs.map((tab) => tab.id),
+      ),
+    ).toContain(file);
+    expect(
+      await answerTo({ kind: "read", tabId: file ?? "" }, "o3"),
+    ).toMatchObject({ tabId: file, text: `text of ${page}` });
+    expect(readPageText).toHaveBeenLastCalledWith(page);
+  });
+
+  it("takes the page's id an earlier build handed out for the file tab, and answers with the file tab's", async () => {
+    const { opened, store } = windowWithPages();
+    await answerTo(
+      {
+        group: OTHER_GROUP,
+        kind: "open",
+        show: false,
+        target: { kind: "path", path: REPORT },
+      },
+      "e1",
+    );
+    const file = fileTabOf(store);
+    const [page = ""] = opened;
+    for (const kind of ["show", "read", "restore"] as const) {
+      expect(await answerTo({ kind, tabId: page }, `e-${kind}`)).toMatchObject({
+        tabId: file,
+      });
+    }
+  });
+
+  it("keeps a page tab's id as an agent shows an HTML file in its place", async () => {
+    const { store } = windowWithPages();
+    const answer = await answerTo(
+      {
+        kind: "replace",
+        tabId: OTHER_BEHIND,
+        target: { kind: "path", path: REPORT },
+      },
+      "p1",
+    );
+    expect(answer).toMatchObject({ tabId: OTHER_BEHIND });
+    expect(fileTabOf(store)).not.toBe(OTHER_BEHIND);
+    const listed = await read("p2");
+    expect(
+      listed.read?.layout.sides.flatMap((side) =>
+        side.tabs.map((tab) => tab.id),
+      ),
+    ).toContain(OTHER_BEHIND);
+  });
+
+  // `agent-browser open ./report.html` in a page tab turns it into the
+  // file's tab, the guest going on as the page it draws.
+  it("keeps a page tab's id as its page lands on an HTML file", async () => {
+    const { result } = windowWithPages();
+    const before = await read("b1");
+    act(() => {
+      result.current.change("pageBecomesFile", {
+        file: { href: fileHref(REPORT), id: StoreId.newTabId() },
+        hostGroup: "page:made",
+        page: OTHER_BEHIND,
+      });
+    });
+    const after = await read("b2");
+    expect(after.read?.layout).toEqual(before.read?.layout);
+    expect(after.pages?.map(({ id }) => id)).toEqual(
+      before.pages?.map(({ id }) => id),
+    );
   });
 });

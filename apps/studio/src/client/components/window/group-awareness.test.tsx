@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   type GroupAwarenessWindow,
   groupLayoutFor,
+  groupReadOf,
   layoutReadOf,
 } from "./group-awareness";
 import { groupLayoutOf, type WindowTabs } from "./tab-model";
@@ -172,12 +173,12 @@ describe("groupLayoutFor", () => {
     `);
   });
 
-  // The id agent-browser drives and `window show` prints, once the tab has
-  // a page; before that, the tab's own, which every window action also takes.
+  // One id for the tab's whole life, which agent-browser, `window show`
+  // and every note name it by: its page coming and going changes nothing.
   it.each([
-    ["by its page's id once it has one", true, "tab_page"],
-    ["by its own id before it has a page", false, "tab_site"],
-  ])("names a tab on a page's file %s", (_case, hasPage, id) => {
+    ["once it has a page", true],
+    ["before it has a page", false],
+  ])("names a tab on a page's file by its own id %s", (_case, hasPage) => {
     const site: WindowTab = {
       group: GROUP,
       href: fileHref("/Users/mac-user/site/index.html"),
@@ -197,7 +198,62 @@ describe("groupLayoutFor", () => {
         GROUP,
         undefined,
       ).sides,
-    ).toMatchObject([{ tabs: [{ id, kind: "file" }] }]);
+    ).toMatchObject([{ tabs: [{ id: "tab_site", kind: "file" }] }]);
+  });
+
+  it("names a tab by the id it opened with, through the kinds it turned into", () => {
+    const fileTab: WindowTab = {
+      agentId: "tab_page",
+      group: GROUP,
+      href: fileHref("/Users/mac-user/site/report.html"),
+      id: "tab_file",
+      kind: "screen",
+    };
+    const sitePage: WindowTab = {
+      agentId: "tab_file",
+      group: GROUP,
+      id: "tab_site",
+      kind: "page",
+      openedAt: 0,
+      url: "https://example.com/",
+    };
+    expect(
+      groupLayoutFor(windowOf([fileTab, sitePage]), GROUP, undefined).sides,
+    ).toMatchObject([
+      {
+        tabs: [
+          { id: "tab_page", kind: "file" },
+          { id: "tab_file", kind: "website" },
+        ],
+      },
+    ]);
+  });
+
+  // What the chat was told before the page appeared is what it reads after,
+  // so the change note between the two says nothing.
+  it("reads a group the same before and after a file tab's page appears, and as it walks to another file and back", () => {
+    const file = (name: string): WindowTab => ({
+      group: GROUP,
+      href: fileHref(`/Users/mac-user/site/${name}`),
+      id: "tab_site",
+      kind: "screen",
+    });
+    const page = (id: string): WindowTab => ({
+      group: "page:tab_site",
+      id,
+      kind: "page",
+      openedAt: 0,
+      url: "file:///Users/mac-user/site/index.html",
+    });
+    const read = (tabs: WindowTab[]) =>
+      groupReadOf(windowOf([CHAT_TAB, ...tabs]), GROUP, CHAT_TAB.id);
+    const behind = read([file("index.html")]);
+    expect(read([file("index.html"), page("tab_page")])).toEqual(behind);
+    const readMe = read([file("README.md")]);
+    expect(readMe.layout.sides).toMatchObject([
+      { tabs: [{ id: CHAT_TAB.id }, { id: "tab_site" }] },
+    ]);
+    expect(read([file("index.html"), page("tab_again")])).toEqual(behind);
   });
 
   it("names the new chat a draft is sent from", () => {

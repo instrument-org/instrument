@@ -729,6 +729,36 @@ describe("instrument chats project", () => {
     ]);
   });
 
+  it("tells the chat filing itself where its project's folder is and how its instructions begin", async () => {
+    await createProject({
+      instructions: "Prices in euros.\nOne\nTwo\nThree\nFour\nFive",
+      name: "Travel",
+    });
+    await createProject({ name: "Work" });
+    const travel = await one("instrument chats project travel organizer");
+    expect(
+      travel.stdout?.replaceAll(getWorkspaceConfig().rootDir, "<workspace>"),
+    ).toMatchInlineSnapshot(`
+      "Filed organizer under Travel: Tidy up my chats
+      This chat's project folder is <workspace>/Projects/Travel/, $INSTRUMENT_PROJECT from your next command. Its AGENTS.md, which every chat under it follows, begins:
+      Prices in euros.
+      One
+      Two
+      Three
+      Four
+      [The rest is in <workspace>/Projects/Travel/AGENTS.md.]
+      "
+    `);
+    const work = await one("instrument chats project work organizer lisbon");
+    expect(work.stdout?.replaceAll(getWorkspaceConfig().rootDir, "<workspace>"))
+      .toMatchInlineSnapshot(`
+      "Filed organizer under Work: Tidy up my chats
+      This chat's project folder is <workspace>/Projects/Work/, $INSTRUMENT_PROJECT from your next command. It has no AGENTS.md.
+      Filed lisbon under Work: Trip to Lisbon
+      "
+    `);
+  });
+
   it("refuses a project the workspace does not have, with the list", async () => {
     await createProject({ name: "Travel" });
     const refused = await one("instrument chats project Trips lisbon");

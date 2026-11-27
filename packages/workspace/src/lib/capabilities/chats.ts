@@ -1,6 +1,8 @@
+import path from "node:path";
 import { sleep } from "radashi";
 import { z } from "zod";
 
+import { FOLDER_VARIABLES, PROJECT_FILE_NAME } from "../../constants";
 import {
   CHATS_ARE_THE_CHATS,
   CHATS_COMMAND,
@@ -23,7 +25,7 @@ import {
 } from "../chat/chats";
 import { ChatStateSchema, chatStateOf, day } from "../chat/chat-state";
 import { archiveChatAndTabs } from "../chat/organize";
-import { listProjects, type Project } from "../chat/projects";
+import { listProjects, type Project, projectsDir } from "../chat/projects";
 import {
   chatLatestWords,
   chatStandingWords,
@@ -31,6 +33,7 @@ import {
 import { PROJECTS_COMMAND } from "../../model-text/commands/projects-command";
 import { hasSomethingToStop, stopChat } from "../chat/stop-chat";
 import { resolveChat } from "../record-folders";
+import { shellPath } from "../shell-path";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { getWorkspaceConfig } from "../workspace-config";
 import { TASK_COMMAND } from "../../model-text/commands/task-command";
@@ -100,6 +103,24 @@ function projectNamed(projects: readonly Project[], word: string) {
   return projects.find(
     (project) => project.id === word || project.name.toLowerCase() === lowered,
   );
+}
+
+/** How many lines of a project's instructions the chat filing itself under it is shown. */
+const INSTRUCTIONS_LINES_SHOWN = 5;
+
+/**
+ * What the chat running the command is told when it files itself under a
+ * project, since the project's note reaches it only with the next message:
+ * the project's folder, and how its instructions begin.
+ */
+function filedHere(project: Project): string {
+  const folder = shellPath(path.join(projectsDir(), project.name));
+  const lines = project.instructions?.trim().split("\n") ?? [];
+  const instructions =
+    lines.length === 0 || lines[0] === ""
+      ? `It has no ${PROJECT_FILE_NAME}.`
+      : `Its ${PROJECT_FILE_NAME}, which every chat under it follows, begins:\n${lines.slice(0, INSTRUCTIONS_LINES_SHOWN).join("\n")}${lines.length > INSTRUCTIONS_LINES_SHOWN ? `\n[The rest is in ${folder}/${PROJECT_FILE_NAME}.]` : ""}`;
+  return `This chat's project folder is ${folder}/, $${FOLDER_VARIABLES.project} from your next command. ${instructions}`;
 }
 
 const WHICH_CHATS = `which chats? ${NAME} list names them.`;
@@ -476,7 +497,7 @@ export const chatsProject = defineCapability({
   name: "chats.project",
   output: Outcomes,
   render: renderOutcomes,
-  async run({ ids: named, project }) {
+  async run({ ids: named, project }, ctx) {
     const projects = await projectsInUse();
     const found =
       project === NO_PROJECT ? undefined : projectNamed(projects, project);
@@ -496,7 +517,10 @@ export const chatsProject = defineCapability({
         return { couldNot: `project: ${chat.id} could not be filed.` };
       }
       recordChatChange({ after, before, chat: chat.id, field: "project" });
-      return `Filed ${chat.id} ${where}: ${chat.title}`;
+      const filed = `Filed ${chat.id} ${where}: ${chat.title}`;
+      return found && chat.id === ctx.chatId
+        ? `${filed}\n${filedHere(found)}`
+        : filed;
     });
   },
   summary: `File chats under a project that exists, or under "${NO_PROJECT}".`,

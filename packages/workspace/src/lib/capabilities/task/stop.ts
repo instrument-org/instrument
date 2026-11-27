@@ -8,7 +8,11 @@ import { isWorking, leftRunning } from "../../chat/activity";
 import { type ChatTask } from "../../chat/children";
 import { describeLeftRunning } from "../../chat/left-running";
 import { cutForNote, lastAssistantText } from "../../chat/latest-session";
-import { noteTaskStoppedOnCard, openTabsOf } from "../../chat/wake";
+import {
+  noteTaskStoppedOnCard,
+  openTabsOf,
+  wakeChatOnceStopped,
+} from "../../chat/wake";
 import { closeAsksOf } from "../../chat/asks";
 import { openAsksOf } from "../../chat/open-asks";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
@@ -195,9 +199,12 @@ async function stopTurn(task: ChatTask, context: CapabilityContext) {
     Math.min(STOP_CONFIRM_MS, context.remainingYieldMs() - WAIT_MARGIN_MS),
   );
   const stopped = await waitForIdle(task, timeoutMs);
+  if (!stopped) {
+    wakeChatOnceStopped(task, getWorkspaceActorRef());
+  }
   const head = stopped
     ? `Stopped ${task.handle}. Its turn ended where it was; \`instrument task send\` gives it the next thing to do.\n`
-    : `Told ${task.handle} to stop, and it is still ending; \`instrument task list\` will say when it has.\n`;
+    : `Told ${task.handle} to stop; it is still ending, and you will be told when it has.\n`;
   return `${head}${await leftBehind(task)}`;
 }
 

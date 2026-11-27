@@ -627,6 +627,40 @@ export async function noteTaskStoppedOnCard(
   );
 }
 
+/**
+ * Wakes a chat once its task has ended, after the chat's own
+ * `instrument task stop` gave up waiting to see it go idle: that stop wakes
+ * nothing as the turn ends, and its result says the chat will be told.
+ */
+export function wakeChatOnceStopped(
+  task: ChatTask,
+  workspaceRef: WorkspaceActorRef,
+): void {
+  const tell = () =>
+    schedule(
+      task.chatId,
+      {
+        ended: "Stopped by you",
+        handle: task.handle,
+        sessionId: task.id,
+        status: "done",
+        title: task.title,
+      },
+      workspaceRef,
+    );
+  if (!isWorking(task.chatId, task.id)) {
+    tell();
+    return;
+  }
+  const stopHearing = publisher.subscribe("session.done", ({ sessionId }) => {
+    if (sessionId !== task.id) {
+      return;
+    }
+    stopHearing();
+    tell();
+  });
+}
+
 function schedule(
   chatId: ChatId,
   event: TaskEvent,

@@ -26,6 +26,9 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 import { capabilityRunner } from "../../test/helpers/run-capability";
 import { removeChatsDir } from "../../test/helpers/remove-chats-dir";
 import { writeMessage } from "../../test/helpers/told-history";
+import { publisher } from "../../rpc/publisher";
+import { taskEventModelNote } from "../../model-text/notes/task-event-model-text";
+import { type WakePart } from "../chat/wake-queue";
 
 const runSend = capabilityRunner("task", "send");
 const runStop = capabilityRunner("task", "stop");
@@ -40,6 +43,18 @@ let CHILD_ID = StoreId.newSessionId();
 // have it go idle part way through a wait.
 const working = vi.hoisted(() => ({ value: (): boolean => true }));
 const sent = vi.hoisted(() => ({ events: [] as unknown[] }));
+const wakes = vi.hoisted(() => ({ parts: [] as WakePart[] }));
+
+vi.mock(import("../chat/wake-queue"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  enqueueWake: (wake) => {
+    const part = typeof wake.part === "function" ? wake.part() : wake.part;
+    if (part) {
+      wakes.parts.push(part);
+    }
+    return Promise.resolve();
+  },
+}));
 
 vi.mock(import("../chat/activity"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -79,6 +94,7 @@ beforeEach(async () => {
   };
   working.value = () => true;
   sent.events = [];
+  wakes.parts = [];
   rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-send-stop-"));
   createMockChatConfigForDir(path.join(rootDir, "tasks", "unused"), {
     unplaced: true,
@@ -307,9 +323,38 @@ describe("task stop", () => {
       remainingYieldMs: () => 700,
     });
     expect(result.stdout.replaceAll("t1", "<id>")).toMatchInlineSnapshot(`
-      "Told <id> to stop, and it is still ending; \`instrument task list\` will say when it has.
+      "Told <id> to stop; it is still ending, and you will be told when it has.
       "
     `);
+    // The chat is told once the task's turn has ended, and not before.
+    expect(wakes.parts).toEqual([]);
+    publisher.publish("session.done", { id: CHAT_ID, sessionId: CHILD_ID });
+    publisher.publish("session.done", { id: CHAT_ID, sessionId: CHILD_ID });
+    expect(
+      wakes.parts.map((part) =>
+        part.type === "data-taskEvent" ? taskEventModelNote(part.data) : part,
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        "
+      <instrument-system-note>
+      A task you created has finished:
+      - t1 ("Write the story") was stopped by you.
+      Nobody typed anything; this note is why you are awake. What it found or made is yours to pass on, as the answer, in the conversation as it stands now: a line or two on what it means for the user, with what it made in the files fence, or nothing when they have since moved on or said they do not want it.
+      </instrument-system-note>",
+      ]
+    `);
+  });
+
+  it("wakes nothing when the stop sees the task end", async () => {
+    let checks = 0;
+    working.value = () => {
+      checks += 1;
+      return checks < 3;
+    };
+    await runStop(["t1"], context);
+    publisher.publish("session.done", { id: CHAT_ID, sessionId: CHILD_ID });
+    expect(wakes.parts).toEqual([]);
   });
 
   // "Stop everything" reads as every task at once, never as a process of the

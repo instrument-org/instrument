@@ -30,6 +30,14 @@ export function jobEventModelNote(
   `;
 }
 
+/**
+ * A line a bash call's result ends with for a process the session left
+ * running that ended on its own while its turn went on.
+ */
+export function jobEndedLine(event: JobEvent): string {
+  return `${event.id} (\`${event.command}\`), which you left running in the background, ${howItEnded(event)} Read what it wrote with \`${FG_COMMAND.name} ${event.id}\`.`;
+}
+
 function howItEnded(event: JobEvent): string {
   const after = ms(Math.max(1000, event.durationMs), { long: true });
   switch (event.status) {

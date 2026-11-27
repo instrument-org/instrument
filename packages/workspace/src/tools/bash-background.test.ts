@@ -210,6 +210,27 @@ describe("bash background processes, end to end", () => {
     expect(succeeded.stderr).toBeUndefined();
   });
 
+  it("ends the next call's result with a background process that crashed, told once", async () => {
+    await fs.writeFile(
+      path.join(chatRoot, "work", "crash.js"),
+      'setTimeout(() => { console.error("boom"); process.exit(3); }, 800);\n',
+      "utf8",
+    );
+    const started = await bash("node work/crash.js", 300);
+    const processId = started.processId ?? "";
+    expect(processId).not.toBe("");
+
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const next = await bash("echo next", 10_000);
+
+    expect(next.jobsEnded).toEqual([
+      expect.stringContaining(
+        `${processId} (\`node work/crash.js\`), which you left running in the background, finished with exit code 3`,
+      ),
+    ]);
+    expect((await bash("echo again", 10_000)).jobsEnded).toBeUndefined();
+  }, 30_000);
+
   it("returns a fast command inline without registering anything", async () => {
     const result = await bash("echo hello", 10_000);
 

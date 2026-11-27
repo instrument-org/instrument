@@ -23,10 +23,15 @@ import { ampersandUse } from "../lib/background-ampersand";
 import {
   type BackgroundProcessInfo,
   type BackgroundRunHandle,
+  markBackgroundProcessesReported,
   promoteBackgroundProcess,
   rememberForegroundPrograms,
   startBackgroundRun,
+  unreportedBackgroundProcesses,
 } from "../lib/background-processes";
+import { jobEventOf } from "../lib/chat/job-wake";
+import { jobEndedLine } from "../model-text/notes/job-event-model-text";
+import { type StoreId } from "../schemas/store-id";
 import { createBashDescription, createBashEnv } from "../lib/create-bash-env";
 import {
   BrowserSkillSchema,
@@ -262,6 +267,11 @@ const bashOutputSchema = z.object({
    * popup a page opened.
    */
   browserNews: z.array(z.string()).optional(),
+  /**
+   * The background processes the session left running that ended on their
+   * own since it was last told, one line each.
+   */
+  jobsEnded: z.array(z.string()).optional(),
   /**
    * The page after the call's agent-browser commands changed it, when
    * nothing in the call read it afterwards.
@@ -619,6 +629,7 @@ const bashCapability = defineCapability({
               })
             : undefined;
         const guidesShown = appGuidesShown(appGuides, outcome.output);
+        const jobsEnded = endedJobsOf(sessionId);
 
         return ok({
           ...(guidesShown.length > 0 ? { appGuides: guidesShown } : {}),
@@ -631,6 +642,7 @@ const bashCapability = defineCapability({
           exitCode: outcome.exitCode,
           ...(handOffs.length > 0 ? { handOffs } : {}),
           ...(asks.length > 0 ? { asks } : {}),
+          ...(jobsEnded.length > 0 ? { jobsEnded } : {}),
           omittedBytes: 0,
           output,
           ...(pageAfter ? { pageAfter } : {}),
@@ -681,6 +693,20 @@ const bashCapability = defineCapability({
 });
 
 export const BashTool = modelTool(bashCapability);
+
+/**
+ * The lines for what the session left running that ended on its own and it
+ * has not been told of, each marked told as it is read: a turn that goes on
+ * working hears of a crashed server at its next call, not as the turn ends.
+ */
+function endedJobsOf(sessionId: StoreId.Session): string[] {
+  const ended = unreportedBackgroundProcesses(sessionId);
+  markBackgroundProcessesReported(
+    sessionId,
+    ended.map((process) => process.id),
+  );
+  return ended.map((process) => jobEndedLine(jobEventOf(process)));
+}
 
 /** The call's result as text: its output, and what the browser attached. */
 function bashOutputText(output: z.output<typeof bashOutputSchema>): {
@@ -780,6 +806,7 @@ function bashOutputText(output: z.output<typeof bashOutputSchema>): {
           ]
         : []),
       ...(output.browserNews ? ["", ...output.browserNews] : []),
+      ...(output.jobsEnded ? ["", ...output.jobsEnded] : []),
     ];
     // Ahead of the page, since whether the user sees it is what a reply
     // about it turns on.

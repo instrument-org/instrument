@@ -1,7 +1,9 @@
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { publisher } from "../../rpc/publisher";
 import { type StoreId } from "../../schemas/store-id";
+import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import {
+  type BackgroundProcessInfo,
   markBackgroundProcessesReported,
   unreportedBackgroundProcesses,
 } from "../background-processes";
@@ -14,6 +16,8 @@ import { enqueueWake, type WakePart } from "./wake-queue";
  * task's finish waits out.
  */
 const JOB_WAKE_DEBOUNCE_MS = 1500;
+
+type JobEvent = SessionMessageDataPart.JobEventDataPart["events"][number];
 
 /**
  * Sessions whose last turn was stopped by the user or by the chat. What they
@@ -29,9 +33,10 @@ const stopped = new Set<StoreId.Session>();
  * done). Without this the news sits in the registry until the user writes
  * again.
  *
- * Only a session at rest is woken. One with a turn running hears of it
- * through `fg` and `jobs` as it works, and what it never read by the end of
- * that turn wakes it once the turn is over. A stop somebody asked for (the
+ * Only a session at rest is woken. One with a turn running hears of it at
+ * the end of its next bash call (`endedJobsOf` in `tools/bash.ts`), or
+ * through `fg` and `jobs`, and what it never read by the end of that turn
+ * wakes it once the turn is over. A stop somebody asked for (the
  * agent's own `kill`, the user's, the conversation's `instrument task stop`, the app's
  * quit) is never news, and each process is reported once: the wake marks it
  * told before it is sent, so the turn it starts cannot start another.
@@ -89,21 +94,20 @@ function jobsPart(
     return undefined;
   }
   return {
-    data: {
-      events: ended.map((process) => ({
-        command: process.command,
-        durationMs: process.durationMs,
-        ...(process.exitCode === undefined
-          ? {}
-          : { exitCode: process.exitCode }),
-        id: process.id,
-        logFilePath: process.logFilePath,
-        status:
-          process.status === "running"
-            ? "termination-uncertain"
-            : process.status,
-      })),
-    },
+    data: { events: ended.map((process) => jobEventOf(process)) },
     type: "data-jobEvent",
+  };
+}
+
+/** How a background process ended, as the notes that tell of it read it. */
+export function jobEventOf(process: BackgroundProcessInfo): JobEvent {
+  return {
+    command: process.command,
+    durationMs: process.durationMs,
+    ...(process.exitCode === undefined ? {} : { exitCode: process.exitCode }),
+    id: process.id,
+    logFilePath: process.logFilePath,
+    status:
+      process.status === "running" ? "termination-uncertain" : process.status,
   };
 }

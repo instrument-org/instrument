@@ -46,7 +46,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { LOADER_DELAY_MS } from "@/client/components/ui/delayed";
+import { Delayed, LOADER_DELAY_MS } from "@/client/components/ui/delayed";
 import { getFileType } from "@/client/lib/get-file-type";
 import { preloadPicture } from "@/client/lib/picture-preload";
 import {
@@ -484,8 +484,8 @@ export type FileSystemProps = {
   /** What the toolbar search says, when the caller holds it, changed through `onSearchChange`. */
   search?: string;
   /**
-   * Everything under the folder the browser lists from, which a search by
-   * name matches against, as items with paths the way `items` has them:
+   * Everything under the folder the browser lists from, which a search
+   * matches against, as items with paths the way `items` has them:
    * `truncated` when that is not all of it, and `notSearched` the names of
    * the folders left unread. Left out, a search matches what is listed.
    */
@@ -494,8 +494,14 @@ export type FileSystemProps = {
     notSearched: readonly string[];
     truncated: boolean;
   };
-  /** Whether `searchResults` is still being read, which an empty search shows as loading. */
+  /**
+   * Whether `searchResults` is still being read, which an empty search shows
+   * as loading and the status bar as searching. Left out with
+   * `searchResults`, the caller reads nothing for a search.
+   */
   searchResultsPending?: boolean;
+  /** Called with the kinds a search is narrowed to as they change, empty for every kind. */
+  onSearchKindsChange?: (kinds: readonly string[]) => void;
   /**
    * The selected item's path, when the caller holds it. Left out, the browser
    * keeps its own; given, the caller can put the selection on something it
@@ -2060,7 +2066,8 @@ export function FileSystem({
   renderUnreadable,
   search: searchProp,
   searchResults,
-  searchResultsPending = false,
+  searchResultsPending,
+  onSearchKindsChange,
   selectedPath: selectedPathProp,
   showHiddenFiles: showHiddenFilesProp,
   sort: sortProp,
@@ -2251,13 +2258,16 @@ export function FileSystem({
   }
   const searchQuery = normalizeSearchQuery(searchInput);
   const isSearching = searchQuery.length > 0 || searchKinds.length > 0;
-  // A search by name lists every match under the folder as one flat list,
-  // matched by name word by word as the command menu matches: from
-  // everything under the folder where the caller read it, otherwise from
-  // what is listed. Each name is folded once per list, not per keystroke.
-  const isNameSearch = searchQuery !== "";
+  // A search lists every match under the folder as one flat list, matched
+  // by name word by word as the command menu matches and by the kinds asked
+  // for: from everything under the folder where the caller read it,
+  // otherwise from what is listed. Each name is folded once per list, not
+  // per keystroke.
+  React.useEffect(() => {
+    onSearchKindsChange?.(searchKinds);
+  }, [onSearchKindsChange, searchKinds]);
   const searchEntries = React.useMemo(() => {
-    if (!isNameSearch) return null;
+    if (!isSearching) return null;
     const entries = searchResults
       ? searchResults.items.map(
           (item) =>
@@ -2276,12 +2286,13 @@ export function FileSystem({
       titleName:
         entry.kind === "file" && entry.title ? foldName(entry.title) : null,
     }));
-  }, [currentPath, isNameSearch, listedIndex, searchResults]);
+  }, [currentPath, isSearching, listedIndex, searchResults]);
   const searchMatches = React.useMemo(() => {
     if (!searchEntries) return null;
     const words = foldWords(searchInput);
     return searchEntries.flatMap(({ entry, name, titleName }) =>
-      (matchRank(name, words) !== NO_MATCH ||
+      (words.words.length === 0 ||
+        matchRank(name, words) !== NO_MATCH ||
         (titleName !== null && matchRank(titleName, words) !== NO_MATCH)) &&
       (searchKinds.length === 0 || searchKinds.includes(kindOf(entry)))
         ? [entry]
@@ -2349,31 +2360,11 @@ export function FileSystem({
   // Paths that stay visible while searching: the matches of a search by
   // name, or else every entry of the kinds asked for, plus the ancestor
   // folders leading to it.
-  const visiblePaths = React.useMemo(() => {
-    if (searchMatches) {
-      return new Set(searchMatches.map((entry) => entry.path));
-    }
-    if (!isSearching) return null;
-    const visible = new Set<string>();
-    const markVisible = (path: string) => {
-      while (path && path !== currentPath && !visible.has(path)) {
-        visible.add(path);
-        path = pathParent(path);
-      }
-    };
-    const matchesKind = (path: string) => {
-      const entry = index.files.get(path) ?? index.folders.get(path);
-      return entry !== undefined && searchKinds.includes(kindOf(entry));
-    };
-    const matchesQuery = (path: string) =>
-      searchKinds.length === 0 || matchesKind(path);
-    for (const path of [...index.files.keys(), ...index.folders.keys()]) {
-      if (path === currentPath) continue;
-      if (currentPath && !path.startsWith(currentPath)) continue;
-      if (matchesQuery(path)) markVisible(path);
-    }
-    return visible;
-  }, [currentPath, index, isSearching, searchKinds, searchMatches]);
+  const visiblePaths = React.useMemo(
+    () =>
+      searchMatches ? new Set(searchMatches.map((entry) => entry.path)) : null,
+    [searchMatches],
+  );
   // The kinds search offers: those the folder on screen has, folders first,
   // then the most common.
   const offeredKinds = (() => {
@@ -3505,11 +3496,11 @@ export function FileSystem({
   // under it with nothing to show yet.
   const isLoadingCurrentFolder =
     (loadingFolders.has(currentPath) ||
-      (isNameSearch && searchResultsPending)) &&
+      (isSearching && searchResultsPending === true)) &&
     currentEntries.length === 0;
   // A search's matches come from all over, which the columns cannot lay out:
   // they are listed in the table meanwhile, as the Finder lists them.
-  const shownView = isNameSearch && view === "columns" ? "table" : view;
+  const shownView = isSearching && view === "columns" ? "table" : view;
   const currentUnreadable = renderUnreadable?.(currentPath, "pane") ?? null;
   // The table keeps its open folders here, per folder on screen, so
   // returning to the table — or to a previously visited folder — finds
@@ -3991,11 +3982,16 @@ export function FileSystem({
                 ).length
           }
           partialFolder={partialFolder}
-          searchNote={
-            isNameSearch && searchResults
-              ? searchResultsNote(searchResults)
-              : undefined
-          }
+          {...(isSearching &&
+          (searchResults !== undefined || searchResultsPending !== undefined)
+            ? {
+                search: {
+                  folderName: currentFolderName,
+                  pending: searchResultsPending === true,
+                  ...(searchResults ? { results: searchResults } : {}),
+                },
+              }
+            : {})}
           selected={selectedPaths.length}
         />
       ) : null}
@@ -4721,29 +4717,70 @@ function useSlowLoads(loading: ReadonlySet<string>, ms = LOADER_DELAY_MS) {
 function FileSystemStatusBar({
   count,
   partialFolder,
-  searchNote,
+  search,
   selected,
 }: {
   count: number;
   partialFolder: FileSystemProps["partialFolder"];
-  /** What a search did not cover, said after the count. */
-  searchNote?: string;
+  /**
+   * A search of everything under the folder: `pending` while that is read,
+   * then `results` for what the read covered.
+   */
+  search?: {
+    folderName: string;
+    pending: boolean;
+    results?: NonNullable<FileSystemProps["searchResults"]>;
+  };
   selected: number;
 }) {
   const counted = count.toLocaleString();
+  if (search?.pending) {
+    return (
+      <div
+        className="flex h-6 shrink-0 items-center justify-center gap-2 border-t px-3 text-xs text-muted-foreground tabular-nums"
+        data-file-system-status=""
+      >
+        <Delayed>
+          <span className="flex min-w-0 items-center gap-1.5">
+            <Spinner className="size-3 shrink-0" delay={0} />
+            <span className="truncate">
+              Searching {search.folderName} and its folders…
+            </span>
+          </span>
+        </Delayed>
+      </div>
+    );
+  }
+  const found = search
+    ? search.results?.truncated
+      ? `${counted} found in the first ${search.results.items.length.toLocaleString()} items under ${search.folderName}`
+      : `${counted} found in ${search.folderName} and its folders`
+    : null;
+  const notSearched = search?.results?.notSearched ?? [];
   return (
     <div
       className="flex h-6 shrink-0 items-center justify-center gap-2 border-t px-3 text-xs text-muted-foreground tabular-nums"
       data-file-system-status=""
     >
       <span className="truncate">
-        {selected > 0
-          ? `${selected.toLocaleString()} of ${counted} selected`
-          : partialFolder
+        {found !== null
+          ? selected > 0
+            ? `${selected.toLocaleString()} of ${counted} selected · ${found}`
+            : found
+          : selected > 0
+            ? `${selected.toLocaleString()} of ${counted} selected`
+            : partialFolder
             ? `${counted} most recent of ${partialFolder.total.toLocaleString()} items`
             : `${counted} ${count === 1 ? "item" : "items"}`}
       </span>
-      {searchNote ? <span className="truncate">{searchNote}</span> : null}
+      {notSearched.length > 0 ? (
+        <span className="truncate">
+          {new Intl.ListFormat(displayLocale, { type: "conjunction" }).format(
+            notSearched,
+          )}{" "}
+          not searched
+        </span>
+      ) : null}
       {partialFolder ? (
         <button
           className="shrink-0 text-foreground hover:underline"
@@ -4773,24 +4810,6 @@ function FileSystemEmptyState({
       ) : null}
     </div>
   );
-}
-/**
- * What a search's walk left out, for the status bar: that it stopped at the
- * cap, and the folders it did not go into.
- */
-function searchResultsNote({
-  items,
-  notSearched,
-  truncated,
-}: NonNullable<FileSystemProps["searchResults"]>) {
-  return [
-    truncated ? `Showing the first ${items.length.toLocaleString()} items` : "",
-    notSearched.length > 0
-      ? `${new Intl.ListFormat(displayLocale, { type: "conjunction" }).format(notSearched)} not searched`
-      : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
 }
 // Returns `value` once it has stopped changing for `delay` ms. Gallery
 // navigation scrubs past files quickly; heavy previews (document viewers,

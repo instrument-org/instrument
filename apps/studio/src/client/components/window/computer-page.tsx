@@ -609,15 +609,16 @@ export function ComputerPage({
     showHiddenFiles,
     workspaceFolder,
   });
-  // A search by name reads everything under the folder the browser lists
-  // from, once as the search starts and again each time one starts: what
-  // it lists is that moment's, while the folders on screen stay current.
-  // Nothing is read for search opened with nothing typed in it.
-  const isNameSearch = (query ?? "").trim() !== "";
+  // A search reads everything under the folder the browser lists from, once
+  // as the search starts and again each time one starts: what it lists is
+  // that moment's, while the folders on screen stay current. Nothing is
+  // read for search opened with nothing typed or picked in it.
+  const [searchKinds, setSearchKinds] = useState<readonly string[]>([]);
+  const isSearching = (query ?? "").trim() !== "" || searchKinds.length > 0;
   const folderWalk = useQuery(
     rpcClient.files.walkFolder.queryOptions({
       input:
-        isNameSearch && !isFolderless
+        isSearching && !isFolderless
           ? { path: expandHomePath(hostPathOf(current), homePath) }
           : skipToken,
       refetchOnWindowFocus: false,
@@ -2918,8 +2919,9 @@ export function ComputerPage({
                       }
                     : {})}
                   searchResultsPending={
-                    isNameSearch && !isFolderless && folderWalk.isPending
+                    isSearching && !isFolderless && folderWalk.isPending
                   }
+                  onSearchKindsChange={setSearchKinds}
                   onSearchChange={(next) => {
                     go({ query: next, type: "search" });
                   }}

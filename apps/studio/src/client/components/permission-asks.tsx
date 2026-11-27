@@ -3,6 +3,7 @@ import { PageFavicon } from "@/client/components/favicon";
 import { rpcClient } from "@/client/rpc/client";
 import { FolderRow } from "@/client/components/folder-row";
 import { isInside, segmentsOf } from "@/client/components/window/host-path";
+import { agentNamedTab } from "@/client/components/window/hosted-page";
 import { toast } from "@/client/lib/toast";
 import {
   askTargetName,
@@ -367,7 +368,10 @@ function PageWaitCard({
         className="grid w-full grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-0.5 text-left outline-none"
         data-page-wait={ask.target}
         onClick={() => {
-          windowTabs.select(ask.target);
+          // The ask names the tab by the id agents name it by.
+          windowTabs.select(
+            agentNamedTab(windowTabs.allTabs, ask.target)?.id ?? ask.target,
+          );
         }}
         type="button"
       >

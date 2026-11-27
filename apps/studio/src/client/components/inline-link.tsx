@@ -48,6 +48,7 @@ import { AppIcon } from "./window/app-icon";
 import { appTabsAtom } from "./window/app-tabs";
 import { useAppsBySlug } from "./window/apps-by-slug";
 import { contentOfAddress, useContentDrag } from "./window/drag/content-drag";
+import { agentNamedTab } from "./window/hosted-page";
 import { closedTabsOf, isTabNamed } from "./window/tab-model";
 import { windowTabsAtom } from "./window/window-tabs";
 import { InstrumentGlyph } from "./wordmark";
@@ -530,7 +531,7 @@ function tabHereAtom(id: string) {
   return atom((get) => {
     const open = get(windowTabsAtom).tabs;
     return (
-      open.find((tab) => tab.id === id) ??
+      agentNamedTab(open, id) ??
       open.find((tab) => isTabNamed(tab, id)) ??
       get(appTabsAtom)
         .recentlyClosed.flatMap(closedTabsOf)

@@ -1441,10 +1441,20 @@ describe("a tab's agent id", () => {
 
 describe("isTabNamed", () => {
   it.each([
-    ["its own id", { group: "g", id: "tab_file", kind: "page" }, "tab_file"],
+    [
+      "its own id",
+      { group: "g", id: "tab_file", kind: "page", openedAt: 1 },
+      "tab_file",
+    ],
     [
       "an id it had before it was reopened",
-      { group: "g", id: "tab_new", kind: "page", reopenedFrom: ["tab_old"] },
+      {
+        group: "g",
+        id: "tab_new",
+        kind: "page",
+        openedAt: 1,
+        reopenedFrom: ["tab_old"],
+      },
       "tab_old",
     ],
     [
@@ -1458,7 +1468,10 @@ describe("isTabNamed", () => {
       },
       "tab_page",
     ],
-  ] satisfies [string, WindowTab, string][])("names a tab by %s", (_case, tab, id) => {
-    expect(isTabNamed(tab, id)).toBe(true);
-  });
+  ] satisfies [string, WindowTab, string][])(
+    "names a tab by %s",
+    (_case, tab, id) => {
+      expect(isTabNamed(tab, id)).toBe(true);
+    },
+  );
 });

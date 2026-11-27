@@ -894,9 +894,13 @@ export function closedTabGroupOf({
     : undefined;
 }
 
-/** Whether a tab is the one an id names: its own, or one it had before it was reopened. */
+/** Whether a tab is the one an id names: its own, the one agents name it by, or one it had before it was reopened. */
 export function isTabNamed(tab: WindowTab, id: string): boolean {
-  return tab.id === id || tab.reopenedFrom?.includes(id) === true;
+  return (
+    tab.id === id ||
+    agentIdOf(tab) === id ||
+    tab.reopenedFrom?.includes(id) === true
+  );
 }
 
 /**
@@ -1506,7 +1510,7 @@ export function markOpenedBy(
   id: string,
   chat: ChatId,
 ): WindowTabs {
-  // A file tab's page, the id agents name the file tab by, marks the file tab.
+  // A file tab's page marks the file tab it is drawn in.
   const group = state.tabs.find((tab) => tab.id === id)?.group;
   const target = ownerOfHostGroup(group) ?? id;
   return state.tabs.some(

@@ -1184,9 +1184,9 @@ export function useOpeners({
     });
   };
   /**
-   * The page an agent drives in a tab, by the id it names the tab by: a page
-   * tab's own, or, for a tab standing on a page's file, the page its viewer
-   * draws, opened now when the tab has none yet (one opened behind and never
+   * The page an agent drives in a tab, by the page's id: a page tab's own,
+   * or, for a tab standing on a page's file, the page its viewer draws,
+   * opened now when the tab has none yet (one opened behind and never
    * drawn). Nothing for any other screen.
    */
   const agentPageOf = (tab: WindowTab): string | undefined => {

@@ -414,12 +414,24 @@ describe("the page wait card, clicked", () => {
   it.each([
     [
       "a page tab reopened under a new id",
-      { agentId: "tab_agent", group: "g", id: "tab_reopened", kind: "page" },
+      {
+        agentId: "tab_agent",
+        group: "g",
+        id: "tab_reopened",
+        kind: "page",
+        openedAt: 1,
+      },
       [],
     ],
     [
       "a page that took over from a file's tab",
-      { agentId: "tab_agent", group: "g", id: "tab_page", kind: "page" },
+      {
+        agentId: "tab_agent",
+        group: "g",
+        id: "tab_page",
+        kind: "page",
+        openedAt: 1,
+      },
       [],
     ],
     [
@@ -431,7 +443,7 @@ describe("the page wait card, clicked", () => {
         id: "tab_file",
         kind: "screen",
       },
-      [{ group: "page:tab_file", id: "tab_agent", kind: "page" }],
+      [{ group: "page:tab_file", id: "tab_agent", kind: "page", openedAt: 1 }],
     ],
   ] satisfies [string, WindowTab, WindowTab[]][])(
     "brings up %s, by the id the agent names it by",

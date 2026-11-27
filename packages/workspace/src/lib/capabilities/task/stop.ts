@@ -7,7 +7,8 @@ import {
 import { isWorking, leftRunning } from "../../chat/activity";
 import { type ChatTask } from "../../chat/children";
 import { describeLeftRunning } from "../../chat/left-running";
-import { noteTaskStoppedOnCard } from "../../chat/wake";
+import { cutForNote, lastAssistantText } from "../../chat/latest-session";
+import { noteTaskStoppedOnCard, openTabsOf } from "../../chat/wake";
 import { closeAsksOf } from "../../chat/asks";
 import { openAsksOf } from "../../chat/open-asks";
 import { getWorkspaceActorRef } from "../../workspace-actor-ref";
@@ -194,9 +195,37 @@ async function stopTurn(task: ChatTask, context: CapabilityContext) {
     Math.min(STOP_CONFIRM_MS, context.remainingYieldMs() - WAIT_MARGIN_MS),
   );
   const stopped = await waitForIdle(task, timeoutMs);
-  return stopped
+  const head = stopped
     ? `Stopped ${task.handle}. Its turn ended where it was; \`instrument task send\` gives it the next thing to do.\n`
     : `Told ${task.handle} to stop, and it is still ending; \`instrument task list\` will say when it has.\n`;
+  return `${head}${await leftBehind(task)}`;
+}
+
+/** The most a stopped task's last words take in the result. */
+const LAST_WORDS_MAX_LENGTH = 1500;
+
+/**
+ * What a task stopped by the chat leaves for it, since no note of its
+ * finish follows: what it last said, which may already hold what it found,
+ * and the pages it left open, which a result or a sign-in may be on.
+ */
+async function leftBehind(task: ChatTask): Promise<string> {
+  const ref = { chatId: task.chatId, sessionId: task.id };
+  const [said, tabs] = await Promise.all([
+    lastAssistantText(ref),
+    openTabsOf(ref),
+  ]);
+  const words = said?.trim()
+    ? `It last said:\n${cutForNote(said.trim(), LAST_WORDS_MAX_LENGTH)
+        .split("\n")
+        .map((line) => (line === "" ? line : `    ${line}`))
+        .join("\n")}\n`
+    : "";
+  const pages =
+    tabs.length > 0
+      ? `Its pages still open in the window: ${tabs.map((tab) => `${tab.url ?? "a blank page"} (tab ${tab.id})`).join(", ")}.\n`
+      : "";
+  return `${words}${pages}`;
 }
 
 /**

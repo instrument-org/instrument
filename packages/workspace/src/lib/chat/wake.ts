@@ -682,7 +682,7 @@ function mergeTaskEvents(
  * the latest first: a result the task left on a page is in one of these,
  * and nowhere in the task's own transcript.
  */
-async function openTabsOf({
+export async function openTabsOf({
   sessionId,
   chatId,
 }: {

@@ -13,6 +13,8 @@ import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockAIGatewayModel } from "../../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { ChatReads } from "../chat-reads";
+import { noteTabCommand } from "../tab-activity";
+import { browserTargetOf } from "../../types";
 import { setChatModel } from "../chat-settings";
 import { listChildTasks } from "../chat/children";
 import { recordAsk } from "../chat/asks";
@@ -23,6 +25,7 @@ import { type HandOff, withHandOffs } from "./task-hand-off";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { capabilityRunner } from "../../test/helpers/run-capability";
 import { removeChatsDir } from "../../test/helpers/remove-chats-dir";
+import { writeMessage } from "../../test/helpers/told-history";
 
 const runSend = capabilityRunner("task", "send");
 const runStop = capabilityRunner("task", "stop");
@@ -262,6 +265,40 @@ describe("task stop", () => {
         },
       },
     ]);
+  });
+
+  it("passes on what the stopped task last said and the pages it left open", async () => {
+    await writeMessage(CHAT_ID, CHILD_ID, "assistant", [
+      { text: "Amazon asks for a captcha on the cart page.", type: "text" },
+    ]);
+    const cart = browserTargetOf(StoreId.newTabId());
+    noteTabCommand(cart, { chatId: CHAT_ID, sessionId: CHILD_ID });
+    const config = getWorkspaceConfig();
+    setWorkspaceConfig({
+      ...config,
+      browser: {
+        ...config.browser,
+        getTargetAddress: (id) =>
+          id === cart ? "https://www.amazon.com/cart" : undefined,
+        getTargetMeta: (id) =>
+          id === cart ? { partitionDir: AbsolutePathSchema.parse(rootDir) } : null,
+      },
+    });
+    let checks = 0;
+    working.value = () => {
+      checks += 1;
+      return checks < 3;
+    };
+
+    const result = await runStop(["t1"], context);
+
+    expect(result.stdout.replaceAll(cart, "<tab>")).toMatchInlineSnapshot(`
+      "Stopped t1. Its turn ended where it was; \`instrument task send\` gives it the next thing to do.
+      It last said:
+          Amazon asks for a captcha on the cart page.
+      Its pages still open in the window: https://www.amazon.com/cart (tab <tab>).
+      "
+    `);
   });
 
   it("says it is still ending when it does not go idle in time", async () => {

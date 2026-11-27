@@ -336,6 +336,7 @@ describe("placesTab", () => {
     { args: ["tab", "close", "tab_01ABC"], places: true },
     { args: ["tab", "close"], places: true },
     { args: ["click", "@e1"], places: false },
+    { args: ["click", "@e1", "--new-tab"], places: true },
     { args: ["snapshot", "-i"], places: false },
   ])("$args -> $places", ({ args, places }) => {
     expect(placesTab(args)).toBe(places);

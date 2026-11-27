@@ -38,6 +38,9 @@ describe("agent-browser's tab list", () => {
     [["tab", "tab_01M5Q2CY3JB5G7KJVE1QA1HK0B"], undefined],
     [["tab", "close", "t2"], undefined],
     [["open", "https://example.com/"], undefined],
+    [["click", "@e1", "--new-tab"], "new"],
+    [["--json", "click", "@e1", "--new-tab"], undefined],
+    [["click", "@e1"], undefined],
   ])("%j prints %s", (args, output) => {
     expect(tabOutputOf(args)).toBe(output);
   });
@@ -86,6 +89,15 @@ describe("agent-browser's tab list", () => {
       "Opened as tab tab_01M5Q2CY3JB5G7KJVE1QA1HK0B, one of 2 tabs open.\n",
     );
     expect(newTabLine("not json")).toBe("");
+  });
+
+  it("names the tab a command left behind when it opened one", () => {
+    expect(
+      newTabLine(JSON_LIST, "tab_01M5Q29YA0CTZ3NQY76Z3JQWBF"),
+    ).toMatchInlineSnapshot(`
+      "Opened as tab tab_01M5Q2CY3JB5G7KJVE1QA1HK0B, one of 2 tabs open. Commands now act in it; tab tab_01M5Q29YA0CTZ3NQY76Z3JQWBF is still open behind it.
+      "
+    `);
   });
 });
 

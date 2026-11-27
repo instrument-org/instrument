@@ -101,6 +101,7 @@ import {
   jsonWithTabIds,
   newTabLine,
   onlyTabToClose,
+  opensNewTab,
   tabClosedOutput,
   tabOutputOf,
   windowTabIdArgIndex,
@@ -1344,6 +1345,19 @@ export function createAgentBrowserCommand({
       }
     }
     const drivesPage = !isInfoOnly && !browserFreeRead;
+    // The tab `click --new-tab` moves commands away from, for its result to
+    // name: agent-browser makes the tab it opens the active one.
+    const earlierTab =
+      drivesPage && opensNewTab(resolvedArgs)
+        ? await runAgentBrowser({
+            ...spawnOptions,
+            args: [...connectionArgs, "tab", "list", "--json"],
+            cancelSignal: ctx.signal,
+            input: undefined,
+          }).then((listed) =>
+            listed.exitCode === 0 ? activeTabId(listed.stdout) : undefined,
+          )
+        : undefined;
     // A run of the CLI the command adds around the agent's own, bounded, and
     // whose outcome the agent's command does not depend on.
     const runAside = (asideArgs: string[], timeoutMs: number) =>
@@ -1598,7 +1612,7 @@ export function createAgentBrowserCommand({
         stdout =
           tabOutput === "list"
             ? withTabIds(stdout, listed.stdout)
-            : `${stdout}${stdout === "" || stdout.endsWith("\n") ? "" : "\n"}${newTabLine(listed.stdout)}`;
+            : `${stdout}${stdout === "" || stdout.endsWith("\n") ? "" : "\n"}${newTabLine(listed.stdout, earlierTab)}`;
       }
     }
 

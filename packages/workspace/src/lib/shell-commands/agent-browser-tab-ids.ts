@@ -20,7 +20,8 @@ type TabList = z.output<typeof TabListSchema>;
 /**
  * What a `tab` invocation prints that names a tab, which the wrapper makes
  * name it by the window's id: the list as text (`tab` alone or `tab list`)
- * or as JSON, and the tab `tab new` opened. Nothing for any other command.
+ * or as JSON, and the tab `tab new` or `click --new-tab` opened. Nothing for
+ * any other command.
  *
  * agent-browser labels tabs `t1`, `t2`; the window names each by its tab_ id,
  * which `instrument window` and the note on the user's message use,
@@ -32,17 +33,31 @@ export function tabOutputOf(
 ): "list" | "list-json" | "new" | undefined {
   // Global flags such as `--json` may come before the command or after it.
   const { globalFlags, subArgs, subcommand } = parseAgentBrowserArgs([...args]);
-  if (subcommand !== "tab") {
-    return undefined;
-  }
   const json = globalFlags.some(
     (flag) => flag.name === "--json" && flag.value !== "false",
   );
+  if (opensNewTab(args)) {
+    return json ? undefined : "new";
+  }
+  if (subcommand !== "tab") {
+    return undefined;
+  }
   const words = subArgs.slice(1).map((arg) => arg.value);
   if (words.length === 0 || (words.length === 1 && words[0] === "list")) {
     return json ? "list-json" : "list";
   }
   return words[0] === "new" && !json ? "new" : undefined;
+}
+
+/** Whether the invocation is `click --new-tab`, which opens the link in a tab of its own and makes it the active one. */
+export function opensNewTab(args: readonly string[]): boolean {
+  const { endOfOptions, subArgs, subcommand } = parseAgentBrowserArgs([
+    ...args,
+  ]);
+  return (
+    subcommand === "click" &&
+    subArgs.some((arg) => arg.index < endOfOptions && arg.value === "--new-tab")
+  );
 }
 
 function parseTabList(json: string): TabList | undefined {
@@ -116,14 +131,21 @@ export function withTabLabel(
 /**
  * The line `tab new` ends with: the id of the tab it opened, which is the
  * active one, and how many tabs are open now, since each one an agent opens
- * stays in the user's tab group until someone closes it.
+ * stays in the user's tab group until someone closes it. `earlier` is the
+ * tab that was active before, for a command that opens one as a side effect
+ * (`click --new-tab`), whose agent expects to stay where it was.
  */
-export function newTabLine(json: string): string {
+export function newTabLine(json: string, earlier?: string): string {
   const tabs = parseTabList(json)?.data.tabs ?? [];
   const id = tabs.find((tab) => tab.active)?.targetId;
-  return id === undefined
-    ? ""
-    : `Opened as tab ${id}, one of ${tabs.length} tabs open.\n`;
+  if (id === undefined) {
+    return "";
+  }
+  const behind =
+    earlier === undefined || earlier === id
+      ? ""
+      : ` Commands now act in it; tab ${earlier} is still open behind it.`;
+  return `Opened as tab ${id}, one of ${tabs.length} tabs open.${behind}\n`;
 }
 
 /** The window's id for the tab `tab list --json` marks active, the one commands act on. */

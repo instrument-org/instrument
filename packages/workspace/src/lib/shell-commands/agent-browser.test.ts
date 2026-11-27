@@ -1076,6 +1076,46 @@ describe("agent-browser routing", () => {
     expect(result.stdout).toBe(shown);
   });
 
+  it("names the tab `click --new-tab` opened and the one it left behind", async () => {
+    const list = (active: string) =>
+      JSON.stringify({
+        data: {
+          tabs: [
+            {
+              active: active === "t1",
+              tabId: "t1",
+              targetId: "tab_01M5Q29YA0CTZ3NQY76Z3JQWBF",
+            },
+            {
+              active: active === "t2",
+              tabId: "t2",
+              targetId: "tab_01M5Q2CY3JB5G7KJVE1QA1HK0B",
+            },
+          ],
+        },
+        success: true,
+      });
+    let clicked = false;
+    await answerAgentBrowser((given) => {
+      if (given.includes("--json")) {
+        return { exitCode: 0, stderr: "", stdout: list(clicked ? "t2" : "t1") };
+      }
+      clicked = true;
+      return { exitCode: 0, stderr: "", stdout: "✓ Done\n" };
+    });
+
+    const result = await command.execute(
+      ["click", "@e1", "--new-tab"],
+      commandCtx,
+    );
+
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "✓ Done
+      Opened as tab tab_01M5Q2CY3JB5G7KJVE1QA1HK0B, one of 2 tabs open. Commands now act in it; tab tab_01M5Q29YA0CTZ3NQY76Z3JQWBF is still open behind it.
+      "
+    `);
+  });
+
   it.each([
     [
       ["tab", "tab_01M5Q2CY3JB5G7KJVE1QA1HK0B"],

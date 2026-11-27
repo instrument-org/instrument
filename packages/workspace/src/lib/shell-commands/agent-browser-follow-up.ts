@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { parseAgentBrowserArgs } from "./agent-browser-args";
 import { foldSnapshotText } from "./agent-browser-snapshot-fold";
+import { opensNewTab } from "./agent-browser-tab-ids";
 
 /**
  * The page snapshot a bash call ends with when its agent-browser commands left
@@ -78,7 +79,8 @@ type ReadPlace = (
 
 /**
  * Whether a command changes which tab the next commands act in, or what it
- * shows: a navigation to another page, a new tab, switching to one, or
+ * shows: a navigation to another page, a new tab (`tab new` or
+ * `click --new-tab`), switching to one, or
  * closing one, after which another tab is the one acted in. A reload leaves
  * the tab as it was.
  */
@@ -87,6 +89,9 @@ export function placesTab(args: string[]): boolean {
   if (subcommand === "tab") {
     const first = subArgs[1]?.value;
     return first !== undefined && first !== "list";
+  }
+  if (opensNewTab(args)) {
+    return true;
   }
   return (
     subcommand !== undefined &&
@@ -645,7 +650,9 @@ export class BrowserFollowUp {
           subcommand === "tab" &&
           (subArgs[1]?.value === "new" || subArgs[1]?.value === "close")
             ? `tab ${subArgs[1].value}`
-            : subcommand,
+            : opensNewTab(args)
+              ? "click --new-tab"
+              : subcommand,
         read: place,
       };
     }

@@ -32,6 +32,7 @@ import {
 import { useFindTarget } from "@/client/hooks/use-find-target";
 import { PAGE_FOLD_PX, useIsNarrower } from "@/client/hooks/use-is-narrower";
 import { flashJumpTarget } from "@/client/lib/flash-jump-target";
+import { SIDE_MOTION } from "@/client/lib/motion";
 import { cn } from "@/client/lib/utils";
 import { CpuIcon } from "@phosphor-icons/react/Cpu";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
@@ -48,6 +49,7 @@ import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClo
 import { UserCircleIcon } from "@phosphor-icons/react/UserCircle";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { XIcon } from "@phosphor-icons/react/X";
+import { motion, useReducedMotion } from "motion/react";
 import {
   type ElementType,
   Fragment,
@@ -62,6 +64,10 @@ const MATCH_CLASS = "rounded-xs bg-brand-500/35 font-semibold text-foreground";
 
 /** How long a jump waits for its row to be drawn before giving up on it. */
 const FLASH_WAIT_MS = 2000;
+
+/** The sidebar's width and its rail's, in layout px: `w-44` and `w-12`. */
+const NAV_LIST_PX = 176;
+const NAV_RAIL_PX = 48;
 
 interface NavItem {
   icon: ElementType;
@@ -100,6 +106,7 @@ export function SettingsPage({
   const navItems = navGroups.flat();
   const [frame, setFrame] = useState<HTMLElement | null>(null);
   const isNarrow = useIsNarrower(frame, PAGE_FOLD_PX);
+  const isReduced = useReducedMotion() === true;
   const isSearching = q.trim().length > 0;
   const search = useSettingsSearch({
     query: q,
@@ -249,10 +256,20 @@ export function SettingsPage({
         setFrame(element);
       }}
     >
+      {/* The sidebar and its rail are different things, so the box around
+          them carries the change: its width moves from one to the other, the
+          way a side opening beside Settings moves, and what is in it changes
+          at once under its edge. */}
+      <motion.div
+        animate={{ width: isNarrow ? NAV_RAIL_PX : NAV_LIST_PX }}
+        className="flex shrink-0 overflow-hidden border-r border-border/60"
+        initial={false}
+        transition={isReduced ? { duration: 0 } : SIDE_MOTION}
+      >
       {isNarrow ? (
         <nav
           aria-label="Settings"
-          className="flex w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-border/60 py-3"
+          className="flex w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto py-3"
         >
           <RailButton
             icon={MagnifyingGlassIcon}
@@ -284,7 +301,7 @@ export function SettingsPage({
       ) : (
         <nav
           aria-label="Settings"
-          className="flex w-44 shrink-0 flex-col gap-2 overflow-y-auto border-r border-border/60 px-3 py-3"
+          className="flex w-44 shrink-0 flex-col gap-2 overflow-y-auto px-3 py-3"
         >
           {searchField}
           {isSearching ? (
@@ -316,6 +333,7 @@ export function SettingsPage({
           )}
         </nav>
       )}
+      </motion.div>
       {isNarrow && isSearchOpen && (
         <>
           {/* Everything beside the panel, so none of it lies under the panel. */}

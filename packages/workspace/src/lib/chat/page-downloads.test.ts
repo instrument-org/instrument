@@ -9,7 +9,7 @@ import {
 } from "../../test/helpers/mock-chat-config";
 import { browserTargetOf } from "../../types";
 import { shellPath } from "../shell-path";
-import { noteTabCommand } from "../tab-activity";
+import { noteTabCommand, noteTabPages } from "../tab-activity";
 import {
   agentDownloadsFolder,
   notePageDownload,
@@ -38,6 +38,30 @@ describe("a download a page an agent drives starts", () => {
 
     expect(agentDownloadsFolder(tab)).toBe(
       path.join(MOCK_WORKSPACE_DIRS.work, CHAT, "downloads"),
+    );
+  });
+
+  it("is told to the session that drove the tab, from the page that draws it now", async () => {
+    // A tab on an HTML file, walked to another file and back since the
+    // session drove it, drawn by a new page.
+    const tabId = StoreId.newTabId();
+    const first = newTab();
+    const next = newTab();
+    const session = StoreId.newSessionId();
+    noteTabCommand(
+      { tabId, targetId: first },
+      { chatId: CHAT, sessionId: session },
+    );
+    noteTabPages([{ id: tabId, targetId: next }]);
+    const saved = path.join("/work", "downloads", "report.csv");
+
+    expect(agentDownloadsFolder(next)).toBe(
+      path.join(MOCK_WORKSPACE_DIRS.work, CHAT, "downloads"),
+    );
+    notePageDownload(next, "d2", { path: saved, state: "completed" });
+
+    expect(await told(session)).toBe(
+      `The page in tab ${tabId} downloaded report.csv to ${shellPath(saved)}.\n`,
     );
   });
 

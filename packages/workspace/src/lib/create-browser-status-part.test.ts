@@ -108,6 +108,31 @@ describe("the tabs a session is told its chat has", () => {
     ]);
   });
 
+  it.each([
+    ["the tab's id", "tab_file"],
+    ["its page's id, as an earlier build kept it", "tab_page"],
+  ])(
+    "marks a tab on an HTML file an agent opened, kept by %s",
+    async (_kept, id) => {
+      windowList = [
+        {
+          id: "tab_file",
+          kind: "page",
+          targetId: "tab_page",
+          title: "",
+          url: "file:///work/report.html",
+        },
+      ];
+      loaded.set("tab_page", {
+        title: "Report",
+        url: "file:///work/report.html",
+      });
+      openedTabs = [{ id }];
+
+      expect((await tabsTold())?.[0]?.openedBy).toBe("task");
+    },
+  );
+
   it("names a tab on an HTML file by the tab's id, from the page that draws it", async () => {
     windowList = [
       {

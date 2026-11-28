@@ -10,6 +10,7 @@ import { browserTargetOf } from "../../types";
 import { getChatState, setChatState } from "../chat-record";
 import { chatStatePath } from "../chat-dir-utils";
 import { chatDir } from "../record-folders";
+import { noteTabCommand, noteTabPages } from "../tab-activity";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { noteOpenedTab } from "./chat-tabs";
 import { notePersonUsedTab, USE_MARK_RETRY_MS } from "./person-used-tabs";
@@ -83,6 +84,42 @@ describe("notePersonUsedTab", () => {
       ]);
     },
   );
+
+  it("marks a tab on an HTML file by the tab's id, used in the page that draws it now", async () => {
+    const tabId = newTab();
+    const first = newTab();
+    const next = newTab();
+    await setChatState(chatDir(chatId), { openedTabs: [{ id: tabId }] });
+    noteTabCommand(
+      { tabId, targetId: first },
+      { chatId, sessionId: StoreId.newSessionId() },
+    );
+    // The window lists the tab drawn by a new page once it walked to another file and back.
+    noteTabPages([{ id: tabId, targetId: next }]);
+
+    notePersonUsedTab(next, () => chatId);
+
+    await vi.waitFor(async () => {
+      expect((await getChatState(chatDir(chatId))).openedTabs).toEqual([
+        { id: tabId, usedByPerson: true },
+      ]);
+    });
+  });
+
+  it("marks an earlier build's entry, kept by the page's id", async () => {
+    const tabId = newTab();
+    const page = newTab();
+    await setChatState(chatDir(chatId), { openedTabs: [{ id: page }] });
+    noteTabPages([{ id: tabId, targetId: page }]);
+
+    notePersonUsedTab(page, () => chatId);
+
+    await vi.waitFor(async () => {
+      expect((await getChatState(chatDir(chatId))).openedTabs).toEqual([
+        { id: page, usedByPerson: true },
+      ]);
+    });
+  });
 
   it("leaves a tab whose opener is no chat alone", async () => {
     const id = newTab();

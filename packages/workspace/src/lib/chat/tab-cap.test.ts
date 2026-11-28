@@ -21,6 +21,8 @@ const listed = vi.hoisted(() => ({
   /** The tab each page draws, by the page's id, where the tab's own id is another: a tab on an HTML file. */
   drawnFor: new Map<string, string>(),
   ids: undefined as string[] | undefined,
+  /** Tabs of the chat's group with no page: a file tab on a file of another kind than HTML. */
+  pageless: [] as string[],
 }));
 
 vi.mock(import("../../machines/window-browser"), async (importOriginal) => ({
@@ -42,6 +44,30 @@ vi.mock(import("./window-tab"), async (importOriginal) => ({
           title: "",
           url: "https://example.com/",
         })),
+        windows: [
+          {
+            groups: [
+              {
+                focused: 0,
+                group: { id: "group" },
+                sides: [
+                  {
+                    tabs: [
+                      ...listed.ids.map((id) => listed.drawnFor.get(id) ?? id),
+                      ...listed.pageless,
+                    ].map((id) => ({
+                      address: "",
+                      id,
+                      kind: "file" as const,
+                      title: "",
+                    })),
+                  },
+                ],
+                title: "",
+              },
+            ],
+          },
+        ],
       });
     }
     return Promise.resolve(undefined);
@@ -56,6 +82,7 @@ beforeEach(async () => {
   closes.length = 0;
   listed.ids = undefined;
   listed.drawnFor.clear();
+  listed.pageless = [];
   root = await fs.mkdtemp(path.join(os.tmpdir(), "tab-cap-"));
   chatId = createMockChatConfigForDir(
     path.join(root, "chats", ChatIdSchema.parse("tab-cap-test")),
@@ -316,5 +343,91 @@ describe("closing a chat's tabs", () => {
 
     const { closedTabs } = await getChatState(chatDir(chatId));
     expect(closedTabs.filter((closed) => closed.id === tab.id)).toHaveLength(1);
+  });
+});
+
+describe("a tab on an HTML file whose page changed", () => {
+  // An agent's tab, kept by the id agents name it by, which is the id of the
+  // page it opened on; the tab walked to another file and back since, and a
+  // new page draws it.
+  function walked(minutes: number) {
+    const tab = openedTab(minutes);
+    const next = browserTargetOf(StoreId.newTabId());
+    lifetimes.set(next, lifetimes.get(tab.id)!);
+    lifetimes.delete(tab.id);
+    listed.drawnFor.set(next, tab.id);
+    return { next, tab };
+  }
+
+  it("is closed past the cap by the tab's id, by how long its new page was out of sight", async () => {
+    const { next, tab } = walked(500);
+    const others = Array.from({ length: CHAT_HIDDEN_TAB_CAP }, (_, i) =>
+      openedTab(i),
+    );
+    listed.ids = [...others.map((each) => each.id), next];
+    await setChatState(chatDir(chatId), { openedTabs: [...others, tab] });
+
+    await closeTabsOverCap(chatId);
+
+    expect(closes).toEqual([tab.id]);
+    expect((await getChatState(chatDir(chatId))).closedTabs).toEqual([
+      { id: tab.id, reason: "tabCap", url: "https://example.com/" },
+    ]);
+  });
+
+  it("is kept while it shows a file no page draws", async () => {
+    const tab = openedTab(500);
+    lifetimes.delete(tab.id);
+    const others = Array.from({ length: CHAT_HIDDEN_TAB_CAP }, (_, i) =>
+      openedTab(i + 1000),
+    );
+    listed.ids = others.map((each) => each.id);
+    listed.pageless = [tab.id];
+    await setChatState(chatDir(chatId), { openedTabs: [...others, tab] });
+
+    await closeTabsOverCap(chatId);
+
+    expect(closes).not.toContain(tab.id);
+    expect(
+      (await getChatState(chatDir(chatId))).openedTabs.map((each) => each.id),
+    ).toContain(tab.id);
+  });
+
+  it.each([false, true])(
+    "is closed as the chat is archived or trashed (trashed: %s)",
+    async (trashed) => {
+      const { next, tab } = walked(5);
+      listed.ids = [next];
+      await setChatState(chatDir(chatId), { openedTabs: [tab] });
+
+      await closeChatTabs(chatId, { trashed }).done;
+
+      expect(closes).toEqual([tab.id]);
+    },
+  );
+});
+
+describe("a chat state an earlier build wrote", () => {
+  it("names a tab on an HTML file by its page's id, which reads as the tab and is written as the tab's id", async () => {
+    const page = openedTab(5);
+    const fileTab = StoreId.newTabId();
+    const oldest = openedTab(500);
+    const others = Array.from({ length: CHAT_HIDDEN_TAB_CAP - 1 }, (_, i) =>
+      openedTab(i),
+    );
+    listed.ids = [...others, page, oldest].map((each) => each.id);
+    listed.drawnFor.set(page.id, fileTab);
+    await setChatState(chatDir(chatId), {
+      openedTabs: [...others, page, oldest],
+    });
+
+    await closeTabsOverCap(chatId);
+
+    expect(closes).toEqual([oldest.id]);
+    const ids = (await getChatState(chatDir(chatId))).openedTabs.map(
+      (each) => each.id,
+    );
+    expect(ids).toContain(fileTab);
+    expect(ids).not.toContain(page.id);
   });
 });

@@ -1010,14 +1010,22 @@ describe("a session's browser", () => {
     );
 
     expect(takeTabNews(SESSION_ID)).toMatchObject([
-      { agents: [{ sessionId: OTHER_SESSION }], targetId: shared.targetId },
+      { agents: [{ sessionId: OTHER_SESSION }], tabId: shared.tabId },
     ]);
   });
 });
 
 describe("a tab on an HTML file", () => {
-  /** A tab on a file, by its own id, drawn by a page under another id, which the session worked in. */
-  function fileTab() {
+  /**
+   * A tab on a file, by its own id, drawn by a page under another id, which
+   * the session worked in unless `worked` is false. `opened` keeps it as one
+   * an agent opened: by the tab's id, or by its page's, as an earlier build
+   * kept it.
+   */
+  function fileTab({
+    opened,
+    worked = true,
+  }: { opened?: "page" | "tab"; worked?: boolean } = {}) {
     const tabId = StoreId.newTabId();
     const targetId = browserTargetOf(StoreId.newTabId());
     windowList = [
@@ -1030,8 +1038,31 @@ describe("a tab on an HTML file", () => {
         url: "file:///tmp/tasks/read-the-pages/report.html",
       },
     ];
-    noteTabCommand(targetId, { chatId: TASK_ID, sessionId: SESSION_ID });
+    if (opened !== undefined) {
+      record.openedTabs = [
+        ...record.openedTabs,
+        { id: opened === "tab" ? browserTargetOf(tabId) : targetId },
+      ];
+    }
+    if (worked) {
+      noteTabCommand(
+        { tabId, targetId },
+        { chatId: TASK_ID, sessionId: SESSION_ID },
+      );
+    }
     return { tabId, targetId };
+  }
+  /** The tab walks to a Markdown file, which no page draws, and its page closes; then back to an HTML one, drawn by a page of its own. */
+  function walks(
+    file: { tabId: string; targetId: BrowserTargetId },
+    closeByUser: (targetId: BrowserTargetId) => void,
+  ) {
+    const next = browserTargetOf(StoreId.newTabId());
+    closeByUser(file.targetId);
+    windowList = windowList.map((entry) =>
+      entry.id === file.tabId ? { ...entry, targetId: next } : entry,
+    );
+    return next;
   }
   const ids = (infos: unknown) =>
     (infos as { targetId: string }[]).map((info) => info.targetId);
@@ -1092,6 +1123,72 @@ describe("a tab on an HTML file", () => {
     });
     // The agent hears its page went and came back, under the one id.
     expect(created(events)).toEqual([file.tabId, file.tabId]);
+  });
+
+  it("is listed again once it walks to another file and back, as a tab the session worked in", async () => {
+    const file = fileTab();
+    const { closeByUser, command } = connect();
+    await command("Target.getTargets");
+    await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: file.tabId,
+    });
+
+    walks(file, closeByUser);
+    const targets = await command("Target.getTargets");
+
+    expect(ids(targets.result?.targetInfos)).toContain(file.tabId);
+  });
+
+  it("is closed in the window as a tab an agent opened once it walks to another file and back", async () => {
+    const file = fileTab({ opened: "tab", worked: false });
+    const { closeByUser, command } = connect();
+    await command("Target.getTargets");
+
+    walks(file, closeByUser);
+    const targets = await command("Target.getTargets");
+    await command("Target.closeTarget", { targetId: file.tabId });
+
+    expect(ids(targets.result?.targetInfos)).toContain(file.tabId);
+    expect(asked).toContainEqual({ kind: "close", tabId: file.tabId });
+  });
+
+  it("is an agent's when an earlier build kept it by its page's id", async () => {
+    const file = fileTab({ opened: "page", worked: false });
+    const { command } = connect();
+
+    const targets = await command("Target.getTargets");
+    await command("Target.closeTarget", { targetId: file.tabId });
+
+    expect(ids(targets.result?.targetInfos)).toContain(file.tabId);
+    expect(asked).toContainEqual({ kind: "close", tabId: file.tabId });
+  });
+
+  it("drives the page that draws it now when its page changed before the first command reached it", async () => {
+    const file = fileTab();
+    const { closeByUser, command, discards, sendCommand } = connect();
+    discards(file.targetId);
+    await command("Target.getTargets");
+    const attached = await command("Target.attachToTarget", {
+      flatten: true,
+      targetId: file.tabId,
+    });
+
+    const next = walks(file, closeByUser);
+    await command(
+      "Runtime.evaluate",
+      { expression: "document.title" },
+      attached.result?.sessionId as string,
+    );
+
+    expect(sendCommand).toHaveBeenCalledWith(next, "Runtime.evaluate", {
+      expression: "document.title",
+    });
+    expect(sendCommand).not.toHaveBeenCalledWith(
+      file.targetId,
+      "Runtime.evaluate",
+      expect.anything(),
+    );
   });
 });
 

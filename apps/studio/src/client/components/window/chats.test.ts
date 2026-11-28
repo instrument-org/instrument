@@ -41,7 +41,7 @@ function chat({
     archived: false,
     holds: { apps: [], files: [], sites: [], ...holds },
     firstAsk: "",
-    starred: false,
+    bookmarked: false,
     status: "idle",
     title: "",
     unread: false,
@@ -118,10 +118,10 @@ describe("matchesFilters", () => {
       chat({ unread: true }),
     ],
     [
-      "a star",
-      { tags: ["starred"] },
-      chat({ starred: true }),
-      chat({ archived: true, starred: true }),
+      "a bookmark",
+      { tags: ["bookmarked"] },
+      chat({ bookmarked: true }),
+      chat({ archived: true, bookmarked: true }),
     ],
     [
       "a project",
@@ -285,13 +285,19 @@ describe("matchesFilters", () => {
     const filters: ChatFilters = {
       ...NO_FILTERS,
       search: "protein",
-      tags: ["starred"],
+      tags: ["bookmarked"],
     };
     expect(
-      matchesFilters(chat({ starred: true, title: "Protein drink" }), filters),
+      matchesFilters(
+        chat({ bookmarked: true, title: "Protein drink" }),
+        filters,
+      ),
     ).toBe(true);
     expect(
-      matchesFilters(chat({ starred: true, title: "MLS standings" }), filters),
+      matchesFilters(
+        chat({ bookmarked: true, title: "MLS standings" }),
+        filters,
+      ),
     ).toBe(false);
     expect(matchesFilters(chat({ title: "Protein drink" }), filters)).toBe(
       false,
@@ -300,26 +306,29 @@ describe("matchesFilters", () => {
 });
 
 describe("the marks the search narrows by", () => {
-  it("narrows the place the column stands in, so a starred chat put away is only in Archived", () => {
-    const starred = chat({ archived: true, starred: true });
-    expect(matchesFilters(starred, { ...NO_FILTERS, tags: ["starred"] })).toBe(
-      false,
-    );
+  it("narrows the place the column stands in, so a bookmarked chat put away is only in Archived", () => {
+    const bookmarked = chat({ archived: true, bookmarked: true });
     expect(
-      matchesFilters(starred, {
+      matchesFilters(bookmarked, { ...NO_FILTERS, tags: ["bookmarked"] }),
+    ).toBe(false);
+    expect(
+      matchesFilters(bookmarked, {
         ...NO_FILTERS,
         place: "archived",
-        tags: ["starred"],
+        tags: ["bookmarked"],
       }),
     ).toBe(true);
   });
 
   it("wants every mark that is on", () => {
-    const filters: ChatFilters = { ...NO_FILTERS, tags: ["starred", "unread"] };
-    expect(matchesFilters(chat({ starred: true, unread: true }), filters)).toBe(
-      true,
-    );
-    expect(matchesFilters(chat({ starred: true }), filters)).toBe(false);
+    const filters: ChatFilters = {
+      ...NO_FILTERS,
+      tags: ["bookmarked", "unread"],
+    };
+    expect(
+      matchesFilters(chat({ bookmarked: true, unread: true }), filters),
+    ).toBe(true);
+    expect(matchesFilters(chat({ bookmarked: true }), filters)).toBe(false);
   });
 
   it("narrows a project too", () => {
@@ -339,7 +348,7 @@ describe("moving the column", () => {
   const searched = {
     ...NO_FILTERS,
     search: "fence",
-    tags: ["starred" as const],
+    tags: ["bookmarked" as const],
   };
 
   it("leaves a project or an app for a place, keeping the search and its marks", () => {

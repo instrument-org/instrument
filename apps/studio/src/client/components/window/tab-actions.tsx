@@ -252,8 +252,8 @@ export function useFrontTabActions({
  */
 const CHAT_ORDER = [
   "rename",
-  "star",
-  "unstar",
+  "bookmark",
+  "remove-bookmark",
   "project",
   "archive",
   "unarchive",

@@ -134,6 +134,7 @@ import {
   useAppTabs,
 } from "./app-tabs";
 import { addressOfTab } from "@/client/bookmarks/address";
+import { useMoveChatStarsToBookmarks } from "@/client/bookmarks/chat-stars";
 import { BookmarkAllTabs } from "./bookmark-all-tabs";
 import { tabTitle, useTabNames } from "./tab-title";
 import { editField } from "./omnibar-field";
@@ -562,6 +563,7 @@ function WindowShell({
   const groupTabMoves = useGroupTabMoves();
   const groupList = useOpenGroups();
   useHeldChordHints();
+  useMoveChatStarsToBookmarks();
   const [isSidebarOpen, setSidebarOpen] = useAtom(sidebarOpenAtom);
   const sidebarWidth = useAtomValue(sidebarWidthAtom);
   const sidePanelWidth = useAtomValue(sidePanelWidthAtom);

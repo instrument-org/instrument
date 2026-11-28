@@ -19,6 +19,18 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { toast } from "@/client/lib/toast";
+import {
+  newBookmarkPlace,
+  removeChatBookmarkOps,
+} from "@/client/bookmarks/edit";
+import {
+  applyBookmarkOpsAtom,
+  bookmarkedChatsAtom,
+  bookmarksStateAtom,
+  lastBookmarkFolderAtom,
+} from "@/client/bookmarks/store";
+import { chatAddressOf } from "@instrument-org/shared";
+import { useAtomValue, useStore } from "jotai";
 
 import { type ChatRowPainting, paintChatRow } from "./chat-list-query";
 import { type Chat } from "./chats";
@@ -41,7 +53,7 @@ export function chatMenuGroups(actions: RowAction[]) {
   return {
     feedback: of(["feedback"]),
     files: of(["export"]),
-    marks: of(["read", "unread", "star", "unstar"]),
+    marks: of(["read", "unread", "bookmark", "remove-bookmark"]),
     put: of(["archive", "unarchive"]),
   };
 }
@@ -101,8 +113,8 @@ export function useChatActions(chat: Chat): RowAction[] {
  * edge and its menu list them: putting it away, or back in the inbox, with
  * an undo in the toast either way; marking it read while it carries the
  * unread mark, or unread while it does not, whatever it holds, with no
- * toast at all, since the row itself says which it is; starring it or
- * taking the star back, last, where a starred row wears its star; and, in
+ * toast at all, since the row itself says which it is; bookmarking it or
+ * removing its bookmark, last, where a bookmarked row wears its star; and, in
  * the menu alone, exporting it as Markdown and sending feedback about it.
  *
  * Answered for any chat by one set of mutations, so a list asks once and
@@ -146,18 +158,8 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
       },
     }),
   );
-  const { mutate: star } = useMutation(
-    rpcClient.workspace.chats.star.mutationOptions<ChatRowPainting>({
-      onError: (_error, _input, painting) => {
-        painting?.failed();
-      },
-      onMutate: (input) =>
-        paintChatRow(queryClient, input.id, { starred: input.starred }),
-      onSuccess: (at, _input, painting) => {
-        painting.landed(at);
-      },
-    }),
-  );
+  const store = useStore();
+  const bookmarked = useAtomValue(bookmarkedChatsAtom);
   return (chat) => {
     const input = { id: chat.id };
     const put: RowAction = chat.archived
@@ -196,24 +198,39 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
             unread(input);
           },
         };
-    const starred: RowAction = chat.starred
+    const bookmark: RowAction = bookmarked.has(chat.id)
       ? {
-          // In the star's amber, as the starred row's own star is.
+          // In the star's amber, as the bookmarked row's own star is.
           icon: (
             <StarIcon className="size-3.5 text-warning-500" weight="fill" />
           ),
-          id: "unstar",
-          label: "Unstar",
+          id: "remove-bookmark",
+          label: "Remove Bookmark",
           run: () => {
-            star({ ...input, starred: false });
+            void store.set(
+              applyBookmarkOpsAtom,
+              removeChatBookmarkOps(store.get(bookmarksStateAtom), chat.id),
+            );
           },
         }
       : {
           icon: <StarIcon className="size-3.5" />,
-          id: "star",
-          label: "Star",
+          id: "bookmark",
+          label: "Bookmark",
+          // Kept where the address bar's star keeps a bookmark made now.
           run: () => {
-            star({ ...input, starred: true });
+            const state = store.get(bookmarksStateAtom);
+            void store.set(applyBookmarkOpsAtom, [
+              {
+                bookmark: {
+                  id: crypto.randomUUID(),
+                  ...newBookmarkPlace(state, store.get(lastBookmarkFolderAtom)),
+                  title: chat.title,
+                  url: chatAddressOf(chat.id),
+                },
+                type: "add",
+              },
+            ]);
           },
         };
     const exported: RowAction = {
@@ -236,7 +253,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
         );
       },
     };
-    return [put, mark, starred, exported, feedback];
+    return [put, mark, bookmark, exported, feedback];
   };
 }
 

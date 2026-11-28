@@ -25,6 +25,7 @@ import { StarIcon } from "@phosphor-icons/react/Star";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
+import { bookmarkedChatsAtom } from "@/client/bookmarks/store";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 
@@ -84,8 +85,8 @@ const PICKER_LEAVE_MS = 250;
  * first line with the project at its end, the latest line gets one, and what it holds sits on a
  * third line that never wraps: the files it made as chips with their names,
  * the apps and sites as marks beside them, fading out at the row's edge,
- * with the time in the row's bottom corner. A starred chat wears a filled
- * star past its project. Where the chat
+ * with the time in the row's bottom corner. A chat kept as a bookmark wears
+ * a filled star past its project. Where the chat
  * stands is said by the latest line alone: shimmering while it works, behind
  * the asking bubble while it waits on the user. No avatar,
  * no name: every row here is the user's. The marks, the tag
@@ -207,6 +208,7 @@ export function ChatRow({
   const isStartingRename = useRef(false);
   // What the chat's composer holds, whether or not it is on screen.
   const hasDraft = useAtomValue(hasReplyWaitingAtom(chat.id));
+  const isBookmarked = useAtomValue(bookmarkedChatsAtom).has(chat.id);
   const hasHolds =
     chat.holds.apps.length > 0 ||
     chat.holds.files.length > 0 ||
@@ -295,14 +297,14 @@ export function ChatRow({
       )}
     </span>
   );
-  // A starred chat's star, past its time in the row's corner and a mark
-  // rather than a control: starring and unstarring end the corner's bar,
+  // A bookmarked chat's star, past its time in the row's corner and a mark
+  // rather than a control: bookmarking and removing the bookmark end the corner's bar,
   // which takes the same spot, in a box of a control's size so the star
   // stays put as the bar comes and goes.
-  const starMark = chat.starred && (
+  const starMark = isBookmarked && (
     <span className="-my-0.5 grid size-6 shrink-0 place-items-center">
       <StarIcon
-        aria-label="Starred"
+        aria-label="Bookmarked"
         className="size-4 text-warning-500"
         role="img"
         weight="fill"

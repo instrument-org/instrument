@@ -8,6 +8,7 @@ import {
   type BookmarksSnapshot,
   OTHER_ROOT,
 } from "@/shared/bookmarks";
+import { instrumentLinkOf } from "@instrument-org/shared";
 import { atom, type useStore } from "jotai";
 
 import { keptPaths } from "./address";
@@ -40,6 +41,18 @@ export const bookmarksAtom = atom((get) => get(bookmarksStateAtom).bookmarks);
 
 /** The paths of the files and folders kept as bookmarks (`keptPaths`), for Files to star them. */
 export const keptPathsAtom = atom((get) => keptPaths(get(bookmarksAtom)));
+
+/** The ids of the chats kept as bookmarks, by a bookmark of the chat's address (`chatAddressOf`). */
+export const bookmarkedChatsAtom = atom((get) => {
+  const ids = new Set<string>();
+  for (const bookmark of get(bookmarksAtom)) {
+    const link = instrumentLinkOf(bookmark.url);
+    if (link?.kind === "chat") {
+      ids.add(link.name);
+    }
+  }
+  return ids;
+});
 
 /**
  * Whether main has read the bookmarks, so `bookmarksStateAtom` says what is
@@ -74,7 +87,6 @@ export const applyBookmarkOpsAtom = atom(
     return set(mirror.applyOpsAtom, ops);
   },
 );
-
 
 /**
  * Answers once main has read the bookmarks (`bookmarksLoadedAtom`), true, or

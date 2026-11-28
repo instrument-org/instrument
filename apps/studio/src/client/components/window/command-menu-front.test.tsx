@@ -229,7 +229,7 @@ describe("the command menu's actions for the tab in front", () => {
         "All chats",
         "# This chat",
         "Rename",
-        "Star",
+        "Bookmark",
         "Move to Project…",
         "Archive",
         "Delete Chat…",

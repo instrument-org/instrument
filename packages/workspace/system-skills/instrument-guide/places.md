@@ -38,7 +38,7 @@ Read one section, `sed -n '/^## Tabs/,/^## /p'` on this file; the sections are S
 ## A chat
 
 - Its top: Show chats in <project>, Change project, <chat>, Chat menu
-- Its menu, on the caret after the title or a right-click on its tab: Stop; Mark as Unread, Star; Rename, Project › [No project, <project>, New project…]; Export as Markdown…, Copy › [Work Folder Path; For an Agent]; Send Feedback…; Archive; Delete Chat…
+- Its menu, on the caret after the title or a right-click on its tab: Stop; Mark as Unread, Bookmark; Rename, Project › [No project, <project>, New project…]; Export as Markdown…, Copy › [Work Folder Path; For an Agent]; Send Feedback…; Archive; Delete Chat…
 - On a message of yours, pointing at it: Edit message, Copy message
 - Under a reply: Branch from here
 - Reply box: Add to this prompt, Model, Dictate, Send; Stop while it works
@@ -48,8 +48,8 @@ Read one section, `sed -n '/^## Tabs/,/^## /p'` on this file; the sections are S
 
 - Top of the page: Search, View options, Inbox, Drafts, Archived
 - View options, at the search's right: Three lines (Title, preview, project and files), Two lines (Title, then project or last reply), One line (Just the titles), Group by day
-- On a chat, pointing at it: Project, Archive, Mark as Unread, Star
-- Right-click a chat: Open, Open in New Tab, Open in New Window; Mark as Unread, Star; Rename, Project › [No project, <project>, New project…]; Export as Markdown…, Copy › [Work Folder Path; For an Agent]; Send Feedback…; Archive; Delete Chat…
+- On a chat, pointing at it: Project, Archive, Mark as Unread, Bookmark
+- Right-click a chat: Open, Open in New Tab, Open in New Window; Mark as Unread, Bookmark; Rename, Project › [No project, <project>, New project…]; Export as Markdown…, Copy › [Work Folder Path; For an Agent]; Send Feedback…; Archive; Delete Chat…
 
 ## Files
 

@@ -37,10 +37,8 @@ import {
   chatsMarkUnread,
   chatsProject,
   chatsRename,
-  chatsStar,
   chatsStop,
   chatsUnarchive,
-  chatsUnstar,
 } from "./chats";
 import { type Capability } from "./define";
 import { memoryForget, memoryList, memorySave, memoryShow } from "./memory";
@@ -117,8 +115,6 @@ export const CAPABILITIES: readonly Capability[] = [
   chatsArchive,
   chatsUnarchive,
   chatsProject,
-  chatsStar,
-  chatsUnstar,
   chatsMarkRead,
   chatsMarkUnread,
   chatsStop,

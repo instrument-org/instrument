@@ -30,8 +30,8 @@ export interface ChatFilters {
 /** The places of the column apart from the inbox: drafts not yet sent, and chats put away. */
 export type ChatPlace = "archived" | "drafts";
 
-/** The marks the search narrows by: chats holding replies not yet seen, and chats the user starred. */
-export type ChatTag = "starred" | "unread";
+/** The marks the search narrows by: chats holding replies not yet seen, and chats kept as bookmarks. */
+export type ChatTag = "bookmarked" | "unread";
 
 /** A project as the workspace keeps it: a tag with a name, a mark, and a tint. */
 export type Project = RPCOutput["workspace"]["projects"]["list"][number];
@@ -57,8 +57,8 @@ export interface Filterable {
   /** The words of the chat's first message. */
   firstAsk: string;
   latest?: { text: string };
-  /** Whether the user starred it: a mark of the user's own, kept wherever the chat is. */
-  starred: boolean;
+  /** Whether the chat is kept as a bookmark (`withBookmarks`). */
+  bookmarked: boolean;
   status: ChatStatus;
   title: string;
   /** The id of the project it is filed under, when it is filed under one. */
@@ -162,6 +162,17 @@ export function projectSearch(words: string): {
     isAsked: at !== -1,
     name: terms.filter((_, index) => index !== at).join(" "),
   };
+}
+
+/** Chats as a list filters them: each with whether it is kept as a bookmark, by the ids of the chats that are (`bookmarkedChatsAtom`). */
+export function withBookmarks<T extends { id: string }>(
+  chats: readonly T[],
+  bookmarked: ReadonlySet<string>,
+): (T & { bookmarked: boolean })[] {
+  return chats.map((chat) => ({
+    ...chat,
+    bookmarked: bookmarked.has(chat.id),
+  }));
 }
 
 /** Whether a chat passes every filter that is set. */
@@ -498,8 +509,8 @@ export function emptyLineFor(
   if (filters.tags.includes("unread")) {
     return "You're all caught up";
   }
-  if (filters.tags.includes("starred")) {
-    return "Chats you star will show up here";
+  if (filters.tags.includes("bookmarked")) {
+    return "Chats you bookmark will show up here";
   }
   if (filters.place === "archived") {
     return "Chats you archive will show up here";

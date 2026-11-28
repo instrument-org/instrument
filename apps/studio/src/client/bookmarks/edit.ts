@@ -13,6 +13,7 @@ import {
   placeOfKey,
   siblingsIn,
 } from "@/shared/bookmarks";
+import { instrumentLinkOf } from "@instrument-org/shared";
 
 /**
  * The address typed into a bookmark's editor as the bookmark keeps it: one
@@ -135,4 +136,17 @@ export function newBookmarkPlace(
     order: orderAfter(siblingsIn(state, place.folder, place.root)),
     ...place,
   };
+}
+
+/** The ops that take every bookmark of a chat away, however its address is spelled. */
+export function removeChatBookmarkOps(
+  state: Bookmarks,
+  chat: string,
+): BookmarkOp[] {
+  return state.bookmarks
+    .filter((bookmark) => {
+      const link = instrumentLinkOf(bookmark.url);
+      return link?.kind === "chat" && link.name === chat;
+    })
+    .map((bookmark) => ({ id: bookmark.id, type: "remove" }));
 }

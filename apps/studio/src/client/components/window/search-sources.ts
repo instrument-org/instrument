@@ -1,10 +1,10 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { targetOfAddress } from "@/client/bookmarks/address";
-import { keptPathsAtom } from "@/client/bookmarks/store";
+import { bookmarkedChatsAtom, keptPathsAtom } from "@/client/bookmarks/store";
 import { useRecentFiles } from "@/client/hooks/use-recent-files";
 import { rpcClient } from "@/client/rpc/client";
 import { NO_FAVORITE_CHANGES, favoritePlaces } from "@/shared/favorite-places";
-import { folderNameFromPath } from "@instrument-org/shared";
+import { folderNameFromPath, instrumentLinkOf } from "@instrument-org/shared";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
@@ -55,7 +55,7 @@ type NamedOf<Kind extends SearchThing["kind"]> = Named<
  * in, the one its group goes by, and a chat's, which the chat's own row goes
  * to, the chats but the ones a group goes by, the projects, the
  * Files sidebar's folders, the files opened lately, and the bookmarks and
- * pages visited, but the ones an open tab is on. Pinned is what the person marked: a starred chat, a pinned group
+ * pages visited, but the ones an open tab is on. Pinned is what the person marked: a bookmarked chat, a pinned group
  * and its tabs, a folder in the sidebar's Favorites, a bookmark. Use is how
  * lately and how often each was opened (`usageOf`). Read off the disk and
  * history only while `enabled`.
@@ -89,6 +89,7 @@ export function useSearchSources({ enabled }: { enabled: boolean }) {
   const visitsByUrl = new Map(visited.map((page) => [page.url, page]));
   const filesByPath = new Map(recentFiles.map((file) => [file.path, file]));
   const bookmarkedUrls = new Set(bookmarkPages.map((page) => page.url));
+  const bookmarkedChats = useAtomValue(bookmarkedChatsAtom);
   // A tab showing a page or a file is as pinned and as used as what it
   // shows, and stands for it: the page or file has no row of its own while
   // a tab listed here shows it.
@@ -165,7 +166,9 @@ export function useSearchSources({ enabled }: { enabled: boolean }) {
       {
         id: chat ? `chat:${chat.id}` : `group:${row.entry.group}`,
         name: row.name,
-        pinned: row.entry.pinned || (chat ? chat.starred : standing.pinned),
+        pinned:
+          row.entry.pinned ||
+          (chat ? bookmarkedChats.has(chat.id) : standing.pinned),
         use: chat ? usageOf({ at: chat.lastUserMessageAt }, now) : standing.use,
         value: { kind: "group", row, where: undefined },
       },
@@ -177,7 +180,7 @@ export function useSearchSources({ enabled }: { enabled: boolean }) {
     .map((chat) => ({
       id: `chat:${chat.id}`,
       name: chat.title,
-      pinned: chat.starred,
+      pinned: bookmarkedChats.has(chat.id),
       use: usageOf({ at: chat.lastUserMessageAt }, now),
       value: {
         chat,
@@ -246,14 +249,19 @@ export function useSearchSources({ enabled }: { enabled: boolean }) {
       value: { file, kind: "file", where: folderNameOf(file.path) },
     }));
 
-  // Bookmarks, then the pages visited. A file kept as a bookmark that the
-  // files already list is left to that row.
+  // Bookmarks, then the pages visited. A file or a chat kept as a bookmark
+  // that the files or the chats already list is left to that row.
   const listedFiles = new Set(recentFiles.map((file) => file.path));
+  const listedChats = new Set<string>(chats.map((chat) => chat.id));
   const pages: NamedOf<"page">[] = [
     ...bookmarkPages
       .filter((page) => {
         const target = targetOfAddress(page.url);
-        return !(target?.kind === "path" && listedFiles.has(target.path));
+        const link = instrumentLinkOf(page.url);
+        return !(
+          (target?.kind === "path" && listedFiles.has(target.path)) ||
+          (link?.kind === "chat" && listedChats.has(link.name))
+        );
       })
       .map((page) => ({ isPinned: true, page })),
     ...recentPages.map((page) => ({ isPinned: false, page })),

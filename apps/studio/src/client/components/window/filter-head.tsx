@@ -53,8 +53,8 @@ export const TAGS: SearchToken<ChatTag>[] = [
   },
   {
     icon: <StarIcon className="text-warning-500" weight="fill" />,
-    id: "starred",
-    label: "Starred",
+    id: "bookmarked",
+    label: "Bookmarked",
   },
 ];
 
@@ -70,7 +70,7 @@ const PLACES: { id: ChatPlace | undefined; label: string }[] = [
  * button at its end, and under them the places a chat can be as tabs, Inbox,
  * Drafts and Archived. Inside one: its mark and name, with the search
  * folded to its glass until it is asked for or holds something. The marks the
- * search narrows by (Unread, Starred) are offered as tokens on clicking into
+ * search narrows by (Unread, Bookmarked) are offered as tokens on clicking into
  * it, each only while the view has any, and narrow whatever view the column
  * is, a project's included; Drafts offers none, since a draft carries
  * neither.

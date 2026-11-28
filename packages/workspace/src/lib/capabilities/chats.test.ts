@@ -581,34 +581,6 @@ describe("instrument chats archive and unarchive", () => {
   });
 });
 
-describe("instrument chats star and unstar", () => {
-  it("stars chats and takes the star off", async () => {
-    const starred = await one("instrument chats star lisbon");
-    expect(starred.stdout).toMatchInlineSnapshot(`
-      "Starred lisbon: Trip to Lisbon
-      "
-    `);
-    expect((await chatById(ChatIdSchema.parse("lisbon")))?.starred).toBe(true);
-    expect(starred.changes).toMatchInlineSnapshot(`
-      [
-        {
-          "after": true,
-          "before": false,
-          "chat": "lisbon",
-          "field": "starred",
-        },
-      ]
-    `);
-
-    const unstarred = await one("instrument chats unstar lisbon");
-    expect(unstarred.stdout).toMatchInlineSnapshot(`
-      "Unstarred lisbon: Trip to Lisbon
-      "
-    `);
-    expect((await chatById(ChatIdSchema.parse("lisbon")))?.starred).toBe(false);
-  });
-});
-
 describe("instrument chats mark-read and mark-unread", () => {
   it("marks every unread chat as read in one call, and the ones named as unread", async () => {
     const lisbon = ChatIdSchema.parse("lisbon");
@@ -855,7 +827,7 @@ describe("a task's instrument chats", () => {
     const refused = await bash.exec("instrument chats archive lisbon");
     expect(refused.exitCode).toBe(1);
     expect(refused.stderr).toMatchInlineSnapshot(`
-      "instrument chats: only the chat organizes the user's chats. Say in your report what the chat should rename, archive, file, star, mark read or stop.
+      "instrument chats: only the chat organizes the user's chats. Say in your report what the chat should rename, archive, file, bookmark, mark read or stop.
       "
     `);
     expect((await chatById(ChatIdSchema.parse("lisbon")))?.archived).toBe(
@@ -870,10 +842,9 @@ describe("undoChatChanges", () => {
     const { changes } = await turn(
       "instrument chats rename porto A week in Porto",
       "instrument chats archive groceries",
-      "instrument chats star lisbon",
       "instrument chats project Travel lisbon",
     );
-    expect(await undoChatChanges(changes)).toEqual({ skipped: 0, undone: 4 });
+    expect(await undoChatChanges(changes)).toEqual({ skipped: 0, undone: 3 });
 
     const porto = ChatIdSchema.parse("porto");
     expect(await chatRecordTitle(porto)).toBe("Untitled chat 2");
@@ -881,7 +852,6 @@ describe("undoChatChanges", () => {
       false,
     );
     const lisbon = await chatById(ChatIdSchema.parse("lisbon"));
-    expect(lisbon?.starred).toBe(false);
     expect(lisbon?.project).toBeUndefined();
   });
 

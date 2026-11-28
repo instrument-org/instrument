@@ -14,7 +14,10 @@ import {
   dropTargetAt,
   type OutlineRow,
 } from "@/client/bookmarks/outline";
-import { bookmarksStateAtom } from "@/client/bookmarks/store";
+import {
+  bookmarkedChatsAtom,
+  bookmarksStateAtom,
+} from "@/client/bookmarks/store";
 import { copyFolderPath } from "@/client/components/folder-row";
 import {
   ContextMenu,
@@ -132,6 +135,7 @@ import {
   outsideFilters,
   type Project,
   shortActivityLabel,
+  withBookmarks,
 } from "./chats";
 import { useShowChatGroup } from "./chat-group";
 import { DeleteChatDialog } from "./delete-chat-dialog";
@@ -1016,7 +1020,7 @@ function AllChats({ group, open }: { group: string; open: OpenAddress }) {
   const keepDraft = useSetAtom(applyDraftOpsAtom);
   const now = useMinuteClock();
   const { data } = useQuery(chatListOptions());
-  const chats = data ?? [];
+  const chats = withBookmarks(data ?? [], useAtomValue(bookmarkedChatsAtom));
   const projects =
     useQuery(rpcClient.workspace.projects.list.queryOptions()).data ?? [];
   const projectNames = new Map(

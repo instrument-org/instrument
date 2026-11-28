@@ -37,7 +37,7 @@ function chat({
     archived: false,
     holds: { apps: [], files: [], sites: [], ...holds },
     firstAsk: "",
-    starred: false,
+    bookmarked: false,
     status: "idle",
     title: "",
     unread: false,
@@ -108,7 +108,10 @@ describe("FilterHead", () => {
 
   it("offers the marks the view has any of on clicking into the search", () => {
     const { head, onFiltersChange } = renderHead({
-      chats: [chat({ unread: true }), chat({ archived: true, starred: true })],
+      chats: [
+        chat({ unread: true }),
+        chat({ archived: true, bookmarked: true }),
+      ],
     });
     fireEvent.focus(head.getByRole("combobox"));
     expect(
@@ -123,7 +126,7 @@ describe("FilterHead", () => {
 
   it("offers no marks in Drafts", () => {
     const { head } = renderHead({
-      chats: [chat({ unread: true, starred: true })],
+      chats: [chat({ unread: true, bookmarked: true })],
       filters: { ...NO_FILTERS, place: "drafts" },
     });
     fireEvent.focus(head.getByRole("combobox"));
@@ -132,9 +135,11 @@ describe("FilterHead", () => {
 
   it("takes the last token away with Backspace at the field's start", () => {
     const { head, onFiltersChange } = renderHead({
-      filters: { ...NO_FILTERS, tags: ["unread", "starred"] },
+      filters: { ...NO_FILTERS, tags: ["unread", "bookmarked"] },
     });
-    expect(head.getByRole("button", { name: "Remove Starred" })).toBeDefined();
+    expect(
+      head.getByRole("button", { name: "Remove Bookmarked" }),
+    ).toBeDefined();
     fireEvent.keyDown(head.getByRole("combobox"), { key: "Backspace" });
     expect(onFiltersChange).toHaveBeenLastCalledWith({
       ...NO_FILTERS,

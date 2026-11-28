@@ -10,7 +10,12 @@ import {
 } from "@/shared/bookmarks";
 import { describe, expect, it } from "vitest";
 
-import { addressOfTyped, bookmarkEditOps, newBookmarkPlace } from "./edit";
+import {
+  addressOfTyped,
+  bookmarkEditOps,
+  newBookmarkPlace,
+  removeChatBookmarkOps,
+} from "./edit";
 
 const page = (id: string, order: number, folder?: string): Bookmark => ({
   id,
@@ -191,6 +196,24 @@ describe("bookmarkEditOps with All Bookmarks", () => {
     expect(drawn(edit(undefined, moved))).toEqual([
       "Folder f [Page b, Page c]",
       "Page a",
+    ]);
+  });
+});
+
+describe("removeChatBookmarkOps", () => {
+  it("takes away every bookmark of the chat, however its address is spelled, and nothing else", () => {
+    const kept: Bookmarks = {
+      bookmarks: [
+        { ...page("one", 2), url: "instrument://chat/trip" },
+        { ...page("two", 3, "f"), url: "Instrument://Chat/trip" },
+        { ...page("other", 4), url: "instrument://chat/groceries" },
+        page("a", 0),
+      ],
+      folders: [folder("f", 1)],
+    };
+    expect(removeChatBookmarkOps(kept, "trip")).toEqual([
+      { id: "one", type: "remove" },
+      { id: "two", type: "remove" },
     ]);
   });
 });

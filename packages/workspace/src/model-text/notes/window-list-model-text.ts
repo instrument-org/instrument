@@ -143,7 +143,6 @@ function chatNotes(chat: ChatState): string[] {
   return [
     ...chatStandingWords(chat),
     ...(latest === "" ? [] : [`latest: ${JSON.stringify(latest)}`]),
-    ...(chat.starred ? ["starred"] : []),
     ...(chat.archived ? ["archived"] : []),
     `last active ${chat.last_activity}`,
   ];

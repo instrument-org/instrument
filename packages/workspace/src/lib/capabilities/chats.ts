@@ -20,7 +20,6 @@ import {
   markChatUnread,
   renameChat,
   setChatProject,
-  setChatStarred,
   unarchiveChat,
 } from "../chat/chats";
 import { ChatStateSchema, chatStateOf, day } from "../chat/chat-state";
@@ -257,7 +256,7 @@ needs the user is list --unread --waiting.`,
       : `${chats.length} ${chats.length === 1 ? "chat" : "chats"}, newest first (id, began, last active, title, where it stands, latest line):\n${chats
           .map(
             (chat) =>
-              `  ${chat.id}  ${chat.began}  ${chat.last_activity}  ${chat.project ? `[${chat.project}]  ` : ""}${chat.title}${chat.named ? "" : "  (unnamed)"}${chat.starred ? "  (starred)" : ""}${chat.this_chat ? "  (this chat)" : standingText(chat)}`,
+              `  ${chat.id}  ${chat.began}  ${chat.last_activity}  ${chat.project ? `[${chat.project}]  ` : ""}${chat.title}${chat.named ? "" : "  (unnamed)"}${chat.this_chat ? "  (this chat)" : standingText(chat)}`,
           )
           .join("\n")}`,
   where: CHATS,
@@ -429,26 +428,6 @@ export const chatsUnarchive = markCapability({
   summary: "Bring chats back into the inbox.",
   to: false,
   word: "unarchive",
-});
-
-export const chatsStar = markCapability({
-  already: "already starred",
-  did: "Starred",
-  field: "starred",
-  mark: (chatId) => setChatStarred(chatId, true),
-  summary: "Star chats.",
-  to: true,
-  word: "star",
-});
-
-export const chatsUnstar = markCapability({
-  already: "not starred",
-  did: "Unstarred",
-  field: "starred",
-  mark: (chatId) => setChatStarred(chatId, false),
-  summary: "Take the star off chats.",
-  to: false,
-  word: "unstar",
 });
 
 export const chatsMarkRead = markCapability({

@@ -5,6 +5,7 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { bookmarkedChatsAtom } from "@/client/bookmarks/store";
 import { useAtom, useAtomValue } from "jotai";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { spokenMessage, toast } from "@/client/lib/toast";
@@ -22,6 +23,7 @@ import {
   matchesFilters,
   outsideFilters,
   type Project,
+  withBookmarks,
 } from "./chats";
 import { FilterHead } from "./filter-head";
 import { useGroupTab } from "./group-tab";
@@ -83,7 +85,10 @@ export function ChatPane({
   const projectsQuery = useQuery(
     rpcClient.workspace.projects.list.queryOptions(),
   );
-  const chats: Chat[] = chatsQuery.data ?? [];
+  const chats = withBookmarks(
+    chatsQuery.data ?? [],
+    useAtomValue(bookmarkedChatsAtom),
+  );
   const projects: Project[] = projectsQuery.data ?? [];
   const afterProjectChange = {
     onError: (error: Error) => {

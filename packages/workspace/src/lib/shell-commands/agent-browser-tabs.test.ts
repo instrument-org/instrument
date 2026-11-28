@@ -272,16 +272,20 @@ describe("a task's tab", () => {
     live.add(shared);
     const at = Date.now();
     noteTabCommand(
-      shared,
+      { tabId: shared, targetId: shared },
       { chatId: CHAT_ID, sessionId: TASK_SESSION },
       at - 30_000,
     );
     noteTabCommand(
-      shared,
+      { tabId: shared, targetId: shared },
       { chatId: CHAT_ID, sessionId: CHAT_SESSION },
       at - 20_000,
     );
-    noteTabCommand(shared, { chatId: CHAT_ID, sessionId: TASK_SESSION }, at);
+    noteTabCommand(
+      { tabId: shared, targetId: shared },
+      { chatId: CHAT_ID, sessionId: TASK_SESSION },
+      at,
+    );
 
     const result = await run(["snapshot", "-i"]);
 
@@ -299,7 +303,7 @@ describe("a task's tab", () => {
     live.add(shop);
     // The page the session drove opens a popup.
     noteTabCommand(
-      shop,
+      { tabId: shop, targetId: shop },
       { chatId: CHAT_ID, sessionId: TASK_SESSION },
       Date.now() + 60_000,
     );
@@ -323,7 +327,7 @@ describe("a task's tab", () => {
     const opened = StoreId.newTabId();
     live.add(shop);
     noteTabCommand(
-      shop,
+      { tabId: shop, targetId: shop },
       { chatId: CHAT_ID, sessionId: TASK_SESSION },
       Date.now() + 60_000,
     );

@@ -1265,7 +1265,7 @@ describe("agent-browser routing", () => {
 
   it("names the file a click downloaded in the click's result", async () => {
     const tab = browserTargetOf(StoreId.newTabId());
-    noteTabCommand(tab, { chatId, sessionId });
+    noteTabCommand({ tabId: tab, targetId: tab }, { chatId, sessionId });
     const saved = path.join(workRoot, "downloads", "report.csv");
     await answerAgentBrowser((given) => {
       if (given.includes("click")) {

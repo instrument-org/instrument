@@ -23,6 +23,10 @@ const listed = vi.hoisted(() => ({
   ids: undefined as string[] | undefined,
   /** Tabs of the chat's group with no page: a file tab on a file of another kind than HTML. */
   pageless: [] as string[],
+  /** Tabs up on their side of the chat's group while the window shows it. */
+  up: new Set<string>(),
+  /** Tabs the person moved to a tab group of their own. */
+  elsewhere: [] as string[],
 }));
 
 vi.mock(import("../../machines/window-browser"), async (importOriginal) => ({
@@ -53,9 +57,36 @@ vi.mock(import("./window-tab"), async (importOriginal) => ({
                 sides: [
                   {
                     tabs: [
-                      ...listed.ids.map((id) => listed.drawnFor.get(id) ?? id),
-                      ...listed.pageless,
-                    ].map((id) => ({
+                      {
+                        address: "",
+                        id: "tab_chat",
+                        isThisChat: true,
+                        kind: "chat" as const,
+                        title: "",
+                      },
+                      ...[
+                        ...listed.ids.map(
+                          (id) => listed.drawnFor.get(id) ?? id,
+                        ),
+                        ...listed.pageless,
+                      ].map((id) => ({
+                        address: "",
+                        id,
+                        ...(listed.up.has(id) ? { isUp: true } : {}),
+                        kind: "file" as const,
+                        title: "",
+                      })),
+                    ],
+                  },
+                ],
+                title: "",
+              },
+              {
+                focused: 0,
+                group: { id: "group:mine" },
+                sides: [
+                  {
+                    tabs: listed.elsewhere.map((id) => ({
                       address: "",
                       id,
                       kind: "file" as const,
@@ -83,6 +114,8 @@ beforeEach(async () => {
   listed.ids = undefined;
   listed.drawnFor.clear();
   listed.pageless = [];
+  listed.up.clear();
+  listed.elsewhere = [];
   root = await fs.mkdtemp(path.join(os.tmpdir(), "tab-cap-"));
   chatId = createMockChatConfigForDir(
     path.join(root, "chats", ChatIdSchema.parse("tab-cap-test")),
@@ -393,18 +426,40 @@ describe("a tab on an HTML file whose page changed", () => {
     ).toContain(tab.id);
   });
 
-  it.each([false, true])(
-    "is closed as the chat is archived or trashed (trashed: %s)",
-    async (trashed) => {
+  it.each([
+    { onScreen: false, trashed: false, closed: true },
+    { onScreen: true, trashed: false, closed: false },
+    { onScreen: true, trashed: true, closed: true },
+  ])(
+    "is closed as the chat is archived or trashed by its new page being on screen or not: %o",
+    async ({ closed, onScreen, trashed }) => {
       const { next, tab } = walked(5);
+      lifetimes.set(next, {
+        drawn: onScreen,
+        hiddenForMs: onScreen ? null : 5 * 60_000,
+        unloadsInMs: null,
+      });
       listed.ids = [next];
       await setChatState(chatDir(chatId), { openedTabs: [tab] });
 
       await closeChatTabs(chatId, { trashed }).done;
 
-      expect(closes).toEqual([tab.id]);
+      expect(closes).toEqual(closed ? [tab.id] : []);
     },
   );
+
+  it("is left open as the chat is archived while it is on screen showing a file no page draws", async () => {
+    const tab = openedTab(5);
+    lifetimes.delete(tab.id);
+    listed.ids = [];
+    listed.pageless = [tab.id];
+    listed.up.add(tab.id);
+    await setChatState(chatDir(chatId), { openedTabs: [tab] });
+
+    await closeChatTabs(chatId, { trashed: false }).done;
+
+    expect(closes).toEqual([]);
+  });
 });
 
 describe("a chat state an earlier build wrote", () => {
@@ -429,5 +484,42 @@ describe("a chat state an earlier build wrote", () => {
     );
     expect(ids).toContain(fileTab);
     expect(ids).not.toContain(page.id);
+  });
+});
+
+describe("an agent's tab the person moved to a tab group of their own", () => {
+  function moved() {
+    const tab = openedTab(500);
+    listed.ids = [];
+    listed.elsewhere = [tab.id];
+    return tab;
+  }
+
+  it("is forgotten by the cap, which closes nothing for it", async () => {
+    const tab = moved();
+    const others = Array.from({ length: CHAT_HIDDEN_TAB_CAP }, (_, i) =>
+      openedTab(i),
+    );
+    listed.ids = others.map((each) => each.id);
+    await setChatState(chatDir(chatId), { openedTabs: [...others, tab] });
+
+    await closeTabsOverCap(chatId);
+
+    expect(closes).toEqual([]);
+    expect(
+      (await getChatState(chatDir(chatId))).openedTabs.map((each) => each.id),
+    ).not.toContain(tab.id);
+  });
+
+  it("is left open and forgotten as the chat is archived", async () => {
+    const tab = moved();
+    await setChatState(chatDir(chatId), { openedTabs: [tab] });
+
+    const { closed, done } = closeChatTabs(chatId, { trashed: false });
+
+    expect(await closed).toBe(0);
+    await done;
+    expect(closes).toEqual([]);
+    expect((await getChatState(chatDir(chatId))).openedTabs).toEqual([]);
   });
 });

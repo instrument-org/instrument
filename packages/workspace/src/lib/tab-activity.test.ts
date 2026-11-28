@@ -24,12 +24,12 @@ describe("what is kept of each tab's work", () => {
     const session = StoreId.newSessionId();
     const actor = { chatId: CHAT, sessionId: session };
     const busy = newTab();
-    noteTabCommand(busy, actor, 1);
+    noteTabCommand({ tabId: busy, targetId: busy }, actor, 1);
     const others = Array.from({ length: 300 }, newTab);
     for (const [index, tab] of others.entries()) {
-      noteTabCommand(tab, actor, index + 2);
+      noteTabCommand({ tabId: tab, targetId: tab }, actor, index + 2);
       // The busy tab is used all along.
-      noteTabCommand(busy, actor, index + 2);
+      noteTabCommand({ tabId: busy, targetId: busy }, actor, index + 2);
     }
 
     expect(lastActOf(busy, session)).toBe(301);
@@ -39,10 +39,22 @@ describe("what is kept of each tab's work", () => {
   it("drops what a session is owed of a tab once the tab closes", () => {
     const tab = newTab();
     const mine = StoreId.newSessionId();
-    noteTabCommand(tab, { chatId: CHAT, sessionId: mine }, 1);
-    noteTabCommand(tab, { chatId: CHAT, sessionId: StoreId.newSessionId() }, 2);
+    noteTabCommand(
+      { tabId: tab, targetId: tab },
+      { chatId: CHAT, sessionId: mine },
+      1,
+    );
+    noteTabCommand(
+      { tabId: tab, targetId: tab },
+      { chatId: CHAT, sessionId: StoreId.newSessionId() },
+      2,
+    );
     forgetTab(tab);
-    noteTabCommand(tab, { chatId: CHAT, sessionId: mine }, 3);
+    noteTabCommand(
+      { tabId: tab, targetId: tab },
+      { chatId: CHAT, sessionId: mine },
+      3,
+    );
 
     expect(takeTabNews(mine)).toEqual([]);
   });
@@ -50,9 +62,21 @@ describe("what is kept of each tab's work", () => {
   it("drops a session that is gone, with what it was owed", () => {
     const tab = newTab();
     const gone = StoreId.newSessionId();
-    noteTabCommand(tab, { chatId: CHAT, sessionId: gone }, 1);
-    noteTabCommand(tab, { chatId: CHAT, sessionId: StoreId.newSessionId() }, 2);
-    noteTabCommand(tab, { chatId: CHAT, sessionId: gone }, 3);
+    noteTabCommand(
+      { tabId: tab, targetId: tab },
+      { chatId: CHAT, sessionId: gone },
+      1,
+    );
+    noteTabCommand(
+      { tabId: tab, targetId: tab },
+      { chatId: CHAT, sessionId: StoreId.newSessionId() },
+      2,
+    );
+    noteTabCommand(
+      { tabId: tab, targetId: tab },
+      { chatId: CHAT, sessionId: gone },
+      3,
+    );
     forgetSessions([gone]);
 
     expect(takeTabNews(gone)).toEqual([]);
@@ -62,11 +86,19 @@ describe("what is kept of each tab's work", () => {
   it("reads a tab as taken over once another session acted in it after this one", () => {
     const tab = newTab();
     const mine = StoreId.newSessionId();
-    noteTabCommand(tab, { chatId: CHAT, sessionId: mine }, 1);
-    expect(takenOverFrom(tab, mine)).toBe(false);
+    noteTabCommand(
+      { tabId: tab, targetId: tab },
+      { chatId: CHAT, sessionId: mine },
+      1,
+    );
+    expect(takenOverFrom({ tabId: tab, targetId: tab }, mine)).toBe(false);
 
-    noteTabCommand(tab, { chatId: CHAT, sessionId: StoreId.newSessionId() }, 2);
-    expect(takenOverFrom(tab, mine)).toBe(true);
+    noteTabCommand(
+      { tabId: tab, targetId: tab },
+      { chatId: CHAT, sessionId: StoreId.newSessionId() },
+      2,
+    );
+    expect(takenOverFrom({ tabId: tab, targetId: tab }, mine)).toBe(true);
   });
 });
 
@@ -136,5 +168,19 @@ describe("a tab whose page changes under it", () => {
     expect(pageOfTab(tabId)).toBe(next);
     // A page no list or command named goes by its own id, as most page tabs do.
     expect(tabOfPage(unknown)).toBe(unknown);
+  });
+
+  it("keeps the page map bounded both ways, letting go of the pages named longest ago", () => {
+    const { first, tabId } = walked();
+    noteTabPages([{ id: tabId, targetId: first }]);
+    noteTabPages(
+      Array.from({ length: 1100 }, () => ({
+        id: StoreId.newTabId(),
+        targetId: newTab(),
+      })),
+    );
+
+    expect(tabOfPage(first)).toBe(first);
+    expect(pageOfTab(tabId)).toBeUndefined();
   });
 });

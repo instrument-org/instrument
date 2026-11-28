@@ -32,7 +32,11 @@ describe("browser.events.agentActivity", () => {
     const tab = browserTargetOf(StoreId.newTabId());
     const mine = StoreId.newSessionId();
     const theirs = StoreId.newSessionId();
-    noteTabCommand(tab, { chatId: CHAT, sessionId: mine }, 1000);
+    noteTabCommand(
+      { tabId: tab, targetId: tab },
+      { chatId: CHAT, sessionId: mine },
+      1000,
+    );
     const controller = new AbortController();
     const events = await call(
       browser.events.agentActivity,
@@ -58,9 +62,17 @@ describe("browser.events.agentActivity", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     // Another session's command is no news for this one.
-    noteTabCommand(tab, { chatId: CHAT, sessionId: theirs }, 2000);
+    noteTabCommand(
+      { tabId: tab, targetId: tab },
+      { chatId: CHAT, sessionId: theirs },
+      2000,
+    );
     noteBrowserAgentActivity(tab);
-    noteTabCommand(tab, { chatId: CHAT, sessionId: mine }, 3000);
+    noteTabCommand(
+      { tabId: tab, targetId: tab },
+      { chatId: CHAT, sessionId: mine },
+      3000,
+    );
     noteBrowserAgentActivity(tab);
     await reading;
 
@@ -75,10 +87,18 @@ describe("browser.events.agentActivity", () => {
     const other = ChatIdSchema.parse("2026-11-08-other");
     // A turn that has ended used the second tab; a running task used the
     // first, then moves on to the second.
-    noteTabCommand(second, { chatId: other, sessionId: finished }, 500);
+    noteTabCommand(
+      { tabId: second, targetId: second },
+      { chatId: other, sessionId: finished },
+      500,
+    );
     publisher.publish("session.done", { id: other, sessionId: finished });
     working.add(task);
-    noteTabCommand(first, { chatId: CHAT, sessionId: task }, 1000);
+    noteTabCommand(
+      { tabId: first, targetId: first },
+      { chatId: CHAT, sessionId: task },
+      1000,
+    );
     const read = async (targetId: typeof first) => {
       const controller = new AbortController();
       const events = await call(
@@ -94,7 +114,11 @@ describe("browser.events.agentActivity", () => {
     };
 
     expect(await read(second)).toEqual({ chat: undefined, inUse: false });
-    noteTabCommand(second, { chatId: CHAT, sessionId: task }, 2000);
+    noteTabCommand(
+      { tabId: second, targetId: second },
+      { chatId: CHAT, sessionId: task },
+      2000,
+    );
     // Moving on keeps the first: the turn may go back to it.
     expect(await read(first)).toEqual({ chat: CHAT, inUse: true });
     expect(await read(second)).toEqual({ chat: CHAT, inUse: true });
@@ -124,9 +148,17 @@ describe("browser.live.inUse", () => {
       return undefined;
     };
 
-    noteTabCommand(first, { chatId: CHAT, sessionId: session }, 1000);
+    noteTabCommand(
+      { tabId: first, targetId: first },
+      { chatId: CHAT, sessionId: session },
+      1000,
+    );
     expect(await read()).toEqual([{ chatId: CHAT, targetId: first }]);
-    noteTabCommand(second, { chatId: CHAT, sessionId: session }, 2000);
+    noteTabCommand(
+      { tabId: second, targetId: second },
+      { chatId: CHAT, sessionId: session },
+      2000,
+    );
     expect(await read()).toEqual([{ chatId: CHAT, targetId: second }]);
     publisher.publish("session.done", { id: CHAT, sessionId: session });
     expect(await read()).toEqual([]);

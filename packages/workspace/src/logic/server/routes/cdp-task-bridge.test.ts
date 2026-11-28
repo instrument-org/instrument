@@ -352,7 +352,10 @@ function tab({
     record.openedTabs = [...record.openedTabs, { id: targetId }];
   }
   if (worked) {
-    noteTabCommand(targetId, { chatId: TASK_ID, sessionId: SESSION_ID });
+    noteTabCommand(
+      { tabId: targetId, targetId: targetId },
+      { chatId: TASK_ID, sessionId: SESSION_ID },
+    );
   }
   return { tabId, targetId };
 }
@@ -982,7 +985,7 @@ describe("a session's browser", () => {
   it("keeps who else acted in a tab for the session's next result", async () => {
     const shared = tab({ worked: false });
     noteTabCommand(
-      shared.targetId,
+      { tabId: shared.targetId, targetId: shared.targetId },
       { chatId: TASK_ID, sessionId: SESSION_ID },
       Date.now() - 10_000,
     );
@@ -1214,7 +1217,7 @@ describe("what counts as a session's work in a page", () => {
     const shared = tab({ worked: false });
     const reader = StoreId.newSessionId();
     noteTabCommand(
-      shared.targetId,
+      { tabId: shared.targetId, targetId: shared.targetId },
       { chatId: TASK_ID, sessionId: reader },
       Date.now() - 10_000,
     );
@@ -1227,7 +1230,10 @@ describe("what counts as a session's work in a page", () => {
     const session = attached.result?.sessionId as string;
     await command("Page.enable", {}, session);
     await command("Runtime.evaluate", { expression: "1" }, session);
-    noteTabCommand(shared.targetId, { chatId: TASK_ID, sessionId: reader });
+    noteTabCommand(
+      { tabId: shared.targetId, targetId: shared.targetId },
+      { chatId: TASK_ID, sessionId: reader },
+    );
 
     expect(takeTabNews(reader)).toEqual([]);
   });
@@ -1367,7 +1373,11 @@ describe("a session reconnecting", () => {
     const sessionId = StoreId.newSessionId();
     tab({ worked: false });
     const mine = tab({ worked: false });
-    noteTabCommand(mine.targetId, { chatId: TASK_ID, sessionId }, 1);
+    noteTabCommand(
+      { tabId: mine.targetId, targetId: mine.targetId },
+      { chatId: TASK_ID, sessionId },
+      1,
+    );
 
     expect(await firstTarget(sessionId)).toBe(mine.tabId);
     expect(asked).toEqual([]);
@@ -1376,9 +1386,13 @@ describe("a session reconnecting", () => {
   it("starts in a blank tab once another session has worked in its last tab since", async () => {
     const sessionId = StoreId.newSessionId();
     const mine = tab({ worked: false });
-    noteTabCommand(mine.targetId, { chatId: TASK_ID, sessionId }, 1);
     noteTabCommand(
-      mine.targetId,
+      { tabId: mine.targetId, targetId: mine.targetId },
+      { chatId: TASK_ID, sessionId },
+      1,
+    );
+    noteTabCommand(
+      { tabId: mine.targetId, targetId: mine.targetId },
       { chatId: TASK_ID, sessionId: StoreId.newSessionId() },
       2,
     );

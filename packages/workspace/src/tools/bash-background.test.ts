@@ -266,7 +266,7 @@ describe("bash background processes, end to end", () => {
 
   it("ends a call that never drove the browser with a download its page started, told once", async () => {
     const tab = browserTargetOf(StoreId.newTabId());
-    noteTabCommand(tab, { chatId, sessionId });
+    noteTabCommand({ tabId: tab, targetId: tab }, { chatId, sessionId });
     notePageDownload(tab, "d1", {
       path: path.join(chatRoot, "work", "downloads", "report.pdf"),
       state: "running",

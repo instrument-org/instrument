@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
+import { CHAT_HIDDEN_TAB_CAP } from "../../schemas/chat-state";
 import { StoreId } from "../../schemas/store-id";
 import { createMockChatConfigForDir } from "../../test/helpers/mock-chat-config";
 import { browserTargetOf } from "../../types";
@@ -14,6 +15,33 @@ import { noteTabCommand, noteTabPages } from "../tab-activity";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { noteOpenedTab } from "./chat-tabs";
 import { notePersonUsedTab, USE_MARK_RETRY_MS } from "./person-used-tabs";
+import { closeTabsOverCap } from "./tab-cap";
+
+/** The chat's page tabs as the window lists them, and the tabs it was asked to close. */
+const window = vi.hoisted(() => ({
+  closes: [] as string[],
+  pages: [] as { id: string; targetId: string }[],
+}));
+vi.mock(import("./window-tab"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  askWindow: ({ action }) => {
+    if (action.kind === "close") {
+      window.closes.push(action.tabId);
+    }
+    return Promise.resolve(
+      action.kind === "list"
+        ? {
+            pages: window.pages.map((page) => ({
+              ...page,
+              title: "",
+              url: "https://example.com/",
+            })),
+            requestId: "list",
+          }
+        : { requestId: "r" },
+    );
+  },
+}));
 
 let chatId: ChatId;
 let root: string;
@@ -25,6 +53,8 @@ beforeEach(async () => {
     path.join(root, "chats", ChatIdSchema.parse("person-used-tabs-test")),
   );
   captured = [];
+  window.closes = [];
+  window.pages = [];
   setWorkspaceConfig({
     ...getWorkspaceConfig(),
     captureException: (error: unknown) => {
@@ -104,6 +134,37 @@ describe("notePersonUsedTab", () => {
         { id: tabId, usedByPerson: true },
       ]);
     });
+  });
+
+  it("marks a tab whose page changed when the person used the new page before anything listed it, which the cap then keeps", async () => {
+    const tabId = newTab();
+    const first = newTab();
+    const next = newTab();
+    const others = Array.from({ length: CHAT_HIDDEN_TAB_CAP }, () => ({
+      id: newTab(),
+    }));
+    await setChatState(chatDir(chatId), {
+      openedTabs: [{ id: tabId }, ...others],
+    });
+    noteTabCommand(
+      { tabId, targetId: first },
+      { chatId, sessionId: StoreId.newSessionId() },
+    );
+    // The tab walked to another file and back; nothing has listed it since.
+    window.pages = [
+      { id: tabId, targetId: next },
+      ...others.map(({ id }) => ({ id, targetId: id })),
+    ];
+
+    notePersonUsedTab(next, () => chatId);
+    await vi.waitFor(async () => {
+      expect(
+        (await getChatState(chatDir(chatId))).openedTabs[0]?.usedByPerson,
+      ).toBe(true);
+    });
+    await closeTabsOverCap(chatId);
+
+    expect(window.closes).not.toContain(tabId);
   });
 
   it("marks an earlier build's entry, kept by the page's id", async () => {

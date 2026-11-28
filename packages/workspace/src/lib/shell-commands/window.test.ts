@@ -17,6 +17,7 @@ import { type HistoryAction } from "../actions/schema";
 import { type Chat } from "../chat/chats";
 import { type Project } from "../chat/projects";
 import { tabStanding } from "../capabilities/window";
+import { actsIn, pageOfTab } from "../tab-activity";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { createWindowCommand } from "./window";
@@ -65,6 +66,8 @@ let pageUrls: string[];
 /** A tab on an HTML file, and the page that draws it, which earlier builds named the tab by. */
 const fileTab = StoreId.TabSchema.parse("tab_01M8FKN7EM04DCR24XDM65DP1C");
 const filePage = StoreId.TabSchema.parse("tab_01M8FKN7EM04DCR24XDM65DP1D");
+/** The page a tab on an HTML file shows once a replace sends it to a site. */
+const replacedPage = StoreId.TabSchema.parse("tab_01M8FKN7EM04DCR24XDM65DP1E");
 
 // Which task is at work in which tab, as the chat's tasks' records would say.
 const holders = new Map<
@@ -480,9 +483,15 @@ function answeringWindow() {
                                 ...(action.kind === "read"
                                   ? { text: "Jar\nA rigid container." }
                                   : {}),
-                                // The page that draws a tab on an HTML file.
+                                // The page that draws a tab on an HTML file,
+                                // and the page a replace leaves it showing.
                                 ...(action.tabId === fileTab
-                                  ? { targetId: filePage }
+                                  ? {
+                                      targetId:
+                                        action.kind === "replace"
+                                          ? replacedPage
+                                          : filePage,
+                                    }
                                   : {}),
                                 // The page steps its own history; a tab
                                 // in another group steps to what it showed.
@@ -809,6 +818,23 @@ describe("window close, show and read on a tab", () => {
       tabId: pageTab,
       target: { kind: "page", url: "https://example.com/" },
     });
+  });
+
+  it("notes the chat's act in a tab a task works in, on the page the tab shows after", async () => {
+    const session = StoreId.newSessionId();
+    holders.set(fileTab, { id: "t1", session, title: "Read the page" });
+
+    const chatSession = StoreId.newSessionId();
+    await run(
+      { sessionId: chatSession },
+      "show",
+      "https://example.com/",
+      "--in",
+      fileTab,
+    );
+
+    expect(pageOfTab(fileTab)).toBe(replacedPage);
+    expect(actsIn(fileTab)[0]?.sessionId).toBe(chatSession);
   });
 
   it("shows a tab and says where it is", async () => {

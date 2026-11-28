@@ -303,7 +303,10 @@ describe("task stop", () => {
       { text: "Amazon asks for a captcha on the cart page.", type: "text" },
     ]);
     const cart = browserTargetOf(StoreId.newTabId());
-    noteTabCommand(cart, { chatId: CHAT_ID, sessionId: CHILD_ID });
+    noteTabCommand(
+      { tabId: cart, targetId: cart },
+      { chatId: CHAT_ID, sessionId: CHILD_ID },
+    );
     const config = getWorkspaceConfig();
     setWorkspaceConfig({
       ...config,
@@ -312,7 +315,9 @@ describe("task stop", () => {
         getTargetAddress: (id) =>
           id === cart ? "https://www.amazon.com/cart" : undefined,
         getTargetMeta: (id) =>
-          id === cart ? { partitionDir: AbsolutePathSchema.parse(rootDir) } : null,
+          id === cart
+            ? { partitionDir: AbsolutePathSchema.parse(rootDir) }
+            : null,
       },
     });
     let checks = 0;

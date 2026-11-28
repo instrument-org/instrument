@@ -50,6 +50,17 @@ const CHAT_FACTS = {
 };
 
 const pageTab = StoreId.newTabId();
+
+/** A list as these tests pin it: the page tab by name, and the chat's files as on a Mac. */
+function pinnedList(stdout: string) {
+  return stdout
+    .replaceAll(pageTab, "<page>")
+    .replaceAll(
+      path.join(chatFolder, "report.html"),
+      "/work/chats/window-command-chat/report.html",
+    );
+}
+
 let pageUrls: string[];
 /** A tab on an HTML file, and the page that draws it, which earlier builds named the tab by. */
 const fileTab = StoreId.TabSchema.parse("tab_01M8FKN7EM04DCR24XDM65DP1C");
@@ -731,7 +742,7 @@ describe("window close, show and read on a tab", () => {
 
     const result = await run({}, "close", pageTab);
 
-    expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
+    expect(pinnedList(result.stdout)).toMatchInlineSnapshot(`
       "Closed tab <page>. That side now shows example.com.
       "
     `);
@@ -789,7 +800,7 @@ describe("window close, show and read on a tab", () => {
       pageTab,
     );
 
-    expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
+    expect(pinnedList(result.stdout)).toMatchInlineSnapshot(`
       "Tab <page> now shows https://example.com/: showing on the right side, beside you.
       "
     `);
@@ -1014,7 +1025,7 @@ describe("window list", () => {
     const result = await run({}, "list");
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
+    expect(pinnedList(result.stdout)).toMatchInlineSnapshot(`
       "Tab group "Prices" instrument://group/group_a, split, on screen:
         left:
           tab_known  left     [chat] Prices (you)  instrument://chat/this
@@ -1033,7 +1044,7 @@ describe("window list", () => {
     const result = await run({ role: "task", sessionId: session }, "list");
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
+    expect(pinnedList(result.stdout)).toMatchInlineSnapshot(`
       "Tab group "Prices" instrument://group/group_a, split, on screen:
         left:
           tab_known  left     [chat] Prices (you)  instrument://chat/this
@@ -1085,7 +1096,7 @@ describe("window list, of other groups", () => {
     const result = await run({}, "list", "--all");
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
+    expect(pinnedList(result.stdout)).toMatchInlineSnapshot(`
       "Window 1, in front, yours: 3 tab groups
         Tab group "Prices" instrument://group/group_a, split, on screen:
           left:
@@ -1272,7 +1283,7 @@ describe("window group, move, history and restore", () => {
 
     const result = await run({}, "group", pageTab, "tab_docs");
 
-    expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
+    expect(pinnedList(result.stdout)).toMatchInlineSnapshot(`
       "Made the tab group "Launch plan" instrument://group/group:docs of <page>, tab_docs; the window stays on the group it shows. Tab <page>: Task t1 ("Read the page") was working in it; its next browser command tells it so.
       "
     `);
@@ -1581,7 +1592,7 @@ describe("window group, move, history and restore", () => {
       "list",
     ]);
     expect(raised).toHaveLength(1);
-    expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
+    expect(pinnedList(result.stdout)).toMatchInlineSnapshot(`
       "Showed the user tab <page> ("Suite plans") with a card above the reply box titled "Log in", your reason, Done and Skip. Tab <page>: showing on the right side, beside you. Your turn ends here; their answer wakes you.
       "
     `);

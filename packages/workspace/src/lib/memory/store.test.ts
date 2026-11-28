@@ -17,6 +17,7 @@ import {
   moveMemoryFrontMatterToStore,
 } from "./store";
 import { getWorkspaceConfig } from "../workspace-config";
+import { heldStore } from "../synced-store/held-stores";
 import { readMemoryRecords } from "./memory-records";
 
 /** The workspace, whose `.instrument/devices/` holds the memory store. */
@@ -258,6 +259,30 @@ describe("memoryDigests", () => {
 
     await forgetMemory(dir, "one");
     expect(memoryDigests(await listMemories(dir))).toEqual({ two: first.two });
+  });
+});
+
+describe("a memory's record", () => {
+  it("keeps a field a newer build added through a save", async () => {
+    await saveMemory(dir, { name: "roofer", text: "Your roofer is Dave." });
+    const store = await heldStore("memory", {
+      device: getWorkspaceConfig().deviceId,
+      rootDir: root,
+    });
+    await store.apply([
+      {
+        key: "roofer.md",
+        t: "set",
+        value: {
+          ...(await readMemoryRecords(dir)).get("roofer.md"),
+          source: "import",
+        },
+      },
+    ]);
+
+    await saveMemory(dir, { name: "roofer", text: "Your roofer is Sam." });
+
+    expect(store.get("roofer.md")).toMatchObject({ source: "import" });
   });
 });
 

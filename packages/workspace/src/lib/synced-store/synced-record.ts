@@ -161,3 +161,23 @@ export function recordsFor(
   }
   return records;
 }
+
+/**
+ * `value` with every field of `stored` that `known` does not name, so a
+ * record this build writes whole keeps what a newer build added to it.
+ */
+export function withUnknownFieldsOf(
+  stored: unknown,
+  value: Record<string, unknown>,
+  known: Record<string, unknown>,
+): Record<string, unknown> {
+  if (typeof stored !== "object" || stored === null || Array.isArray(stored)) {
+    return value;
+  }
+  const unknown = Object.entries(stored).filter(
+    ([key]) => !Object.hasOwn(known, key),
+  );
+  return unknown.length === 0
+    ? value
+    : { ...Object.fromEntries(unknown), ...value };
+}

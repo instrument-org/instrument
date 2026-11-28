@@ -110,6 +110,26 @@ describe("updateProject", () => {
     expect(withEmoji?.color).toBe("amber");
   });
 
+  it("keeps a field a newer build added to the record", async () => {
+    const made = await createProject({ emoji: "🦆", name: "Reddit" });
+    const store = await projectsStore();
+    await store.apply([
+      {
+        key: made.id,
+        t: "set",
+        value: { ...projectRecords(store).get(made.id), pinned: true },
+      },
+    ]);
+
+    await updateProject(made.id, { color: "#ff0000" });
+
+    expect(store.get(made.id)).toMatchObject({
+      color: "#ff0000",
+      emoji: "🦆",
+      pinned: true,
+    });
+  });
+
   it("keeps a project's emoji through a change that names no mark", async () => {
     const made = await createProject({ emoji: "🦆", name: "Reddit" });
 

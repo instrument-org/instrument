@@ -4,7 +4,10 @@ import { z } from "zod";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { type DeviceId } from "../../schemas/device-id";
 import { heldStore } from "../synced-store/held-stores";
-import { type SyncedOp } from "../synced-store/synced-record";
+import {
+  type SyncedOp,
+  withUnknownFieldsOf,
+} from "../synced-store/synced-record";
 import { getWorkspaceConfig } from "../workspace-config";
 
 /**
@@ -55,8 +58,9 @@ export type MemoryRecordOp =
   | { fileName: string; gone: true };
 
 /**
- * Writes the changes as `device`, the running workspace's when none is given.
- * One that would change nothing writes nothing.
+ * Writes the changes as `device`, the running workspace's when none is given,
+ * each record with any field a newer build added to the stored one kept. One
+ * that would change nothing writes nothing.
  */
 export async function writeMemoryRecords(
   dir: string,
@@ -74,7 +78,11 @@ export async function writeMemoryRecords(
                 ...(op.at === undefined ? {} : { at: op.at }),
                 key: op.fileName,
                 t: "set",
-                value: MemoryRecordSchema.parse(op.record),
+                value: withUnknownFieldsOf(
+                  store.get(op.fileName),
+                  MemoryRecordSchema.parse(op.record),
+                  MemoryRecordSchema.shape,
+                ),
               },
       ),
     ),

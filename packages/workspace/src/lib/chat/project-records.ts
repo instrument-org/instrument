@@ -2,7 +2,10 @@ import { z } from "zod";
 
 import { heldStore, type WorkspacePlace } from "../synced-store/held-stores";
 import { type SyncedStore } from "../synced-store/synced-store";
-import { type SyncedOp } from "../synced-store/synced-record";
+import {
+  type SyncedOp,
+  withUnknownFieldsOf,
+} from "../synced-store/synced-record";
 
 /**
  * What the app keeps about each project, apart from the person's own words:
@@ -57,8 +60,8 @@ export function projectRecords(store: SyncedStore): Map<string, ProjectRecord> {
 }
 
 /**
- * Writes each record whole under its id. A record that already says the same
- * writes nothing; one stamped `at` older than what the store has is not
+ * Writes each record whole under its id, with any field a newer build added
+ * to the stored one kept. A record that already says the same writes nothing; one stamped `at` older than what the store has is not
  * written.
  */
 export function writeProjectRecords(
@@ -71,7 +74,11 @@ export function writeProjectRecords(
         ...(at === undefined ? {} : { at }),
         key: id,
         t: "set",
-        value: ProjectRecordSchema.parse(record),
+        value: withUnknownFieldsOf(
+          store.get(id),
+          ProjectRecordSchema.parse(record),
+          ProjectRecordSchema.shape,
+        ),
       }),
     ),
   );

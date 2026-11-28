@@ -1,4 +1,5 @@
 import { openSettings } from "@/client/atoms/settings-modal";
+import { useSameIconSites } from "@/client/lib/same-icon-sites";
 import { getToolStreamingLabel, TOOL_ICONS } from "@/client/lib/tool-display";
 import { cn } from "@/client/lib/utils";
 import {
@@ -175,10 +176,11 @@ export function Badges({
   sites: readonly string[];
 }) {
   const isReduced = useReducedMotion();
-  if (apps.length === 0 && sites.length === 0) {
+  const icons = useSameIconSites(sites.map((site) => `https://${site}`));
+  if (apps.length === 0 && icons.length === 0) {
     return null;
   }
-  const more = sites.length - SITES_SHOWN;
+  const more = icons.length - SITES_SHOWN;
   const arrive = isReduced ? false : { opacity: 0, x: 4 };
   return (
     <span className="flex shrink-0 items-center gap-0.5">
@@ -192,14 +194,18 @@ export function Badges({
             <AppChipIcon slug={app} />
           </motion.span>
         ))}
-        {sites.slice(0, SITES_SHOWN).map((site) => (
+        {icons.slice(0, SITES_SHOWN).map(({ hosts, url }) => (
           <motion.span
             animate={{ opacity: 1, x: 0 }}
             className="flex"
             initial={arrive}
-            key={site}
+            key={url}
           >
-            <Favicon className="size-3.5" url={`https://${site}`} />
+            <Favicon
+              className="size-3.5"
+              tooltip={hosts.join(", ")}
+              url={url}
+            />
           </motion.span>
         ))}
       </AnimatePresence>

@@ -21,6 +21,7 @@ export function Favicon({
   className,
   fallback,
   hasTooltip = true,
+  tooltip,
   url,
 }: {
   className?: string;
@@ -28,6 +29,8 @@ export function Favicon({
   fallback?: ReactNode;
   /** Whether the icon names its site on hover; off where the row around it says more. */
   hasTooltip?: boolean;
+  /** What the icon says on hover, where it stands for more than its own site; its host otherwise. */
+  tooltip?: string;
   url: string;
 }) {
   const hostname = URL.canParse(url) ? new URL(url).hostname : url;
@@ -71,7 +74,7 @@ export function Favicon({
   return (
     <Tooltip>
       <TooltipTrigger asChild>{icon}</TooltipTrigger>
-      <TooltipContent>{hostname}</TooltipContent>
+      <TooltipContent>{tooltip ?? hostname}</TooltipContent>
     </Tooltip>
   );
 }

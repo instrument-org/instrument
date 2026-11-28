@@ -29,9 +29,17 @@ export function getFaviconUrl(url: string, retry = 0): string {
  * changes or the site is given another icon.
  */
 export function useFaviconUrl(url: string): string {
-  return useSyncExternalStore(subscribeToAddress, () =>
-    getFaviconUrl(url, retries.get(siteOf(hostOf(url))) ?? 0),
-  );
+  return useSyncExternalStore(subscribeToAddress, () => faviconUrlNow(url));
+}
+
+/** The address a site's icon is drawn from right now, as `useFaviconUrl` reads it. */
+export function faviconUrlNow(url: string): string {
+  return getFaviconUrl(url, retries.get(siteOf(hostOf(url))) ?? 0);
+}
+
+/** Calls the listener whenever an address `faviconUrlNow` gives may have changed: the theme, or a site given another icon. */
+export function subscribeToFaviconUrls(listener: () => void) {
+  return subscribeToAddress(listener);
 }
 
 /**

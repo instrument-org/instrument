@@ -280,6 +280,9 @@ async function handleSiteIconRequest({
       // The disk copy is the cache; the page's own memory of an image covers a
       // row drawn twice, and a new launch reads the disk again.
       headers: {
+        // A row of icons reads them too, to draw one icon shared by several
+        // sites once (`same-icon-sites.ts`), from the renderer's own origin.
+        "Access-Control-Allow-Origin": "*",
         "Cache-Control": "no-cache",
         // An icon is a site's own file, and draws itself and nothing else.
         "Content-Security-Policy":

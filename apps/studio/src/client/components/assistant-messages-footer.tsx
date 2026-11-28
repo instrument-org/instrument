@@ -8,6 +8,7 @@ import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { useMemo, useState } from "react";
 
 import { formatDuration } from "../lib/format-time";
+import { useSameIconSites } from "../lib/same-icon-sites";
 import { modelsAnswering } from "../lib/models-answered";
 import { MESSAGE_FOOTER_ICON_SIZE, SHARED } from "../lib/styles";
 import { cn } from "../lib/utils";
@@ -147,7 +148,10 @@ export function AssistantMessagesFooter({
     (sum, message) => sum + (message.metadata.msToFinish ?? 0),
     0,
   );
-  const uniqueUrls = extractUniqueUrls(sources);
+  const sourceIcons = useSameIconSites(extractUniqueUrls(sources)).slice(
+    0,
+    SOURCE_ICONS_SHOWN,
+  );
 
   return (
     <>
@@ -245,10 +249,15 @@ export function AssistantMessagesFooter({
                       variant="ghost"
                     >
                       Sources
-                      {uniqueUrls.length > 0 && (
+                      {sourceIcons.length > 0 && (
                         <span className="flex shrink-0 items-center gap-1">
-                          {uniqueUrls.map((url) => (
-                            <Favicon className="size-3.5" key={url} url={url} />
+                          {sourceIcons.map(({ hosts, url }) => (
+                            <Favicon
+                              className="size-3.5"
+                              key={url}
+                              tooltip={hosts.join(", ")}
+                              url={url}
+                            />
                           ))}
                         </span>
                       )}
@@ -348,6 +357,9 @@ export function AssistantMessagesFooter({
   );
 }
 
+/** The most source icons the Sources button shows; the list it opens has every one. */
+const SOURCE_ICONS_SHOWN = 3;
+
 function extractUniqueUrls(
   sources: (
     | SessionMessagePart.SourceDocumentPart
@@ -365,5 +377,5 @@ function extractUniqueUrls(
       }
     }
   }
-  return [...urls].slice(0, 3);
+  return [...urls];
 }

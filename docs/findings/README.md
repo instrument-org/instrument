@@ -25,6 +25,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [A stalled disk parks whatever reads it, the app and a test run alike](a-stalled-disk-parks-the-whole-test-run.md): the app path is bounded;
 - [A task cannot look at what it drew](a-task-cannot-look-at-what-it-drew.md): harness gap fixed in 95af4cfc3 (`hasNoWindow`;
 - [A thumbnail request nobody wants is still drawn](a-thumbnail-request-nobody-wants-is-still-drawn.md): contained, checked 2026-10-27.
+- [Admin asks added values that older builds drop](admin-asks-added-values-older-builds-drop.md): open, checked 2026-11-28.
 - [Agent-browser `download` never restores the browser's download behavior](agent-browser-download-behavior-not-reset.md): moot here.
 - [Agent-browser's network-idle wait reported success when it timed out](agent-browser-network-idle-reports-done-on-timeout.md): fixed upstream.
 - [Orphaned agent-browser daemons](agent-browser-orphaned-daemons.md): partly fixed.

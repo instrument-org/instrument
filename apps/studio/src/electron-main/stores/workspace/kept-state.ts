@@ -146,6 +146,11 @@ export function createKeptStateStore(
     },
     flush,
     get: (file: KeptFile, key: string): unknown => loaded().get(file)?.[key],
+    /** Whether a file of the store could not be read, so what it answers for it is not what is on disk. */
+    hasUnreadable: () => {
+      loaded();
+      return unreadable.size > 0;
+    },
     set: (file: KeptFile, key: string, value: unknown) => {
       const current = loaded().get(file) ?? {};
       if (value === undefined) {
@@ -467,8 +472,18 @@ function takeOffClosedWindows(groups: readonly string[]) {
  * (`unlistedTabGroups`), and tells the open windows they went.
  */
 function sweepTabGroups() {
+  // A file that could not be read answers as empty, so the groups it lists
+  // would read as listed by no window; whatever cannot be read keeps them.
+  const ids = everyWindowId();
+  if (
+    getStore().hasUnreadable() ||
+    ids.some((id) => windowStoreOf(id).hasUnreadable())
+  ) {
+    logger.warn("Kept every tab group, since a kept file could not be read");
+    return;
+  }
   const listed = new Set(
-    everyWindowId().flatMap(
+    ids.flatMap(
       (id) => keptTabGroupsOf(getWindowKeptState(id, TAB_GROUPS_KEY)) ?? [],
     ),
   );

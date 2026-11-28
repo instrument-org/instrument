@@ -426,3 +426,42 @@ describe("writing a beat later", () => {
     expect(fs.readdirSync(dir)).toEqual([]);
   });
 });
+
+it("keeps every tab group while a window's file cannot be read", async () => {
+  fs.mkdirSync(path.join(dir, "windows"));
+  const held = path.join(dir, "windows", "held.json");
+  fs.writeFileSync(held, JSON.stringify({ "tab-group-list.v2": ["group:a"] }));
+  const group = {
+    focused: 0,
+    sides: [{ tabs: [{ id: "t1", kind: "page" }] }],
+  };
+  fs.writeFileSync(
+    path.join(dir, "groups.json"),
+    JSON.stringify({ "tab-groups.v3/group:a": group }),
+  );
+  vi.resetModules();
+  vi.doMock("@/electron-main/lib/get-workspace-folder", () => ({
+    workspaceWindowDir: () => dir,
+  }));
+  vi.doMock("electron", () => ({
+    BrowserWindow: { getAllWindows: () => [] },
+    ipcMain: { on: () => undefined },
+  }));
+  const readFileSync = fs.readFileSync;
+  const busy = vi.spyOn(fs, "readFileSync").mockImplementation((...args) => {
+    if (args[0] === held) {
+      throw Object.assign(new Error("resource busy"), { code: "EBUSY" });
+    }
+    return readFileSync(...args);
+  });
+  try {
+    const kept = await import("./kept-state");
+    expect(kept.getKeptState("groups", "tab-groups.v3/group:a")).toEqual(group);
+    kept.flushKeptState();
+  } finally {
+    busy.mockRestore();
+    vi.doUnmock("@/electron-main/lib/get-workspace-folder");
+    vi.doUnmock("electron");
+  }
+  expect(read("groups.json")).toEqual({ "tab-groups.v3/group:a": group });
+});

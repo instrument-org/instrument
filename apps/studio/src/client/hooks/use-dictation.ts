@@ -466,11 +466,12 @@ export function useDictation({
   };
 
   /**
-   * Says why billing ended a take mid-stream. The stream's end names no
-   * refusal, so billing's status for dictation says what it was.
+   * Says why billing refused dictation, from its status for dictation: read
+   * again after a take ended mid-stream, whose end names no refusal, or the
+   * status already read when the mic was pressed.
    */
-  const reportLimit = async () => {
-    const billing = await readBilling();
+  const reportLimit = async (known?: DictationBilling) => {
+    const billing = known ?? (await readBilling());
     const pause = featurePause(billing.status, "dictation", billing.refusedAt);
     const code = pause?.code;
     report(
@@ -702,6 +703,21 @@ export function useDictation({
           id: nextToastId(),
         });
       }
+      return;
+    }
+    // Billing already said dictation is paused, so the microphone stays
+    // closed. A status not read yet lets the take start, as `useCanDictate`.
+    const { queryKey: statusKey } = rpcClient.billing.status.queryOptions();
+    const status = queryClient.getQueryData(statusKey);
+    const readAt = new Date(
+      queryClient.getQueryState(statusKey)?.dataUpdatedAt ?? 0,
+    );
+    if (featurePause(status, "dictation", new Date())) {
+      void reportLimit({
+        refusedAt: readAt,
+        status,
+        statusReadAt: readAt.getTime(),
+      });
       return;
     }
     const current: Session = {

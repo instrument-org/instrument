@@ -764,6 +764,30 @@ describe("useDictation", () => {
     expect(mocks.open).not.toHaveBeenCalled();
   });
 
+  it("says why and opens no microphone when billing already refuses dictation", async () => {
+    Object.assign(mocks, NEEDS_PLAN);
+    const { client, result } = setup();
+    await waitFor(() => {
+      expect(client.getQueryData(["hasToken"])).toBe(true);
+    });
+    // The window has read billing's status, as the composer does on mount.
+    await client.fetchQuery({
+      queryFn: () => Promise.resolve(mocks.billingStatus),
+      queryKey: ["status"],
+    });
+    act(() => {
+      result.current.start();
+    });
+    await waitFor(() => {
+      expect(mocks.toast.info.mock.calls.at(-1)?.[0]).toBe(
+        "Choose a plan to use dictation.",
+      );
+    });
+    expect(mocks.open).not.toHaveBeenCalled();
+    expect(mocks.listen).not.toHaveBeenCalled();
+    expect(result.current.phase.kind).toBe("idle");
+  });
+
   it("finishes a take on unmount when its words have somewhere to go", async () => {
     mocks.open.mockResolvedValue(fakeCapture());
     const { onText, result, unmount } = setup({ finishOnUnmount: true });

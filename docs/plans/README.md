@@ -76,7 +76,6 @@ Each entry is the plan's title and the opening of its status.
 - [Inference through the user's Claude and ChatGPT subscriptions](subscription-inference.md): ChatGPT direct route landed (`ca68bb66d`, `8b3b27b53`, first shipped in v2.0.0-beta.37).
 - [One owner for every tab](tab-service.md): The back history of a discarded page, the table of where opens land, and keeping a page a person entered something into are done.
 - [Testing the Instrument folder](testing-the-instrument-folder.md): Under way.
-- [Two sides prototype](two-sides-prototype.md): open
 - [Notices behind a bell in the window bar](window-notices.md): The bell is built (`NotificationsBell` in `WindowCorner`): problem reports (`4f94e0d72`), notices from the API (`1f62dc2af`), an update's result, a sandbox t...
 - [Windows sandbox: MXC behind `wrapNativeCommand`](windows-sandbox-mxc.md): Active.
 - [The workspace as a host every client attaches to](workspace-host-and-protocol.md): Proposed, nothing built (checked 2026-10-29: no host process, no protocol router, no command line).
@@ -153,6 +152,7 @@ Each entry is the plan's title and the opening of its status.
 - [Bound tool results before they consume the context window](tool-result-context-budgets.md): Complete, two phases of three.
 - [Rename topics to projects](topics-to-projects-rename.md): Landed in one change.
 - [Virtualize the transcript](transcript-virtualization.md): Built 2026-11-27 (checked then): far turns are boxes of their last height (`FarRows`, far-rows.ts), measured on the `long-work-chat` fixture with `perf-long-...
+- [Two sides prototype](two-sides-prototype.md): All six tracks are built and on main.
 - [Make the prompt editor uncontrolled](uncontrolled-prompt-editor.md): Done.
 - [One navigation model per window tab](window-tab-model.md): Done, except as below.
 

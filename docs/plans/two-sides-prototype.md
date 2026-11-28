@@ -1,4 +1,4 @@
-Status: open.
+Status: done. All six tracks are built and on main. The Chats page the Pages track describes later gave way to the side panel's chat list ([side-panel.md](side-panel.md)). What stays open is under [Left open](#left-open).
 
 # Two sides prototype
 
@@ -121,17 +121,15 @@ One drag system carries everything that can be held, and every place that takes 
 - **The transcript** draws neither part; both are developer's notes. A message's view context names only what the person pointed at (the page beside the chat, a file, what they picked), never the group's tabs, which are the layout's.
 - **Checked by** `group-layout.test.ts` (the diff, `it.each` over a line notation), `group-layout-parts.test.ts` (when parts are written), `wake-layout.test.ts` (a wake asking the window, and its timeout), `group-layout-model-text.test.ts` (the notes), `group-awareness.test.tsx` (the reading), the model-text byte snapshots, and the eval `group-layout-beside` (`layout` on a case or follow-up sends the read with no window behind it).
 
-## Before merge
-
-- **Archive goes in favor of closing.** A chat with no tab is still on the Chats page, so whether closing its tabs can put it away the way Archive did is open. Archive stays in the chat's menus on this branch and comes out before the branch merges.
-
 ## Left open
 
 Not built: projects beyond today's behavior, sidebar row rules beyond the basics, tasks as tabs, other AIs' sign-in doubling as model access, release notes and pages with actions, and the writing-tool idea.
 
+Archive was to give way to closing a chat's tabs, and did not: a chat with no tab is still in the side panel's chat list, so whether closing its tabs can put it away the way Archive does is open. Archive stays in the chat's menus, with an Archived filter in the side panel.
+
 ## Tracks
 
-The build is split into tracks that land on the prototype branch one at a time:
+The build was split into tracks that landed one at a time:
 
 1. **Core**: the model (groups of one or two sides, every tab a page, a chat as an ordinary tab, any number of chats), the layout engine (sides, gutter, minimum widths, scrolling), the new chat as the new tab, opening rules, removing the pinned chat column and the earlier build's chat-first layout, and the tab menu's split items.
 2. **Address**: app chips, a page's or a file's real address on the caret, the field's search in the app its chip names, the star and its menu, ⌘D, bookmarks of any address.

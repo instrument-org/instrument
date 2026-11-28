@@ -38,10 +38,12 @@ import {
   type CdpResponse,
   createLocalFileGate,
   createMainFrameLoadGate,
+  filesOfCommand,
   hasLoaderId,
   isExtensionPage,
   NAVIGATE_HOLD_CAP_MS,
   notYourFile,
+  notYourFiles,
   notYourPage,
   openTargetSession,
   parseCdpMessage,
@@ -733,6 +735,15 @@ export function handleTaskCdpClient(
       return;
     }
     if (method === "Browser.setDownloadBehavior") {
+      const files = filesOfCommand(method, params);
+      const gate = createLocalFileGate({
+        currentUrl: noPageYet,
+        readLayout: () => sessionLayout({ chatId, sessionId }),
+      });
+      if (files && !(await gate.mayUseFiles(files.paths, files.op))) {
+        send({ error: notYourFiles(files.paths), id });
+        return;
+      }
       downloadBehavior = params ?? {};
       await Promise.all(
         [...attached.values()].flatMap(({ session, tab }) =>

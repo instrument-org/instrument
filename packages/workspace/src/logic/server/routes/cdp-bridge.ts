@@ -8,8 +8,10 @@ import {
   agentPathOfFileUrl,
   isLocalAddress,
 } from "../../../lib/local-page-address";
+import { shellPath } from "../../../lib/shell-path";
 import {
   otherFolders,
+  unsandboxedOperandRefusal,
   type WorkspaceFsLayout,
 } from "../../../lib/workspace-fs-layout";
 import { type BrowserTargetId, type WorkspaceConfig } from "../../../types";
@@ -407,6 +409,21 @@ export function createLocalFileGate({
       await read();
       return layout !== undefined && agentPathOfFileUrl(layout, url) !== null;
     },
+    /**
+     * Whether the agent's own tools could `op` every one of `paths`, files
+     * named as this computer names them; rereads the layout as `mayOpen` does.
+     */
+    async mayUseFiles(paths: readonly string[], op: "read" | "write") {
+      await read();
+      const known = layout;
+      return (
+        known !== undefined &&
+        paths.every(
+          (each) =>
+            unsandboxedOperandRefusal(known, shellPath(each), op) === undefined,
+        )
+      );
+    },
   };
 }
 
@@ -432,6 +449,49 @@ export function notYourFile(url: string) {
   return {
     code: -32_000,
     message: `${url} is not a file you can open. Open a file by the path you reach it at (agent-browser open site/page.html).`,
+  };
+}
+
+/**
+ * The files a command has the browser read or write as the app, outside
+ * every sandbox: the folder its downloads are saved in, the files an upload
+ * picks. agent-browser's own command checks them against the chat's rules
+ * before they get here, but a program the agent runs can reach this bridge
+ * directly, so the bridge checks them again (`mayUseFiles`).
+ */
+export function filesOfCommand(
+  method: string,
+  params: unknown,
+): undefined | { op: "read" | "write"; paths: string[] } {
+  // Page's is the deprecated spelling of Browser's, which Chromium still
+  // takes from a page's debugger.
+  if (
+    method === "Browser.setDownloadBehavior" ||
+    method === "Page.setDownloadBehavior"
+  ) {
+    const folder = (params as undefined | { downloadPath?: unknown })
+      ?.downloadPath;
+    return {
+      op: "write",
+      // Chromium refuses a folder that is not a string, so only one is checked.
+      paths: typeof folder === "string" ? [folder] : [],
+    };
+  }
+  if (method === "DOM.setFileInputFiles") {
+    const files = (params as undefined | { files?: unknown })?.files;
+    return {
+      op: "read",
+      paths: Array.isArray(files) ? files.map(String) : [String(files)],
+    };
+  }
+  return undefined;
+}
+
+/** Why a command naming files outside what the chat may reach is refused. */
+export function notYourFiles(paths: readonly string[]) {
+  return {
+    code: -32_000,
+    message: `${paths.join(", ")}: not a file or folder you can use here. Name one in the folders you can reach.`,
   };
 }
 
@@ -772,6 +832,12 @@ export function openTargetSession({
       !(await fileGate.mayOpen(navigatedTo))
     ) {
       send({ error: notYourFile(navigatedTo), id });
+      return;
+    }
+
+    const files = filesOfCommand(method, params);
+    if (files && !(await fileGate.mayUseFiles(files.paths, files.op))) {
+      send({ error: notYourFiles(files.paths), id });
       return;
     }
 

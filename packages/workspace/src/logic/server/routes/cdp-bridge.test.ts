@@ -446,6 +446,59 @@ describe("openTargetSession on a local page", () => {
     expect(read.error).toBeUndefined();
   });
 
+  it.each([
+    [
+      "Browser.setDownloadBehavior",
+      {
+        behavior: "allow",
+        downloadPath: path.resolve("/Users/me/Library/LaunchAgents"),
+      },
+    ],
+    [
+      "Page.setDownloadBehavior",
+      {
+        behavior: "allow",
+        downloadPath: path.resolve("/Users/me/Library/LaunchAgents"),
+      },
+    ],
+    [
+      "DOM.setFileInputFiles",
+      // Another chat's records, which the rules close to every chat.
+      {
+        files: [
+          path.join(
+            workspaceLayout(getWorkspaceConfig().rootDir).chatsDir,
+            "t2",
+            "state.json",
+          ),
+        ],
+        nodeId: 1,
+      },
+    ],
+  ])(
+    "refuses %s naming a place outside the agent's folders",
+    async (method, params) => {
+      const { command, sendCommand } = connect();
+      await command("Page.enable");
+      sendCommand.mockClear();
+      const reply = await command(method, params);
+      expect(reply.error?.message).toContain(
+        "not a file or folder you can use here",
+      );
+      expect(sendCommand).not.toHaveBeenCalled();
+    },
+  );
+
+  it("lets an upload of the agent's own file through", async () => {
+    const { command } = connect();
+    await command("Page.enable");
+    const reply = await command("DOM.setFileInputFiles", {
+      files: [path.join(TASK, "output", "confine.html")],
+      nodeId: 1,
+    });
+    expect(reply.error).toBeUndefined();
+  });
+
   it("refuses to open a file outside the agent's folders", async () => {
     const { command } = connect();
     const reply = await command("Page.navigate", { url: secret });

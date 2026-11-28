@@ -259,81 +259,84 @@ export function SettingsPage({
       {/* The sidebar and its rail are different things, so the box around
           them carries the change: its width moves from one to the other, the
           way a side opening beside Settings moves, and what is in it changes
-          at once under its edge. */}
-      <motion.div
-        animate={{ width: isNarrow ? NAV_RAIL_PX : NAV_LIST_PX }}
-        className="flex shrink-0 overflow-hidden border-r border-border/60"
-        initial={false}
-        transition={isReduced ? { duration: 0 } : SIDE_MOTION}
-      >
-      {isNarrow ? (
-        <nav
-          aria-label="Settings"
-          className="flex w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto scroll-fade-y py-3"
+          at once under its edge. It waits for the page's first measure, so
+          it mounts at the width it belongs at rather than sliding to it. */}
+      {isNarrow !== undefined && (
+        <motion.div
+          animate={{ width: isNarrow ? NAV_RAIL_PX : NAV_LIST_PX }}
+          className="flex shrink-0 overflow-hidden border-r border-border/60"
+          initial={false}
+          transition={isReduced ? { duration: 0 } : SIDE_MOTION}
         >
-          <RailButton
-            icon={MagnifyingGlassIcon}
-            isActive={isSearching}
-            label="Search"
-            onClick={openSearch}
-          />
-          <div className="my-1 h-px w-6 shrink-0 bg-border" />
-          {navGroups.map((group, index) => (
-            <Fragment key={group[0]?.tab}>
-              {index > 0 && (
-                <div className="my-1 h-px w-6 shrink-0 bg-border" />
-              )}
-              {group.map((item) => (
-                <RailButton
-                  icon={item.icon}
-                  isActive={item.tab === section}
-                  isDeveloperMode={item.isDeveloperMode}
-                  key={item.tab}
-                  label={item.title}
-                  onClick={() => {
-                    onSection(item.tab);
-                  }}
-                />
-              ))}
-            </Fragment>
-          ))}
-        </nav>
-      ) : (
-        <nav
-          aria-label="Settings"
-          className="flex w-44 shrink-0 flex-col gap-2 overflow-y-auto scroll-fade-y px-3 py-3"
-        >
-          {searchField}
-          {isSearching ? (
-            results
-          ) : (
-            <ul className="flex flex-col gap-0.5">
+          {isNarrow ? (
+            <nav
+              aria-label="Settings"
+              className="flex w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto scroll-fade-y py-3"
+            >
+              <RailButton
+                icon={MagnifyingGlassIcon}
+                isActive={isSearching}
+                label="Search"
+                onClick={openSearch}
+              />
+              <div className="my-1 h-px w-6 shrink-0 bg-border" />
               {navGroups.map((group, index) => (
                 <Fragment key={group[0]?.tab}>
                   {index > 0 && (
-                    <li
-                      className="mx-2 my-1.5 h-px bg-border"
-                      role="separator"
-                    />
+                    <div className="my-1 h-px w-6 shrink-0 bg-border" />
                   )}
                   {group.map((item) => (
-                    <li key={item.tab}>
-                      <SectionButton
-                        item={item}
-                        isActive={item.tab === section}
-                        onClick={() => {
-                          onSection(item.tab);
-                        }}
-                      />
-                    </li>
+                    <RailButton
+                      icon={item.icon}
+                      isActive={item.tab === section}
+                      isDeveloperMode={item.isDeveloperMode}
+                      key={item.tab}
+                      label={item.title}
+                      onClick={() => {
+                        onSection(item.tab);
+                      }}
+                    />
                   ))}
                 </Fragment>
               ))}
-            </ul>
+            </nav>
+          ) : (
+            <nav
+              aria-label="Settings"
+              className="flex w-44 shrink-0 flex-col gap-2 overflow-y-auto scroll-fade-y px-3 py-3"
+            >
+              {searchField}
+              {isSearching ? (
+                results
+              ) : (
+                <ul className="flex flex-col gap-0.5">
+                  {navGroups.map((group, index) => (
+                    <Fragment key={group[0]?.tab}>
+                      {index > 0 && (
+                        <li
+                          className="mx-2 my-1.5 h-px bg-border"
+                          role="separator"
+                        />
+                      )}
+                      {group.map((item) => (
+                        <li key={item.tab}>
+                          <SectionButton
+                            item={item}
+                            isActive={item.tab === section}
+                            onClick={() => {
+                              onSection(item.tab);
+                            }}
+                          />
+                        </li>
+                      ))}
+                    </Fragment>
+                  ))}
+                </ul>
+              )}
+            </nav>
           )}
-        </nav>
+        </motion.div>
       )}
-      </motion.div>
       {isNarrow && isSearchOpen && (
         <>
           {/* Everything beside the panel, so none of it lies under the panel. */}

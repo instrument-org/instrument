@@ -12,10 +12,11 @@ export const PAGE_FOLD_PX = 640;
  * Whether an element is narrower than a width, measured as it resizes: a
  * container query the page's own code can read, since what folds is drawn
  * differently rather than restyled. Layout px, the units a container query
- * reads, whatever the zoom.
+ * reads, whatever the zoom. Undefined until the element is first measured,
+ * so a page that animates the change can mount at the measured width.
  */
 export function useIsNarrower(element: HTMLElement | null, px: number) {
-  const [isNarrow, setIsNarrow] = useState(false);
+  const [isNarrow, setIsNarrow] = useState<boolean>();
   useLayoutEffect(() => {
     if (!element) {
       return;

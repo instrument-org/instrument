@@ -424,9 +424,9 @@ export function ActivityPage({
   // The list of kinds folds to pills over the rows, and the details come up
   // from the bottom, by the room each has.
   const [frame, setFrame] = useState<HTMLDivElement | null>(null);
-  const isNarrow = useIsNarrower(frame, PAGE_FOLD_PX);
+  const isNarrow = useIsNarrower(frame, PAGE_FOLD_PX) ?? false;
   const [listFrame, setListFrame] = useState<HTMLDivElement | null>(null);
-  const isListNarrow = useIsNarrower(listFrame, PAGE_FOLD_PX);
+  const isListNarrow = useIsNarrower(listFrame, PAGE_FOLD_PX) ?? false;
   const details = picked ? (
     <ActivityDetails
       entry={picked}

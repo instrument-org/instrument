@@ -1952,7 +1952,7 @@ export function ComputerPage({
   // the places slide away and back rather than standing over it.
   // Measured, since the toggle that answers to it is drawn in the tab's
   // row, outside the container.
-  const isFrameNarrow = useIsNarrower(frame, NARROW_FINDER_PX);
+  const isFrameNarrow = useIsNarrower(frame, NARROW_FINDER_PX) ?? false;
   const [wasNarrow, setWasNarrow] = useState(isFrameNarrow);
   if (beside === undefined && wasNarrow !== isFrameNarrow) {
     setWasNarrow(isFrameNarrow);

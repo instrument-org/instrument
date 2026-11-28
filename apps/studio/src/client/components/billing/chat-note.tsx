@@ -10,7 +10,6 @@ import {
   noteDismissalKey,
   noticeName,
   withNoteDismissed,
-  featurePause,
   type NextStep,
   nextStepFor,
   type NoticeAction,
@@ -44,7 +43,6 @@ import {
 } from "@instrument-org/workspace/client";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { GaugeIcon } from "@phosphor-icons/react/Gauge";
-import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { ImageIcon } from "@phosphor-icons/react/Image";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
@@ -441,48 +439,6 @@ export function useChatNote({
     };
   }
 
-  // A search our endpoint refused while the free allowance is spent ran on
-  // another search instead (a basic one, or the model's own provider's); the
-  // chat says so quietly, until the reset.
-  const searchPause = isSignedIn
-    ? lastSearchPause(messages, status, now)
-    : undefined;
-  const searchOffer = noteDismissalKey("search", "paused");
-  if (searchPause && !isOfferDismissed(searchOffer)) {
-    return {
-      holdsSend: false,
-      rank: "quiet",
-      render: (context) => (
-        <BillingNote
-          context={context}
-          icon={MagnifyingGlassIcon}
-          isReady={false}
-          name="limit-reached"
-          onAct={act}
-          onDismiss={() => {
-            dismissOffer(searchOffer);
-          }}
-          quiet
-          step={nextStepFor(
-            {
-              blocked: "search",
-              notice: {
-                kind: "blocked",
-                ...(searchPause.next && { next: searchPause.next }),
-                outcome: "limit-reached",
-                refused: true,
-                ...(searchPause.resetsAt && { resetsAt: searchPause.resetsAt }),
-              },
-              otherModelCan: false,
-              status,
-            },
-            now,
-          )}
-        />
-      ),
-    };
-  }
-
   const warning = isOurs
     ? usageWarning(isSignedIn ? status : undefined)
     : undefined;
@@ -681,44 +637,6 @@ function PlanAccountNote({
       <span className="font-medium">{text}</span>
     </ReplyNote>
   );
-}
-
-/**
- * The pause behind the conversation's last turn's web search, when our
- * endpoint refused it for the spent free allowance and the status still says
- * search is paused (or has not said, and the refusal's reset is ahead), with
- * the way past it the platform gave.
- */
-function lastSearchPause(
-  messages: readonly (SessionMessage.WithParts | TranscriptMessage)[],
-  status: Parameters<typeof featurePause>[0],
-  now: Date,
-) {
-  const refusal = lastTurnParts(messages)
-    .map((part) =>
-      part.type === "tool-web_search" &&
-      part.state === "output-available" &&
-      part.output.state === "success"
-        ? part.output.platformRefusal
-        : undefined,
-    )
-    .findLast((found) => found?.code === "usage-limit-exceeded");
-  if (!refusal) {
-    return undefined;
-  }
-  const refusedUntil = refusal.resetsAt
-    ? new Date(refusal.resetsAt)
-    : undefined;
-  const pause = status
-    ? featurePause(status, "search", now)
-    : refusedUntil && refusedUntil > now
-      ? { next: refusal.next, resetsAt: refusedUntil }
-      : undefined;
-  if (!pause) {
-    return undefined;
-  }
-  const next = pause.next ?? refusal.next;
-  return { ...(next && { next }), resetsAt: pause.resetsAt };
 }
 
 /**

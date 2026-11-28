@@ -351,12 +351,6 @@ const PURPOSE = {
   search: `use ${APP_NAME}'s web search`,
 } satisfies Record<BlockedThing, string>;
 
-/** What paused, said as the start of its note's title. */
-const PAUSED = {
-  images: "Images are paused",
-  search: `Web search through ${APP_NAME} is paused`,
-} satisfies Partial<Record<BlockedThing, string>>;
-
 /** Everything `nextStep` decides from. */
 export type NextStepInput = {
   /** What was held back. */
@@ -485,8 +479,9 @@ const RESUMED = {
 
 /**
  * A spent usage window, said for what it held back and whose usage it was.
- * An image or a search stops on its own while the chat goes on with the
- * person's own AI, so its note names what paused, not the chat.
+ * An image stops on its own while the chat goes on with the person's own AI,
+ * so its note names what paused, not the chat. A search's is said on the
+ * search that failed, so it names the search limit.
  */
 function limitWords(
   blocked: BlockedThing,
@@ -494,7 +489,23 @@ function limitWords(
   tier: string | undefined,
   now: Date,
 ): { line?: string; title: string } {
-  if (blocked === "images" || blocked === "search") {
+  const resets = resetsAt
+    ? `It resets ${describeWhen(resetsAt, now)}.`
+    : "It resets soon.";
+  if (blocked === "search") {
+    return {
+      line: resets,
+      title:
+        tier === "free"
+          ? `You've reached your free ${APP_NAME} web search limit.`
+          : tier === "trial"
+            ? "You've reached your free trial's web search limit."
+            : tier === undefined
+              ? "You've reached your web search limit."
+              : "You've reached your plan's web search limit.",
+    };
+  }
+  if (blocked === "images") {
     const until = resetsAt
       ? `until ${describeUntil(resetsAt, now)}`
       : "for now";
@@ -507,13 +518,11 @@ function limitWords(
               ? "Your free trial's usage ran out."
               : "Your plan's usage ran out.",
       }),
-      title: `${PAUSED[blocked]} ${until}.`,
+      title: `Images are paused ${until}.`,
     };
   }
   return {
-    line: resetsAt
-      ? `It resets ${describeWhen(resetsAt, now)}.`
-      : "It resets soon.",
+    line: resets,
     title:
       tier === "free"
         ? "You've reached your free account's limit for now."

@@ -1,5 +1,6 @@
 import { renderWithProviders } from "@/tests/render";
 import { StoreId } from "@instrument-org/workspace/client";
+import { screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ToolCallSessionProvider } from "./tool-call-session";
@@ -134,5 +135,43 @@ describe("ToolWebSearch before results arrive", () => {
     );
 
     expect(container.textContent).toContain("returned nothing");
+  });
+});
+
+describe("ToolWebSearch refused for the plan", () => {
+  it("says the search limit and offers its way past when the stand-in failed too", async () => {
+    const base = part(undefined);
+    const refused = {
+      ...base,
+      metadata: { ...base.metadata, createdAt: new Date() },
+      output: {
+        errorMessage:
+          "The free web search is busy right now. Try again in a moment.",
+        errorType: "api-call",
+        platformRefusal: {
+          code: "usage-limit-exceeded",
+          next: { action: "choose-plan", label: "Choose a plan" },
+          outcome: "limit-reached",
+          resetsAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+        },
+        state: "failure",
+      },
+    } as unknown as Parameters<typeof ToolWebSearch>[0]["part"];
+    renderWithProviders(
+      <ToolCallSessionProvider isRunning={false} isStreaming={false}>
+        <ToolWebSearch onRetry={vi.fn()} part={refused} />
+      </ToolCallSessionProvider>,
+    );
+
+    expect(
+      await screen.findByText(
+        /^You've reached your web search limit\. It resets /,
+      ),
+    ).toBeDefined();
+    expect(screen.getByRole("button", { name: "Choose a plan" })).toBeDefined();
+    // Someone signed in is never told to sign in or add a provider here.
+    expect(
+      screen.queryByRole("button", { name: "Add an AI Provider" }),
+    ).toBeNull();
   });
 });

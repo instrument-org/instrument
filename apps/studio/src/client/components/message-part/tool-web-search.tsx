@@ -6,12 +6,29 @@ import {
   toolLabel,
 } from "@instrument-org/workspace/client";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { type PlanRefusal } from "@instrument-org/shared";
+
+import { openLogin } from "@/client/atoms/login-modal";
+import { openReportDialog } from "@/client/atoms/report-dialog";
+import { useBillingStatus } from "@/client/hooks/use-billing-status";
+import {
+  type NoticeAction,
+  nextStepFor,
+  refusalNotice,
+} from "@/client/lib/billing";
+import {
+  openAccount,
+  openPlans,
+  openWebsitePage,
+} from "@/client/lib/billing-website";
+import { feedbackReport } from "@/client/lib/problem-reports";
 
 import { formatDuration } from "../../lib/format-time";
 import { UNTRUSTED_FILE_IMAGE_KINDS } from "../../lib/image-policy";
 import { AIProviderIcon } from "../ai-provider-icon";
 import { SessionMarkdown } from "../session-markdown";
 import { SourceLink } from "../source-link";
+import { Button } from "../ui/button";
 import { isActiveToolPart } from "./tool-call-utils";
 import { ToolCapabilityFailure } from "./tool-capability-failure";
 import { ToolCard, ToolCardEmpty, ToolCardHeader } from "./tool-card";
@@ -75,7 +92,15 @@ export function ToolWebSearch({
         <SearchFacts part={part} results={results} searching={searching} />
       </ToolCardHeader>
 
-      {failureOutput && (
+      {failureOutput?.platformRefusal && (
+        <SearchLimit
+          errorMessage={failureOutput.errorMessage}
+          refusal={failureOutput.platformRefusal}
+          refusedAt={partEndedAt(part) ?? part.metadata.createdAt.getTime()}
+        />
+      )}
+
+      {failureOutput && !failureOutput.platformRefusal && (
         <ToolCapabilityFailure
           capabilityLabel="web search"
           errorMessage={failureOutput.errorMessage}
@@ -142,6 +167,95 @@ export function ToolWebSearch({
       )}
     </ToolCard>
   );
+}
+
+/**
+ * A search the account's plan kept from our endpoint, whose stand-in failed
+ * too: why, and the plan's way past it while the limit lasts.
+ */
+function SearchLimit({
+  errorMessage,
+  refusal,
+  refusedAt,
+}: {
+  errorMessage: string;
+  refusal: PlanRefusal;
+  refusedAt: number;
+}) {
+  const { data: status, dataUpdatedAt } = useBillingStatus();
+  const now = new Date();
+  const notice = refusalNotice({
+    blocked: "search",
+    now,
+    refusal,
+    refusedAt: new Date(refusedAt),
+    status,
+    statusReadAt: dataUpdatedAt,
+  });
+  const step =
+    notice?.kind === "blocked"
+      ? nextStepFor(
+          { blocked: "search", notice, otherModelCan: false, status },
+          now,
+        )
+      : undefined;
+  const action = step?.action;
+  return (
+    <div className="px-4 py-3">
+      <p className="text-sm text-muted-foreground">{errorMessage}</p>
+      {step && (
+        <p className="mt-2 text-sm text-foreground">
+          {[step.title, step.line].filter(Boolean).join(" ")}
+        </p>
+      )}
+      {action && action.kind !== "continue" && (
+        <Button
+          className="mt-3"
+          onClick={() => {
+            actOnSearchLimit(action);
+          }}
+          size="sm"
+        >
+          {action.label}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function actOnSearchLimit(action: NoticeAction) {
+  switch (action.kind) {
+    case "choose-plan":
+    case "start-trial":
+    case "upgrade": {
+      openPlans(action.plan);
+      break;
+    }
+    case "contact": {
+      openReportDialog(feedbackReport({ surface: "usage-limit" }));
+      break;
+    }
+    case "continue": {
+      break;
+    }
+    case "sign-in": {
+      openLogin({ instrumentOnly: true });
+      break;
+    }
+    case "update-card": {
+      openAccount();
+      break;
+    }
+    case "website": {
+      if (action.page) {
+        openWebsitePage(action.page, action.plan);
+      }
+      break;
+    }
+    default: {
+      action.kind satisfies never;
+    }
+  }
 }
 
 function partEndedAt(part: WebSearchPart): number | undefined {

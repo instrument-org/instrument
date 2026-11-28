@@ -573,7 +573,7 @@ describe("nextStep", () => {
         "card fixed since: Your payment went through. [Continue→continue]",
         "access back since: Instrument is available again. [Continue→continue]",
         "an image spent, before the account is read: Images are paused until tomorrow at 9:12 AM. [Start free trial→start-trial]",
-        "a search, free, spent: Web search through Instrument is paused until tomorrow at 9:12 AM. Your free Instrument usage ran out. [Start free trial→start-trial]",
+        "a search, free, spent: You've reached your free Instrument web search limit. It resets tomorrow at 9:12 AM. [Start free trial→start-trial]",
         "dictation, free, spent: You've reached your free account's limit for now. It resets tomorrow at 9:12 AM. [Start free trial→start-trial]",
         "a turn, another model to use: You've reached your plan's limit for now. It resets tomorrow at 9:12 AM. [Contact us→contact] [Change model]",
         "a turn back, another model to use: Your usage limit has reset. [Continue→continue]",

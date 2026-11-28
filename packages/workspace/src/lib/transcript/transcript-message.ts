@@ -284,17 +284,11 @@ function readByTheReplyBox(part: SessionMessagePart.ToolPart): boolean {
   if (part.state !== "output-available") {
     return false;
   }
-  if (part.type === "tool-generate_image") {
-    return (
-      part.output.state === "failure" &&
-      (part.output.errorType === "no-image-model" ||
-        part.output.errorType === "refused")
-    );
-  }
   return (
-    part.type === "tool-web_search" &&
-    part.output.state === "success" &&
-    part.output.platformRefusal !== undefined
+    part.type === "tool-generate_image" &&
+    part.output.state === "failure" &&
+    (part.output.errorType === "no-image-model" ||
+      part.output.errorType === "refused")
   );
 }
 

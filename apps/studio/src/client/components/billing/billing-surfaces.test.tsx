@@ -1,4 +1,5 @@
 import { type RPCInput, type RPCOutput } from "@/client/rpc/client";
+import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import { renderWithProviders } from "@/tests/render";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { type SessionMessage } from "@instrument-org/workspace/client";
@@ -29,6 +30,11 @@ function ChatNoteHarness({
       {note.render({ nudge: 0, openModelPicker: vi.fn() })}
     </div>
   ) : null;
+}
+/** Says once billing's status is read, so a test can wait for it. */
+function StatusRead() {
+  const { data } = useBillingStatus();
+  return data ? <span>status read</span> : null;
 }
 type Offer = RPCOutput["billing"]["offer"];
 type Status = RPCOutput["billing"]["status"];
@@ -924,7 +930,7 @@ describe("the chat's billing notice", () => {
     );
   });
 
-  it("says quietly that advanced web search is paused after a search fell back", async () => {
+  it("says nothing after a search another search stood in for", async () => {
     platform.offer = OFFER_WITH_TRIAL;
     platform.status = onFree({ resetsAt: NEXT_MONTH });
     const searched = [
@@ -960,26 +966,20 @@ describe("the chat's billing notice", () => {
       },
     ] as unknown as SessionMessage.WithParts[];
     renderWithProviders(
-      <ChatNoteHarness
-        isAgentRunning={false}
-        messages={searched}
-        modelURI={CLAUDE}
-      />,
+      <>
+        <ChatNoteHarness
+          isAgentRunning={false}
+          messages={searched}
+          modelURI={CLAUDE}
+        />
+        <StatusRead />
+      </>,
     );
 
-    expect(
-      await screen.findByText(
-        `Web search through Instrument is paused until ${periodEnd}.`,
-      ),
-    ).toBeDefined();
-    expect(
-      await screen.findByRole("button", { name: "Start free trial" }),
-    ).toBeDefined();
-    expect(
-      document
-        .querySelector("[data-holds-send]")
-        ?.getAttribute("data-holds-send"),
-    ).toBe("false");
+    // The search worked, so nothing about the allowance shows once billing
+    // is read; a search that failed says it on its own card.
+    expect(await screen.findByText("status read")).toBeDefined();
+    expect(document.querySelector("[data-holds-send]")).toBeNull();
   });
 
   it("offers a step this build doesn't know in the platform's words, on the page it names", async () => {

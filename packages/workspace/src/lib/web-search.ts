@@ -94,8 +94,7 @@ export type WebSearchResults =
       kind: "excerpts";
       /**
        * Set when our endpoint refused the search for the account's plan and
-       * a basic search stood in: what the platform said, for the chat to
-       * say that the advanced search is paused.
+       * a basic search stood in: what the platform said.
        */
       platformRefusal?: PlatformSearchRefusal;
       sources: WebSearchResult[];
@@ -234,13 +233,13 @@ export async function* webSearch({
       // A signed-out user cannot reach our endpoint, so a keyless search gives
       // them a working lookup; signing in is what gets them ours. The same
       // goes for an account whose plan our endpoint refuses (the free
-      // allowance spent), and the result says so.
+      // allowance spent), and the result or the failure says so.
       const refusal = platformResult.isErr()
         ? platformResult.error.refusal
         : undefined;
       if (refusal) {
         yield (
-          await searchWithKeyless({ prompt, signal, workspaceConfig })
+          await searchWithKeyless({ prompt, refusal, signal, workspaceConfig })
         ).map((results) => ({ ...results, platformRefusal: refusal }));
         return;
       }
@@ -423,12 +422,20 @@ async function searchWithPlatform(args: {
   return args.signal.aborted ? first : requestPlatformSearch(args);
 }
 
+/**
+ * A search on the keyless backend, for someone our endpoint can't serve.
+ * `refusal` is what our endpoint said when it refused the account's plan:
+ * the person is signed in, so a failure carries it rather than offering a
+ * sign-in.
+ */
 async function searchWithKeyless({
   prompt,
+  refusal,
   signal,
   workspaceConfig,
 }: {
   prompt: string;
+  refusal?: PlatformSearchRefusal;
   signal: AbortSignal;
   workspaceConfig: WorkspaceConfig;
 }): Promise<Result<WebSearchResults, WebSearchFailure>> {
@@ -443,11 +450,19 @@ async function searchWithKeyless({
       kind: "excerpts" as const,
       sources,
     }))
-    .mapErr((message) => ({
-      errorMessage: `${message} Try again in a moment, or sign in to ${APP_NAME} to search the web.`,
-      // Signing in is the lasting fix, so the failure offers it.
-      errorType: "not-authenticated" as const,
-    }));
+    .mapErr((message) =>
+      refusal
+        ? {
+            errorMessage: `${message} Try again in a moment.`,
+            errorType: "api-call" as const,
+            refusal,
+          }
+        : {
+            errorMessage: `${message} Try again in a moment, or sign in to ${APP_NAME} to search the web.`,
+            // Signing in is the lasting fix, so the failure offers it.
+            errorType: "not-authenticated" as const,
+          },
+    );
 }
 
 async function* searchWithProviderModel({

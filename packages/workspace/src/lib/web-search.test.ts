@@ -693,6 +693,37 @@ describe("webSearch", () => {
       });
     });
 
+    it("carries the refusal, never a sign-in, when the allowance is spent and the keyless search fails", async () => {
+      const resetsAt = "2026-11-19T00:00:00.000Z";
+      const model = setUp(() =>
+        Promise.resolve({
+          errorMessage: "Web search failed with status 429.",
+          errorType: "request-failed",
+          ok: false,
+          refusal: { code: "usage-limit-exceeded", resetsAt },
+        }),
+      );
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(new Response("", { status: 500 }));
+
+      const results = await collect(model);
+      fetchSpy.mockRestore();
+
+      expect(results.map((r) => r._unsafeUnwrapErr())).toMatchInlineSnapshot(`
+        [
+          {
+            "errorMessage": "The free web search failed with status 500. Try again in a moment.",
+            "errorType": "api-call",
+            "refusal": {
+              "code": "usage-limit-exceeded",
+              "resetsAt": "2026-11-19T00:00:00.000Z",
+            },
+          },
+        ]
+      `);
+    });
+
     it("offers signing in when the keyless search fails", async () => {
       const model = setUp(signedOut);
       const fetchSpy = vi

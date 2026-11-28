@@ -277,7 +277,7 @@ export const webSearchCapability = defineCapability({
           // fields that only one of them ever fills in.
           // Our endpoint refused the search for the account's plan, and another
           // search stood in (a basic one, or the model's own provider's): what
-          // the platform said, for the chat to show.
+          // the platform said, recorded with the results it didn't keep back.
           platformRefusal: PlanRefusalSchema.optional(),
           results: z.discriminatedUnion("kind", [
             ExcerptResultsSchema,
@@ -294,6 +294,10 @@ export const webSearchCapability = defineCapability({
             "not-authenticated",
             "payment-required",
           ]),
+          // Our endpoint refused the search for the account's plan, and the
+          // search that stood in failed too: what the platform said, for the
+          // chat to offer its way past.
+          platformRefusal: PlanRefusalSchema.optional(),
           responseBody: z.string().optional(),
           state: z.literal("failure"),
         }),
@@ -357,7 +361,12 @@ async function* searchOutputs({
     }
 
     if (result.isErr()) {
-      yield ok({ ...result.error, state: "failure" as const });
+      const { refusal, ...failure } = result.error;
+      yield ok({
+        ...failure,
+        ...(refusal && { platformRefusal: refusal }),
+        state: "failure" as const,
+      });
       return;
     }
 

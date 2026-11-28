@@ -31,6 +31,14 @@ An earlier probe found the same for other apps' iCloud folders: listing them wor
 
 `mdfind -onlyin <folder>` on Documents, Desktop or Downloads, from the process with no grants, raised that folder's privacy dialog naming the process (three dialogs, one per folder). So a scoped Spotlight query counts as a read of the folder it names. Code must never scope a query to a guarded folder macOS hasn't answered for, and a probe must never do it on a person's own Mac.
 
+## Choosing a folder in an open panel lets the app in with no dialog
+
+On a fresh clone of the macOS test VM, a signed preview's onboarding asked where to put the Instrument folder; Change opened the system open panel, Documents was chosen there, and the app then made its folder inside Documents. No privacy dialog came up at any step, and Documents carried a `com.apple.macl` attribute afterwards. A Files search from the home folder then listed `Documents/Instrument Preview` through Spotlight, so Spotlight treats the folder as one the app may read.
+
+This is macOS's user-intent rule: a folder the person picks in the open panel (which runs outside the app) is opened to the app by the kernel without asking TCC, and nothing appears in Privacy & Security ([Howard Oakley](https://eclecticlight.co/2026/04/20/privacy-how-locations-are-protected/)). Two things it doesn't settle: whether the grant outlasts a restart (Oakley reports that restarting is the way to clear these marks), and iCloud Drive, which intent did not appear to open in his tests.
+
+There is no API to ask whether the app already has a protected folder. The app can know only what it was told: a folder picked in a panel, an answer to a dialog it raised, or a Spotlight match from inside the folder (which proves access; none proves nothing).
+
 ## How well Spotlight finds by name
 
 From the terminal, over Documents, Downloads and two notes folders, 32 file names chosen in advance were all found, with about 28 results per query in no useful order, at about 650 ms per query (790 ms worst), process startup included. A folder of source checkouts returned nothing: Spotlight doesn't index every folder, and the person can leave any folder out in System Settings.

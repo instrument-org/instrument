@@ -38,6 +38,7 @@ import {
 } from "../../model-text/notes/window-list-model-text";
 import { parseBrowserTargetId } from "../../types";
 import { personPagesOn, SITE_HISTORY_LIMIT } from "../actions/read";
+import { ACTIONS_NOT_SHARED, mayShareActions } from "../actions/sharing";
 import { noteBrowserAgentActivity } from "../browser-agent-activity";
 import { recordVisitedHosts } from "../browser-state";
 import { ChatStateSchema, chatStateOf } from "../chat/chat-state";
@@ -1640,6 +1641,13 @@ export const windowHistory = defineCapability({
     stdout: `${rows.length === 0 && site !== undefined ? `No page on ${siteNamed(site)} in History.` : historyText(rows)}\n`,
   }),
   async run({ closed, limit, site }, ctx) {
+    // The places visited are the person's history, which "Chats can see
+    // this" keeps from every chat; what was closed is the window's own.
+    if (!closed && !mayShareActions()) {
+      throw new Error(
+        `${ACTIONS_NOT_SHARED} \`${NAME} history --closed\` still lists what was closed.`,
+      );
+    }
     if (site !== undefined) {
       if (closed) {
         throw new Error(

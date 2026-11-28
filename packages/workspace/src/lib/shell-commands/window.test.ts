@@ -1572,6 +1572,26 @@ describe("window group, move, history and restore", () => {
     `);
   });
 
+  it("lists only what was closed while the user keeps their history from chats", async () => {
+    const config = getWorkspaceConfig();
+    setWorkspaceConfig({ ...config, mayShareActions: () => false });
+    try {
+      const refused = await run({}, "history");
+      const closed = await run({}, "history", "--closed");
+      const onSite = await run({}, "history", "--site", "example.com");
+
+      expect(refused.exitCode).toBe(1);
+      expect(onSite.exitCode).toBe(1);
+      expect(closed.exitCode).toBe(0);
+      expect(refused.stderr).toMatchInlineSnapshot(`
+        "instrument window: the user turned this off in Settings › History, so what they do in the app is not shared. \`instrument window history --closed\` still lists what was closed.
+        "
+      `);
+    } finally {
+      setWorkspaceConfig(config);
+    }
+  });
+
   it("restores a closed entry by its id", async () => {
     const result = await run({}, "restore", "tab_closed1");
 

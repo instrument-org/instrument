@@ -49,11 +49,7 @@ import {
 import { appStanding, standingElsewhere } from "../apps/context";
 import { connectedElsewhere } from "../apps/elsewhere";
 import { webInsteadUrl } from "../apps/site";
-import {
-  grokPlanSignedIn,
-  isXApp,
-  noteGrokPlanRefused,
-} from "../apps/x-site";
+import { grokPlanSignedIn, isXApp, noteGrokPlanRefused } from "../apps/x-site";
 import { xToolsGuide } from "../../model-text/guides/x-guide";
 import { NoGrokPlan, X_TOOLS } from "./x";
 import { webInsteadCommand } from "../apps/web-instead";
@@ -494,13 +490,15 @@ async function xGuideGate(app: AppInfo, ctx: CapabilityContext): Promise<Gate> {
 
 /**
  * Why an X tool cannot run here: no Grok plan signed in on this computer,
- * which the chat asks for with `connect_app` and a task leaves to the chat.
+ * which the chat asks for with `connect_app` and a task leaves to the chat,
+ * and X's own search in a tab, which needs none.
  */
 function noGrokPlan(slug: string, role: Role): string {
   const why = `"${slug}" searches X on the user's Grok plan, which isn't signed in on this computer.`;
+  const instead = `Without the plan, X's own search works in a tab where x.com is signed in: https://x.com/search?q=<words>.`;
   return role === "chat"
-    ? `${why} Ask for it with ${TOOL_NAMES.connectApp} naming "${slug}": its row signs the user in to their Grok plan.`
-    : `${why} ${APPS_ARE_THE_CHATS}`;
+    ? `${why} Ask for it with ${TOOL_NAMES.connectApp} naming "${slug}": its row signs the user in to their Grok plan. ${instead}`
+    : `${why} ${instead} ${APPS_ARE_THE_CHATS}`;
 }
 
 /** The X tool a call names, or why there is none by that name. */

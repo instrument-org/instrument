@@ -282,7 +282,7 @@ describe("an X tool with no Grok plan signed in", () => {
 
   it("has the chat ask for the plan on connect_app", async () => {
     expect(await unsigned("chat")).toMatchInlineSnapshot(`
-      "instrument app: "x" searches X on the user's Grok plan, which isn't signed in on this computer. Ask for it with connect_app naming "x": its row signs the user in to their Grok plan.
+      "instrument app: "x" searches X on the user's Grok plan, which isn't signed in on this computer. Ask for it with connect_app naming "x": its row signs the user in to their Grok plan. Without the plan, X's own search works in a tab where x.com is signed in: https://x.com/search?q=<words>.
       "
     `);
     // So connect_app's row for X asks for the plan.
@@ -295,14 +295,14 @@ describe("an X tool with no Grok plan signed in", () => {
 
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatchInlineSnapshot(`
-      "instrument app: "x" searches X on the user's Grok plan, which isn't signed in on this computer. Ask for it with connect_app naming "x": its row signs the user in to their Grok plan.
+      "instrument app: "x" searches X on the user's Grok plan, which isn't signed in on this computer. Ask for it with connect_app naming "x": its row signs the user in to their Grok plan. Without the plan, X's own search works in a tab where x.com is signed in: https://x.com/search?q=<words>.
       "
     `);
   });
 
   it("has a task leave the asking to the chat", async () => {
     expect(await unsigned("task")).toMatchInlineSnapshot(`
-      "instrument app: "x" searches X on the user's Grok plan, which isn't signed in on this computer. Setting up and connecting apps is the chat's. End your last message with a needs fence naming the app and what it needs (set up, connected, or changed); the chat does it and sends you on.
+      "instrument app: "x" searches X on the user's Grok plan, which isn't signed in on this computer. Without the plan, X's own search works in a tab where x.com is signed in: https://x.com/search?q=<words>. Setting up and connecting apps is the chat's. End your last message with a needs fence naming the app and what it needs (set up, connected, or changed); the chat does it and sends you on.
       "
     `);
   });

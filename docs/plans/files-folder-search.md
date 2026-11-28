@@ -1,6 +1,6 @@
 # Plan: Files searches everything under the folder you're in
 
-Status: open. Built: flat results, Folder column, name and kind matching, status lines. Checked on a clean macOS VM and on the Windows ARM test VM.
+Status: open. Built: flat results, Folder column, name and kind matching in the main process, a spinner and a count, folders left out named when nothing is found.
 
 ## What we want
 
@@ -14,8 +14,9 @@ Motivating case: a folder kept as one chronological list of a few thousand files
 - **Results are flat**, one row per match, every existing sort key, plus a Folder column (the parent folder as a path from the current one, a dash for the current folder itself). Columns view falls back to the list while searching, as Finder does.
 - **Matching is by name, word by word**, the same rule ⌘K uses (`foldWords` and `matchRank` in `apps/studio/src/shared/name-match.ts`), not the current substring of the relative path. Kind filters stay as they are.
 - **Opening search does nothing until something is typed or a kind is picked**, as in Finder. A kind picked alone (HTML, say) finds that kind in every folder under this one, the same as words do.
-- **Results arrive in two steps:** matches the folder already lists show at once, and the rest arrive together, sorted into place, when the folders below are read. A "Searching Instrument and its folders…" status line shows only when reading takes longer than 300 ms. The folders are read once per search, so later keystrokes filter at once.
-- **The search shows in the toolbar's field and the status line only** ("10 found in Instrument and its folders"). The address and the tab title stay as they are; with a file open beside the folder the address names the file anyway.
+- **The folders are read once per search, in the main process,** which matches each keystroke there and sends the window only the matches. Until the first answer, the pane shows a spinner, as Finder's does, and the status bar no count, so a count is never one for half a search.
+- **The status bar says only how many matched** ("10 items"), as Finder's does: no cap, no folders left out. The address and the tab title stay as they are; with a file open beside the folder the address names the file anyway.
+- **Folders left out are named only when nothing is found**, since that is when a person wonders where else to look: "Desktop and Downloads weren't searched." with a Search button for each, which opens the folder, which is when macOS asks. A folder macOS refused gets Open System Settings; on Windows, AppData's button moves the search into it. A folder let in is recorded on this computer and walked by every search from above it after. The app never asks for Full Disk Access, and folder picking in the open panel was set aside: people wouldn't find their way through it.
 - **The toolbar keeps every control while searching.** Controls sit at the right, as in Finder, and the field stays open wherever it fits. As the folder narrows, the four view buttons fold into one view menu, then views and sort fold into the More (⋯) menu above its own items, then the field becomes a button and the folder's name its icon.
 
 - **A search is not bookmarkable.** It lives in the tab's history, so Back and Forward return to it, but not in the address, so the star bookmarks the folder alone.
@@ -86,9 +87,9 @@ Typing was slow there: seven keystrokes took up to two minutes to show while the
 
 ## Spotlight fills in the folders macOS guards
 
-A search on a Mac also asks Spotlight for the longest word typed, naming no folder, and keeps the matches inside the folders the walk stepped over (Library and other apps' iCloud folders aside). Spotlight answers only from folders macOS lets the app read, so this shows exactly the folders the person allowed. The status bar names the folders macOS asks about that are still left out, then Allow…, which opens "Search more folders": each folder with an Allow… that lists it from the main process, when macOS shows its prompt, once.
+A search on a Mac also asks Spotlight for the longest word typed, naming no folder, and keeps the matches inside the folders the walk stepped over (Library and other apps' iCloud folders aside). Spotlight answers only from folders macOS lets the app read, so this shows exactly the folders the person allowed.
 
-Checked with a signed preview on a fresh clone of the macOS test VM, the same `pricing-*` files planted, and the VM's screen looked at after each step:
+The first version of this, checked below, named the folders left out in the status bar with an Allow… that opened a dialog of them; that is replaced by the empty state below. Checked with a signed preview on a fresh clone of the macOS test VM, the same `pricing-*` files planted, and the VM's screen looked at after each step:
 
 | Step | Search for "pricing" from the home folder | macOS dialog |
 | --- | --- | --- |
@@ -99,11 +100,27 @@ Checked with a signed preview on a fresh clone of the macOS test VM, the same `p
 
 Measured from a terminal on a Mac signed in to iCloud, the same filter over Spotlight's whole-Mac answers kept 805 of 1,242 matches for "plan", nearly all in iCloud Drive, and took 0.3 to 0.4 seconds; a one-letter word ran past the 3-second limit and kept the first 200.
 
+## Folders left out, named when nothing is found
+
+Checked with a signed preview on a fresh clone of the macOS test VM: `pricing-*` files planted in Desktop, Documents (one nested), Downloads and a `Projects` folder, and `invoice-0412.pdf` in Downloads. Onboarding put the Instrument folder in Documents with its default. The VM's screen was looked at after each step.
+
+| Step, from the home folder | Shown | macOS dialog |
+| --- | --- | --- |
+| Search "pricing" | the 2 in `Projects`, "2 items" | none |
+| Search "invoice" | "Nothing here matches", then Desktop, Documents and Downloads named, a Search button each | none |
+| Search Downloads, allowed | `invoice-0412.pdf` from Downloads, "1 item" | Downloads', at the press |
+| Search "receipt", Search Desktop, refused | "macOS keeps Instrument out of Desktop." with Open System Settings | Desktop's, at the press |
+| Search Documents, allowed | Documents leaves the list | Documents', at the press |
+| App restarted, search "pricing" | 5: Projects, Documents (nested one included) and Downloads, walked directly, in 0.4 s | none |
+| Search Desktop again | the refused state | none |
+
+Onboarding's folder in Documents did not open the rest of Documents: macOS asked when Search Documents was pressed, so Documents is named like the others.
+
+On the Linux test VM (no folders guarded), a home search for "pricing" listed all its matches, Documents included, in 1.0 s, and one with no match showed only Clear search.
+
 ## Measure before calling it done
 
-- The same walk on Linux: check what its noise folders are (`.cache` is already left out as a dot folder) and that nothing raises a prompt.
 - Typing latency on a native Windows machine with a home search, now that AppData is stepped over.
-- Typing latency while matching 30k names on the renderer thread.
 
 ## Out of scope
 

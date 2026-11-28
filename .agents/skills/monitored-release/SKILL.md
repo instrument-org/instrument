@@ -48,9 +48,9 @@ cd <scratch>/verify && pnpm check-and-test:ci --force
 
 **5. Check what the agent is told about the app.** Start this while step 3 runs. It never holds the tag: what it finds goes in the release report, and only a finding that would have the agent tell people to do something harmful waits for a person. Take the range the notes use, from the last published release (`gh release list`) to HEAD.
 
-- **Claims.** Read the range's diff of `packages/workspace/system-skills/instrument-guide/SKILL.md`, `packages/workspace/src/model-text/`, and the app code those touch. Check each claim the changed lines make against the code as it stands. Then turn it around: for each change in the range a person would notice (a new menu item, a moved button, a setting), find the guide or prompt line that describes it, and say which ones no line covers or a line now gets wrong. `reference.md` is generated, so only the hand-written files can drift.
+- **Claims.** Read the range's diff of `packages/workspace/system-skills/instrument-guide/SKILL.md`, `packages/workspace/src/model-text/`, and the app code those touch. Check each claim the changed lines make against the code as it stands. Then turn it around: for each change in the range a person would notice (a new menu item, a moved button, a setting), find the guide or prompt line that describes it, and say which ones no line covers or a line now gets wrong. `reference.md` and `places.md` are generated from the app, so they drift only where a generator's fixture never brings an item up (one shown only for some groups, pages or states): check the range's new menu items against `places.md`.
 - **Gains the agent lacks.** For each thing a person can now do in the app, say whether the agent can do it or see it too: an `instrument` command (`packages/workspace/src/lib/capabilities/`), or a fact in what `instrument window list` prints. One the person has and the agent does not is a gap to name, not a bug.
-- **The 30 questions.** `ui-truth/questions.json` holds questions people ask about the app, each with the answer read off the code and the text it was read off. First keep the key current:
+- **The questions.** `ui-truth/questions.json` holds questions people ask about the app, each with the answer read off the code and the text it was read off. First keep the key current:
 
   ```bash
   node scripts/ui-truth.ts check --since <last release tag>
@@ -175,4 +175,4 @@ The channel you cut shows the new version. Every other channel shows what it sho
 
 ## Reporting it
 
-Name the sha you verified and where you verified it, which checks passed, and which failed against the baseline you compared them to. "Tests pass" from the shared checkout is not a claim about the tag. Say plainly what you left out and why, especially any agent's work you tagged around. Then what step 5 found: claims the code no longer bears out, changes the guide doesn't cover, what the person gained that the agent did not, and the 30 questions' tally with every wrong reply, the ones new in this release first.
+Name the sha you verified and where you verified it, which checks passed, and which failed against the baseline you compared them to. "Tests pass" from the shared checkout is not a claim about the tag. Say plainly what you left out and why, especially any agent's work you tagged around. Then what step 5 found: claims the code no longer bears out, changes the guide doesn't cover, what the person gained that the agent did not, and the questions' tally with every wrong reply, the ones new in this release first.

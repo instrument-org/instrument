@@ -2,7 +2,7 @@
   {
     "id": 1,
     "question": "I downloaded a PDF from a website in Instrument. Where do I see my downloads, and where did the file go?",
-    "answer": "Files go to the computer's Downloads folder (a normal browser download). The list is behind a Downloads button (down-arrow icon) in the toolbar of a website's tab; it only appears once there is a download. There is no Downloads page, and it is not in the ⋮ menu.",
+    "answer": "Files go to the computer's Downloads folder (a normal browser download). The list is behind a Downloads button (down-arrow icon) in the toolbar of a website's tab; it only appears once there is a download, and a narrow tab row moves it to the top of the ⋮ menu. There is no Downloads page.",
     "readOff": [
       {
         "file": "apps/studio/src/client/components/window/browser-downloads.tsx",
@@ -11,6 +11,10 @@
       {
         "file": "apps/studio/src/electron-main/browser-view/downloads.ts",
         "text": "app.getPath(\"downloads\")"
+      },
+      {
+        "file": "apps/studio/src/client/components/window/folded-row-items.tsx",
+        "text": "label: \"Downloads\""
       }
     ]
   },
@@ -32,15 +36,15 @@
   {
     "id": 3,
     "question": "How do I rename a tab group?",
-    "answer": "You can't; there is no rename for a group (its menu has Open in New Window, Duplicate, Pin, Close...). The row takes its name from its first chat, or else the tab in front. Renaming that chat (press its title, or chat menu › Rename) changes the row.",
+    "answer": "Right-click the group's row › Name Tab Group (Rename Tab Group once it has a name); the name shows under the row's title. It is offered only for a group with no chat in it: a group with a chat goes by the chat's title, so renaming that chat (press its title, or chat menu › Rename) renames the row.",
     "readOff": [
       {
         "file": "apps/studio/src/client/components/window/group-row-menu.tsx",
-        "text": "Duplicate Tab Group"
+        "text": "\"Rename Tab Group\" : \"Name Tab Group\""
       },
       {
-        "file": "apps/studio/src/client/components/window/group-row-lines.tsx",
-        "text": "lead tab is the group's first chat"
+        "file": "apps/studio/src/client/components/window/group-sidebar.tsx",
+        "text": "chatOfTab(leadTabOf(sides, held)) === undefined"
       }
     ]
   },
@@ -88,11 +92,15 @@
   {
     "id": 7,
     "question": "How do I turn off ad blocking for a website that's broken?",
-    "answer": "⋮ (More actions) menu on the website's toolbar, untick Block ads; or ask Instrument to turn it off. It is one switch for all sites, not per site. It is not in Settings.",
+    "answer": "Press the shield (Ad blocking) at the right of the site's toolbar and switch off Block ads and trackers, which turns it off for that site alone. The same switch on a page with no site, or Ad blocking's row on the Extensions page, turns it off for every site, and Instrument can do that when asked. It is not in Settings or the ⋮ menu.",
     "readOff": [
       {
-        "file": "apps/studio/src/client/components/window/browser-page-menu.tsx",
-        "text": "Block ads"
+        "file": "apps/studio/src/client/components/window/ad-blocking-panel.tsx",
+        "text": "Block ads and trackers"
+      },
+      {
+        "file": "apps/studio/src/client/components/window/ad-blocking.tsx",
+        "text": "aria-label=\"Ad blocking\""
       },
       {
         "file": "apps/studio/src/shared/agent-settings.ts",
@@ -315,7 +323,7 @@
     "answer": "Settings › Permissions: Add folder… if it isn't listed, then set its menu (Ask first) to Not allowed.",
     "readOff": [
       {
-        "file": "apps/studio/src/client/components/settings/permissions-section.tsx",
+        "file": "packages/workspace/src/lib/screen-words.ts",
         "text": "never: \"Not allowed\""
       },
       {
@@ -410,6 +418,66 @@
       {
         "file": "apps/studio/src/client/components/window/new-chat-view.tsx",
         "text": "setDefaultModelURI"
+      }
+    ]
+  },
+  {
+    "id": 31,
+    "question": "How do I turn off ad blocking for just one site?",
+    "answer": "Press the shield (Ad blocking) at the right of that site's toolbar and switch off Block ads and trackers; blocking stays on for every other site. Ad blocking's row on the Extensions page lists the sites it is off on.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/ad-blocking-panel.tsx",
+        "text": "Block ads and trackers"
+      },
+      {
+        "file": "apps/studio/src/client/components/window/ad-blocking-extension-row.tsx",
+        "text": "Off on 1 site"
+      }
+    ]
+  },
+  {
+    "id": 32,
+    "question": "Can I name a tab group?",
+    "answer": "Yes, a group with no chat in it: right-click its row › Name Tab Group (Rename Tab Group once named), and the name shows under the row's title. A group with a chat goes by the chat's title, so rename the chat instead.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/group-row-menu.tsx",
+        "text": "\"Rename Tab Group\" : \"Name Tab Group\""
+      },
+      {
+        "file": "apps/studio/src/client/components/window/group-row-lines.tsx",
+        "text": "chatOfTab(lead) !== undefined ? undefined : name"
+      }
+    ]
+  },
+  {
+    "id": 33,
+    "question": "Why is Instrument asking for my Mac password?",
+    "answer": "A command a chat wants to run needs an administrator. The card over the reply box asked first, and Run as administrator brings up macOS's own password prompt, so the password goes to macOS, not Instrument. The card's other answers are Don't allow, What does this do?, Try without administrator and I'll run it myself.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/permission-asks.tsx",
+        "text": "Try without administrator"
+      },
+      {
+        "file": "apps/studio/src/shared/os-conventions.ts",
+        "text": "Waiting for your password in macOS"
+      }
+    ]
+  },
+  {
+    "id": 34,
+    "question": "How do I see only one project's chats?",
+    "answer": "Press the project's name at the top of one of its chats (Show chats in <project>), which lists that project's chats in the side panel; or open the chat list (⇧⌘F) and pick the project in its selector (All projects).",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/chat-crumb.tsx",
+        "text": "`Show chats in ${name}`"
+      },
+      {
+        "file": "apps/studio/src/client/components/window/side-panel.tsx",
+        "text": "label: \"All projects\""
       }
     ]
   }

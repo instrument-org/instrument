@@ -1,6 +1,6 @@
-// Whether the agent's own account of the app still matches the app: 30
-// questions people ask about where something is and how to do it, each with the
-// answer read off the code. The monitored-release skill runs it.
+// Whether the agent's own account of the app still matches the app: questions
+// people ask about where something is and how to do it, each with the answer
+// read off the code. The monitored-release skill runs it.
 //
 //   node scripts/ui-truth.ts check --since <ref>
 //   node scripts/ui-truth.ts ask --out <file> [--guide-from <ref>] [--only 3,12]
@@ -75,7 +75,7 @@ export function loadQuestions(): Question[] {
 
 /** The guide as a commit has it, or as it is on disk. */
 function guide(ref: string | undefined): string {
-  return ["SKILL.md", "reference.md"]
+  return ["SKILL.md", "reference.md", "places.md"]
     .map((name) =>
       ref === undefined
         ? readFileSync(path.join(ROOT, GUIDE, name), "utf8")

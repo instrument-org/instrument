@@ -1,5 +1,6 @@
 import { type CommandContext, defineCommand } from "just-bash";
 import fs from "node:fs/promises";
+import os from "node:os";
 import nodePath from "node:path";
 
 import {
@@ -19,6 +20,7 @@ import { usedRanges } from "../office/workbook";
 import { ZipPackage } from "../office/zip";
 import { askForPythonBaseRefresh, pythonBaseDir } from "../python-base";
 import { managedPythonInterpreter } from "../run-uv";
+import { shellPath } from "../shell-path";
 import { getWorkspaceConfig } from "../workspace-config";
 import { hostPathOf } from "../workspace-fs-layout";
 import { execShim } from "./exec-shim";
@@ -282,8 +284,13 @@ class OfficeRun {
     return install;
   }
 
+  /**
+   * Where the app makes the call's own folders: the system's temp folder,
+   * the shell's own `TMPDIR`, whatever the agent set it to, since the app
+   * writes there as itself, outside every sandbox and the chat's rules.
+   */
   private tempRoot() {
-    return hostPathOf(this.env.TMPDIR ?? this.ctx.env.get("TMPDIR") ?? "/tmp");
+    return os.tmpdir();
   }
 
   private async soffice(install: OfficeInstall, args: string[]) {
@@ -486,8 +493,10 @@ class OfficeRun {
         temp,
         file.host,
       ]);
-      const exported = await fs
-        .readFile(nodePath.join(temp, `${file.stem}.xlsx`))
+      // Read as the agent reads: its programs can change the temp folder,
+      // and a link put there would aim this read wherever it leads.
+      const exported = await this.ctx.fs
+        .readFileBuffer(shellPath(nodePath.join(temp, `${file.stem}.xlsx`)))
         .catch(() => undefined);
       if (result.exitCode !== 0 || !exported) {
         throw this.failed("open the workbook", result);
@@ -562,7 +571,9 @@ export function createSofficeCommand(chatId: ChatId) {
       cwd: hostCwd,
       env: { ...getWorkspaceConfig().nodeExecEnv, ...env },
       signal: ctx.signal,
-      tempRoot: hostPathOf(env.TMPDIR ?? "/tmp"),
+      // The app copies the profile there as itself, outside the chat's
+      // rules, so not where the agent set `TMPDIR`.
+      tempRoot: os.tmpdir(),
     });
     return {
       exitCode: result.exitCode ?? 1,

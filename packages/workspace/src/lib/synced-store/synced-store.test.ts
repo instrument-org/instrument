@@ -167,6 +167,27 @@ describe("openSyncedStore", () => {
     expect(store.get("bookmark/a")).toBe(2);
   });
 
+  it("is not caught up while another device's folder cannot be listed", async () => {
+    const other = await open(DEVICE_B);
+    await other.apply([{ key: "bookmark/a", t: "set", value: 1 }]);
+    const store = await open();
+    await store.caughtUp();
+
+    const otherFolder = path.join(
+      dir.path,
+      fs.readdirSync(dir.path).find((name) => name.includes(DEVICE_B)) ?? "",
+    );
+    await other.apply([{ key: "bookmark/a", t: "set", value: 2 }]);
+    fs.chmodSync(otherFolder, 0o000);
+    try {
+      await expect(store.caughtUp()).rejects.toThrow(SyncedStoreBehindError);
+    } finally {
+      fs.chmodSync(otherFolder, 0o755);
+    }
+    await store.caughtUp();
+    expect(store.get("bookmark/a")).toBe(2);
+  });
+
   it("runs exclusive work one at a time, in order, past one that failed", async () => {
     const store = await open();
     const steps: string[] = [];

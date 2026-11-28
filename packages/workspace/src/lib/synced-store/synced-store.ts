@@ -160,34 +160,50 @@ export async function openSyncedStore({
     },
   );
 
-  /** Every file of the store in the devices folder but this device's own. */
-  const otherFiles = async (): Promise<string[]> => {
+  /**
+   * Every file of the store in the devices folder but this device's own, and
+   * whether a folder there could not be listed, which may hide some.
+   */
+  const otherFiles = async () => {
     const files: string[] = [];
-    for (const folder of await namesIn(devicesDir)) {
+    const devices = await namesIn(devicesDir);
+    let isPartial = devices === undefined;
+    for (const folder of devices ?? []) {
       if (!DEVICE_FOLDER.test(folder)) {
         continue;
       }
-      for (const name of await namesIn(path.join(devicesDir, folder))) {
+      const names = await namesIn(path.join(devicesDir, folder));
+      isPartial ||= names === undefined;
+      for (const name of names ?? []) {
         const file = path.join(devicesDir, folder, name);
         if (file !== ownFile && isSyncedFileName(name, domain)) {
           files.push(file);
         }
       }
     }
-    return files;
+    return { files, isPartial };
   };
 
-  /** Each other device's file that is not as the last read of it left it. */
+  /**
+   * Each other device's file that is not as the last read of it left it, and
+   * whether some could not be looked at (a folder not listed, a file whose
+   * `stat` failed but for its being gone), so may be unread too.
+   */
   const unreadFiles = async () => {
     const unread: { file: string; stat: fs.Stats }[] = [];
-    for (const file of await otherFiles()) {
-      const stat = await fs.promises.stat(file).catch(() => undefined);
+    const listed = await otherFiles();
+    let isPartial = listed.isPartial;
+    for (const file of listed.files) {
+      const stat = await fs.promises.stat(file).catch((error: unknown) => {
+        isPartial ||= !isMissing(error);
+        return undefined;
+      });
       const last = seen.get(file);
       if (stat && (last?.size !== stat.size || last.mtimeMs !== stat.mtimeMs)) {
         unread.push({ file, stat });
       }
     }
-    return unread;
+    return { isPartial, unread };
   };
 
   const lookOnce = async () => {
@@ -195,7 +211,7 @@ export async function openSyncedStore({
       return;
     }
     const changed = new Set<string>();
-    for (const { file, stat } of await unreadFiles()) {
+    for (const { file, stat } of (await unreadFiles()).unread) {
       // Seen only once read, so a read that failed (a cloud file that would
       // not download, one another program holds) is tried again next look.
       const bytes = await readIfThere(file).catch(() => undefined);
@@ -267,7 +283,8 @@ export async function openSyncedStore({
         if (!isLooked) {
           break;
         }
-        if ((await unreadFiles()).length === 0) {
+        const { isPartial, unread } = await unreadFiles();
+        if (unread.length === 0 && !isPartial) {
           return;
         }
       }
@@ -304,11 +321,15 @@ async function readIfThere(file: string): Promise<Buffer> {
   try {
     return await readBytes(file);
   } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+    if (isMissing(error)) {
       return Buffer.alloc(0);
     }
     throw error;
   }
+}
+
+function isMissing(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
 
 /** Whether the work ended within `forMs`; what has not goes on. */
@@ -324,6 +345,9 @@ async function inTime(work: Promise<void>, forMs: number): Promise<boolean> {
   }
 }
 
-async function namesIn(dir: string): Promise<string[]> {
-  return fs.promises.readdir(dir).catch(() => []);
+/** The names in `dir`: none when it is not there, `undefined` when it could not be listed. */
+async function namesIn(dir: string): Promise<string[] | undefined> {
+  return fs.promises
+    .readdir(dir)
+    .catch((error: unknown) => (isMissing(error) ? [] : undefined));
 }

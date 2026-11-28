@@ -236,6 +236,9 @@ describe("opensInSystemApp", () => {
     ["build.command", false],
     ["Setup.exe", false],
     ["tool.AppImage", false],
+    ["invoice.hta", false],
+    ["Report.fileloc", false],
+    ["shortcut.url", false],
     // No extension: the system decides by contents and may run it.
     ["archive.tar.gz", true],
     ["mystery", false],

@@ -8,6 +8,8 @@ import {
   type TabsChanged,
   WINDOW_TABS_KEY,
 } from "@/shared/kept-state";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { changesOfAsk, tabMembersIn } from "./tab-service";
@@ -65,6 +67,34 @@ describe("the one owner of every tab", () => {
         .map((tab) => tab.id),
     ).toEqual(["t1", "from-first", "from-second"]);
     expect(main.tabs().activeByGroup[GROUP]).toBe("from-second");
+  });
+
+  it("brings up the tab a window found for a folder it named from the home folder", () => {
+    const main = owner({
+      activeByGroup: { [GROUP]: "t2" },
+      groups: {},
+      tabs: [
+        {
+          group: GROUP,
+          href: "/files?root=~&path=Documents",
+          id: "t1",
+          kind: "screen",
+        },
+        { group: GROUP, href: "/settings", id: "t2", kind: "screen" },
+      ],
+    });
+    const whole = path.join(os.homedir(), "Documents");
+
+    main.ask({
+      command: {
+        args: [`/files?root=${encodeURIComponent(whole)}`],
+        op: "selectShowing",
+      },
+      id: "first:select",
+      onScreen: GROUP,
+    });
+
+    expect(main.tabs().activeByGroup[GROUP]).toBe("t1");
   });
 
   it("tells only the members an ask changed", () => {

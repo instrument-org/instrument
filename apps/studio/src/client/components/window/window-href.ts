@@ -434,9 +434,23 @@ export function showsSameThing(a: string, b: string) {
   return isSameTabIdentity(a, b, homeDirOfWindow());
 }
 
-/** The home folder, which a folder rooted at `~` is read against; none outside the app. */
+/** The home folder main reads a folder rooted at `~` against, where there is no window. */
+let homeDirOutsideWindow: string | undefined;
+
+/**
+ * Has main read a folder rooted at `~` against `homeDir`, as each window
+ * does, so a change to the tabs applied in main finds the tab the window
+ * asking found.
+ */
+export function readTabsAgainstHomeDir(homeDir: string) {
+  homeDirOutsideWindow = homeDir;
+}
+
+/** The home folder a folder rooted at `~` is read against: the window's, or what main was given. */
 function homeDirOfWindow() {
-  return globalThis.window === undefined ? undefined : window.api?.homeDir;
+  return globalThis.window === undefined
+    ? homeDirOutsideWindow
+    : window.api?.homeDir;
 }
 
 function searchEntries(search: URLSearchParams) {

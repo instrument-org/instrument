@@ -8,6 +8,7 @@ import {
   type TabOp,
 } from "@/client/components/window/tab-ops";
 import { type TabOpeners } from "@/client/components/window/tab-openers";
+import { readTabsAgainstHomeDir } from "@/client/components/window/window-href";
 import {
   fileOfTabGroup,
   type KeptFile,
@@ -15,6 +16,7 @@ import {
   type TabsChanged,
   WINDOW_TABS_KEY,
 } from "@/shared/kept-state";
+import os from "node:os";
 import { z } from "zod";
 
 /**
@@ -33,6 +35,8 @@ import { z } from "zod";
  */
 
 const PREFIX = `${WINDOW_TABS_KEY}/`;
+
+readTabsAgainstHomeDir(os.homedir());
 
 /** An ask as it arrives from a window, as much of it as is checked before it is applied. */
 export const TabsAskSchema = z.object({

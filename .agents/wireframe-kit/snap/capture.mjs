@@ -233,6 +233,16 @@ const threeGroups = async (/** @type {any} */ h, /** @type {string} */ up) => {
   h.after(() => h.oneGroup());
 };
 
+/** The window at 900 by 720 for one state, where the side panel has no room beside a group, then back at 1280 by 800. */
+const narrowWindow = async (/** @type {any} */ h) => {
+  await h.app.cdp.send("Emulation.setDeviceMetricsOverride", { width: 900, height: 720, deviceScaleFactor: 1, mobile: false });
+  await wait(800);
+  h.after(async () => {
+    await h.app.cdp.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
+    await wait(500);
+  });
+};
+
 export const STATES = {
   chat: {
     about: "The pricing chat open: rail, the chat list (Search, View options, Inbox / Drafts / Archived, a Projects section, rows with project names), the chat's head, an answer with a table, the reply box.",
@@ -727,6 +737,244 @@ export const STATES = {
       await h.chatAlone(h.chats.pricing);
       await h.app.words.press("Meta+n");
       await h.sidePanel();
+    },
+  },
+  "tg-page-alone-panel": {
+    about: "tg-page-alone with the side panel shown beside the page: Apps, Chats, Files and Bookmarks (the bar's folder, then G2 and Wikipedia from All Bookmarks). The bookmarks bar off.",
+    themes: ["light", "dark"],
+    run: async (h) => {
+      await h.bookmarksBar(false);
+      await h.bookmarks({ all: true });
+      await h.chatAlone(h.chats.pricing);
+      await h.app.words.press("Meta+n");
+      await h.app.words.omnibar.go("https://www.intercom.com/pricing");
+      await wait(800);
+      await h.sidePanel();
+      h.after(() => h.oneGroup());
+    },
+  },
+  "tg-page-star-card": {
+    about: "tg-page-alone with the address field's star pressed: the bookmark's card under it (its name, the folder it is filed in, Remove and Done).",
+    themes: ["light"],
+    run: async (h) => {
+      await h.bookmarksBar(false);
+      await h.bookmarks({ all: true });
+      await h.chatAlone(h.chats.pricing);
+      await h.app.words.press("Meta+n");
+      await h.app.words.omnibar.go("https://www.intercom.com/pricing");
+      await wait(800);
+      await h.app.click({ selector: "[data-bookmark-star]" });
+      await wait(500);
+      h.after(() => h.oneGroup());
+    },
+  },
+  "tg-web-start": {
+    about: "Tab groups: a new group on the web's start (Browser with no page): the address row, the bookmarks bar under it, Frequently visited and Recent pages.",
+    themes: ["light"],
+    run: async (h) => {
+      await h.bookmarksBar(true);
+      await h.bookmarks({ all: true });
+      await h.chatAlone(h.chats.pricing);
+      await h.app.words.press("Meta+n");
+      await h.go("/browser", 1200);
+      h.after(() => h.oneGroup());
+    },
+  },
+  "tg-pinned-group": {
+    about: "tg-three-groups with the SOC 2 quotes chat's group pinned, above the line in the sidebar.",
+    themes: ["light", "dark"],
+    run: async (h) => {
+      await threeGroups(h, h.chats.pricing);
+      const { title } = await h.app.rpc("workspace.chats.byId", { id: h.chats.soc2 });
+      await h.app.words.group(title).menu("Pin");
+      await wait(500);
+      // Before the groups close, which a pinned one would outlast.
+      h.after(() => h.app.words.group(title).menu("Unpin"));
+    },
+  },
+  "tg-chat-alone-panel": {
+    about: "tg-chat-alone with the side panel shown beside the chat.",
+    themes: ["light", "dark"],
+    run: async (h) => {
+      await h.bookmarksBar(false);
+      await h.bookmarks({ all: true });
+      await h.chatAlone(h.chats.pricing);
+      await h.sidePanel();
+    },
+  },
+  "tg-panel-all-bookmarks": {
+    about: "tg-new-tab-bar with the panel's Bookmarks heading pressed: every bookmark in the panel, Back and the list's name in its head.",
+    themes: ["light"],
+    run: async (h) => {
+      await h.bookmarksBar(false);
+      await h.bookmarks({ all: true });
+      await h.chatAlone(h.chats.pricing);
+      await h.app.words.press("Meta+n");
+      await h.sidePanel();
+      await h.app.click({ selector: 'aside[aria-label="Side Panel"] h3 button' , text: "Bookmarks" });
+      await wait(700);
+      h.after(async () => {
+        if (await h.app.eval(`!!document.querySelector('aside[aria-label="Side Panel"] button[aria-label="Back"]')`)) await h.app.click({ selector: 'aside[aria-label="Side Panel"] button[aria-label="Back"]' });
+      });
+    },
+  },
+  "tg-split-panel": {
+    about: "tg-page-beside-chat with the side panel shown by its shortcut: the chat, the pages and the panel side by side in a window with the sidebar open.",
+    themes: ["light"],
+    run: async (h) => {
+      const { omnibar, press } = h.app.words;
+      await h.bookmarksBar(false);
+      await h.bookmarks({ all: true });
+      await h.chatAlone(h.chats.pricing);
+      await omnibar.go("https://www.zendesk.com/pricing");
+      await press("Meta+t");
+      await omnibar.go("https://www.intercom.com/pricing");
+      await wait(800);
+      await press("Control+Meta+s");
+      await wait(700);
+      h.after(async () => {
+        if (await h.app.eval(`!!document.querySelector('[aria-label="Close Side Panel"]')`)) await h.app.words.button("Close Side Panel").click();
+      });
+    },
+  },
+  "tg-split-panel-no-sidebar": {
+    about: "tg-split-panel with the sidebar hidden, so the chat, the pages and the side panel have the whole window.",
+    themes: ["light"],
+    run: async (h) => {
+      const { omnibar, press } = h.app.words;
+      await h.bookmarksBar(false);
+      await h.bookmarks({ all: true });
+      await h.chatAlone(h.chats.pricing);
+      await omnibar.go("https://www.zendesk.com/pricing");
+      await press("Meta+t");
+      await omnibar.go("https://www.intercom.com/pricing");
+      await wait(800);
+      await h.app.click({ selector: 'button[aria-label="Hide the sidebar"]' });
+      await wait(600);
+      if (!(await h.app.eval(`!!document.querySelector('[aria-label="Close Side Panel"]')`))) await press("Control+Meta+s");
+      await wait(700);
+      h.after(async () => {
+        if (await h.app.eval(`!!document.querySelector('[aria-label="Close Side Panel"]')`)) await h.app.words.button("Close Side Panel").click();
+        if (await h.app.eval(`!!document.querySelector('button[aria-label="Show the sidebar"]')`)) await h.app.click({ selector: 'button[aria-label="Show the sidebar"]' });
+      });
+    },
+  },
+  "tg-bookmarks-page": {
+    about: "Tab groups: a new group on the Bookmarks page (Bookmark manager): its search, the bar's bookmarks and All Bookmarks as an outline.",
+    themes: ["light"],
+    run: async (h) => {
+      await h.bookmarksBar(false);
+      await h.bookmarks({ all: true });
+      await h.chatAlone(h.chats.pricing);
+      await h.app.words.press("Meta+n");
+      await h.go("/bookmarks", 1200);
+      h.after(() => h.oneGroup());
+    },
+  },
+  "tg-files-folder-menu": {
+    about: "tg-files-in-place with the Screenshots folder's context menu open: Add to Bookmarks and Add to Favorites both in it.",
+    themes: ["light"],
+    run: async (h) => {
+      const { press } = h.app.words;
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.pricing);
+      await press("Meta+n");
+      await h.filesFromSidePanel();
+      await wait(800);
+      await h.app.click({ text: "Screenshots" }, "row", { button: "right" });
+      await wait(500);
+      h.after(() => h.oneGroup());
+    },
+  },
+  "tg-omni-typed": {
+    about: "tg-page-alone with \"pricing\" typed into the address field: its list of matches, the bookmarks among them.",
+    themes: ["light"],
+    run: async (h) => {
+      await h.bookmarksBar(false);
+      await h.bookmarks({ all: true });
+      await h.chatAlone(h.chats.pricing);
+      await h.app.words.press("Meta+n");
+      await h.app.words.omnibar.go("https://www.intercom.com/pricing");
+      await wait(800);
+      // The field's own input, which the address drawn over it covers until it has the keyboard.
+      await h.app.eval(`document.querySelector('[role=combobox]').focus()`);
+      await wait(300);
+      await h.app.type("pricing");
+      await wait(900);
+      h.after(() => h.oneGroup());
+    },
+  },
+  "tg-group-row-menu": {
+    about: "tg-three-groups with the SOC 2 quotes chat's row right-clicked in the sidebar: the tab group's menu, Pin in it.",
+    themes: ["light"],
+    run: async (h) => {
+      await threeGroups(h, h.chats.pricing);
+      const { title } = await h.app.rpc("workspace.chats.byId", { id: h.chats.soc2 });
+      await h.app.click({ selector: `nav[aria-label="Tab groups"] [data-group-row][aria-label=${JSON.stringify(`${title} tab group`)}]` }, "group row", { button: "right" });
+      await wait(500);
+    },
+  },
+  "tg-panel-all-chats": {
+    about: "tg-new-tab-bar with the panel's Chats heading pressed: every chat in the panel, its search, Drafts and Archived, and the project selector.",
+    themes: ["light"],
+    run: async (h) => {
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.pricing);
+      await h.app.words.press("Meta+n");
+      await h.sidePanel();
+      await h.app.click({ selector: 'aside[aria-label="Side Panel"] h3 button', text: "Chats" });
+      await wait(700);
+      h.after(async () => {
+        if (await h.app.eval(`!!document.querySelector('aside[aria-label="Side Panel"] button[aria-label="Back"]')`)) await h.app.click({ selector: 'aside[aria-label="Side Panel"] button[aria-label="Back"]' });
+        await h.oneGroup();
+      });
+    },
+  },
+  "tg-narrow-new-tab": {
+    about: "tg-new-tab-bar in a window 900 by 720: a new tab where the side panel has no room beside the group.",
+    themes: ["light"],
+    run: async (h) => {
+      await h.bookmarksBar(false);
+      await h.bookmarks({ all: true });
+      await h.chatAlone(h.chats.pricing);
+      await narrowWindow(h);
+      await h.app.words.press("Meta+n");
+      await wait(800);
+    },
+  },
+  "tg-narrow-page-float": {
+    about: "tg-page-alone in a window 900 by 720 with the side panel shown by its shortcut: no room beside the page, so it floats over the page's far edge.",
+    themes: ["light"],
+    run: async (h) => {
+      await h.bookmarksBar(false);
+      await h.bookmarks({ all: true });
+      await h.chatAlone(h.chats.pricing);
+      await narrowWindow(h);
+      await h.app.words.press("Meta+n");
+      await h.app.words.omnibar.go("https://www.intercom.com/pricing");
+      await wait(800);
+      if (!(await h.app.eval(`!!document.querySelector('[aria-label="Close Side Panel"]')`))) await h.app.words.press("Control+Meta+s");
+      await wait(700);
+      h.after(async () => {
+        await h.app.press("Escape");
+        await h.oneGroup();
+      });
+    },
+  },
+  "tg-narrow-files": {
+    about: "tg-files-in-place in a window 900 by 720: Files with its sidebar and no side panel.",
+    themes: ["light"],
+    run: async (h) => {
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.pricing);
+      await h.app.words.press("Meta+n");
+      await h.filesFromSidePanel();
+      await wait(800);
+      await narrowWindow(h);
+      h.after(() => h.oneGroup());
     },
   },
 };

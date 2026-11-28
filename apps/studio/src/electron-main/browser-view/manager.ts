@@ -646,7 +646,10 @@ function createBrowserViewManager(): BrowserViewManager {
       personUsedAt: () => guests.get(guest.id)?.userInputAt,
     };
     takePageDialogs(guest, entry, pageDialogsOf);
-    guardPageLeaving(guest, entry, pageDialogsOf);
+    guardPageLeaving(guest, entry, {
+      ...pageDialogsOf,
+      mayPageGoTo: mayOpenFromPage,
+    });
     // Muted until a person uses the page: an agent drives it, often while
     // nobody is looking, and its CDP clicks count as the user gesture a page
     // needs to start sound. The first click, tap or key press of a person's
@@ -1093,9 +1096,7 @@ function createBrowserViewManager(): BrowserViewManager {
       if (panelOf) {
         const tab = entries.get(panelOf);
         if (!tab || !isExtensionSidePanelAt(panelOf, params.src)) {
-          log.warn(
-            `rejected extension side panel attach targetId=${panelOf}`,
-          );
+          log.warn(`rejected extension side panel attach targetId=${panelOf}`);
           event.preventDefault();
           return;
         }

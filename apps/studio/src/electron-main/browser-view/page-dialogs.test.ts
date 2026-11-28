@@ -140,7 +140,7 @@ describe("leaving a page that holds its navigation up", () => {
       guardPageLeaving(
         guest as unknown as WebContents,
         { targetId: tab } as BrowserEntry,
-        { dialogs, personUsedAt: () => Date.now() },
+        { dialogs, mayPageGoTo: () => true, personUsedAt: () => Date.now() },
       );
       noteGoing(11, going);
       const held = { preventDefault: vi.fn() };
@@ -164,6 +164,52 @@ describe("leaving a page that holds its navigation up", () => {
     },
   );
 
+  it.each([
+    [
+      "a push",
+      { byPage: true, kind: "push", steps: 0, url: "file:///private/a.html" },
+    ],
+    ["a traverse", { byPage: true, kind: "traverse", steps: -2, url: "" }],
+  ] as const)(
+    "goes nowhere on Leave when the page's own word names %s it may not make",
+    async (_name, going) => {
+      vi.useFakeTimers();
+      const dialogs = createPageDialogs(vi.fn());
+      const guest = Object.assign(guestOf(13), {
+        navigationHistory: {
+          ...guestOf(13).navigationHistory,
+          getEntryAtIndex: (index: number) =>
+            index === 1 ? { url: "file:///private/b.html" } : undefined,
+        },
+      });
+      const { loadURL } = guest;
+      const { goToOffset } = guest.navigationHistory;
+      const asked: string[] = [];
+      guardPageLeaving(
+        guest as unknown as WebContents,
+        { targetId: tab } as BrowserEntry,
+        {
+          dialogs,
+          mayPageGoTo: (url) => {
+            asked.push(url);
+            return !url.startsWith("file:");
+          },
+          personUsedAt: () => Date.now(),
+        },
+      );
+      noteGoing(13, going);
+      guest.emit("will-prevent-unload", { preventDefault: vi.fn() });
+      await vi.advanceTimersByTimeAsync(200);
+      dialogs.answer(dialogs.list()[0]!.id, { accept: true });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(asked).toEqual([
+        going.kind === "push" ? going.url : "file:///private/b.html",
+      ]);
+      expect(loadURL).not.toHaveBeenCalled();
+      expect(goToOffset).not.toHaveBeenCalled();
+    },
+  );
+
   it("stays on the page on Cancel", async () => {
     vi.useFakeTimers();
     const dialogs = createPageDialogs(vi.fn());
@@ -172,7 +218,7 @@ describe("leaving a page that holds its navigation up", () => {
     guardPageLeaving(
       guest as unknown as WebContents,
       { targetId: tab } as BrowserEntry,
-      { dialogs, personUsedAt: () => Date.now() },
+      { dialogs, mayPageGoTo: () => true, personUsedAt: () => Date.now() },
     );
     noteGoing(12, { kind: "push", steps: 0, url: "https://example.com/next" });
     guest.emit("will-prevent-unload", { preventDefault: vi.fn() });
@@ -207,7 +253,7 @@ describe("a page's alert and confirm", () => {
       takePageDialogs(
         guest as unknown as WebContents,
         { targetId: tab } as BrowserEntry,
-        { dialogs, personUsedAt: () => Date.now() },
+        { dialogs, mayPageGoTo: () => true, personUsedAt: () => Date.now() },
       );
       const reply = vi.fn();
       guest.emit(
@@ -232,7 +278,7 @@ describe("a page's alert and confirm", () => {
     takePageDialogs(
       guest as unknown as WebContents,
       { targetId: tab } as BrowserEntry,
-      { dialogs, personUsedAt: () => Date.now() },
+      { dialogs, mayPageGoTo: () => true, personUsedAt: () => Date.now() },
     );
     const reply = vi.fn();
     guest.emit(
@@ -305,7 +351,7 @@ describe("closing a page that holds its going up", () => {
       guardPageLeaving(
         guest as unknown as WebContents,
         { targetId: tab } as BrowserEntry,
-        { dialogs, personUsedAt: () => undefined },
+        { dialogs, mayPageGoTo: () => true, personUsedAt: () => undefined },
       );
       const asked = askBeforeClosingPage(
         guest as unknown as WebContents,

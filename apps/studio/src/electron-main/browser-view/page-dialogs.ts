@@ -86,6 +86,8 @@ export const pageDialogs = createPageDialogs(() => {
 /** Where a page last said it was going, and when, read when its `beforeunload` holds that up. */
 interface Leaving {
   at: number;
+  /** Whether the page said where it is going, which it may say of anywhere. */
+  byPage?: true;
   kind: "push" | "reload" | "replace" | "traverse";
   steps: number;
   url: string;
@@ -157,6 +159,7 @@ export function servePageDialogs({
       ) {
         leavingByGuest.set(event.sender.id, {
           at: Date.now(),
+          byPage: true,
           kind,
           steps: typeof steps === "number" ? steps : 0,
           url,
@@ -247,11 +250,32 @@ export function guardPageLeaving(
   entry: BrowserEntry,
   {
     dialogs,
+    mayPageGoTo,
     personUsedAt,
-  }: { dialogs: PageDialogs; personUsedAt: () => number | undefined },
+  }: {
+    dialogs: PageDialogs;
+    /**
+     * Whether the page may take its tab to an address, as a link on it may
+     * (`will-frame-navigate`), which a navigation main starts never asks.
+     */
+    mayPageGoTo: (url: string) => boolean;
+    personUsedAt: () => number | undefined;
+  },
 ) {
   const guestId = guest.id;
   rememberGoing(guest);
+  /** Where a page's own word sends the tab, held to what a link on it may reach. */
+  const mayGo = (going: Leaving | null) => {
+    if (!going?.byPage || going.kind === "reload") {
+      return true;
+    }
+    const history = guest.navigationHistory;
+    const url =
+      going.kind === "traverse" && going.steps !== 0
+        ? history.getEntryAtIndex(history.getActiveIndex() + going.steps)?.url
+        : going.url;
+    return url !== undefined && mayPageGoTo(url);
+  };
   guest.on("will-prevent-unload", (event) => {
     // A close asks in the tab itself (`askBeforeClosingPage`); left held, the
     // close is called off for the page to stay until the person answers.
@@ -289,7 +313,16 @@ export function guardPageLeaving(
         personUsedAt: personUsedAt(),
       }).then(({ accept }) => {
         if (accept && !guest.isDestroyed()) {
-          leave(guest, going);
+          if (mayGo(going)) {
+            leave(guest, going);
+          } else {
+            log.warn(
+              `refused a page leaving for outside the agent's folders targetId=${entry.targetId}`,
+            );
+            publisher.publish("browser.navigation-refused", {
+              targetId: entry.targetId,
+            });
+          }
         }
       });
     }, LEAVING_WAIT_MS);

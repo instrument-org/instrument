@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
-import { windowsPowerShell } from "./windows-system-program";
+import { windowsPowerShell } from "./windows-system-program.ts";
 
 // What Windows says about one file's Authenticode signature: PowerShell's
 // `Get-AuthenticodeSignature`, which checks the chain to a trusted root and the

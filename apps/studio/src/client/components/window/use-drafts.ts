@@ -37,7 +37,7 @@ import { pageToChat, pagesForChat } from "./draft-band";
 import { draftLinksOf, withDraftLinks } from "./draft-links";
 import { asksPart } from "./asks-part";
 import { stagedAsksAtom, useStagedAskActions } from "./staged-asks";
-import { chatFiltersUpAtom, type useWindowTabs } from "./window-tabs";
+import { type useWindowTabs } from "./window-tabs";
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
 import { chatHref, newChatHref } from "./window-href";
 
@@ -63,7 +63,6 @@ export function useDrafts({
   chatTitles,
   folders,
   draftContext,
-  isChat,
   isOpen,
   layoutOf,
   openDraftInChat,
@@ -82,8 +81,6 @@ export function useDrafts({
     draft: Draft,
     tabId: string | undefined,
   ) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
-  /** Whether the tab up is the chat, whose inbox's project a new draft is filed under. */
-  isChat: boolean;
   /** Whether what the window opens on is made; no chat starts before it is. */
   isOpen: boolean;
   /** The group of the tab a message goes from, as the chat reads it; see `layoutReadOf`. */
@@ -103,7 +100,6 @@ export function useDrafts({
   const claimDraft = useSetAtom(claimDraftAtom);
   const releaseDraft = useSetAtom(releaseDraftAtom);
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
-  const chatFilters = useAtomValue(chatFiltersUpAtom);
   const queryClient = useQueryClient();
   const stagedAsks = useAtomValue(stagedAsksAtom);
   const { returnTo: returnAsks } = useStagedAskActions();
@@ -184,11 +180,6 @@ export function useDrafts({
     show(draft.id);
     return draft.id;
   };
-  /** The project the inbox stands in, while the tab is on Chat and the inbox stands in one. */
-  const inboxProject = () =>
-    isChat && chatFilters.projects.length === 1
-      ? projects.find((project) => project.id === chatFilters.projects[0])?.id
-      : undefined;
   /** The project the sidebar stands in. */
   const sidebarProject = () => {
     const id = store.get(sidebarProjectAtom);
@@ -199,7 +190,7 @@ export function useDrafts({
    * something in it, filed as New files one, put up by `show` when given.
    */
   const draftWith = (words = "", show?: (id: string) => void) =>
-    startDraft(inboxProject() ?? sidebarProject(), words, show);
+    startDraft(sidebarProject(), words, show);
   /**
    * A new chat a link from outside asked for, with its words: a draft of its
    * own beside any already open, so nothing the person wrote is replaced,

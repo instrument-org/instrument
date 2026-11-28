@@ -38,6 +38,7 @@ export function SearchField<T extends string>({
   onChange,
   onFocusChange,
   onTokensChange,
+  onEscapeEmpty,
   placeholder,
   tokens = [],
   value,
@@ -55,6 +56,8 @@ export function SearchField<T extends string>({
   /** Told when the field takes focus and when it lets it go. */
   onFocusChange?: (isFocused: boolean) => void;
   onTokensChange?: (tokens: T[]) => void;
+  /** Escape in the field once it holds nothing, in place of the keyboard leaving it. */
+  onEscapeEmpty?: () => void;
   placeholder: string;
   /** The tokens standing in the field, in the order they were picked. */
   tokens?: SearchToken<T>[];
@@ -182,13 +185,15 @@ export function SearchField<T extends string>({
                 return;
               }
               // Emptied a step at a time: the words, then the tokens, then
-              // the keyboard leaves the field.
+              // the keyboard leaves the field, or `onEscapeEmpty`.
               event.preventDefault();
               event.stopPropagation();
               if (value !== "") {
                 onChange("");
               } else if (tokens.length > 0) {
                 onTokensChange?.([]);
+              } else if (onEscapeEmpty) {
+                onEscapeEmpty();
               } else {
                 leaveField(event.currentTarget);
               }

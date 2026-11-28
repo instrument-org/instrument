@@ -1,11 +1,5 @@
-import { tabChatFiltersAtom, type WindowTab } from "@/client/atoms/window";
-import {
-  atom,
-  type Atom,
-  type SetStateAction,
-  useAtomValue,
-  useSetAtom,
-} from "jotai";
+import { type WindowTab } from "@/client/atoms/window";
+import { atom, type Atom, useAtomValue, useSetAtom } from "jotai";
 import { selectAtom } from "jotai/utils";
 import { isEqual } from "radashi";
 import { createContext, useCallback, useContext, useMemo } from "react";
@@ -21,7 +15,6 @@ import { workingTabOf } from "@/shared/working-tab";
 import { type ChatId, StoreId } from "@instrument-org/workspace/client";
 
 import { appTabsAtom, groupOfHref } from "./app-tabs";
-import { type ChatFilters, NO_FILTERS } from "./chats";
 import { type BesideAsk } from "./beside-chat";
 import {
   backToOpenerOf,
@@ -208,24 +201,6 @@ export const groupOnScreenAtom = atom((get) => {
   return tab ? groupOfHref(tab.pathname) : undefined;
 });
 
-/**
- * What the chat list of the tab up in the group on screen is narrowed to,
- * and narrowing it: for what acts on the tab in front rather than from
- * inside one. Nothing, with no group on screen.
- */
-export const chatFiltersUpAtom = atom(
-  (get) => {
-    const up = selectedTabIn(get(windowTabsAtom), get(groupOnScreenAtom));
-    return up ? get(tabChatFiltersAtom(up.id)) : NO_FILTERS;
-  },
-  (get, set, update: SetStateAction<ChatFilters>) => {
-    const up = selectedTabIn(get(windowTabsAtom), get(groupOnScreenAtom));
-    if (up) {
-      set(tabChatFiltersAtom(up.id), update);
-    }
-  },
-);
-
 /** Every tab id the window holds, past and future visits included, so nothing is opened twice. */
 export const everyTabIdAtom = atom((get) => everyTabId(get(shownTabsAtom)));
 
@@ -348,8 +323,7 @@ export function useGroupLead(group: string): string | undefined {
 /** The name a group was given (`GroupOwn.name`), read for the group alone. */
 export function useGroupName(group: string): string | undefined {
   const word = useMemo(
-    () =>
-      selectAtom(windowTabsAtom, (state) => state.groups?.[group]?.name),
+    () => selectAtom(windowTabsAtom, (state) => state.groups?.[group]?.name),
     [group],
   );
   return useAtomValue(word);

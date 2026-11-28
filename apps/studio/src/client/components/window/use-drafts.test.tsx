@@ -57,7 +57,6 @@ function Drafts({
       chatTitles: new Map(),
       draftContext: () => Promise.resolve(undefined),
       folders: {},
-      isChat: false,
       isOpen: true,
       openDraftInChat: () => undefined,
       projects: [],

@@ -118,7 +118,7 @@ export function groupOfHref(href: string): string | undefined {
 }
 
 /** Whether an address is the chat: the inbox alone, or beside a chat. */
-export function isChatHref(href: string): boolean {
+function isChatHref(href: string): boolean {
   switch (matchScreen(href).kind) {
     case "chat":
     case "chatLink":

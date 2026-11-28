@@ -1021,18 +1021,32 @@ export function AllChats({
   group: string;
   open: OpenAddress;
 }) {
-  const [filters, setFilters] = useAtom(sidePanelChatFiltersAtom(group));
+  const [kept, setFilters] = useAtom(sidePanelChatFiltersAtom(group));
   const density = useAtomValue(sidePanelRowDensityAtom);
+  const sidePanel = useSidePanel(group);
   const shell = useShell();
   const keepDraft = useSetAtom(applyDraftOpsAtom);
   const now = useMinuteClock();
   const { data } = useQuery(chatListOptions());
   const chats = withBookmarks(data ?? [], useAtomValue(bookmarkedChatsAtom));
-  const projects =
-    useQuery(rpcClient.workspace.projects.list.queryOptions()).data ?? [];
+  const projectsQuery = useQuery(
+    rpcClient.workspace.projects.list.queryOptions(),
+  );
+  const projects = projectsQuery.data ?? [];
   const projectNames = new Map(
     projects.map((project) => [project.id, project.name]),
   );
+  // A project deleted since it was picked narrows nothing.
+  const filters = projectsQuery.isSuccess
+    ? {
+        ...kept,
+        projects: kept.projects.filter(
+          (id) =>
+            id === NO_PROJECT ||
+            projects.some((project) => project.id === id && !project.retired),
+        ),
+      }
+    : kept;
   // Search Chats puts the caret in the search once it is drawn; opening the
   // chats any other way leaves the keyboard where it was.
   const [isSearchAsked, setSearchAsked] = useAtom(
@@ -1103,6 +1117,13 @@ export function AllChats({
           onTokensChange={(tags) => {
             setFilters({ ...filters, tags });
           }}
+          // Floating, the panel goes away on the Escape that would only
+          // have let go of the field.
+          {...(sidePanel.isFloating && {
+            onEscapeEmpty: () => {
+              sidePanel.setOpen(false);
+            },
+          })}
           placeholder={
             filters.place === "drafts"
               ? "Search Drafts"

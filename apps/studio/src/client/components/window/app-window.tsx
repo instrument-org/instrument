@@ -21,13 +21,11 @@ import {
 import {
   closingNewChat,
   newChatBoxesAtom,
-  pickNewChatProjectAtom,
   settleMadeDraft,
 } from "@/client/drafts/new-chat-box";
 import { type Draft, holdsSomething, isOnItsWay } from "@/shared/drafts";
 import {
   type AppPlace,
-  chatFiltersByTabAtom,
   NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";
@@ -124,7 +122,6 @@ import { createPortal } from "react-dom";
 import {
   appTabsAtom,
   groupOfHref,
-  isChatHref,
   isSiteGroup,
   placeOfHref,
   putAwaySitesAtom,
@@ -139,7 +136,6 @@ import { tabTitle, useTabNames } from "./tab-title";
 import { editField } from "./omnibar-field";
 import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions, chromeOfChats } from "./chat-list-query";
-import { type ChatFilters, inPlace } from "./chats";
 import { type WindowContextValue as Screens } from "./context";
 import {
   chatOfTab,
@@ -220,15 +216,9 @@ import {
   chatOfHref,
   matchScreen,
   newChatHref,
-  sameHref,
   SCREEN_ROUTES,
 } from "./window-href";
-import {
-  chatFiltersUpAtom,
-  newScreenId,
-  useWindowTabs,
-  windowTabsAtom,
-} from "./window-tabs";
+import { newScreenId, useWindowTabs, windowTabsAtom } from "./window-tabs";
 import { stripKeyOf } from "./pane-tabs";
 import { flashStripTab, flashStripTabOnceDrawn } from "./tab-strip";
 import { forgetMovedAway, hasMovedAway, receiveTab } from "./move-tab";
@@ -663,9 +653,6 @@ function WindowShell({
   const place = useRouterState({
     select: (routerState) => placeOfHref(routerState.location.href),
   });
-  const isChat = useRouterState({
-    select: (routerState) => isChatHref(routerState.location.href),
-  });
   const chatUp = useRouterState({
     select: (routerState) => chatOfHref(routerState.location.href),
   });
@@ -700,8 +687,6 @@ function WindowShell({
   const draftsLoaded = useAtomValue(draftsLoadedAtom);
   const updateDraft = useSetAtom(updateDraftAtom);
   const removeDraft = useSetAtom(removeDraftAtom);
-  const [chatFilters, setChatFilters] = useAtom(chatFiltersUpAtom);
-  const pickNewChatProject = useSetAtom(pickNewChatProjectAtom);
   // The card the tabs are drawn in, measured in layout px, which the inbox
   // sizes itself against.
   const [rowElement, setRowElement] = useState<HTMLDivElement | null>(null);
@@ -1452,7 +1437,6 @@ function WindowShell({
     draftContext,
     isOpen: opened !== undefined,
     layoutOf: contexts.layoutContext,
-    isChat,
     openDraftInChat: (id) => {
       appTabs.navigate(newChatHref(id));
     },
@@ -1460,15 +1444,6 @@ function WindowShell({
     projects,
     windowTabs,
   });
-  // The chat or draft each tab had up beside the list when it stepped into
-  // a project, by the tab, which stepping back out brings back.
-  const beforeProject = useRef(new Map<string, string>());
-  // The chat up as the list stepped into a project, which the tab is on its
-  // way away from: never a chat that takes the list back out.
-  const [leavingChat, setLeavingChat] = useState<ChatId>();
-  if (leavingChat !== undefined && chatUp !== leavingChat) {
-    setLeavingChat(undefined);
-  }
   /**
    * The sidebar standing in a project, from the command menu: out if it was
    * put away.
@@ -1477,70 +1452,6 @@ function WindowShell({
     setSidebarOpen(true);
     store.set(sidebarProjectAtom, projectId);
   };
-  /**
-   * The list back in the inbox from its project. The new chat the project
-   * put up, still unwritten, gives way to the chat or draft this tab had up
-   * before it; anything opened in the project since stays.
-   */
-  const leaveProject = () => {
-    const tabId = appTabs.model.selectedId;
-    const back = tabId ? beforeProject.current.get(tabId) : undefined;
-    if (tabId) {
-      beforeProject.current.delete(tabId);
-    }
-    setChatFilters((current) => inPlace(current, undefined));
-    if (back !== undefined && sameHref(hrefNow(), newChatHref())) {
-      appTabs.navigate(back);
-    }
-  };
-  // A chat filed elsewhere coming up beside a project's list, from the
-  // command menu, a link or a notice, takes the list out of the project, so
-  // the open chat always has its row. A chat being started is not filed
-  // yet, and the chat the list just stepped away from is on its way out.
-  const standingProject =
-    chatFilters.projects.length === 1 ? chatFilters.projects[0] : undefined;
-  const { data: chatUpProject } = useQuery({
-    ...chatListOptions(),
-    select: (chats) => chats.find((chat) => chat.id === chatUp)?.project,
-  });
-  const isChatOutsideProject =
-    standingProject !== undefined &&
-    chatUp !== undefined &&
-    chatUp !== leavingChat &&
-    !sent.has(chatUp) &&
-    chatUp !== arrivedId &&
-    chatTitles.has(chatUp) &&
-    chatUpProject !== standingProject;
-  useEffect(() => {
-    if (isChatOutsideProject) {
-      beforeProject.current.clear();
-      setChatFilters((current) => inPlace(current, undefined));
-    }
-  }, [isChatOutsideProject, setChatFilters]);
-  // However a tab's list leaves a project (its Inbox, a chat from
-  // elsewhere, the project deleted), that tab's new chat, filed by the
-  // project and with nothing written yet, stops being filed under it.
-  const filtersByTab = useAtomValue(chatFiltersByTabAtom);
-  const lastFilters = useRef(filtersByTab);
-  useEffect(() => {
-    const before = lastFilters.current;
-    lastFilters.current = filtersByTab;
-    const standingIn = (filters: ChatFilters | undefined) =>
-      filters?.projects.length === 1 ? filters.projects[0] : undefined;
-    const boxes = store.get(newChatBoxesAtom);
-    for (const [tabId, filters] of Object.entries(before)) {
-      const left = standingIn(filters);
-      const box = boxes[tabId];
-      if (
-        left !== undefined &&
-        left !== standingIn(filtersByTab[tabId]) &&
-        box?.projectId === left &&
-        box.draftId === null
-      ) {
-        pickNewChatProject({ projectId: undefined, tabId });
-      }
-    }
-  }, [filtersByTab, pickNewChatProject, store]);
   /**
    * The tab up to one of the places, from their chords, the command menu or
    * a place's mark in the address row. Chat is the chat of the tab group up:
@@ -2027,7 +1938,6 @@ function WindowShell({
       | "closeSide"
       | "discardDraft"
       | "goToPlace"
-      | "leaveProject"
       | "newGroup"
       | "newTab"
       | "onNewDraftProject"
@@ -2052,7 +1962,6 @@ function WindowShell({
     closeSide: askToCloseSide,
     discardDraft,
     goToPlace: choosePlace,
-    leaveProject,
     newGroup: () => {
       groups.openNew();
     },

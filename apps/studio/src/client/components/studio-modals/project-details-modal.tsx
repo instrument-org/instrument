@@ -1,5 +1,4 @@
 import { projectDetailsModalAtom } from "@/client/atoms/project-details-modal";
-import { chatFiltersByTabAtom } from "@/client/atoms/window";
 import { ProjectDialog } from "@/client/components/window/project-dialog";
 import { spokenMessage, toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
@@ -9,12 +8,11 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useAtom, useSetAtom } from "jotai";
+import { useAtom } from "jotai";
 
 /** A project's details, changed or deleted from wherever it was asked for. */
 export function ProjectDetailsModal() {
   const [open, setOpen] = useAtom(projectDetailsModalAtom);
-  const setFiltersByTab = useSetAtom(chatFiltersByTabAtom);
   const queryClient = useQueryClient();
   const projectsQuery = useQuery(
     rpcClient.workspace.projects.list.queryOptions(),
@@ -61,21 +59,9 @@ export function ProjectDetailsModal() {
         }
         updateProject.mutate({ ...edits, projectId: project.id });
       }}
-      // Deleting retires the project: the tag goes from the column and from
-      // the filter of every tab's list it was the one chosen in; the chats
-      // keep everything.
+      // Deleting retires the project; the chats keep everything.
       onDelete={() => {
         retireProject.mutate({ projectId: project.id });
-        setFiltersByTab((byTab) =>
-          Object.fromEntries(
-            Object.entries(byTab).map(([tabId, filters]) => [
-              tabId,
-              filters?.projects.includes(project.id)
-                ? { ...filters, projects: [] }
-                : filters,
-            ]),
-          ),
-        );
       }}
       onOpenChange={(isOpen) => {
         if (!isOpen) {

@@ -55,8 +55,6 @@ export interface WindowShell {
   startChat: (id: string, send: DraftSend, tabId: string) => void;
   /** Takes the tab up to Chat with the inbox standing in a project, by its id, putting away the chat or draft up beside it for a new chat filed under the project. */
   openProject: (projectId: string) => void;
-  /** Takes the inbox back out of its project, to the chat or draft up before it while the project's new chat is still unwritten. */
-  leaveProject: () => void;
   /** Opens a project's folder in Files. */
   openProjectInFiles: (project: Project) => void;
   /** Says a chat's transcript has what it was started with, so `sentWords` can let go of it. */

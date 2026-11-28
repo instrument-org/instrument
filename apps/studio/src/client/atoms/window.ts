@@ -4,41 +4,14 @@ import {
   type FileSystemGroupKey,
   type FileSystemSortState,
 } from "@/client/components/extend/file-system";
-import { type ChatFilters, NO_FILTERS } from "@/client/components/window/chats";
 import { type TabHistory as ScreenHistory } from "@/shared/tabs";
 import {
   type ChatId,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
-import { atom, type SetStateAction } from "jotai";
-import { atomFamily } from "jotai/utils";
+import { atom } from "jotai";
 
 import { keptAtom } from "@/client/lib/kept-state";
-
-/**
- * What each tab's chat list is narrowed to, by the tab's id: its project,
- * its place, its search and its marks. A tab not named here lists every
- * chat, so a new tab's list opens in the inbox whatever another tab's
- * stands in.
- */
-export const chatFiltersByTabAtom = atom<
-  Readonly<Partial<Record<string, ChatFilters>>>
->({});
-
-/** What one tab's chat list is narrowed to, and narrowing it. */
-export const tabChatFiltersAtom = atomFamily((tabId: string) =>
-  atom(
-    (get) => get(chatFiltersByTabAtom)[tabId] ?? NO_FILTERS,
-    (get, set, update: SetStateAction<ChatFilters>) => {
-      const byTab = get(chatFiltersByTabAtom);
-      const next =
-        typeof update === "function"
-          ? update(byTab[tabId] ?? NO_FILTERS)
-          : update;
-      set(chatFiltersByTabAtom, { ...byTab, [tabId]: next });
-    },
-  ),
-);
 
 /** The files cut in this window, by host path: a paste of exactly these moves them. */
 export const filesCutAtom = atom<readonly string[]>([]);

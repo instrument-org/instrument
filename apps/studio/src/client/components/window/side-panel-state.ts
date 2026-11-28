@@ -20,9 +20,10 @@ import { useWindowTabs } from "./window-tabs";
 
 /**
  * Whether a group's side panel is open: as the person last left it there,
- * and otherwise open over a new tab in a group of one side, where something
- * is about to start, and closed over anything else, so sending from the new
- * tab puts it away.
+ * and otherwise open over a new group that is a new tab alone, where
+ * something is about to start, and closed over anything else, so sending
+ * from the new tab puts it away and a new tab opened in a group already in
+ * use leaves the panel shut.
  */
 function isSidePanelOpen(
   own: GroupOwn | undefined,
@@ -33,7 +34,12 @@ function isSidePanelOpen(
   }
   const [only, other] = layout.sides;
   const up = only?.tabs.find((tab) => tab.id === only.up);
-  return other === undefined && up !== undefined && isNewChatTab(up);
+  return (
+    other === undefined &&
+    only?.tabs.length === 1 &&
+    up !== undefined &&
+    isNewChatTab(up)
+  );
 }
 
 /**

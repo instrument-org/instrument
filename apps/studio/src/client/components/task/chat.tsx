@@ -22,7 +22,6 @@ import {
 import { ShellContext } from "@/client/components/window/shell-context";
 import { useStagedAskActions } from "@/client/components/window/staged-asks";
 import { projectCommand } from "@/client/lib/app-commands";
-import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import { keyboardPlace } from "@/client/lib/keyboard-place";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import {
@@ -856,10 +855,9 @@ export function ChatConversation({
   });
   // A chat coming on screen is a place to reply from, so the caret lands
   // in the field as it opens, unless it opened on the side of a tab group
-  // without the keyboard (`takesCaret`) or as the person walked the chat
-  // list with the arrows (`mayTakeKeyboard`).
+  // without the keyboard (`takesCaret`).
   useLayoutEffect(() => {
-    if (!takesCaret || !isActiveTab || !mayTakeKeyboard()) {
+    if (!takesCaret || !isActiveTab) {
       return;
     }
     promptEditor?.focus();

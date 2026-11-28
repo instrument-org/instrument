@@ -3,7 +3,6 @@ import {
   AppMenuRow,
   type ComposerApp,
 } from "@/client/components/app-mention";
-import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import { setComposeFocus } from "@/client/lib/type-to-compose";
 import { setOwnUndo } from "@/client/lib/undo-toast";
 import {
@@ -733,8 +732,7 @@ export function PromptEditor({
       view.focus();
     });
     setHasLinks(hasLinksIn(view.state));
-    // Not while the person walks a list with the arrows (`mayTakeKeyboard`).
-    if (initialProps.autoFocus && mayTakeKeyboard()) {
+    if (initialProps.autoFocus) {
       view.focus();
     }
     return () => {

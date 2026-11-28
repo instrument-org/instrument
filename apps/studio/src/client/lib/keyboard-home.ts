@@ -639,29 +639,6 @@ export function focusChatComposer() {
 }
 
 /**
- * A list the person is walking with the arrows, which keeps the keyboard
- * while each thing it opens comes up: a composer mounting with the chat
- * stays put. Let go by the next press of the pointer anywhere, or by the
- * keyboard leaving the list.
- */
-let walkedList: HTMLElement | null = null;
-
-export function keepKeyboardInList(list: HTMLElement) {
-  walkedList = list;
-}
-
-export function letGoOfList() {
-  walkedList = null;
-}
-
-/** Whether something coming up may take the keyboard from where it is. */
-export function mayTakeKeyboard() {
-  return !(
-    walkedList?.isConnected && walkedList.contains(document.activeElement)
-  );
-}
-
-/**
  * The button a press is on, which may be a row that is one only by its role
  * and takes no focus itself. A field or a focusable part inside such a row
  * keeps its own press.
@@ -692,10 +669,6 @@ export function installKeyboardHome() {
   // since its guest gives the keyboard up to any press in the window.
   let pressedButton = false;
   let pressedTab = false;
-  window.addEventListener("pointerdown", letGoOfList, {
-    capture: true,
-    signal,
-  });
   window.addEventListener(
     "mousedown",
     (event) => {

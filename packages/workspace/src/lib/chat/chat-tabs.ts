@@ -5,7 +5,7 @@ import { type WindowTabAnswer } from "../../schemas/window-tab";
 import { type BrowserTargetId, parseBrowserTargetId } from "../../types";
 import { getChatState, updateChatState } from "../chat-record";
 import { chatDir, resolveChat, sessionOfChat } from "../record-folders";
-import { actsIn } from "../tab-activity";
+import { actsIn, noteTabPages } from "../tab-activity";
 import { isWorking } from "./activity";
 import { listChildTasks } from "./children";
 import { takePendingUse } from "./person-used-tabs";
@@ -28,6 +28,17 @@ export type ChatPageTab = NonNullable<WindowTabAnswer["pages"]>[number] & {
 export async function chatPageTabs(
   chatId: ChatId,
 ): Promise<ChatPageTab[] | undefined> {
+  return (await chatTabs(chatId))?.pages;
+}
+
+/**
+ * The chat's page tabs (`chatPageTabs`), and the ids of every tab the
+ * window has in any group, a tab on a file no page draws among them.
+ * Undefined when no window answered.
+ */
+export async function chatTabs(
+  chatId: ChatId,
+): Promise<{ pages: ChatPageTab[]; standing: Set<string> } | undefined> {
   const answer = await askWindow({
     action: { kind: "list" },
     askedBy: chatId,
@@ -36,10 +47,20 @@ export async function chatPageTabs(
   if (!answer?.pages) {
     return undefined;
   }
-  return answer.pages.flatMap((tab) => {
+  const pages = answer.pages.flatMap((tab) => {
     const targetId = parseBrowserTargetId(tab.targetId ?? tab.id);
     return targetId === null ? [] : [{ ...tab, targetId }];
   });
+  noteTabPages(pages);
+  const standing = new Set<string>(pages.map((tab) => tab.id));
+  for (const group of (answer.windows ?? []).flatMap(
+    (window) => window.groups,
+  )) {
+    for (const tab of group.sides.flatMap((side) => side.tabs)) {
+      standing.add(tab.id);
+    }
+  }
+  return { pages, standing };
 }
 
 /**
@@ -68,7 +89,23 @@ export function agentTabIdOf(
   return tabs?.find((tab) => tab.targetId === targetId)?.id ?? targetId;
 }
 
-/** Keeps a tab a session of the chat opened, which counts toward `CHAT_HIDDEN_TAB_CAP` and closes with the chat's archiving (`tab-cap.ts`). */
+/**
+ * The id agents name a tab an agent opened by, from its entry in the chat's
+ * state: the tab's, or, for an entry an earlier build kept by its page's
+ * id, the tab that page draws.
+ */
+export function openedTabId(
+  tabs: readonly ChatPageTab[] | undefined,
+  id: string,
+): string {
+  return pageTabNamed(tabs, id)?.id ?? id;
+}
+
+/**
+ * Keeps a tab a session of the chat opened, by the id agents name it by,
+ * which counts toward `CHAT_HIDDEN_TAB_CAP` and closes with the chat's
+ * archiving (`tab-cap.ts`).
+ */
 export async function noteOpenedTab(
   chatId: ChatId,
   id: BrowserTargetId,
@@ -142,10 +179,11 @@ export async function takeClosedTabs(
 
 /**
  * The sessions with a turn running that sent a tab commands, the latest
- * first: who is at work in it. Free while nothing has driven the tab.
+ * first: who is at work in it, by the id agents name it by. Free while
+ * nothing has driven the tab.
  */
-export function workingIn(targetId: BrowserTargetId) {
-  return actsIn(targetId).filter((act) => isWorkingNow(act));
+export function workingIn(tabId: string) {
+  return actsIn(tabId).filter((act) => isWorkingNow(act));
 }
 
 /** A task at work in a tab: by its handle, its session and its title. */
@@ -173,7 +211,7 @@ export async function tabHolders(
   }
   const tabs = await chatPageTabs(chatId);
   for (const tab of tabs ?? []) {
-    const holder = actsIn(tab.targetId)
+    const holder = actsIn(tab.id)
       .map((act) => working.find((task) => task.id === act.sessionId))
       .find((task) => task !== undefined);
     if (holder) {

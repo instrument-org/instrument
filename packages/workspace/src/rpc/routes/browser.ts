@@ -11,7 +11,7 @@ import {
 import { CdpCommandTimeoutError } from "../../lib/cdp-command-timeout-error";
 import { getBrowserSessionDir } from "../../lib/chat-dir-utils";
 import { chatWorkingIn, tabsInUse } from "../../lib/chat/driven-tabs";
-import { lastActOf } from "../../lib/tab-activity";
+import { lastActOf, tabOfPage } from "../../lib/tab-activity";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { BrowserTargetIdSchema } from "../../types";
@@ -199,7 +199,7 @@ const agentActivity = base
       const lastAt =
         sessionId === undefined
           ? lastBrowserAgentActivity(targetId)
-          : lastActOf(targetId, sessionId);
+          : lastActOf(tabOfPage(targetId), sessionId);
       const chat =
         sessionId === undefined ? chatWorkingIn(targetId) : undefined;
       return {

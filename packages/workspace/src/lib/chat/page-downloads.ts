@@ -3,14 +3,14 @@ import { type StoreId } from "../../schemas/store-id";
 import { type BrowserTargetId } from "../../types";
 import { getDownloadsDir } from "../chat-dir-utils";
 import { shellPath } from "../shell-path";
-import { actsIn } from "../tab-activity";
+import { actsIn, tabOfPage } from "../tab-activity";
 import { workDir } from "../work-dir";
 import { agentTabIdOf, chatPageTabs } from "./chat-tabs";
 
 /** A download a page an agent drives started, as the session is told of it. */
 interface PageDownload {
-  /** The page that started it. */
-  from: BrowserTargetId;
+  /** The tab whose page started it, by the id agents name it by where a command or list named it, else the page's. */
+  from: string;
   /** Where it is saved, as the agent's shell names it. */
   path: string;
   state: "canceled" | "completed" | "failed" | "running";
@@ -27,7 +27,7 @@ const owed = new Map<StoreId.Session, Map<string, PageDownload>>();
 export function agentDownloadsFolder(
   targetId: BrowserTargetId,
 ): string | undefined {
-  const [driver] = actsIn(targetId);
+  const [driver] = actsIn(tabOfPage(targetId));
   return driver ? getDownloadsDir(workDir(driver.chatId)) : undefined;
 }
 
@@ -43,13 +43,14 @@ export function notePageDownload(
   id: string,
   { path, state }: { path: string; state: PageDownload["state"] },
 ): void {
-  const [driver] = actsIn(from);
+  const tabId = tabOfPage(from);
+  const [driver] = actsIn(tabId);
   if (!driver) {
     return;
   }
   const downloads =
     owed.get(driver.sessionId) ?? new Map<string, PageDownload>();
-  downloads.set(id, { from, path: shellPath(path), state });
+  downloads.set(id, { from: tabId, path: shellPath(path), state });
   owed.set(driver.sessionId, downloads);
 }
 

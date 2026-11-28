@@ -17,7 +17,27 @@ export interface TabNews {
   agents: TabAct[];
   /** When the person last clicked, tapped or typed in it, when that was after this session's last command. */
   personAt?: number;
-  targetId: BrowserTargetId;
+  /** The tab, by the id agents name it by. */
+  tabId: string;
+}
+
+/**
+ * A tab and the page drawing it: by the id agents name the tab by, which
+ * stays with it, and the page's own, which changes when a tab on an HTML
+ * file walks to a file of another kind and back. A bare page id stands for
+ * the tab it was last named drawing (`tabOfPage`), else a page tab, which
+ * agents name by its page's id.
+ */
+export type TabPage =
+  | BrowserTargetId
+  | { tabId: string; targetId: BrowserTargetId };
+
+function tabIdOf(tab: TabPage): string {
+  return typeof tab === "string" ? tabOfPage(tab) : tab.tabId;
+}
+
+function pageIdOf(tab: TabPage): BrowserTargetId {
+  return typeof tab === "string" ? tab : tab.targetId;
 }
 
 /**
@@ -30,21 +50,68 @@ const FIRST_LOOK_MS = 2 * 60_000;
 /** How many tabs' acts are kept; the tabs acted in longest ago go first past it. */
 const KEPT = 256;
 
-/** Every session's last command in each tab, since launch. */
-const actsByTab = new Map<BrowserTargetId, Map<StoreId.Session, TabAct>>();
+/** How many pages' tabs are kept; the pages named longest ago go first past it. */
+const PAGES_KEPT = 1024;
+
+/**
+ * Every session's last command in each tab, since launch, by the id agents
+ * name the tab by, so a new page drawing a tab keeps what was done in it.
+ */
+const actsByTab = new Map<string, Map<StoreId.Session, TabAct>>();
+
+/** The tab each page draws, by the page's id, as commands and the window's lists named them. */
+const tabByPage = new Map<BrowserTargetId, string>();
+
+/** The page drawing each tab, as last named. */
+const pageByTab = new Map<string, BrowserTargetId>();
+
+function notePage(targetId: BrowserTargetId, tabId: string) {
+  tabByPage.delete(targetId);
+  tabByPage.set(targetId, tabId);
+  pageByTab.set(tabId, targetId);
+  for (const oldest of tabByPage.keys()) {
+    if (tabByPage.size <= PAGES_KEPT) {
+      break;
+    }
+    tabByPage.delete(oldest);
+  }
+}
+
+/** Keeps which tab each page draws, as the window lists the chat's tabs (`chatPageTabs`). */
+export function noteTabPages(
+  tabs: readonly { id: string; targetId: BrowserTargetId }[],
+): void {
+  for (const tab of tabs) {
+    notePage(tab.targetId, tab.id);
+  }
+}
+
+/**
+ * The id agents name the tab a page draws by, for a page reporting what
+ * happened in it (a popup, a download, the person's input, the window's
+ * marks): the page's own id where no command or list named its tab.
+ */
+export function tabOfPage(targetId: BrowserTargetId): string {
+  return tabByPage.get(targetId) ?? targetId;
+}
+
+/** The page last named drawing a tab, or none for a tab no command or list named. */
+export function pageOfTab(tabId: string): BrowserTargetId | undefined {
+  return pageByTab.get(tabId);
+}
 
 /**
  * The tabs each session sent commands in its turn running now: every page
  * that turn used, since it may go back to any of them. Emptied as the turn
  * ends (`session.done`).
  */
-const turnTabs = new Map<StoreId.Session, Set<BrowserTargetId>>();
+const turnTabs = new Map<StoreId.Session, Set<string>>();
 
 /** Whether `turnTabs` hears turns end yet; it starts with the first command. */
 let hearingTurnEnds = false;
 
 /** Per session, the news it has not been told yet, by tab. */
-const owed = new Map<StoreId.Session, Map<BrowserTargetId, TabNews>>();
+const owed = new Map<StoreId.Session, Map<string, TabNews>>();
 
 /**
  * A session of a chat sent a tab a command. Every session of a chat drives
@@ -52,15 +119,22 @@ const owed = new Map<StoreId.Session, Map<BrowserTargetId, TabNews>>();
  * others' commands, the person's input) is kept for its next result.
  */
 export function noteTabCommand(
-  targetId: BrowserTargetId,
+  tab: TabPage,
   { chatId, sessionId }: { chatId: ChatId; sessionId: StoreId.Session },
   now: number = Date.now(),
 ): void {
+  const tabId = tabIdOf(tab);
+  const targetId = pageIdOf(tab);
+  // A bare page id names its own tab unless a list or command named
+  // another, which stands.
+  if (typeof tab !== "string" || tabId === targetId) {
+    notePage(targetId, tabId);
+  }
   // Moved to the end on every command, so the tabs dropped past `KEPT` are
   // the ones nobody has acted in for longest.
-  const acts = actsByTab.get(targetId) ?? new Map<StoreId.Session, TabAct>();
-  actsByTab.delete(targetId);
-  actsByTab.set(targetId, acts);
+  const acts = actsByTab.get(tabId) ?? new Map<StoreId.Session, TabAct>();
+  actsByTab.delete(tabId);
+  actsByTab.set(tabId, acts);
   for (const oldest of actsByTab.keys()) {
     if (actsByTab.size <= KEPT) {
       break;
@@ -81,7 +155,7 @@ export function noteTabCommand(
       ? input
       : undefined;
   acts.set(sessionId, { at: now, chatId, sessionId });
-  noteTurnTab(targetId, sessionId);
+  noteTurnTab(tabId, sessionId);
   if (agents.length === 0 && personAt === undefined) {
     return;
   }
@@ -90,22 +164,22 @@ export function noteTabCommand(
     news = new Map();
     owed.set(sessionId, news);
   }
-  const before = news.get(targetId);
+  const before = news.get(tabId);
   const byAgent = new Map(
     [...(before?.agents ?? []), ...agents].map((act) => [act.sessionId, act]),
   );
   const latestPerson = Math.max(before?.personAt ?? 0, personAt ?? 0);
-  news.set(targetId, {
+  news.set(tabId, {
     agents: [...byAgent.values()].toSorted((a, b) => b.at - a.at),
     ...(latestPerson > 0 ? { personAt: latestPerson } : {}),
-    targetId,
+    tabId,
   });
 }
 
 /** Keeps a tab among those the session's running turn used. */
-function noteTurnTab(targetId: BrowserTargetId, sessionId: StoreId.Session) {
-  const tabs = turnTabs.get(sessionId) ?? new Set<BrowserTargetId>();
-  tabs.add(targetId);
+function noteTurnTab(tabId: string, sessionId: StoreId.Session) {
+  const tabs = turnTabs.get(sessionId) ?? new Set<string>();
+  tabs.add(tabId);
   turnTabs.set(sessionId, tabs);
   if (hearingTurnEnds) {
     return;
@@ -118,19 +192,19 @@ function noteTurnTab(targetId: BrowserTargetId, sessionId: StoreId.Session) {
 
 /** Whether the session sent the tab a command in the turn it is running now. */
 export function usedThisTurn(
-  targetId: BrowserTargetId,
+  tabId: string,
   sessionId: StoreId.Session,
 ): boolean {
-  return turnTabs.get(sessionId)?.has(targetId) === true;
+  return turnTabs.get(sessionId)?.has(tabId) === true;
 }
 
 /** The tab each session with commands in its running turn sent its latest one, of the tabs that turn used. */
-export function latestTurnTabs(): (TabAct & { targetId: BrowserTargetId })[] {
+export function latestTurnTabs(): (TabAct & { tabId: string })[] {
   return [...turnTabs].flatMap(([sessionId, tabs]) => {
     const [latest] = [...tabs]
-      .flatMap((targetId) => {
-        const act = actsByTab.get(targetId)?.get(sessionId);
-        return act ? [{ ...act, targetId }] : [];
+      .flatMap((tabId) => {
+        const act = actsByTab.get(tabId)?.get(sessionId);
+        return act ? [{ ...act, tabId }] : [];
       })
       .toSorted((a, b) => b.at - a.at);
     return latest ? [latest] : [];
@@ -144,30 +218,30 @@ export function takeTabNews(sessionId: StoreId.Session): TabNews[] {
   return news ? [...news.values()] : [];
 }
 
-/** The sessions that have sent a tab commands since launch, the latest first. */
-export function actsIn(targetId: BrowserTargetId): TabAct[] {
-  return [...(actsByTab.get(targetId)?.values() ?? [])].toSorted(
+/** The sessions that have sent a tab commands since launch, the latest first, by the id agents name the tab by. */
+export function actsIn(tabId: string): TabAct[] {
+  return [...(actsByTab.get(tabId)?.values() ?? [])].toSorted(
     (a, b) => b.at - a.at,
   );
 }
 
 /** When a session last sent a tab a command, or nothing when it never has since launch. */
 export function lastActOf(
-  targetId: BrowserTargetId,
+  tabId: string,
   sessionId: StoreId.Session,
 ): number | undefined {
-  return actsByTab.get(targetId)?.get(sessionId)?.at;
+  return actsByTab.get(tabId)?.get(sessionId)?.at;
 }
 
-/** The tabs a session has sent commands since launch, the latest first. */
-export function tabsActedInBy(sessionId: StoreId.Session): BrowserTargetId[] {
+/** The tabs a session has sent commands since launch, the latest first, by the ids agents name them by. */
+export function tabsActedInBy(sessionId: StoreId.Session): string[] {
   return [...actsByTab.entries()]
-    .flatMap(([targetId, acts]) => {
+    .flatMap(([tabId, acts]) => {
       const act = acts.get(sessionId);
-      return act ? [{ at: act.at, targetId }] : [];
+      return act ? [{ at: act.at, tabId }] : [];
     })
     .toSorted((a, b) => b.at - a.at)
-    .map(({ targetId }) => targetId);
+    .map(({ tabId }) => tabId);
 }
 
 /** Each open bridge connection's way to tell its agent of a tab, by its chat and session. */
@@ -254,24 +328,25 @@ export async function closeChatTab(
  * not take up again unawares.
  */
 export function takenOverFrom(
-  targetId: BrowserTargetId,
+  tab: TabPage,
   sessionId: StoreId.Session,
 ): boolean {
-  const mine = lastActOf(targetId, sessionId);
+  const tabId = tabIdOf(tab);
+  const mine = lastActOf(tabId, sessionId);
   if (mine === undefined) {
     return false;
   }
-  const person = getWorkspaceConfig().browser.personInputAt(targetId);
+  const person = getWorkspaceConfig().browser.personInputAt(pageIdOf(tab));
   return (
     (person !== undefined && person > mine) ||
-    actsIn(targetId).some((act) => act.sessionId !== sessionId && act.at > mine)
+    actsIn(tabId).some((act) => act.sessionId !== sessionId && act.at > mine)
   );
 }
 
 /** A tab a page opened for itself (its `window.open`), as the window made it. */
 export interface PageOpenedTab {
-  /** The tab whose page opened it. */
-  from: BrowserTargetId;
+  /** The tab whose page opened it, by the id agents name it by. */
+  from: string;
   tabId: string;
   url: string;
 }
@@ -291,21 +366,26 @@ export function takePopups(sessionId: StoreId.Session): PageOpenedTab[] {
   return popups;
 }
 
-/** Forgets everything kept of a tab, as it closes. */
-export function forgetTab(targetId: BrowserTargetId): void {
-  actsByTab.delete(targetId);
+/** Forgets everything kept of a tab, by the id agents name it by, as it closes. */
+export function forgetTab(tabId: string): void {
+  actsByTab.delete(tabId);
+  const page = pageByTab.get(tabId);
+  pageByTab.delete(tabId);
+  if (page !== undefined && tabByPage.get(page) === tabId) {
+    tabByPage.delete(page);
+  }
   for (const tabs of turnTabs.values()) {
-    tabs.delete(targetId);
+    tabs.delete(tabId);
   }
   for (const [sessionId, news] of owed) {
-    news.delete(targetId);
+    news.delete(tabId);
     if (news.size === 0) {
       owed.delete(sessionId);
     }
   }
   for (const [sessionId, popups] of popupsOwed) {
     const kept = popups.filter(
-      (tab) => tab.from !== targetId && tab.tabId !== targetId,
+      (tab) => tab.from !== tabId && tab.tabId !== tabId,
     );
     if (kept.length === 0) {
       popupsOwed.delete(sessionId);

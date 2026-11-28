@@ -162,9 +162,7 @@ export function handleTaskCdpClient(
    * now, and the session does not start there again.
    */
   const ownLast = (tab: Tab) =>
-    takenOverFrom(tab.targetId, sessionId)
-      ? undefined
-      : lastActOf(tab.targetId, sessionId);
+    takenOverFrom(tab, sessionId) ? undefined : lastActOf(tab.tabId, sessionId);
 
   /**
    * The chat's page tabs, the ones the session worked in and nobody used
@@ -299,7 +297,7 @@ export function handleTaskCdpClient(
       // A tab left blank would answer every later command, a screenshot
       // included, with an empty page the agent takes for the one it asked
       // for.
-      forgetTab(targetId);
+      forgetTab(tabId);
       await askWindow({
         action: { kind: "close", tabId },
         askedBy: chatId,
@@ -308,7 +306,7 @@ export function handleTaskCdpClient(
       return `${address} did not open: ${refused}`;
     }
     // Sending it to a page is this session's work in it.
-    noteTabCommand(targetId, actor);
+    noteTabCommand({ tabId, targetId }, actor);
     noteBrowserAgentActivity(targetId);
     await noteOpenedTab(chatId, targetId, sessionId);
     // One more tab out of sight may put the chat past what it may keep.
@@ -398,7 +396,7 @@ export function handleTaskCdpClient(
     }
     waiting.stop();
     pending.delete(tabId);
-    forgetTab(waiting.tab.targetId);
+    forgetTab(waiting.tab.tabId);
     await browser.closeTarget(waiting.tab.targetId).catch(noop);
   };
 
@@ -436,7 +434,7 @@ export function handleTaskCdpClient(
       (tab) =>
         pending.has(tab.tabId) ||
         announced.has(tab.tabId) ||
-        opened.has(tab.targetId) ||
+        isOpened(opened, tab) ||
         ownLast(tab) !== undefined,
     );
     if (!started && !now.some((tab) => ownLast(tab) !== undefined)) {
@@ -552,7 +550,8 @@ export function handleTaskCdpClient(
     if (entry.opening) {
       return entry.opening;
     }
-    const opening: Promise<TargetSession | undefined> = bringBack(entry.tab)
+    const opening: Promise<TargetSession | undefined> = current(entry)
+      .then((tab) => tab !== undefined && bringBack(tab))
       .catch(() => false)
       .then((back) => {
         const session =
@@ -566,6 +565,27 @@ export function handleTaskCdpClient(
       });
     entry.opening = opening;
     return opening;
+  };
+
+  /**
+   * An attached tab as the window has it now, its entry moved to the page
+   * drawing it: a tab on an HTML file gets a new page as it walks to a file
+   * of another kind and back. Undefined for a tab the window no longer
+   * lists, or, with no window to ask, the tab as it was.
+   */
+  const current = async (entry: Attached): Promise<Tab | undefined> => {
+    const listed = await chatPageTabs(chatId);
+    if (!listed) {
+      return entry.tab;
+    }
+    const now = listed.find((tab) => tab.id === entry.tab.tabId);
+    if (now && now.targetId !== entry.tab.targetId) {
+      entry.tab = { ...entry.tab, targetId: now.targetId };
+      if (announced.has(entry.tab.tabId)) {
+        announced.set(entry.tab.tabId, entry.tab);
+      }
+    }
+    return now ? entry.tab : undefined;
   };
 
   const createTarget = async (id: number, params: unknown) => {
@@ -611,7 +631,7 @@ export function handleTaskCdpClient(
 
   const openedByAgent = async (tab: Tab) => {
     const { openedTabs } = await getChatState(chatDir(chatId));
-    return openedTabs.some((opened) => opened.id === tab.targetId);
+    return isOpened(new Set(openedTabs.map((opened) => opened.id)), tab);
   };
 
   /** Closes a tab in the window, with everything kept of it. */
@@ -621,8 +641,8 @@ export function handleTaskCdpClient(
       askedBy: chatId,
       group: resolveChat(chatId),
     });
-    await forgetOpenedTabs(chatId, new Set([tab.targetId]));
-    forgetTab(tab.targetId);
+    await forgetOpenedTabs(chatId, new Set([tab.tabId, tab.targetId]));
+    forgetTab(tab.tabId);
   };
 
   const closeTarget = async (id: number, params: unknown) => {
@@ -795,7 +815,7 @@ export function handleTaskCdpClient(
         return;
       }
       if (isPageWork(message.method, message.params)) {
-        noteTabCommand(entry.tab.targetId, actor);
+        noteTabCommand(entry.tab, actor);
         // Work in another tab is the session having switched to it.
         if (startTab && entry.tab.tabId !== startTab.tabId) {
           queue = queue
@@ -995,6 +1015,11 @@ async function loadInNewTab(
 
 function noop() {
   // A best-effort command on a guest that may already be gone.
+}
+
+/** Whether the chat's state keeps a tab as one an agent opened: by the tab's id, or by its page's, as an earlier build kept it. */
+function isOpened(opened: ReadonlySet<string>, tab: Tab): boolean {
+  return opened.has(tab.tabId) || opened.has(tab.targetId);
 }
 
 function noPageYet(): string | undefined {

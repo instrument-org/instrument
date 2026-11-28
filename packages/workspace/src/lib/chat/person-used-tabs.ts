@@ -3,20 +3,22 @@ import ms from "ms";
 import { type BrowserTargetId } from "../../types";
 import { updateChatState } from "../chat-record";
 import { chatDir, resolveChat } from "../record-folders";
+import { tabOfPage } from "../tab-activity";
 import { getWorkspaceConfig } from "../workspace-config";
 
 /** How long after a failed write a tab's use is not tried again. */
 export const USE_MARK_RETRY_MS = ms("30 seconds");
 
+// Tabs by the id agents name them by, which `openedTabs` keeps them by.
 /** Tabs whose use is on record, or that are in no chat and so never closed for the app. */
-const noted = new Set<BrowserTargetId>();
+const noted = new Set<string>();
 /** Tabs used before their entry was there, which `noteOpenedTab` marks as it writes one. */
-const pending = new Set<BrowserTargetId>();
+const pending = new Set<string>();
 /** Tabs whose mark is being written. */
-const writing = new Set<BrowserTargetId>();
+const writing = new Set<string>();
 /** When each tab whose write failed may be tried again. */
-const retryAt = new Map<BrowserTargetId, number>();
-/** Tabs whose guest going clears what is above. */
+const retryAt = new Map<string, number>();
+/** Pages whose guest going clears what is above for the tab each draws. */
 const watched = new Set<BrowserTargetId>();
 
 /**
@@ -27,12 +29,14 @@ const watched = new Set<BrowserTargetId>();
  * or undefined for a tab not kept yet or the person's own; it is read only
  * when the tab's use is not on record. One whose entry is not written yet (a
  * popup the person reached first) is marked when `noteOpenedTab` writes it.
- * Cheap to call on every input event.
+ * `page` is the page the person used, which may draw a tab on an HTML file
+ * agents name by another id. Cheap to call on every input event.
  */
 export function notePersonUsedTab(
-  id: BrowserTargetId,
+  page: BrowserTargetId,
   openerOf: () => string | undefined,
 ): void {
+  const id = tabOfPage(page);
   if (
     noted.has(id) ||
     pending.has(id) ||
@@ -41,7 +45,7 @@ export function notePersonUsedTab(
   ) {
     return;
   }
-  if (!watch(id)) {
+  if (!watch(page, id)) {
     return;
   }
   const opener = openerOf();
@@ -56,8 +60,10 @@ export function notePersonUsedTab(
     return;
   }
   writing.add(id);
+  // An entry an earlier build kept by the page's id is the tab's too.
+  const isEntry = (tab: { id: string }) => tab.id === id || tab.id === page;
   updateChatState(chatDir(chatId), ({ openedTabs }) => {
-    const entry = openedTabs.find((tab) => tab.id === id);
+    const entry = openedTabs.find(isEntry);
     if (!entry) {
       return undefined;
     }
@@ -67,7 +73,7 @@ export function notePersonUsedTab(
       ? undefined
       : {
           openedTabs: openedTabs.map((tab) =>
-            tab.id === id ? { ...tab, usedByPerson: true as const } : tab,
+            isEntry(tab) ? { ...tab, usedByPerson: true as const } : tab,
           ),
         };
   })
@@ -83,7 +89,7 @@ export function notePersonUsedTab(
 }
 
 /** Whether the person used a tab before its entry was written, taking that word: `noteOpenedTab` marks it. */
-export function takePendingUse(id: BrowserTargetId): boolean {
+export function takePendingUse(id: string): boolean {
   if (!pending.delete(id)) {
     return false;
   }
@@ -92,19 +98,19 @@ export function takePendingUse(id: BrowserTargetId): boolean {
 }
 
 /**
- * Forgets a tab's marks once its guest goes, so the record on disk answers
- * for it next time. False for a guest already gone.
+ * Forgets a tab's marks once the guest of the page drawing it goes, so the
+ * record on disk answers for it next time. False for a guest already gone.
  */
-function watch(id: BrowserTargetId): boolean {
-  if (watched.has(id)) {
+function watch(page: BrowserTargetId, id: string): boolean {
+  if (watched.has(page)) {
     return true;
   }
-  watched.add(id);
-  getWorkspaceConfig().browser.onTargetDestroyed(id, () => {
+  watched.add(page);
+  getWorkspaceConfig().browser.onTargetDestroyed(page, () => {
     noted.delete(id);
     pending.delete(id);
     retryAt.delete(id);
-    watched.delete(id);
+    watched.delete(page);
   });
-  return watched.has(id);
+  return watched.has(page);
 }

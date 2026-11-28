@@ -18,7 +18,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [A driven chord opens the About panel](a-driven-chord-opens-the-about-panel.md): fixed on both paths (drive skill and guest relay d91dd7a74), checked 2026-10-02.
 - [A fetch that succeeds and returns no content](a-fetch-that-succeeds-and-returns-no-content.md): open.
 - [A file the user asks for gets copied somewhere writable](a-fetched-file-gets-copied-somewhere-writable.md): fixed in 0c256870d, measured below;
-- [A file tab's new page loses what the workspace kept by page](a-file-tabs-new-page-loses-what-was-kept-by-page.md): open, checked 2026-11-27.
+- [A file tab's new page loses what the workspace kept by page](a-file-tabs-new-page-loses-what-was-kept-by-page.md): fixed for the records;
 - [A part the store took is not a record yet](a-part-the-store-took-is-not-a-record-yet.md): closed 2026-10-15.
 - [A reply that arrives twice](a-reply-that-arrives-twice.md): fixed in f35744340, checked 2026-10-02.
 - [A sleeping Mac answers in dark wakes, late and with no promise](a-sleeping-mac-answers-in-dark-wakes.md): working as the platform designs it, researched and observed 2026-11-12.

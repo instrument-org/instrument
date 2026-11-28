@@ -9,7 +9,7 @@ import { type SessionMessageDataPart } from "../../schemas/session/message-data-
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StopNotice, type Stopper } from "../../schemas/stop-notice";
 import { StoreId } from "../../schemas/store-id";
-import { tabsActedInBy } from "../tab-activity";
+import { pageOfTab, tabsActedInBy } from "../tab-activity";
 import {
   agentPathOfFileUrl,
   agentSpellingOfFileUrls,
@@ -17,7 +17,7 @@ import {
 } from "../local-page-address";
 import { filesNamedIn } from "../parse-files-block";
 import { needsNamedIn, withoutNeedsFences } from "../parse-needs-block";
-import { agentTabIdOf, chatPageTabs } from "./chat-tabs";
+import { chatPageTabs, pageTabNamed } from "./chat-tabs";
 import { openAsksOf } from "./open-asks";
 import { takeRoleRefusals } from "../capabilities/role-refusals";
 import { resolveChat, sessionOfChat } from "../record-folders";
@@ -735,15 +735,19 @@ export async function openTabsOf({
 }): Promise<NonNullable<TaskEvent["tabs"]>> {
   const { browser } = getWorkspaceConfig();
   const tabs: NonNullable<TaskEvent["tabs"]> = [];
-  const open = tabsActedInBy(sessionId).filter(
-    (id) => browser.getTargetMeta(id) !== null,
-  );
-  // Each page by the id agents name its tab by.
-  const listed = open.length === 0 ? undefined : await chatPageTabs(chatId);
-  for (const id of open) {
-    const url = browser.getTargetAddress(id);
+  const acted = tabsActedInBy(sessionId);
+  // Each tab by the page drawing it now.
+  const listed = acted.length === 0 ? undefined : await chatPageTabs(chatId);
+  const open = acted.flatMap((id) => {
+    const page = pageTabNamed(listed, id)?.targetId ?? pageOfTab(id);
+    return page !== undefined && browser.getTargetMeta(page) !== null
+      ? [{ id, page }]
+      : [];
+  });
+  for (const { id, page } of open) {
+    const url = browser.getTargetAddress(page);
     tabs.push({
-      id: agentTabIdOf(listed, id),
+      id,
       ...(url === undefined
         ? {}
         : { url: await chatSpellingOfUrl(url, chatId) }),

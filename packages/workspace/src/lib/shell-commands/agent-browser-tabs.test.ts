@@ -171,8 +171,9 @@ describe("a tab on an HTML file", () => {
     const page = browserTargetOf(StoreId.newTabId());
     live.add(page);
     drawnFor.set(page, tabId);
+    // The bridge names the tab and its page with every command.
     noteTabCommand(
-      page,
+      { tabId, targetId: page },
       { chatId: CHAT_ID, sessionId: TASK_SESSION },
       Date.now() + 60_000,
     );
@@ -182,12 +183,12 @@ describe("a tab on an HTML file", () => {
   it("is named by the tab's id when someone else used it", async () => {
     const { page, tabId } = fileTab();
     noteTabCommand(
-      page,
+      { tabId, targetId: page },
       { chatId: CHAT_ID, sessionId: CHAT_SESSION },
       Date.now() + 90_000,
     );
     noteTabCommand(
-      page,
+      { tabId, targetId: page },
       { chatId: CHAT_ID, sessionId: TASK_SESSION },
       Date.now() + 120_000,
     );

@@ -43,6 +43,7 @@ import {
   announceChatTab,
   closeChatTab,
   lastActOf,
+  pageOfTab,
   tabsActedInBy,
 } from "../tab-activity";
 import {
@@ -1664,7 +1665,7 @@ export function createAgentBrowserCommand({
       screenshotNote,
       ...(drivesChatTabs
         ? [
-            await pageOpenedTabsNote({ chatId, sessionId }),
+            pageOpenedTabsNote({ sessionId }),
             await pageDownloadsNote({ chatId, sessionId }),
             await tabNewsNote({ chatId, sessionId }),
             await closedTabsNote({ chatId, sessionId }),
@@ -1825,9 +1826,13 @@ async function recordDrivenTabHosts({
   const { browser } = getWorkspaceConfig();
   try {
     const urls = tabsActedInBy(sessionId)
-      .filter((targetId) => (lastActOf(targetId, sessionId) ?? 0) >= since)
-      .flatMap((targetId) => {
-        const url = browser.getLoadedDocumentUrl(targetId);
+      .filter((tabId) => (lastActOf(tabId, sessionId) ?? 0) >= since)
+      .flatMap((tabId) => {
+        const targetId = pageOfTab(tabId);
+        const url =
+          targetId === undefined
+            ? undefined
+            : browser.getLoadedDocumentUrl(targetId);
         return url ? [url] : [];
       });
     if (callPartId !== undefined) {

@@ -8,9 +8,15 @@ import {
 } from "../../schemas/chat-state";
 import { getChatState, updateChatState } from "../chat-record";
 import { chatDir, resolveChat, sessionOfChat } from "../record-folders";
-import { actsIn, forgetTab } from "../tab-activity";
+import { actsIn, forgetTab, pageOfTab } from "../tab-activity";
 import { getWorkspaceConfig } from "../workspace-config";
-import { agentTabIdOf, type ChatPageTab, chatPageTabs } from "./chat-tabs";
+import { type BrowserTargetId, parseBrowserTargetId } from "../../types";
+import {
+  type ChatPageTab,
+  chatTabs,
+  openedTabId,
+  pageTabNamed,
+} from "./chat-tabs";
 import { liveTabTitles, tabPage } from "./tab-page";
 import { askWindow } from "./window-tab";
 
@@ -23,26 +29,68 @@ import { askWindow } from "./window-tab";
  * working in behind the chat closes last. Only tabs the person never used
  * count and close: one they used is theirs to keep, and never makes room for
  * itself by closing the tab an agent just opened. A tab whose page is
- * unloaded counts as left alone longer than any with a page. A tab the
- * window no longer lists is gone already and is forgotten.
+ * unloaded counts as left alone longer than any with a page. A tab on a
+ * file no page draws stays, uncounted and kept, until a page draws it
+ * again. A tab the window no longer has is gone already and is forgotten.
+ * Tabs are kept by the id agents name them by, which an entry an earlier
+ * build kept by its page's id is written as here.
  */
 export async function closeTabsOverCap(chatId: ChatId): Promise<void> {
   await inTurn(chatId, async () => {
-    const { openedTabs } = await getChatState(chatDir(chatId));
-    if (openedTabs.length <= CHAT_HIDDEN_TAB_CAP) {
+    const { openedTabs: kept } = await getChatState(chatDir(chatId));
+    if (kept.length <= CHAT_HIDDEN_TAB_CAP) {
       return;
     }
-    const listed = await chatPageTabs(chatId);
+    const window = await chatTabs(chatId);
+    const listed = window?.pages;
+    const openedTabs = await nameOpenedTabs(chatId, kept, listed);
     const hidden = openedTabs
       .filter((tab) => isListed(listed, tab))
-      .filter((tab) => isUnused(tab))
-      .map((tab) => ({ aloneForMs: aloneForMs(tab.id), tab }))
+      .filter((tab) => isUnused(tab, listed))
+      .map((tab) => ({ aloneForMs: aloneForMs(pageOf(listed, tab.id)), tab }))
       .toSorted((a, b) => b.aloneForMs - a.aloneForMs);
     const over = hidden
       .slice(0, Math.max(0, hidden.length - CHAT_HIDDEN_TAB_CAP))
       .map(({ tab }) => tab);
-    await closeOpened(chatId, over, listed, "tabCap");
+    await closeOpened(chatId, over, window, "tabCap");
   });
+}
+
+/**
+ * The chat's opened tabs, each by the id agents name it by: an entry an
+ * earlier build kept by its page's id is written under the tab's.
+ */
+async function nameOpenedTabs(
+  chatId: ChatId,
+  kept: readonly OpenedTab[],
+  listed: ChatPageTab[] | undefined,
+): Promise<OpenedTab[]> {
+  const renamed = new Map(
+    kept.flatMap((tab) => {
+      const id = parseBrowserTargetId(openedTabId(listed, tab.id));
+      return id === null || id === tab.id ? [] : [[tab.id, id] as const];
+    }),
+  );
+  if (renamed.size === 0) {
+    return [...kept];
+  }
+  let named: OpenedTab[] = [];
+  await updateChatState(chatDir(chatId), (state) => {
+    named = state.openedTabs.map((tab) => {
+      const id = renamed.get(tab.id);
+      return id === undefined ? tab : { ...tab, id };
+    });
+    return { openedTabs: named };
+  });
+  return named;
+}
+
+/** The page drawing a tab, by the id agents name the tab by, as the window lists it or a command last named it. */
+function pageOf(
+  listed: ChatPageTab[] | undefined,
+  id: BrowserTargetId,
+): BrowserTargetId {
+  return pageTabNamed(listed, id)?.targetId ?? pageOfTab(id) ?? id;
 }
 
 /**
@@ -64,7 +112,7 @@ export function closeChatTabs(
     const { openedTabs } = await getChatState(chatDir(chatId));
     const closing = trashed
       ? openedTabs
-      : openedTabs.filter((tab) => isUnused(tab));
+      : openedTabs.filter((tab) => isUnused(tab, undefined));
     if (closing.length === 0) {
       count(0);
       return;
@@ -91,10 +139,10 @@ export function closeChatTabs(
 }
 
 /**
- * How long a tab has been out of sight with no agent's command, or forever
- * for one whose page is unloaded.
+ * How long a tab has been out of sight with no agent's command, by the page
+ * drawing it, or forever for one whose page is unloaded.
  */
-function aloneForMs(id: OpenedTab["id"]): number {
+function aloneForMs(id: BrowserTargetId): number {
   const hiddenForMs = tabLifetime(id)?.hiddenForMs ?? Number.POSITIVE_INFINITY;
   const agentAt = lastBrowserAgentActivity(id);
   return agentAt === undefined
@@ -103,8 +151,11 @@ function aloneForMs(id: OpenedTab["id"]): number {
 }
 
 /** Whether a tab is one the person never used, and not on screen. */
-function isUnused(tab: OpenedTab): boolean {
-  return tab.usedByPerson !== true && tabLifetime(tab.id)?.drawn !== true;
+function isUnused(tab: OpenedTab, listed: ChatPageTab[] | undefined): boolean {
+  return (
+    tab.usedByPerson !== true &&
+    tabLifetime(pageOf(listed, tab.id))?.drawn !== true
+  );
 }
 
 /** Each chat's closing in progress, so two never close or note one tab twice. */
@@ -126,20 +177,23 @@ async function inTurn(chatId: ChatId, close: () => Promise<void>) {
 
 /**
  * Closes tabs the chat's agents opened, telling the session that worked in
- * each, and forgets those already gone. A tab another close took meanwhile
- * is left to it.
+ * each, and forgets those already gone from the window. A tab another close
+ * took meanwhile is left to it.
  */
 async function closeOpened(
   chatId: ChatId,
   tabs: readonly OpenedTab[],
-  listed: ChatPageTab[] | undefined,
+  window: Awaited<ReturnType<typeof chatTabs>>,
   reason: ClosedTab["reason"],
 ): Promise<void> {
+  const listed = window?.pages;
   // A tab the person closed already has nothing left to close.
   const open = tabs.filter((tab) => isListed(listed, tab));
-  const gone = listed
+  const gone = window
     ? (await getChatState(chatDir(chatId))).openedTabs.filter(
-        (tab) => !isListed(listed, tab),
+        (tab) =>
+          !isListed(listed, tab) &&
+          !window.standing.has(openedTabId(listed, tab.id)),
       )
     : [];
   if (open.length === 0 && gone.length === 0) {
@@ -168,21 +222,21 @@ async function closeOpened(
     };
   });
   for (const tab of gone) {
-    forgetTab(tab.id);
+    forgetTab(openedTabId(listed, tab.id));
   }
   for (const tab of closing) {
-    forgetTab(tab.id);
+    forgetTab(openedTabId(listed, tab.id));
     await askWindow({
-      action: { kind: "close", tabId: agentTabIdOf(listed, tab.id) },
+      action: { kind: "close", tabId: openedTabId(listed, tab.id) },
       askedBy: chatId,
       group: resolveChat(chatId),
     });
   }
 }
 
-/** Whether the window lists the tab an opened page draws, or can't say, with no window to ask. */
+/** Whether the window lists an opened tab among the chat's page tabs, or can't say, with no window to ask. */
 function isListed(listed: ChatPageTab[] | undefined, tab: OpenedTab) {
-  return listed?.some((entry) => entry.targetId === tab.id) ?? true;
+  return listed === undefined || pageTabNamed(listed, tab.id) !== undefined;
 }
 
 /**
@@ -198,16 +252,16 @@ async function closedTab(
   reason: ClosedTab["reason"],
 ): Promise<ClosedTab> {
   const { browser } = getWorkspaceConfig();
-  const { title, url } = tabPage(browser, tab.id, {
-    listed: listed?.find((entry) => entry.targetId === tab.id),
+  const id = openedTabId(listed, tab.id);
+  const { title, url } = tabPage(browser, pageOf(listed, tab.id), {
+    listed: pageTabNamed(listed, tab.id),
     titles: await liveTabTitles(browser),
   });
   const own = sessionOfChat(chatId);
   const session =
-    actsIn(tab.id).find((act) => act.chatId === chatId)?.sessionId ??
-    tab.openedIn;
+    actsIn(id).find((act) => act.chatId === chatId)?.sessionId ?? tab.openedIn;
   return {
-    id: agentTabIdOf(listed, tab.id),
+    id,
     reason,
     ...(session !== undefined && session !== own ? { session } : {}),
     ...(title ? { title } : {}),

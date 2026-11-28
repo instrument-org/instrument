@@ -121,7 +121,10 @@ async function chatTabsStatus(
     });
     return {
       id: tab.id,
-      ...(openedTabs.some((opened) => opened.id === targetId)
+      // Kept by the tab's id, or by its page's, as an earlier build kept it.
+      ...(openedTabs.some(
+        (opened) => opened.id === tab.id || opened.id === targetId,
+      )
         ? { openedBy: "task" as const }
         : {}),
       ...(title ? { title } : {}),

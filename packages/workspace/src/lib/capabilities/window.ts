@@ -783,10 +783,10 @@ async function replace(
   }
   // The chat's act in the tab, which the task's next command there reports.
   if (holder.session !== undefined && holder.targetId !== null) {
-    noteTabCommand(holder.targetId, {
-      chatId: ctx.chatId,
-      sessionId: ctx.sessionId,
-    });
+    noteTabCommand(
+      { tabId: holder.id, targetId: holder.targetId },
+      { chatId: ctx.chatId, sessionId: ctx.sessionId },
+    );
   }
   // The window answers with the id agents name the tab by, which is the one
   // to use next where the agent named it by its page's id.

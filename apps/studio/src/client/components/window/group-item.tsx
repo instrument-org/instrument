@@ -648,8 +648,8 @@ export function GroupItem({
           {/* A chat opens at its end, as it always does, rather than where
               it was left. */}
           {/* One shape for every screen, so a tab moving between a chat
-              and another screen (the Chats page's first words making a
-              draft) keeps its page rather than drawing it afresh. */}
+              and another screen keeps its page rather than drawing it
+              afresh. */}
           <KeptScrolls
             href={up.href}
             isKept={!isChat && !isNewChat}

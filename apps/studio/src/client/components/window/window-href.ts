@@ -279,10 +279,10 @@ export function matchScreen(href: string): Screen {
   return { kind: "unknown" };
 }
 
-/** The index of every chat, open or not: the Chats page. */
+/** The address of every chat, open or not, which opens the side panel's chat list. */
 export const CHATS_INDEX_HREF: string = SCREEN_ROUTES.chats;
 
-/** The page of one project: its instructions and its chats. */
+/** The chat list's address filtered to one project. */
 export function projectHref(project: string): string {
   return `${CHATS_INDEX_HREF}?${new URLSearchParams({ project }).toString()}`;
 }

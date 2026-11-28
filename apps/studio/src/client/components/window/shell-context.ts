@@ -65,7 +65,7 @@ export interface WindowShell {
    * Brings back one entry of the window's closed list, by its id, as
    * Shift+Cmd+T brings back the last. With `from`, the group the pick was
    * made in, what comes back takes that group's place when it is one new
-   * tab nobody wrote in, or the Chats page alone.
+   * tab nobody wrote in, or a tab on the chat list's address alone.
    */
   reopenClosed: (id: TabId, options?: { from?: string }) => void;
   /** What was closed last back, as Shift+Cmd+T does, a window closed since included. */
@@ -73,7 +73,8 @@ export interface WindowShell {
   /**
    * Brings a tab group up, in this window or the one that has it open. With
    * `from`, the group the pick was made in, that group closes behind it when
-   * it is one new tab nobody wrote in, or the Chats page alone.
+   * it is one new tab nobody wrote in, or a tab on the chat list's address
+   * alone.
    */
   showGroup: (group: string, options?: { from?: string }) => void;
   /** Closes a tab, asking first when that stops its chat. */

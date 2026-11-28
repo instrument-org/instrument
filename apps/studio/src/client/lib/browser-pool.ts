@@ -146,7 +146,6 @@ import {
 } from "./popup-pool";
 
 export type { GuestEventMap, GuestHandle };
-export { pageOfPress } from "@/client/lib/page-keyboard";
 
 // Subset of Electron's `<webview>` tag API the pool drives. Only the pool
 // holds the element; everything else reaches the guest through its

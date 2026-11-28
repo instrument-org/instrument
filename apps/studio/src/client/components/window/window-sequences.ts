@@ -25,7 +25,7 @@ import { applyTabCommand, type TabOp, type TabOpArgs } from "./tab-ops";
  * Random sequences of what a person does across several windows on one
  * workspace: tabs and whole groups moved between windows, torn off into new
  * ones, groups closed and reopened from a window's own closed list, a group
- * picked from the Chats page, windows closed and reopened, Merge All Windows
+ * picked from the side panel's chat list, windows closed and reopened, Merge All Windows
  * and a relaunch. The tabs change through the operations every window change
  * goes through (`TAB_OPS`); what each window lists, and what main sweeps, by
  * the functions `useTabGroupActions`, `useGroupTabMoves`, `mergeAllWindows`
@@ -483,7 +483,7 @@ export class Windows {
         return `${win.id}: reopen the last thing closed`;
       }
       case "showGroup": {
-        // A group picked on the Chats page (`show` in `useTabGroupActions`).
+        // A group picked in the side panel's chat list (`show` in `useTabGroupActions`).
         const win = this.win(action.w);
         const groups = [
           ...new Set(this.wins.flatMap((each) => each.list)),

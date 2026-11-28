@@ -1196,8 +1196,8 @@ function WindowShell({
   useEffect(() => window.api.onCloseAsked?.(askToCloseWindow), []);
   /**
    * Whether a group gives way to what is picked in it: unpinned, its one
-   * tab a new tab nobody wrote in or the Chats page, so nothing is lost as
-   * the pick takes its place.
+   * tab a new tab nobody wrote in or on the chat list's address, so nothing
+   * is lost as the pick takes its place.
    */
   const givesWay = (group: string | undefined): group is string => {
     if (

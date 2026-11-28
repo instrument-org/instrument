@@ -94,7 +94,7 @@ import {
  * middle, under the Instrument mark and a line, a pale glint crossing it
  * once as a new tab or New is asked for over an empty new tab. In the column
  * beside the group's tabs, the composer is at the foot. The draft its first words make is named in the tab's address, so a
- * draft opened from the Chats page's Drafts comes up here. What it carries besides its words
+ * draft opened from the side panel's Drafts comes up here. What it carries besides its words
  * is what a chat's composer carries: its group's tabs and what the person
  * attached. Its title and menu are the chat's tab's.
  *

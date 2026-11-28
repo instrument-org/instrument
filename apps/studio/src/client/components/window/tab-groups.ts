@@ -887,8 +887,8 @@ export function useTabGroupActions() {
   /**
    * Closes a group: it leaves this window's list and goes, tabs and all. Its
    * chats go on with whatever they were doing, and one with no tab left
-   * anywhere is on the Chats page. The window moves on to the next group when it
-   * was showing this one.
+   * anywhere is in the side panel's chat list. The window moves on to the next
+   * group when it was showing this one.
    */
   const close = (group: string, list: readonly TabGroup[]) => {
     drop(group);

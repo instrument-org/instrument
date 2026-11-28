@@ -17,12 +17,9 @@ import {
 } from "@/client/components/ui/dialog";
 import { useGuest } from "@/client/hooks/use-browser-targets";
 import { useWatchedFileUrl } from "@/client/hooks/use-watched-file-url";
-import {
-  getGuestElement,
-  onPageEdge,
-  pageOfPress,
-} from "@/client/lib/browser-pool";
+import { getGuestElement, onPageEdge } from "@/client/lib/browser-pool";
 import { fileUrlOf } from "@/client/lib/file-url";
+import { pageOfPress } from "@/client/lib/page-keyboard";
 import { currentOs } from "@/client/lib/utils";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
@@ -276,11 +273,7 @@ export function LookPanel({
           />
         ) : null}
         {part ? (
-          <ContentInPanel
-            content={part}
-            key={part.id}
-            onClose={onClose}
-          />
+          <ContentInPanel content={part} key={part.id} onClose={onClose} />
         ) : null}
         {file && fileUrl !== undefined ? (
           <FileViewer

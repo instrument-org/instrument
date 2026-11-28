@@ -24,7 +24,6 @@ import {
   appsHref,
   browserHref,
   chatHref,
-  chatListHref,
   extensionsHref,
   filesHref,
   memoryHref,
@@ -135,7 +134,6 @@ export default async (app, args = {}) => {
   await open(
     settingsHref(),
     appsHref(),
-    chatListHref(),
     releaseNotesHref(),
     extensionsHref(),
     skillsHref(),

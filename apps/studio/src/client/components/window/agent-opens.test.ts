@@ -180,7 +180,7 @@ describe("an app address an agent opens", () => {
     ],
     ["instrument://app/notion", "/apps/notion"],
     ["instrument://settings/providers", "/settings/providers"],
-    ["instrument://screen/chats", "/chat-list"],
+    ["instrument://screen/chats", undefined],
     ["instrument://screen/activity", "/activity"],
     ["instrument://memory/no-stevia", undefined],
     [

@@ -26,7 +26,7 @@ import { AppIcon } from "./app-icon";
 import { FileMark } from "./file-mark";
 import { FolderMark } from "./folder-mark";
 import { segmentsOf } from "./host-path";
-import { CHATS_INDEX_HREF, matchScreen } from "./window-href";
+import { matchScreen } from "./window-href";
 
 /**
  * The app's own built-in apps, as the address field's chip names them: Chat,
@@ -67,12 +67,10 @@ export function ScreenMark({
 
 /**
  * Where a built-in app's chip goes: the app's index, which every place in it
- * is under. Chat's is every chat; Files' is the folder browser at its start.
+ * is under. Files' is the folder browser at its start; Chat has no page, its
+ * chats being in the side panel.
  */
 export function appIndexHref(app: BuiltInApp): string | undefined {
-  if (app === "chat") {
-    return CHATS_INDEX_HREF;
-  }
   if (!isScreenName(app)) {
     return undefined;
   }

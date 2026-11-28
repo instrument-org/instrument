@@ -580,7 +580,7 @@ const ARRIVAL_MS = 320;
 
 /**
  * The groups the window has taken on since the sidebar came up, for as long
- * as their rows take to arrive: one made, opened from the Chats page or search, or
+ * as their rows take to arrive: one made, opened from the chat list or search, or
  * dropped in. Read off the window's list rather than the rows, so groups
  * whose chats are still loading as the window opens never count.
  */

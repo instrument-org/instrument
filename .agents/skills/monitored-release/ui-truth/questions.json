@@ -249,10 +249,10 @@
   {
     "id": 18,
     "question": "Where did the chat I archived go?",
-    "answer": "Chats page (⇧⌘F, or Chats on the bookmarks bar), Archived tab.",
+    "answer": "The chats in the side panel (⇧⌘F, Chats on the bookmarks bar, or Chats ahead of a chat's title), Archived under the search.",
     "readOff": [
       {
-        "file": "apps/studio/src/client/components/window/filter-head.tsx",
+        "file": "apps/studio/src/client/components/window/side-panel.tsx",
         "text": "label: \"Archived\""
       }
     ]
@@ -275,7 +275,7 @@
   {
     "id": 20,
     "question": "The chat list shows too much for each chat. Can I make it show only the titles?",
-    "answer": "Yes: Chats page, View options button at the top right beside search, pick One line.",
+    "answer": "Yes: the chats in the side panel (⇧⌘F), View options button beside the search, pick One line.",
     "readOff": [
       {
         "file": "apps/studio/src/client/components/window/filter-head.tsx",

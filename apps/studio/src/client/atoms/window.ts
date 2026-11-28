@@ -61,13 +61,6 @@ export interface FinderShown {
 /** The places the rail at the window's edge switches between: the chat, the files, the browser, and the apps. */
 export type AppPlace = "apps" | "browser" | "chat" | "files";
 
-/**
- * When Search Chats was asked for, while the Chats page's search has not
- * taken the keyboard yet: the page up on the side with the keyboard takes it
- * once it is drawn.
- */
-export const chatSearchAskedAtom = atom<number>();
-
 /** A tab of the window's browser: a browser session of the window's own, under `WINDOW_ID`. */
 export interface BrowserTab {
   /** The page's icon, as the page last announced it. */

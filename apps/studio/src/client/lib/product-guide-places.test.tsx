@@ -22,18 +22,13 @@ import { BrowserPageMenu } from "@/client/components/window/browser-page-menu";
 import { useChatActionsFor } from "@/client/components/window/chat-actions";
 import { ChatHeader } from "@/client/components/window/chat-header";
 import { ChatRow } from "@/client/components/window/chat-row";
-import {
-  type Chat,
-  NO_FILTERS,
-  type Project,
-} from "@/client/components/window/chats";
+import { type Chat, type Project } from "@/client/components/window/chats";
 import { useCommandMenuRows } from "@/client/components/window/command-menu";
 import { FolderMenuItems } from "@/client/components/window/folder-menu";
 import {
   WindowContext,
   type WindowContextValue,
 } from "@/client/components/window/context";
-import { FilterHead } from "@/client/components/window/filter-head";
 import {
   GroupRow,
   GroupSidebar,
@@ -43,6 +38,7 @@ import { PageZoomStepper } from "@/client/components/window/page-menu-items";
 import { PaneTabs } from "@/client/components/window/pane-tabs";
 import { PlaceMenu } from "@/client/components/window/place-menu";
 import { ProjectsSection } from "@/client/components/window/projects-section";
+import { AllChats } from "@/client/components/window/side-panel";
 import {
   HistoryButton,
   RecentlyClosedMenu,
@@ -490,7 +486,6 @@ function chatHead() {
       chat={CHAT}
       onDeleted={none}
       onNewProject={none}
-      onOpenPage={none}
       onSetProject={none}
       onShowChats={none}
       projects={[PROJECT]}
@@ -848,30 +843,16 @@ const SECTIONS: {
   {
     places: [
       [
-        "Top of the page",
+        "Top of the list",
         () => {
-          show(
-            <FilterHead
-              chats={[]}
-              filters={NO_FILTERS}
-              onFiltersChange={none}
-              project={undefined}
-            />,
-          );
+          show(<AllChats group="group" open={none} />);
           return controls();
         },
       ],
       [
         "View options, at the search's right",
         () => {
-          show(
-            <FilterHead
-              chats={[]}
-              filters={NO_FILTERS}
-              onFiltersChange={none}
-              project={undefined}
-            />,
-          );
+          show(<AllChats group="group" open={none} />);
           const before = controls();
           fireEvent.click(screen.getByRole("button", { name: "View options" }));
           return except(controls(), before);
@@ -892,7 +873,7 @@ const SECTIONS: {
         },
       ],
     ],
-    title: "Chats page",
+    title: "Chats in the side panel",
   },
   {
     places: [

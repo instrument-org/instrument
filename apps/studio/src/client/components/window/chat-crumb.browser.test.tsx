@@ -11,7 +11,6 @@ const TAXES: Project = { created: new Date(0), id: "taxes", name: "Taxes" };
 
 async function renderCrumb(project?: Project) {
   const calls = {
-    onOpenPage: vi.fn(),
     onSetProject: vi.fn(),
     onShowChats: vi.fn(),
   };
@@ -39,30 +38,22 @@ const pick = async (name: string) => {
 };
 
 it.each([
-  [
-    "a project's chats",
-    HOUSE,
-    "Show chats in House",
-    "house",
-    "/chat-list?project=house",
-  ],
+  ["a project's chats", HOUSE, "Show chats in House", "house"],
   [
     "every chat, for a chat in no project",
     undefined,
     "Show all chats",
     undefined,
-    "/chat-list",
   ],
 ])(
-  "shows %s from its name, and opens their page behind on a middle click",
-  async (_case, project, name, shown, href) => {
-    const { onOpenPage, onShowChats } = await renderCrumb(project);
+  "shows %s from its name, a Command click included",
+  async (_case, project, name, shown) => {
+    const { onShowChats } = await renderCrumb(project);
     await userEvent.click(page.getByRole("button", { name }));
     await userEvent.click(page.getByRole("button", { name }), {
-      button: "middle",
+      modifiers: ["Meta"],
     });
-    expect(onShowChats.mock.calls).toEqual([[shown]]);
-    expect(onOpenPage.mock.calls).toEqual([[href, { behind: true }]]);
+    expect(onShowChats.mock.calls).toEqual([[shown], [shown]]);
   },
 );
 

@@ -68,7 +68,8 @@ export function tabHrefOfAppAddress(address: string): string | undefined {
       return link.href;
     }
     case "screen": {
-      if (!isScreenName(link.name)) {
+      // The chat list is the side panel's, which no tab shows.
+      if (!isScreenName(link.name) || link.name === "chats") {
         return undefined;
       }
       const screen = SCREENS[link.name];
@@ -89,5 +90,9 @@ export function tabHrefOfAppAddress(address: string): string | undefined {
 
 /** Why an `instrument://` address opened no tab. */
 export function noTabAt(address: string): string {
+  const link = instrumentLinkOf(address);
+  if (link?.kind === "screen" && link.name === "chats") {
+    return `${address} is the chat list, which shows in the side panel and in no tab; \`instrument chats list\` reads it.`;
+  }
   return `${address} names no tab: a chat, an app, a task, a built-in page, a part of Settings or a setting opens as one, by the address \`instrument window list\` prints.`;
 }

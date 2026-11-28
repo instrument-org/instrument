@@ -12,12 +12,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
-import { type OpenAddress, bookmarkClicks } from "./bookmark-menu";
+import { type OpenAddress } from "./bookmark-menu";
 import { useChatActionsFor } from "./chat-actions";
 import { type RowDensity } from "./chat-list-view";
 import { chatListOptions } from "./chat-list-query";
 import { chatDotOf, ChatMarkIcon, isAsking } from "./chat-mark";
 import { ChatRow } from "./chat-row";
+import { showChatsInPanel } from "./chats-ask";
 import { byLastUserMessage, type Chat } from "./chats";
 import { useShowChatGroup } from "./chat-group";
 import { DeleteChatDialog } from "./delete-chat-dialog";
@@ -32,8 +33,8 @@ import { CHATS_INDEX_HREF, chatHref } from "./window-href";
 const RECENT_CHATS_SHOWN = 12;
 
 /**
- * Chats at the bookmarks bar's start, ahead of Files: a press opens the
- * Chats page, as a bookmark opens (`bookmarkClicks`), and the caret beside
+ * Chats at the bookmarks bar's start, ahead of Files: a press shows every
+ * chat in the side panel, and the caret beside
  * it lists the chats talked to last, newest first, each in the chat list's
  * one-line row. A pick brings up the tab group that chat is in, open or
  * closed (`useShowChatGroup`), and a chat in neither opens in this tab.
@@ -52,7 +53,9 @@ export function ChatsMark({ open }: { open: OpenAddress }) {
     <div className="flex h-6 shrink-0 items-center rounded-md text-xs text-foreground/80 has-data-[state=open]:bg-foreground/8 has-[button:hover]:bg-foreground/5">
       <button
         className="flex h-6 cursor-default items-center gap-1.5 rounded-l-md pr-1 pl-1.5 hover:bg-foreground/8 hover:text-foreground"
-        {...bookmarkClicks(CHATS_INDEX_HREF, open)}
+        onClick={() => {
+          showChatsInPanel();
+        }}
         onPointerDown={(event) => {
           pressShortcut(event, { href: CHATS_INDEX_HREF, title: "Chats" });
         }}

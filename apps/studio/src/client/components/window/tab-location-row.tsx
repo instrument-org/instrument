@@ -58,6 +58,7 @@ import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useContext, useState } from "react";
 
+import { showChatsInPanel } from "./chats-ask";
 import {
   AppChip,
   AppMark,
@@ -786,7 +787,8 @@ function editOnClick(input: HTMLInputElement, press: React.PointerEvent) {
 
 /**
  * The chip at the field's start, which goes to the app's index
- * (`appIndexHref`) the way a file's folders go to each folder: on this tab,
+ * (`appIndexHref`) the way a file's folders go to each folder, and Chat's to
+ * every chat in the side panel: on this tab,
  * through `onVisit`, which puts what a chat's tab goes to in a tab after it.
  * A row with no `onVisit` has Files' and Apps' do what the rail's own entry
  * does: the place, at its root when the window is already in it.
@@ -805,15 +807,19 @@ function FieldChip({
   const index = appIndexHref(app);
   const place = app === "apps" ? "apps" : app === "files" ? "files" : undefined;
   const onPress =
-    onVisit && index !== undefined
+    app === "chat"
       ? () => {
-          onVisit(index);
+          showChatsInPanel();
         }
-      : shell && place
+      : onVisit && index !== undefined
         ? () => {
-            shell.goToPlace(place);
+            onVisit(index);
           }
-        : undefined;
+        : shell && place
+          ? () => {
+              shell.goToPlace(place);
+            }
+          : undefined;
   return (
     <AppChip
       app={app}

@@ -61,7 +61,6 @@ export function ChatHeader({
   onArchived,
   onDeleted,
   onNewProject,
-  onOpenPage,
   onSetProject,
   onShowChats,
   projects,
@@ -78,8 +77,6 @@ export function ChatHeader({
   onDeleted: () => void;
   /** Makes a project, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewProject: (name?: string) => void;
-  /** Opens the page of what the chat is under, behind when asked. */
-  onOpenPage: (href: string, options: { behind: boolean }) => void;
   onSetProject: (project: null | string) => void;
   /** Shows the chats of what the chat is under in the side panel. */
   onShowChats: (project: string | undefined) => void;
@@ -118,7 +115,6 @@ export function ChatHeader({
                 setDeleting(true);
               }}
               onNewProject={onNewProject}
-              onOpenPage={onOpenPage}
               onSetProject={onSetProject}
               onShowChats={onShowChats}
               titleClassName="text-sm font-medium"
@@ -161,7 +157,6 @@ function ChatHeading({
   menu,
   onDelete,
   onNewProject,
-  onOpenPage,
   onSetProject,
   onShowChats,
   titleClassName,
@@ -173,8 +168,6 @@ function ChatHeading({
   onDelete: () => void;
   /** Makes a project, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewProject: (name?: string) => void;
-  /** Opens the page of what the chat is under, behind when asked. */
-  onOpenPage: (href: string, options: { behind: boolean }) => void;
   onSetProject: (project: null | string) => void;
   /** Shows the chats of what the chat is under in the side panel. */
   onShowChats: (project: string | undefined) => void;
@@ -235,7 +228,6 @@ function ChatHeading({
       <ChatCrumb
         isPicking={isPickingProject}
         onNewProject={onNewProject}
-        onOpenPage={onOpenPage}
         onPickingChange={setPickingProject}
         onSetProject={onSetProject}
         onShowChats={onShowChats}

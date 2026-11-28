@@ -28,7 +28,6 @@ import { type Draft, holdsSomething, isOnItsWay } from "@/shared/drafts";
 import {
   type AppPlace,
   chatFiltersByTabAtom,
-  chatSearchAskedAtom,
   NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";
@@ -217,7 +216,6 @@ import {
 } from "@/client/atoms/tab-groups";
 import { StudioSidebarRail } from "@/client/components/studio-sidebar-rail";
 import {
-  CHATS_INDEX_HREF,
   groupHref,
   chatOfHref,
   matchScreen,
@@ -243,9 +241,11 @@ import {
   sidePanelRoomOf,
   sidesFitBesidePanel,
 } from "./side-panel";
+import { showChatsInPanel } from "./chats-ask";
 import {
   sidePanelRoomChangedAtom,
   sidesFitAtom,
+  useChatsAsks,
   useSidePanel,
   useSidePanelUpkeep,
 } from "./side-panel-state";
@@ -576,6 +576,7 @@ function WindowShell({
   useTabGroupUpkeep(appTabHref, groupList.open);
   const sidePanel = useSidePanel(groupUp);
   useSidePanelUpkeep(groupUp);
+  useChatsAsks(groupUp);
   useGroupLeadUpkeep(
     groupUp,
     groupList.open.map((entry) => entry.group),
@@ -1888,10 +1889,9 @@ function WindowShell({
       receiveTab,
       reopenTab,
       search: focusField,
-      // The Chats page, every chat open or not, with the caret in its search.
+      // Every chat, open or not, in the side panel with the caret in its search.
       searchChats: () => {
-        openBuiltInPage(CHATS_INDEX_HREF);
-        store.set(chatSearchAskedAtom, Date.now());
+        showChatsInPanel({ focus: true });
       },
       showActivity: () => {
         openBuiltInPage(SCREENS.activity.href);

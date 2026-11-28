@@ -24,7 +24,6 @@ export const SKIPPED: Record<string, string> = {
     "IncompatibleLibrary",
   "components/document-viewers/data-grid.tsx#DataGrid": "IncompatibleLibrary",
   "components/model-picker.tsx#VirtualRows": "IncompatibleLibrary",
-  "components/window/chat-list.tsx#ChatList": "IncompatibleLibrary",
   "components/window/command-menu.tsx#ResultRows": "IncompatibleLibrary",
   "components/window/use-window-commands.ts#useWindowCommands": "Todo",
   "hooks/use-steady-callbacks.ts#useSteadyCallbacks": "Refs",

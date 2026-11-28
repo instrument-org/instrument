@@ -156,6 +156,7 @@ import {
 } from "react";
 import { displayHostPath } from "@instrument-org/shared";
 import { toast } from "@/client/lib/toast";
+import { showChatsInPanel } from "@/client/components/window/chats-ask";
 
 /**
  * Rows per kind past which a search stops listing, the same three the
@@ -530,7 +531,7 @@ export function useCommandMenuRows({
       id: "chats",
       label: SCREENS.chats.title,
       run: () => {
-        openBuiltInPage(SCREENS.chats.href);
+        showChatsInPanel();
       },
     },
     {
@@ -1007,7 +1008,7 @@ export function useCommandMenuRows({
             label: "",
           },
           {
-            // In the Chats page's order, less the ones the groups over them
+            // In the chat list's order, less the ones the groups over them
             // have a tab on. All chats under them is the way to the rest.
             items: [
               ...byLastUserMessage(
@@ -1023,7 +1024,7 @@ export function useCommandMenuRows({
                 label: "All chats",
                 ranges: null,
                 run: () => {
-                  openBuiltInPage(SCREENS.chats.href);
+                  showChatsInPanel();
                 },
                 type: "item" as const,
               },
@@ -1204,7 +1205,7 @@ export function useCommandMenuRows({
 
   // A chat's row is the address field's: the mark and dot of its tab, its
   // title, then the project it is filed under, ending with the marks of what
-  // it holds and its day, as the Chats page has them. It brings up the tab
+  // it holds and its day, as the chat list has them. It brings up the tab
   // group the chat is in, open or closed, and a chat in neither opens as a
   // screen.
   function chatItem(chat: Chat, ranges: null | number[]): Item {
@@ -1588,7 +1589,7 @@ function GroupRowText({
   );
 }
 
-/** What a chat's row ends with: the marks of what it holds, as the Chats page has them but for the row to press, then the day it was last talked to. */
+/** What a chat's row ends with: the marks of what it holds, as the chat list has them but for the row to press, then the day it was last talked to. */
 function ChatEnding({
   appsBySlug,
   chat,

@@ -74,9 +74,6 @@ export const appsHref = () => href("/apps/");
 export const appHref = (slug: string) =>
   href("/apps/$slug", { params: { slug } });
 
-/** Every chat there is. */
-export const chatListHref = () => href("/chat-list");
-
 export const chatHref = (id: string) => href("/chats/$id", { params: { id } });
 
 /** A task, by its session, in its chat. */

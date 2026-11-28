@@ -108,8 +108,8 @@ export const WINDOW_SHORTCUTS = {
   reloadPage: { accelerator: "CmdOrCtrl+R", label: "Reload Page" },
   reopenTab: { accelerator: "Shift+CmdOrCtrl+T", label: "Reopen Closed Tab" },
   search: { accelerator: "CmdOrCtrl+L", label: "Open Location…" },
-  // Find with Shift, as a code editor searches every file: the Chats page's
-  // search, over every chat, where Find is the one chat on screen.
+  // Find with Shift, as a code editor searches every file: the side panel's
+  // search over every chat, where Find is the one chat on screen.
   searchChats: {
     accelerator: "Shift+CmdOrCtrl+F",
     label: "Search Chats",

@@ -4,13 +4,8 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { Switch } from "@/client/components/ui/switch";
-import { chatSearchAskedAtom } from "@/client/atoms/window";
-import { useIsActiveTab } from "@/client/hooks/use-active-tab";
-import { formatAcceleratorText } from "@/client/lib/format-accelerator";
-import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { cn } from "@/client/lib/utils";
 import { CheckIcon } from "@phosphor-icons/react/Check";
-import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { NotificationIcon } from "@phosphor-icons/react/Notification";
 import {
   OneLineIcon,
@@ -19,30 +14,15 @@ import {
 } from "@/client/components/icons/row-density-icons";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { useAtom } from "jotai";
-import ms from "ms";
-import { type ComponentType, useEffect, useRef, useState } from "react";
-import { flushSync } from "react-dom";
+import { type ComponentType } from "react";
 
-import {
-  type ChatFilters,
-  type ChatPlace,
-  type ChatTag,
-  type Filterable,
-  inPlace,
-  matchesFilters,
-  type Project,
-} from "./chats";
+import { type ChatTag } from "./chats";
 import {
   groupByDayAtom,
   type RowDensity,
   rowDensityAtom,
 } from "./chat-list-view";
-import { useGroupTab } from "./group-tab";
-import { ProjectMark } from "./project-mark";
-import { type SearchToken, SearchField } from "./search-field";
-
-/** How long Search Chats waits for the Chats page to come up. */
-const SEARCH_ASK_MS = ms("10 seconds");
+import { type SearchToken } from "./search-field";
 
 /** The marks the search offers as tokens, in the order it offers them. */
 export const TAGS: SearchToken<ChatTag>[] = [
@@ -57,192 +37,6 @@ export const TAGS: SearchToken<ChatTag>[] = [
     label: "Bookmarked",
   },
 ];
-
-/** The places a chat can be, as the tabs under the search name them. */
-const PLACES: { id: ChatPlace | undefined; label: string }[] = [
-  { id: undefined, label: "Inbox" },
-  { id: "drafts", label: "Drafts" },
-  { id: "archived", label: "Archived" },
-];
-
-/**
- * The lines over the list. Outside a project: the search, with the view
- * button at its end, and under them the places a chat can be as tabs, Inbox,
- * Drafts and Archived. Inside one: its mark and name, with the search
- * folded to its glass until it is asked for or holds something. The marks the
- * search narrows by (Unread, Bookmarked) are offered as tokens on clicking into
- * it, each only while the view has any, and narrow whatever view the column
- * is, a project's included; Drafts offers none, since a draft carries
- * neither.
- */
-export function FilterHead({
-  chats,
-  filters,
-  onFiltersChange,
-  project,
-}: {
-  chats: Filterable[];
-  filters: ChatFilters;
-  onFiltersChange: (filters: ChatFilters) => void;
-  /** The project the column stands in, if it stands in one. */
-  project: Project | undefined;
-}) {
-  const searchRef = useRef<HTMLInputElement>(null);
-  const [isSearchAsked, setSearchAsked] = useState(false);
-  const isSearched = filters.search !== "" || filters.tags.length > 0;
-  // Search Chats (Shift+Cmd+F) from anywhere in the window. Cmd+F is the
-  // chat's own find, so the search over every chat has a chord of its own.
-  const [searchAskedAt, setSearchAskedAt] = useAtom(chatSearchAskedAtom);
-  const groupTab = useGroupTab();
-  const isActive = useIsActiveTab();
-  const hasKeyboard =
-    isActive &&
-    (groupTab === null || (groupTab.isShown && groupTab.hasKeyboard !== false));
-  useEffect(() => {
-    if (searchAskedAt === undefined || !hasKeyboard) {
-      return;
-    }
-    const frame = requestAnimationFrame(() => {
-      setSearchAskedAt(undefined);
-      // One whose page came up in another window is not for a page opened
-      // here much later.
-      if (Date.now() - searchAskedAt > SEARCH_ASK_MS) {
-        return;
-      }
-      // Inside a project the field is folded until it is asked for.
-      flushSync(() => {
-        setSearchAsked(true);
-      });
-      searchRef.current?.focus();
-      searchRef.current?.select();
-    });
-    return () => {
-      cancelAnimationFrame(frame);
-    };
-  }, [hasKeyboard, searchAskedAt, setSearchAskedAt]);
-  // A mark is offered while the view, as it stands before any mark narrows
-  // it, holds a chat carrying it.
-  const unmarked = { ...filters, search: "", tags: [] };
-  const offered =
-    filters.place === "drafts"
-      ? []
-      : TAGS.filter((tag) =>
-          chats.some((chat) => chat[tag.id] && matchesFilters(chat, unmarked)),
-        );
-  const placeLabel = PLACES.find((place) => place.id === filters.place)?.label;
-  const search = (
-    <SearchField
-      chord="searchChats"
-      inputRef={searchRef}
-      offered={offered}
-      onChange={(words) => {
-        onFiltersChange({ ...filters, search: words });
-      }}
-      onFocusChange={(isFocused) => {
-        if (!isFocused && !isSearched) {
-          setSearchAsked(false);
-        }
-      }}
-      onTokensChange={(tags) => {
-        onFiltersChange({ ...filters, tags });
-      }}
-      placeholder={
-        project
-          ? `Search ${project.name}`
-          : filters.place === undefined
-            ? "Search"
-            : `Search ${placeLabel ?? ""}`
-      }
-      tokens={TAGS.filter((tag) => filters.tags.includes(tag.id)).toSorted(
-        (a, b) => filters.tags.indexOf(a.id) - filters.tags.indexOf(b.id),
-      )}
-      value={filters.search}
-    />
-  );
-  if (project) {
-    const isFieldShown = isSearchAsked || isSearched;
-    return (
-      <div
-        aria-label="Filters"
-        className="flex h-13 shrink-0 items-center gap-1.5 pl-3"
-        role="group"
-      >
-        {!isFieldShown && (
-          <h2 className="flex min-w-0 flex-1 items-center gap-2.5 text-xl font-semibold text-(--project-tint-ink)">
-            <ProjectMark
-              className="size-9 rounded-lg text-xl"
-              project={project}
-              size="lg"
-            />
-            <span className="truncate">{project.name}</span>
-          </h2>
-        )}
-        {isFieldShown ? (
-          // Grows out of the glass it stood in for.
-          <div className="-ml-3 head-field-in flex min-w-0 flex-1">
-            {search}
-          </div>
-        ) : (
-          <button
-            aria-label="Search"
-            className={HEAD_ICON_BUTTON}
-            onClick={() => {
-              flushSync(() => {
-                setSearchAsked(true);
-              });
-              searchRef.current?.focus();
-            }}
-            title={`Search (${formatAcceleratorText(WINDOW_SHORTCUTS.searchChats.accelerator)})`}
-            type="button"
-          >
-            <MagnifyingGlassIcon className="size-4" />
-          </button>
-        )}
-        <ViewButton />
-      </div>
-    );
-  }
-  return (
-    <div
-      aria-label="Filters"
-      className="flex shrink-0 flex-col gap-1.5 pt-1.5 pb-2.5"
-      role="group"
-    >
-      <div className="flex items-center gap-1.5">
-        {search}
-        <ViewButton />
-      </div>
-      <div
-        aria-label="Places"
-        className="flex items-center gap-0.5"
-        role="tablist"
-      >
-        {PLACES.map((place) => {
-          const isOn = filters.place === place.id;
-          return (
-            <button
-              aria-selected={isOn}
-              className={cn(
-                "h-7 rounded-md px-2 text-[13px]",
-                isOn
-                  ? "bg-foreground/7 font-medium text-foreground"
-                  : "text-foreground/60 hover:bg-foreground/4 hover:text-foreground",
-              )}
-              key={place.label}
-              onClick={() => {
-                onFiltersChange(inPlace(filters, place.id));
-              }}
-              role="tab"
-              type="button"
-            >
-              {place.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 /** A square control at the head's height, its glyph in the muted ink. */
 const HEAD_ICON_BUTTON =

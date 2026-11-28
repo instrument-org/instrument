@@ -38,9 +38,14 @@ export function hrefOfTarget(
   return target.href;
 }
 
-/** Whether a tab can be taken over by a screen: anything a group's tab stands at, a chat included. */
+/**
+ * Whether a tab can be taken over by a screen: anything a group's tab stands
+ * at, a chat included. The chat list is no page, so it opens in the side
+ * panel instead.
+ */
 function canStandHere(href: string): boolean {
-  return isGroupScreenHref(href) || matchScreen(href).kind === "chat";
+  const { kind } = matchScreen(href);
+  return kind !== "chats" && (isGroupScreenHref(href) || kind === "chat");
 }
 
 /** Where an address opens: the tab it was chosen from (`here`), and the window's own opens. */

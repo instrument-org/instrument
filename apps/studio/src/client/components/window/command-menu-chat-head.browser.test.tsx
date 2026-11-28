@@ -120,7 +120,6 @@ async function renderChatWithMenu() {
         chat={CHAT}
         onDeleted={() => undefined}
         onNewProject={() => undefined}
-        onOpenPage={() => undefined}
         onSetProject={() => undefined}
         onShowChats={() => undefined}
         projects={[HOUSE]}

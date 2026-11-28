@@ -109,7 +109,7 @@ Link one as `[Label](instrument://screen/<name>)`. A row listed under one is lin
 - **Apps** (`apps`): The services Instrument can work in for you, and connecting one.
 - **Bookmarks** (`bookmarks`): Every bookmark, in the bookmarks bar's order with its folders, to search, edit, sort and tidy.
 - **Browser** (`browser`): The web's start page, with the sites you kept and lately saw.
-- **Chats** (`chats`): Every chat there is, open or not, to search and open.
+- **Chats** (`chats`): Every chat there is, open or not, in the side panel, to search and open.
 - **Extensions** (`extensions`): The Chrome extensions in your browser, and adding more from the Chrome Web Store.
 - **Files** (`files`): The folders and files on this computer, starting at home.
 - **What's new** (`release-notes`): What changed in each version.

@@ -34,7 +34,8 @@ export const SCREENS = {
     title: "Browser",
   },
   chats: {
-    detail: "Every chat there is, open or not, to search and open.",
+    detail:
+      "Every chat there is, open or not, in the side panel, to search and open.",
     href: "/chat-list",
     title: "Chats",
   },

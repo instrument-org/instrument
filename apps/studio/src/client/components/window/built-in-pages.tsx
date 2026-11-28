@@ -4,6 +4,7 @@ import { SCREENS, screenOfHref } from "@/shared/instrument-screens";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useContext, useEffect, useEffectEvent } from "react";
 
+import { chatsAskOf, showChatsInPanel } from "./chats-ask";
 import { WindowContext } from "./context";
 import { asksPartOf, matchScreen, showsSame } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
@@ -70,6 +71,11 @@ export function BuiltInPageOpener() {
   const appWindow = useContext(WindowContext);
   const windowTabs = useWindowTabs();
   const open = useEffectEvent((href: string) => {
+    const chats = chatsAskOf(href);
+    if (chats) {
+      showChatsInPanel(chats);
+      return;
+    }
     if (!appWindow || bringForwardShowing(windowTabs, href)) {
       return;
     }

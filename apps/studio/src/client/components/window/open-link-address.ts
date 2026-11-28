@@ -4,6 +4,7 @@ import { toast } from "@/client/lib/toast";
 import { isScreenName, SCREENS } from "@/shared/instrument-screens";
 import { APP_NAME } from "@instrument-org/shared";
 
+import { chatsAskOf, showChatsInPanel } from "./chats-ask";
 import { type LINK_ADDRESSES, matchScreen } from "./window-href";
 
 /**
@@ -39,6 +40,10 @@ const OPEN_LINK = {
   namedScreen: (name) => {
     if (!isScreenName(name)) {
       toast(`This version of ${APP_NAME} doesn't have that screen`);
+      return undefined;
+    }
+    if (name === "chats") {
+      showChatsInPanel();
       return undefined;
     }
     const screen = SCREENS[name];
@@ -92,7 +97,8 @@ const OPEN_LINK = {
  * Opens a link address (`LINK_ADDRESSES`) where the thing it names lives,
  * and answers the address a tab should stand at instead: the address itself
  * for any screen of the window's, a named screen's own route, or nothing
- * when what it named opened outside the tabs.
+ * when what it named opened outside the tabs, as the chat list does in the
+ * side panel.
  *
  * No route draws a link address, so a tab standing at one is a blank screen.
  * Every way of putting an address in a tab (the openers, and under them the
@@ -101,6 +107,11 @@ const OPEN_LINK = {
 export function openLinkAddress(href: string): string | undefined {
   const screen = matchScreen(href);
   switch (screen.kind) {
+    // The chat list has no page: its chats show in the side panel.
+    case "chats": {
+      showChatsInPanel(chatsAskOf(href));
+      return undefined;
+    }
     case "memory":
     case "namedScreen":
     case "project":

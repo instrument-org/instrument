@@ -30,7 +30,6 @@ import {
   appsHref,
   browserHref,
   chatHref,
-  chatListHref,
   extensionsHref,
   filesHref,
   newTabHref,
@@ -133,7 +132,6 @@ export default async (app, args = {}) => {
       name: `App page (${slug})`,
       route: appHref(slug),
     },
-    { name: "Chats", route: chatListHref() },
     chat && {
       name: "Chat with a transcript",
       route: chatHref(chat),

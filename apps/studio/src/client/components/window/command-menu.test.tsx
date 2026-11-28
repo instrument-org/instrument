@@ -1,3 +1,4 @@
+import { chatsAskAtom } from "@/client/components/window/chats-ask";
 import { pageRequestAtom } from "@/client/atoms/page-requests";
 import { renderWithProviders } from "@/tests/render";
 import { getDefaultStore } from "jotai";
@@ -201,9 +202,7 @@ describe("a path the command menu found nothing at", () => {
   it("says so until the words change, and not when they come back", async () => {
     const { rerender } = renderWithProviders(<MenuRows words="/nowhere/x" />);
     fireEvent.click(screen.getByRole("button", { name: "/nowhere/x" }));
-    expect(
-      await screen.findByText("Can’t find “/nowhere/x”"),
-    ).toBeTruthy();
+    expect(await screen.findByText("Can’t find “/nowhere/x”")).toBeTruthy();
 
     rerender(<MenuRows words="/nowhere/" />);
     rerender(<MenuRows words="/nowhere/x" />);
@@ -290,20 +289,20 @@ describe("the command menu with nothing typed", () => {
   });
 });
 
-// A built-in page the menu lists opens as every command opens one
-// (`BuiltInPageOpener`): a new tab after the tab up, or the tab already
-// showing it brought forward, never in place of the tab up.
 describe("All chats in the empty command menu", () => {
-  it("asks for the Chats page as a built-in page", async () => {
+  it("shows every chat in the side panel", async () => {
     renderWithProviders(<MenuRows words="" />);
     fireEvent.click(await screen.findByRole("button", { name: "All chats" }));
 
-    expect(getDefaultStore().get(pageRequestAtom)).toEqual({
-      href: "/chat-list",
-    });
-    getDefaultStore().set(pageRequestAtom, null);
+    expect(getDefaultStore().get(chatsAskAtom)).toEqual({});
+    expect(getDefaultStore().get(pageRequestAtom)).toBeNull();
+    getDefaultStore().set(chatsAskAtom, null);
   });
 });
+
+// A built-in page the menu lists opens as every command opens one
+// (`BuiltInPageOpener`): a new tab after the tab up, or the tab already
+// showing it brought forward, never in place of the tab up.
 
 describe("built-in pages in the command menu", () => {
   it.each([

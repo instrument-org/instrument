@@ -3,19 +3,8 @@ import { renderInBrowser } from "@/tests/render-browser";
 import { describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { ChatList } from "./chat-list";
 import { type Project } from "./chats";
-import { WindowContext, type WindowContextValue } from "./context";
 import { DraftRow } from "./draft-row";
-
-/** The window the list sits in, as far as a list of drafts can tell: it answers for the chats' actions, which a draft has none of. */
-const WINDOW: WindowContextValue = {
-  ask: vi.fn(),
-  browser: null,
-  openPage: vi.fn(),
-  openPath: vi.fn(),
-  openScreen: vi.fn(),
-};
 
 /** The moment every row is read at: a Wednesday afternoon. */
 const NOW = new Date(2026, 8, 16, 14, 30);
@@ -183,59 +172,5 @@ describe("DraftRow", () => {
     await userEvent.click(row, { button: "right" });
     await userEvent.click(page.getByRole("menuitem", { name: "Open" }));
     expect(onOpen).toHaveBeenCalledOnce();
-  });
-});
-
-describe("the list of drafts", () => {
-  it("lists the drafts newest first in place of the chats, each opening and deleting by its id", async () => {
-    const onOpenDraft = vi.fn();
-    const onDeleteDraft = vi.fn();
-    const rendered = await renderInBrowser(
-      <WindowContext value={WINDOW}>
-        <div style={{ height: "300px", width: "400px" }}>
-          <ChatList
-            appsBySlug={new Map()}
-            chats={[]}
-            drafts={[
-              draft({
-                id: "older",
-                updatedAt: Date.now() - 2000,
-                words: "Older",
-              }),
-              draft({
-                id: "newer",
-                updatedAt: Date.now() - 1000,
-                words: "Newer",
-              }),
-            ]}
-            emptyLine="No drafts yet."
-            isLoading={false}
-            onDelete={vi.fn()}
-            onDeleteDraft={onDeleteDraft}
-            onNewProject={vi.fn()}
-            onOpen={vi.fn()}
-            onOpenDraft={onOpenDraft}
-            onSetProject={vi.fn()}
-            openId={undefined}
-            scrollSignal={0}
-            projects={[]}
-          />
-        </div>
-      </WindowContext>,
-    );
-    const rows = [
-      ...rendered.container.querySelectorAll<HTMLElement>('[role="button"]'),
-    ];
-    expect(rows.map((row) => row.textContent.slice(0, 5))).toEqual([
-      "Newer",
-      "Older",
-    ]);
-    expect(rows.every((row) => row.textContent.endsWith("Draft"))).toBe(true);
-    rows[1]?.click();
-    expect(onOpenDraft).toHaveBeenCalledWith("older");
-    await userEvent.hover(rows[0] ?? document.body);
-    await userEvent.click(actionOf(rows[0] ?? document.body, "Delete draft"));
-    expect(onDeleteDraft).toHaveBeenCalledWith("newer");
-    expect(onOpenDraft).toHaveBeenCalledOnce();
   });
 });

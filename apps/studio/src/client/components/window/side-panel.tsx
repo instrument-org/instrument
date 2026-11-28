@@ -161,6 +161,7 @@ import { TabRowControl } from "./tab-location-row";
 import { useOwnApps } from "./use-own-apps";
 import {
   sidePanelChatFiltersAtom,
+  sidePanelSearchAskedAtom,
   type SidePanelView,
   sidePanelViewAtom,
   useSidePanel,
@@ -1013,7 +1014,13 @@ const VIEW_TITLES = {
  * filters keep out counts them on a rule under the list, which shows them
  * under it when pressed.
  */
-function AllChats({ group, open }: { group: string; open: OpenAddress }) {
+export function AllChats({
+  group,
+  open,
+}: {
+  group: string;
+  open: OpenAddress;
+}) {
   const [filters, setFilters] = useAtom(sidePanelChatFiltersAtom(group));
   const density = useAtomValue(sidePanelRowDensityAtom);
   const shell = useShell();
@@ -1026,6 +1033,18 @@ function AllChats({ group, open }: { group: string; open: OpenAddress }) {
   const projectNames = new Map(
     projects.map((project) => [project.id, project.name]),
   );
+  // Search Chats puts the caret in the search once it is drawn; opening the
+  // chats any other way leaves the keyboard where it was.
+  const [isSearchAsked, setSearchAsked] = useAtom(
+    sidePanelSearchAskedAtom(group),
+  );
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (isSearchAsked && searchRef.current) {
+      searchRef.current.focus();
+      setSearchAsked(false);
+    }
+  }, [isSearchAsked, setSearchAsked]);
   const matched = byLastUserMessage(
     chats.filter((chat) => matchesFilters(chat, filters, projectNames)),
   );
@@ -1076,6 +1095,7 @@ function AllChats({ group, open }: { group: string; open: OpenAddress }) {
       <div className="mb-1 flex shrink-0 items-center gap-1 pl-1 [&_button]:[-webkit-app-region:no-drag]">
         <SearchField
           className="h-8 pl-7 text-[13px] [-webkit-app-region:no-drag] [&>svg]:left-2.5"
+          inputRef={searchRef}
           offered={offered}
           onChange={(search) => {
             setFilters({ ...filters, search });

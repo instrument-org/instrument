@@ -1,4 +1,4 @@
-import { cn, commandKeyHeld } from "@/client/lib/utils";
+import { cn } from "@/client/lib/utils";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { type ReactNode } from "react";
 
@@ -8,10 +8,6 @@ import { projectColor } from "./project-colors";
 import { ProjectMark } from "./project-mark";
 import { ProjectPicker } from "./project-picker";
 import { projectTint } from "./project-tint";
-import { CHATS_INDEX_HREF, projectHref } from "./window-href";
-
-/** The middle button, which opens what it presses in a tab waiting behind. */
-const MIDDLE_BUTTON = 1;
 
 /** One of the crumb's two presses, filled as the title's own two are. */
 const SEGMENT =
@@ -20,7 +16,7 @@ const SEGMENT =
 /**
  * What a chat is under, ahead of its title as a step of a path: its project,
  * or Chats for one in none. A press on the name shows those chats in the side
- * panel, and a Command or middle click opens their page in a tab behind. The slash
+ * panel, or puts it away when it shows them already. The slash
  * after it turns into a caret under the pointer or the keyboard, in the same
  * space, and opens the list that files the chat elsewhere. On a narrow head
  * the mark stands alone.
@@ -28,7 +24,6 @@ const SEGMENT =
 export function ChatCrumb({
   isPicking,
   onNewProject,
-  onOpenPage,
   onPickingChange,
   onSetProject,
   onShowChats,
@@ -37,8 +32,6 @@ export function ChatCrumb({
 }: {
   isPicking: boolean;
   onNewProject: (name?: string) => void;
-  /** Opens the page the name stands for, behind when asked. */
-  onOpenPage: (href: string, options: { behind: boolean }) => void;
   onPickingChange: (isPicking: boolean) => void;
   onSetProject: (project: null | string) => void;
   /** Shows the chats the name stands for, the project's or every chat, in the side panel. */
@@ -47,7 +40,6 @@ export function ChatCrumb({
   project: Project | undefined;
   projects: Project[];
 }) {
-  const href = project ? projectHref(project.id) : CHATS_INDEX_HREF;
   const name = project?.name ?? "Chats";
   const mark: ReactNode = project ? (
     <ProjectMark project={project} />
@@ -65,17 +57,8 @@ export function ChatCrumb({
             ? "project-tint text-(--project-tint-ink)"
             : "text-muted-foreground",
         )}
-        onAuxClick={(event) => {
-          if (event.button === MIDDLE_BUTTON) {
-            onOpenPage(href, { behind: true });
-          }
-        }}
-        onClick={(event) => {
-          if (commandKeyHeld(event)) {
-            onOpenPage(href, { behind: true });
-          } else {
-            onShowChats(project?.id);
-          }
+        onClick={() => {
+          onShowChats(project?.id);
         }}
         style={project ? projectTint(projectColor(project)) : undefined}
         title={name}

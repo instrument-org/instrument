@@ -1,8 +1,15 @@
 import { browserTargetOf } from "@instrument-org/workspace/client";
-import { atom, type SetStateAction, useAtom, useAtomValue } from "jotai";
+import {
+  atom,
+  type SetStateAction,
+  useAtom,
+  useAtomValue,
+  useSetAtom,
+} from "jotai";
 import { atomFamily } from "jotai/utils";
 import { useEffect, useEffectEvent, useRef } from "react";
 
+import { type ChatsAsk, chatsAskAtom } from "./chats-ask";
 import { type ChatFilters, NO_FILTERS } from "./chats";
 import {
   closeExtensionSidePanel,
@@ -93,6 +100,45 @@ export const sidePanelChatFiltersAtom = atomFamily((group: string) =>
   ),
 );
 
+/** Groups whose side panel puts the caret in its chat search once the search is drawn. */
+const searchAskedByGroupAtom = atom<ReadonlySet<string>>(new Set<string>());
+
+/**
+ * Whether a group's side panel was asked to put the caret in its chat
+ * search; setting it false says the search took it.
+ */
+export const sidePanelSearchAskedAtom = atomFamily((group: string) =>
+  atom(
+    (get) => get(searchAskedByGroupAtom).has(group),
+    (get, set, isAsked: boolean) => {
+      const asked = new Set(get(searchAskedByGroupAtom));
+      if (isAsked) {
+        asked.add(group);
+      } else {
+        asked.delete(group);
+      }
+      set(searchAskedByGroupAtom, asked);
+    },
+  ),
+);
+
+/** Takes the chats asked for (`showChatsInPanel`) to the side panel of `group`, the group up. */
+export function useChatsAsks(group: string | undefined) {
+  const ask = useAtomValue(chatsAskAtom);
+  const setAsk = useSetAtom(chatsAskAtom);
+  const { openChats } = useSidePanel(group);
+  const take = useEffectEvent((taken: ChatsAsk) => {
+    openChats(taken);
+  });
+  useEffect(() => {
+    if (ask === null || group === undefined) {
+      return;
+    }
+    setAsk(null);
+    take(ask);
+  }, [ask, group, setAsk]);
+}
+
 /** Groups whose up tab is changing to a pick from their side panel. */
 const pickingIn = new Set<string>();
 
@@ -114,6 +160,7 @@ export function useSidePanel(group: string | undefined) {
   const [chatFilters, setChatFilters] = useAtom(
     sidePanelChatFiltersAtom(group ?? ""),
   );
+  const setSearchAsked = useSetAtom(sidePanelSearchAskedAtom(group ?? ""));
   const layout = group === undefined ? undefined : windowTabs.layoutOf(group);
   const side = layout?.sides[layout.focused];
   const up = side?.tabs.find((tab) => tab.id === side.up);
@@ -128,8 +175,7 @@ export function useSidePanel(group: string | undefined) {
   const isOpen =
     (group !== undefined && extensionPanel !== undefined) ||
     (isGroupOpen && isRoomy);
-  const isFloating =
-    !isOpen && isGroupOpen && !isRoomy && isShownWithoutRoom;
+  const isFloating = !isOpen && isGroupOpen && !isRoomy && isShownWithoutRoom;
   // Put away, the panel opens next on its sections.
   const setOpen = (open: boolean) => {
     if (!open && extensionPanel) {
@@ -142,6 +188,19 @@ export function useSidePanel(group: string | undefined) {
         setView("home");
       }
     }
+  };
+  const openChats = ({ focus = false, place, project, search }: ChatsAsk) => {
+    setView("chats");
+    setChatFilters({
+      ...NO_FILTERS,
+      ...(place === undefined ? {} : { place }),
+      projects: project === undefined ? [] : [project],
+      search: search ?? "",
+    });
+    if (focus) {
+      setSearchAsked(true);
+    }
+    setOpen(true);
   };
   return {
     isFloating,
@@ -164,6 +223,8 @@ export function useSidePanel(group: string | undefined) {
         windowTabs.setGroupOwn(group, { sidePanel: true });
       }
     },
+    /** Opens the panel on the group's chats, every chat or the ones `ask` narrows to. */
+    openChats,
     /**
      * Shows the group's chats in its panel, every chat or the chats of
      * `project`, or puts the panel away when it shows just that already.
@@ -178,9 +239,7 @@ export function useSidePanel(group: string | undefined) {
         setOpen(false);
         return;
       }
-      setView("chats");
-      setChatFilters({ ...NO_FILTERS, projects });
-      setOpen(true);
+      openChats(project === undefined ? {} : { project });
     },
   };
 }

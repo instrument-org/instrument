@@ -2,7 +2,7 @@
 
 # What each place offers
 
-Read one section, `sed -n '/^## Tabs/,/^## /p'` on this file; the sections are Sidebar, Tabs, A website's tab, Bookmarks bar, A chat, Chats page, Files, Apps, Command menu. `;` parts a menu's groups, `› [ ]` is a submenu, keys are the Mac's, then Windows and Linux's, and `<words>` stand for the user's own. An item that does not apply to what is up is left out of the menu or turned off. Places not here have more.
+Read one section, `sed -n '/^## Tabs/,/^## /p'` on this file; the sections are Sidebar, Tabs, A website's tab, Bookmarks bar, A chat, Chats in the side panel, Files, Apps, Command menu. `;` parts a menu's groups, `› [ ]` is a submenu, keys are the Mac's, then Windows and Linux's, and `<words>` stand for the user's own. An item that does not apply to what is up is left out of the menu or turned off. Places not here have more.
 
 ## Sidebar
 
@@ -44,10 +44,10 @@ Read one section, `sed -n '/^## Tabs/,/^## /p'` on this file; the sections are S
 - Reply box: Add to this prompt, Model, Dictate, Send; Stop while it works
 - Reply box's +: Browser, <this computer>; Attach files, Add a folder; Apps, Skills
 
-## Chats page
+## Chats in the side panel
 
-- Top of the page: Search, View options, Inbox, Drafts, Archived
-- View options, at the search's right: Three lines (Title, preview, project and files), Two lines (Title, then project or last reply), One line (Just the titles), Group by day
+- Top of the list: Search chats, View options, Drafts, Archived, All projects
+- View options, at the search's right: Three lines (Title, preview, project and files), Two lines (Title, then project or last reply), One line (Just the titles)
 - On a chat, pointing at it: Project, Archive, Mark as Unread, Bookmark
 - Right-click a chat: Open, Open in New Tab, Open in New Window; Mark as Unread, Bookmark; Rename, Project › [No project, <project>, New project…]; Export as Markdown…, Copy › [Work Folder Path; For an Agent]; Send Feedback…; Archive; Delete Chat…
 

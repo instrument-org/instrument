@@ -91,17 +91,6 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
       onNewProject={(name) => {
         shell.onNewProject(chatId, name);
       }}
-      onOpenPage={(href, { behind }) => {
-        if (groupTab === null) {
-          return;
-        }
-        windowTabs.openOrFocusScreen(href, {
-          after: groupTab.id,
-          from: { reason: "link", tab: groupTab.id },
-          group: groupTab.group,
-          select: !behind,
-        });
-      }}
       onSetProject={(next) => {
         shell.setChatProject(chatId, next);
       }}

@@ -18,6 +18,11 @@ function isStoppedByClose(chat: Pick<Chat, "status" | "working">): boolean {
   return chat.working || chat.status === "working" || chat.status === "waiting";
 }
 
+/** Whether the chat only waits on the person, with nothing of its at work. */
+export function isOnlyWaiting(chat: Pick<Chat, "status" | "working">): boolean {
+  return chat.status === "waiting" && !chat.working;
+}
+
 /**
  * The chats a close of these tabs stops, each once, in tab order: every chat
  * one of them shows that is at work or waiting, whether or not another tab
@@ -98,6 +103,7 @@ export function stopQuestionCopy({
   chats,
   closes,
   isUsingPage = false,
+  isWaiting = false,
   what,
 }: {
   chats: readonly Pick<Chat, "title">[];
@@ -105,6 +111,8 @@ export function stopQuestionCopy({
   closes: number;
   /** The one chat is stopped by the close of the page its agent is on. */
   isUsingPage?: boolean;
+  /** Each chat only waits on the person (a card or a question), so the close cancels what it asked rather than stopping work. */
+  isWaiting?: boolean;
   what: ClosingWhat;
 }): { description: string; title: string } {
   const closing =
@@ -128,8 +136,16 @@ export function stopQuestionCopy({
         ? what === "tab" && closes === 1
           ? `${using} is using this page. Closing this tab stops what it's working on.`
           : `${using} is using a page in ${closing}. Closing it stops the chat's work.`
-        : `Closing ${closing} stops what ${named} is working on.`,
+        : isWaiting
+          ? `${using} is waiting on you. Closing ${closing} cancels the request.`
+          : `Closing ${closing} stops what ${named} is working on.`,
       title: "Stop this chat?",
+    };
+  }
+  if (isWaiting) {
+    return {
+      description: `These chats are waiting on you. Closing ${closing} cancels their requests.`,
+      title: `Stop ${chats.length.toString()} chats?`,
     };
   }
   return {

@@ -13,6 +13,7 @@ import { type Chat } from "./chats";
 import {
   chatsStoppedByClose,
   chatsStoppedByPages,
+  isOnlyWaiting,
   stopQuestionCopy,
 } from "./close-stops";
 import { chatHref } from "./window-href";
@@ -176,5 +177,36 @@ describe("the question's words", () => {
       "“Trip plan” is using this page. Closing this tab stops what it's working on.",
       "This chat is using a page in this tab group. Closing it stops the chat's work.",
     ]);
+  });
+
+  it("says a chat that only waits on the person has a request to cancel", () => {
+    const asked = (titles: string[], what: "group" | "tab") =>
+      stopQuestionCopy({
+        chats: titles.map((title) => ({ title })),
+        closes: 1,
+        isWaiting: true,
+        what,
+      }).description;
+    expect([
+      asked(["Access to my photo library"], "group"),
+      asked([""], "tab"),
+      asked(["Trip plan", "Budget"], "group"),
+    ]).toMatchInlineSnapshot(`
+      [
+        "“Access to my photo library” is waiting on you. Closing this tab group cancels the request.",
+        "This chat is waiting on you. Closing this tab cancels the request.",
+        "These chats are waiting on you. Closing this tab group cancels their requests.",
+      ]
+    `);
+  });
+
+  it("counts a chat waiting with a task at work as working", () => {
+    expect(
+      [
+        chat(LISBON, { status: "waiting" }),
+        chat(PARIS, { status: "waiting", working: true }),
+        chat(ROME, { status: "working", working: true }),
+      ].map(isOnlyWaiting),
+    ).toEqual([true, false, false]);
   });
 });

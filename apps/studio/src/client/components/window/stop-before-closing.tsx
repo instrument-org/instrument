@@ -23,6 +23,7 @@ import {
   chatsStoppedByPages,
   type StoppedByPage,
   type ClosingWhat,
+  isOnlyWaiting,
   stopQuestionCopy,
 } from "./close-stops";
 
@@ -180,6 +181,7 @@ export function useStopBeforeClosing() {
       chats: shown.chats,
       closes: shown.closes.length,
       isUsingPage: shown.byPage.length > 0,
+      isWaiting: shown.byPage.length === 0 && shown.chats.every(isOnlyWaiting),
       what: shown.what,
     });
   const dialog = (

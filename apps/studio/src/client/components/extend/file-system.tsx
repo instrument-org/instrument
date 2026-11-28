@@ -31,9 +31,6 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import {
@@ -49,7 +46,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { Delayed, LOADER_DELAY_MS } from "@/client/components/ui/delayed";
+import { LOADER_DELAY_MS } from "@/client/components/ui/delayed";
 import { getFileType } from "@/client/lib/get-file-type";
 import { preloadPicture } from "@/client/lib/picture-preload";
 import {
@@ -90,7 +87,6 @@ import {
   createFileTreeIconResolver,
   getBuiltInSpriteSheet,
 } from "@pierre/trees";
-import { FolderIcon } from "@phosphor-icons/react/Folder";
 import { APP_NAME } from "@instrument-org/shared";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
@@ -219,6 +215,9 @@ export type FileSystemFileItem = {
   url?: string;
 };
 export type FileSystemItem = FileSystemFileItem | FileSystemFolderItem;
+
+/** The kinds a search is narrowed to, as a caller matches them: folders, and files by extension (lowercase, no dot). */
+export type SearchKinds = { extensions: string[]; folders: boolean };
 /** The table's columns beside Name, each optional. */
 export type FileSystemListColumn =
   | "createdAt"
@@ -489,13 +488,12 @@ export type FileSystemProps = {
   /** What the toolbar search says, when the caller holds it, changed through `onSearchChange`. */
   search?: string;
   /**
-   * Everything under the folder the browser lists from, which a search
-   * matches against, as items with paths the way `items` has them:
-   * `truncated` when that is not all of it, `stalledAt` the name of the
-   * folder that stopped responding when that is why, and `asks` the folders
-   * it stepped over that the person can let it into, each by its path the
-   * way `items` has them and by `hostPath`: `refused` when the system said
-   * no, `searchIn` when the search just moves into it. Left out, a search
+   * What a search found under the folder the browser lists from, as items
+   * with paths the way `items` has them, which the search matches again as
+   * it is typed; and `asks`, the folders it stepped over that the person can
+   * let it into, named when nothing is found, each by its path the way
+   * `items` has them and by `hostPath`: `refused` when the system said no,
+   * `searchIn` when the search just moves into it. Left out, a search
    * matches what is listed.
    */
   searchResults?: {
@@ -507,8 +505,6 @@ export type FileSystemProps = {
       searchIn?: boolean;
     }>;
     items: readonly FileSystemItem[];
-    stalledAt?: string | undefined;
-    truncated: boolean;
   };
   /** Called to let the search into a folder it stepped over, by its `hostPath`; the search reads again once it settles. */
   onAllowFolder?: (hostPath: string) => Promise<unknown>;
@@ -520,13 +516,17 @@ export type FileSystemProps = {
    */
   onSearchInFolder?: (folderPath: string) => void;
   /**
-   * Whether `searchResults` is still being read, which an empty search shows
-   * as loading and the status bar as searching. Left out with
-   * `searchResults`, the caller reads nothing for a search.
+   * Whether `searchResults` is still being read, which a search with nothing
+   * found yet shows as a spinner and the status bar as no count. Left out
+   * with `searchResults`, the caller reads nothing for a search.
    */
   searchResultsPending?: boolean;
-  /** Called with the kinds a search is narrowed to as they change, empty for every kind. */
-  onSearchKindsChange?: (kinds: readonly string[]) => void;
+  /**
+   * Called as the kinds a search is narrowed to change, with them as the
+   * caller can match them: folders, and files by extension (lowercase, no
+   * dot); null for every kind.
+   */
+  onSearchKindsChange?: (kinds: SearchKinds | null) => void;
   /**
    * The selected item's path, when the caller holds it. Left out, the browser
    * keeps its own; given, the caller can put the selection on something it
@@ -2291,9 +2291,29 @@ export function FileSystem({
   // for: from everything under the folder where the caller read it,
   // otherwise from what is listed. Each name is folded once per list, not
   // per keystroke.
+  // The kinds as extensions: those the Kind column names that way, and those
+  // of the entries on screen of the kind, which covers a kind named by the
+  // system or by a file's type. Every match is checked by kind again here.
   React.useEffect(() => {
-    onSearchKindsChange?.(searchKinds);
-  }, [onSearchKindsChange, searchKinds]);
+    if (searchKinds.length === 0) {
+      onSearchKindsChange?.(null);
+      return;
+    }
+    const extensions = new Set(
+      Object.entries(FILE_KIND_LABELS).flatMap(([extension, label]) =>
+        searchKinds.includes(label) ? [extension] : [],
+      ),
+    );
+    for (const entry of listedIndex.children.get(currentPath) ?? []) {
+      if (entry.kind === "file" && searchKinds.includes(kindOf(entry))) {
+        extensions.add(fileExtension(entry.name));
+      }
+    }
+    onSearchKindsChange?.({
+      extensions: [...extensions].toSorted(),
+      folders: searchKinds.includes(FOLDER_KIND),
+    });
+  }, [currentPath, listedIndex, onSearchKindsChange, searchKinds]);
   const searchEntries = React.useMemo(() => {
     if (!isSearching) return null;
     const entries = searchResults
@@ -3943,12 +3963,16 @@ export function FileSystem({
         {currentUnreadable !== null ? (
           currentUnreadable
         ) : isLoadingCurrentFolder ? (
-          // Blank while the folder is read, and a ring only once that is slow.
+          // Blank while the folder is read, and a ring only once that is
+          // slow; a search's ring comes at once, as the Finder's does.
           <div
             className="flex size-full items-center justify-center"
             role="status"
           >
-            <Spinner className="size-5 text-muted-foreground" delay={1000} />
+            <Spinner
+              className="size-5 text-muted-foreground"
+              delay={isSearching ? 0 : 1000}
+            />
           </div>
         ) : currentEntries.length === 0 && emptyState && !isSearching ? (
           <div className="flex size-full flex-col items-center justify-center gap-1 px-6 text-center">
@@ -3959,6 +3983,30 @@ export function FileSystem({
               {emptyState.description}
             </p>
           </div>
+        ) : currentEntries.length === 0 &&
+          isSearching &&
+          (searchResults?.asks.length ?? 0) > 0 ? (
+          <NothingFoundWithAsks
+            asks={searchResults?.asks ?? []}
+            label={
+              searchInput.trim()
+                ? `Nothing here matches “${searchInput.trim()}”.`
+                : "Nothing here is that kind."
+            }
+            {...(onAllowFolder ? { onAllowFolder } : {})}
+            {...(onOpenPrivacySettings ? { onOpenPrivacySettings } : {})}
+            {...(onSearchInFolder
+              ? {
+                  // The search goes on from the folder picked, in the
+                  // columns too, whose first column moves there as a walk
+                  // moves it.
+                  onSearchInFolder: (folder: string) => {
+                    setColumnsFrom(normalizeFolderPath(folder));
+                    onSearchInFolder(folder);
+                  },
+                }
+              : {})}
+          />
         ) : currentEntries.length === 0 &&
           (view !== "columns" || isSearching) ? (
           <FileSystemEmptyState
@@ -4009,28 +4057,7 @@ export function FileSystem({
                 ).length
           }
           partialFolder={partialFolder}
-          {...(onAllowFolder ? { onAllowFolder } : {})}
-          {...(onOpenPrivacySettings ? { onOpenPrivacySettings } : {})}
-          {...(onSearchInFolder
-            ? {
-                // The search goes on from the folder picked, in the columns
-                // too, whose first column moves there as a walk moves it.
-                onSearchInFolder: (folder: string) => {
-                  setColumnsFrom(normalizeFolderPath(folder));
-                  onSearchInFolder(folder);
-                },
-              }
-            : {})}
-          {...(isSearching &&
-          (searchResults !== undefined || searchResultsPending !== undefined)
-            ? {
-                search: {
-                  folderName: currentFolderName,
-                  pending: searchResultsPending === true,
-                  ...(searchResults ? { results: searchResults } : {}),
-                },
-              }
-            : {})}
+          searchPending={isSearching && searchResultsPending === true}
           selected={selectedPaths.length}
         />
       ) : null}
@@ -4755,83 +4782,32 @@ function useSlowLoads(loading: ReadonlySet<string>, ms = LOADER_DELAY_MS) {
  */
 function FileSystemStatusBar({
   count,
-  onAllowFolder,
-  onOpenPrivacySettings,
-  onSearchInFolder,
   partialFolder,
-  search,
+  searchPending,
   selected,
 }: {
   count: number;
-  onAllowFolder?: FileSystemProps["onAllowFolder"];
-  onOpenPrivacySettings?: FileSystemProps["onOpenPrivacySettings"];
-  onSearchInFolder?: FileSystemProps["onSearchInFolder"];
   partialFolder: FileSystemProps["partialFolder"];
-  /**
-   * A search of everything under the folder: `pending` while that is read,
-   * then `results` for what the read covered.
-   */
-  search?: {
-    folderName: string;
-    pending: boolean;
-    results?: NonNullable<FileSystemProps["searchResults"]>;
-  };
+  /** A search still being read, whose count would be part of one: no count is shown. */
+  searchPending: boolean;
   selected: number;
 }) {
   const counted = count.toLocaleString();
-  if (search?.pending) {
-    return (
-      <div
-        className="flex h-6 shrink-0 items-center justify-center gap-2 border-t px-3 text-xs text-muted-foreground tabular-nums"
-        data-file-system-status=""
-      >
-        <Delayed>
-          <span className="flex min-w-0 items-center gap-1.5">
-            <Spinner className="size-3 shrink-0" delay={0} />
-            <span className="truncate">
-              Searching {search.folderName} and its folders…
-            </span>
-          </span>
-        </Delayed>
-      </div>
-    );
-  }
-  const found = search
-    ? search.results?.stalledAt !== undefined
-      ? `${counted} found before ${search.results.stalledAt} stopped responding`
-      : search.results?.truncated
-        ? `${counted} found in the first ${search.results.items.length.toLocaleString()} items under ${search.folderName}`
-        : `${counted} found in ${search.folderName} and its folders`
-    : null;
-  const asks = search?.results?.asks ?? [];
   return (
     <div
       className="flex h-6 shrink-0 items-center justify-center gap-2 border-t px-3 text-xs text-muted-foreground tabular-nums"
       data-file-system-status=""
     >
-      <span className="truncate">
-        {found !== null
-          ? selected > 0
-            ? `${selected.toLocaleString()} of ${counted} selected · ${found}`
-            : found
-          : selected > 0
+      {searchPending ? null : (
+        <span className="truncate">
+          {selected > 0
             ? `${selected.toLocaleString()} of ${counted} selected`
             : partialFolder
               ? `${counted} most recent of ${partialFolder.total.toLocaleString()} items`
               : `${counted} ${count === 1 ? "item" : "items"}`}
-      </span>
-      {asks.length > 0 ? (
-        <>
-          <span className="truncate">· {notSearchedLine(asks)}</span>
-          <SearchMoreFolders
-            asks={asks}
-            {...(onAllowFolder ? { onAllowFolder } : {})}
-            {...(onOpenPrivacySettings ? { onOpenPrivacySettings } : {})}
-            {...(onSearchInFolder ? { onSearchInFolder } : {})}
-          />
-        </>
-      ) : null}
-      {partialFolder ? (
+        </span>
+      )}
+      {partialFolder && !searchPending ? (
         <button
           className="shrink-0 text-foreground hover:underline"
           onClick={partialFolder.action.onPress}
@@ -4846,122 +4822,82 @@ function FileSystemStatusBar({
 type FolderAsks = NonNullable<FileSystemProps["searchResults"]>["asks"];
 
 /**
- * The status bar's Allow… and the dialog it opens, which lists the folders
- * a search stepped over with a way into each: Allow… has the system ask
- * about it once, a refused one goes to the system's settings, and on
- * Windows the search moves into it.
+ * A search that found nothing, and the folders it stepped over, each with a
+ * way into it: its Search button opens it, which is when macOS asks about
+ * it; one macOS refused goes to System Settings; on Windows the search
+ * moves into it.
  */
-function SearchMoreFolders({
+function NothingFoundWithAsks({
   asks,
+  label,
   onAllowFolder,
   onOpenPrivacySettings,
   onSearchInFolder,
 }: {
   asks: FolderAsks;
+  label: string;
   onAllowFolder?: FileSystemProps["onAllowFolder"];
   onOpenPrivacySettings?: FileSystemProps["onOpenPrivacySettings"];
   onSearchInFolder?: FileSystemProps["onSearchInFolder"];
 }) {
-  const [open, setOpen] = React.useState(false);
   const [asking, setAsking] = React.useState<string | null>(null);
-  const asksTheSystem = asks.some((ask) => !ask.searchIn);
+  const list = (folders: FolderAsks) =>
+    new Intl.ListFormat(displayLocale, { type: "conjunction" }).format(
+      folders.map((folder) => folder.name),
+    );
+  const open = asks.filter((ask) => !ask.refused);
+  const refused = asks.filter((ask) => ask.refused);
   return (
-    <>
-      <button
-        className="shrink-0 text-foreground hover:underline"
-        onClick={() => {
-          setOpen(true);
-        }}
-        type="button"
-      >
-        {asksTheSystem ? "Allow…" : "Search…"}
-      </button>
-      <Dialog onOpenChange={setOpen} open={open}>
-        <DialogContent maxWidth="26rem">
-          <DialogHeader>
-            <DialogTitle>Search more folders</DialogTitle>
-            {asksTheSystem ? (
-              <DialogDescription>
-                macOS asks before {APP_NAME} can open these folders.
-              </DialogDescription>
-            ) : null}
-          </DialogHeader>
-          <ul className="divide-y">
-            {asks.map((ask) => (
-              <li
-                className="flex items-center justify-between gap-3 py-2 text-sm"
+    <div className="flex size-full flex-col items-center justify-center gap-4 px-6 text-center text-sm text-muted-foreground">
+      <p className="max-w-80 break-words">{label}</p>
+      {open.length > 0 ? (
+        <div className="flex flex-col items-center gap-2">
+          <p className="max-w-80">
+            {list(open)} {open.length === 1 ? "wasn’t" : "weren’t"} searched.
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {open.map((ask) => (
+              <Button
+                disabled={asking !== null}
                 key={ask.hostPath}
+                onClick={() => {
+                  if (ask.searchIn) {
+                    onSearchInFolder?.(ask.path);
+                    return;
+                  }
+                  setAsking(ask.hostPath);
+                  void Promise.resolve(onAllowFolder?.(ask.hostPath)).finally(
+                    () => {
+                      setAsking(null);
+                    },
+                  );
+                }}
+                size="sm"
+                variant="outline"
               >
-                <span className="flex min-w-0 items-center gap-2">
-                  <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
-                  <span className="truncate">{ask.name}</span>
-                </span>
-                {ask.searchIn ? (
-                  <Button
-                    onClick={() => {
-                      setOpen(false);
-                      onSearchInFolder?.(ask.path);
-                    }}
-                    size="sm"
-                    variant="outline"
-                  >
-                    Search in {ask.name}
-                  </Button>
-                ) : ask.refused ? (
-                  <Button
-                    onClick={() => onOpenPrivacySettings?.()}
-                    size="sm"
-                    variant="outline"
-                  >
-                    {/* oxlint-disable-next-line studio/no-os-words -- refused only on a Mac */}
-                    Open System Settings
-                  </Button>
-                ) : (
-                  <Button
-                    disabled={asking !== null}
-                    onClick={() => {
-                      setAsking(ask.hostPath);
-                      void Promise.resolve(
-                        onAllowFolder?.(ask.hostPath),
-                      ).finally(() => {
-                        setAsking(null);
-                      });
-                    }}
-                    size="sm"
-                    variant="outline"
-                  >
-                    Allow…
-                  </Button>
-                )}
-              </li>
+                Search {ask.name}
+              </Button>
             ))}
-          </ul>
-          <DialogFooter>
-            <Button
-              onClick={() => {
-                setOpen(false);
-              }}
-            >
-              Done
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+          </div>
+        </div>
+      ) : null}
+      {refused.length > 0 ? (
+        <div className="flex flex-col items-center gap-2">
+          <p className="max-w-80">
+            macOS keeps {APP_NAME} out of {list(refused)}.
+          </p>
+          <Button
+            onClick={() => onOpenPrivacySettings?.()}
+            size="sm"
+            variant="outline"
+          >
+            {/* oxlint-disable-next-line studio/no-os-words -- refused only on a Mac */}
+            Open System Settings
+          </Button>
+        </div>
+      ) : null}
+    </div>
   );
-}
-
-/**
- * The folders a search stepped over, as the status bar names them: up to four
- * by name, or three and a count of the rest, so the line fits beside a chat.
- */
-function notSearchedLine(asks: FolderAsks) {
-  const names = asks.map((folder) => folder.name);
-  const shown =
-    names.length > 4
-      ? [...names.slice(0, 3), `${names.length - 3} more`]
-      : names;
-  return `${new Intl.ListFormat(displayLocale, { type: "conjunction" }).format(shown)} not searched`;
 }
 function FileSystemEmptyState({
   action,

@@ -29,6 +29,20 @@ const ICLOUD_DRIVE = path.join(
 const answers = new Map<string, FolderAnswer>();
 
 /**
+ * What macOS answered for each folder a search asked to open: this run's
+ * answers, over the folders let in on earlier runs (`kept`). A refusal is
+ * kept for this run only, since System Settings can change it.
+ */
+export function folderAnswers(
+  kept: readonly string[],
+): ReadonlyMap<string, FolderAnswer> {
+  return new Map([
+    ...kept.map((folder) => [folder, "allowed"] as const),
+    ...answers,
+  ]);
+}
+
+/**
  * The folders under `root` a search steps over that the person can let it
  * into: on a Mac, those macOS asks about (Desktop, Documents, Downloads and
  * iCloud Drive) that it hasn't let in yet; on Windows, AppData. The other
@@ -36,13 +50,13 @@ const answers = new Map<string, FolderAnswer>();
  */
 export function folderAsks({
   home,
-  known = answers,
+  known,
   notSearched,
   platform = process.platform,
   root,
 }: {
   home: string;
-  known?: ReadonlyMap<string, FolderAnswer>;
+  known: ReadonlyMap<string, FolderAnswer>;
   notSearched: readonly string[];
   platform?: NodeJS.Platform;
   root: string;

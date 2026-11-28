@@ -64,7 +64,8 @@ export function folderWalkSkips({
 }: { home?: string; platform?: NodeJS.Platform } = {}): ReadonlySet<string> {
   const skips = folderSizeSkips({ home, platform });
   return platform === "win32"
-    ? new Set([...skips, path.win32.join(home, "AppData")])
+    ? // oxlint-disable-next-line studio/no-os-words -- a folder only Windows has
+      new Set([...skips, path.win32.join(home, "AppData")])
     : skips;
 }
 

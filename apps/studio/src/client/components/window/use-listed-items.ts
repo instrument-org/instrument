@@ -251,7 +251,7 @@ const THUMBNAIL_EXTENSIONS = new Set([
  * named by when the file was written so a new write is a new picture. A
  * package's picture is the system's icon for it, square.
  */
-function previewOf(
+export function previewOf(
   entry: {
     mimeType?: string;
     modifiedAt?: number;

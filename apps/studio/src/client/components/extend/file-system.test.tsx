@@ -952,7 +952,7 @@ describe("FileSystem", () => {
       expect(names()).toEqual(found);
     });
 
-    it("matches what the caller read under the folder, and says what it left out", () => {
+    it("matches what the caller read under the folder, and counts it alone", () => {
       renderWithProviders(
         <FileSystem
           defaultSearch="plan"
@@ -963,37 +963,29 @@ describe("FileSystem", () => {
               { kind: "file", path: "deep/down/plan.md" },
               { kind: "file", path: "deep/plan.txt" },
             ],
-            asks: ["Desktop", "Documents", "Downloads"].map((name) => ({
+            asks: ["Desktop", "Downloads"].map((name) => ({
               hostPath: `/Users/mac-user/${name}`,
               name,
               path: `${name}/`,
             })),
-            truncated: true,
           }}
+          searchResultsPending={false}
         />,
       );
 
       expect(names()).toEqual(["plan.md", "plan.txt"]);
       expect(
         document.querySelector("[data-file-system-status]")?.textContent,
-      ).toMatchInlineSnapshot(
-        `"2 found in the first 2 items under Files· Desktop, Documents, and Downloads not searchedAllow…"`,
-      );
-
-      fireEvent.click(screen.getByRole("button", { name: "Search: plan" }));
-      fireEvent.change(screen.getByRole("searchbox"), {
-        target: { value: "zebra" },
-      });
-      expect(screen.getByText("Nothing here matches “zebra”.")).toBeTruthy();
-      expect(screen.queryByText(/Search everywhere/)).toBeNull();
+      ).toMatchInlineSnapshot(`"2 items"`);
+      expect(screen.queryByText(/searched/)).toBeNull();
     });
 
-    it("names the folders it stepped over and lets each be allowed from a dialog", async () => {
+    it("names the folders it stepped over when nothing is found, with a way into each", () => {
       const onAllowFolder = vi.fn(() => Promise.resolve());
       const onOpenPrivacySettings = vi.fn();
       renderWithProviders(
         <FileSystem
-          defaultSearch="plan"
+          defaultSearch="zebra"
           items={FOLDERS}
           onAllowFolder={onAllowFolder}
           onOpenPrivacySettings={onOpenPrivacySettings}
@@ -1016,35 +1008,31 @@ describe("FileSystem", () => {
                 path: "Downloads/",
               },
             ],
-            items: [{ kind: "file", path: "deep/plan.txt" }],
-            truncated: false,
+            items: [],
           }}
           searchResultsPending={false}
         />,
       );
 
       expect(
-        document.querySelector("[data-file-system-status]")?.textContent,
-      ).toMatchInlineSnapshot(`"1 found in Files and its folders· Desktop, Documents, and Downloads not searchedAllow…"`);
-      fireEvent.click(screen.getByRole("button", { name: "Allow…" }));
-      const dialog = await screen.findByRole("dialog");
-      expect(dialog.textContent).toMatchInlineSnapshot(`"Search more foldersmacOS asks before Instrument can open these folders.DesktopOpen System SettingsDocumentsAllow…DownloadsAllow…DoneClose"`);
-
-      fireEvent.click(
-        within(dialog).getAllByRole("button", { name: "Allow…" })[0]!,
+        screen.getByText("Nothing here matches “zebra”.").parentElement
+          ?.textContent,
+      ).toMatchInlineSnapshot(
+        `"Nothing here matches “zebra”.Documents and Downloads weren’t searched.Search DocumentsSearch DownloadsmacOS keeps Instrument out of Desktop.Open System Settings"`,
       );
-      expect(onAllowFolder.mock.calls).toEqual([["/Users/mac-user/Documents"]]);
+      fireEvent.click(screen.getByRole("button", { name: "Search Downloads" }));
+      expect(onAllowFolder.mock.calls).toEqual([["/Users/mac-user/Downloads"]]);
       fireEvent.click(
-        within(dialog).getByRole("button", { name: "Open System Settings" }),
+        screen.getByRole("button", { name: "Open System Settings" }),
       );
       expect(onOpenPrivacySettings).toHaveBeenCalledOnce();
     });
 
-    it("moves the search into AppData from the dialog on Windows", async () => {
+    it("moves the search into AppData when nothing is found on Windows", () => {
       const onSearchInFolder = vi.fn();
       renderWithProviders(
         <FileSystem
-          defaultSearch="plan"
+          defaultSearch="zebra"
           items={FOLDERS}
           onSearchInFolder={onSearchInFolder}
           searchResults={{
@@ -1057,78 +1045,24 @@ describe("FileSystem", () => {
               },
             ],
             items: [],
-            truncated: false,
           }}
           searchResultsPending={false}
         />,
       );
 
-      fireEvent.click(screen.getByRole("button", { name: "Search…" }));
-      const dialog = await screen.findByRole("dialog");
-      fireEvent.click(
-        within(dialog).getByRole("button", { name: "Search in AppData" }),
-      );
+      expect(screen.getByText("AppData wasn’t searched.")).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Search AppData" }));
 
       expect(onSearchInFolder.mock.calls).toEqual([["AppData/"]]);
     });
 
-    it("says how many it found under the folder once it is read", () => {
+    it("shows neither a count nor nothing found while the search is read", () => {
       renderWithProviders(
-        <FileSystem
-          defaultSearch="plan"
-          items={FOLDERS}
-          searchResults={{
-            items: [{ kind: "file", path: "deep/plan.txt" }],
-            asks: [],
-            truncated: false,
-          }}
-          searchResultsPending={false}
-        />,
+        <FileSystem defaultSearch="draft" items={[]} searchResultsPending />,
       );
 
-      expect(
-        document.querySelector("[data-file-system-status]")?.textContent,
-      ).toMatchInlineSnapshot(`"1 found in Files and its folders"`);
-    });
-
-    it("names the folder that stopped responding when the search ends there", () => {
-      renderWithProviders(
-        <FileSystem
-          defaultSearch="plan"
-          items={FOLDERS}
-          searchResults={{
-            items: [{ kind: "file", path: "deep/plan.txt" }],
-            asks: [],
-            stalledAt: "System32",
-            truncated: true,
-          }}
-          searchResultsPending={false}
-        />,
-      );
-
-      expect(
-        document.querySelector("[data-file-system-status]")?.textContent,
-      ).toMatchInlineSnapshot(`"1 found before System32 stopped responding"`);
-    });
-
-    it("says it is searching the folders below only once that takes a moment", async () => {
-      renderWithProviders(
-        <FileSystem
-          defaultSearch="draft"
-          items={FOLDERS}
-          searchResultsPending
-        />,
-      );
-      const status = () =>
-        document.querySelector("[data-file-system-status]")?.textContent;
-
-      expect(status()).toBe("");
-      expect(
-        await screen.findByText(/^Searching .* and its folders…$/),
-      ).toBeTruthy();
-      expect(status()).toMatchInlineSnapshot(
-        `"Searching Files and its folders…"`,
-      );
+      expect(screen.queryByText(/Nothing here/)).toBeNull();
+      expect(document.querySelector("[data-file-system-status]")).toBeNull();
     });
 
     it("lists a kind picked alone from every folder the caller read", () => {
@@ -1145,7 +1079,6 @@ describe("FileSystem", () => {
               { kind: "file", path: "notes.txt" },
             ],
             asks: [],
-            truncated: false,
           }}
         />,
       );
@@ -1165,7 +1098,16 @@ describe("FileSystem", () => {
         within(kinds).getByRole("option", { name: "Plain Text" }),
       );
 
-      expect(onSearchKindsChange).toHaveBeenLastCalledWith(["Plain Text"]);
+      expect(onSearchKindsChange.mock.lastCall).toMatchInlineSnapshot(`
+        [
+          {
+            "extensions": [
+              "txt",
+            ],
+            "folders": false,
+          },
+        ]
+      `);
       expect(names()).toEqual(["notes.txt", "plan.txt"]);
     });
 

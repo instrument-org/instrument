@@ -71,6 +71,11 @@ const MachineStateSchema = z.object({
     .optional()
     .catch(undefined),
   /**
+   * The folders macOS guards that the person let a Files search into
+   * (`lib/folder-asks.ts`), which searches from above them then go into.
+   */
+  searchedFolders: z.array(z.string()).optional().catch(undefined),
+  /**
    * Setup's record as earlier builds kept it, once for the whole computer.
    * Carried into the default workspace's own state once and removed
    * (`lib/setup-state.ts`); setup's record is the workspace's now.

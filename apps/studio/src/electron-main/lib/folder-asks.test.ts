@@ -31,6 +31,7 @@ describe("folderAsks", () => {
     expect(
       folderAsks({
         home,
+        known: new Map(),
         notSearched: [],
         platform: "darwin",
         root: "/Users/mac-user/Documents",
@@ -42,6 +43,7 @@ describe("folderAsks", () => {
     expect(
       folderAsks({
         home: String.raw`C:\Users\windows-user`,
+        known: new Map(),
         notSearched: [String.raw`C:\Users\windows-user\AppData`],
         platform: "win32",
         root: String.raw`C:\Users\windows-user`,

@@ -25,6 +25,7 @@ import {
   itemKindLabel,
   type FileSystemHandle,
   type FileSystemItem,
+  type SearchKinds,
   type FileSystemGroupKey,
   type FileSystemSortState,
   type FileSystemView,
@@ -156,7 +157,7 @@ import {
   SORT_BY,
 } from "./folder-menu";
 import { NotPermitted } from "./not-permitted";
-import { combineListings, useListedItems } from "./use-listed-items";
+import { combineListings, previewOf, useListedItems } from "./use-listed-items";
 import {
   dropEffectOf,
   fileActionFailed,
@@ -534,16 +535,39 @@ export function ComputerPage({
     showHiddenFiles,
     workspaceFolder,
   });
-  // A search reads everything under the folder the browser lists from, once
-  // as the search starts and again each time one starts: what it lists is
-  // that moment's, while the folders on screen stay current. Nothing is
-  // read for search opened with nothing typed or picked in it.
-  const [searchKinds, setSearchKinds] = useState<readonly string[]>([]);
-  const isSearching = (query ?? "").trim() !== "" || searchKinds.length > 0;
+  // A search reads everything under the folder the browser lists from once,
+  // as the search starts, and matches it in the main process as it is typed,
+  // so only the matches come here; what it lists is that moment's, while the
+  // folders on screen stay current. Nothing is read for a search opened with
+  // nothing typed or picked in it.
+  const [searchKinds, setSearchKinds] = useState<null | SearchKinds>(null);
+  const isSearching = (query ?? "").trim() !== "" || searchKinds !== null;
   const walkedFrom = expandHomePath(hostPathOf(current), homePath);
-  const folderWalk = useQuery(
-    rpcClient.files.walkFolder.queryOptions({
-      input: isSearching && !isFolderless ? { path: walkedFrom } : skipToken,
+  // One walk per search: a new one for each search started, in each folder,
+  // and once a folder it stepped over is let in.
+  const [walkOwner] = useState(() => crypto.randomUUID());
+  const [walkRound, setWalkRound] = useState(0);
+  const [wasSearching, setWasSearching] = useState(false);
+  if (isSearching !== wasSearching) {
+    setWasSearching(isSearching);
+    if (isSearching) setWalkRound((round) => round + 1);
+  }
+  const walkId = `${walkOwner}:${walkRound}:${walkedFrom}`;
+  const folderSearch = useQuery(
+    rpcClient.files.searchFolder.queryOptions({
+      input:
+        isSearching && !isFolderless
+          ? {
+              ...(searchKinds ? { kinds: searchKinds } : {}),
+              path: walkedFrom,
+              query: query ?? "",
+              walkId,
+            }
+          : skipToken,
+      // The last keystroke's matches stay up while the next one's come, within
+      // one search; a new search starts blank.
+      placeholderData: (previous) =>
+        previous?.walkId === walkId ? previous : undefined,
       refetchOnWindowFocus: false,
       retry: false,
     }),
@@ -560,14 +584,15 @@ export function ComputerPage({
       ),
     250,
   );
+  const spotlightAsked =
+    isSearching &&
+    spotlightWord !== "" &&
+    folderSearch.data?.steppedOver === true;
   const spotlight = useQuery(
     rpcClient.files.spotlightMatches.queryOptions({
-      input:
-        isSearching &&
-        spotlightWord !== "" &&
-        (folderWalk.data?.notSearched.length ?? 0) > 0
-          ? { path: walkedFrom, word: spotlightWord }
-          : skipToken,
+      input: spotlightAsked
+        ? { path: walkedFrom, word: spotlightWord }
+        : skipToken,
       refetchOnWindowFocus: false,
       retry: false,
     }),
@@ -576,9 +601,11 @@ export function ComputerPage({
   const openPrivacySettings = useMutation(
     rpcClient.features.openPrivacySettings.mutationOptions(),
   );
+  const walkedMatches = folderSearch.data?.matches ?? [];
+  const walkedPaths = new Set(walkedMatches.map((entry) => entry.path));
   const searchItems = [
-    ...(folderWalk.data?.entries ?? []),
-    ...(spotlight.data ?? []),
+    ...walkedMatches,
+    ...(spotlight.data ?? []).filter((entry) => !walkedPaths.has(entry.path)),
   ].map((entry): FileSystemItem => {
     const stamps = {
       createdAt: new Date(entry.createdAt).toISOString(),
@@ -611,9 +638,7 @@ export function ComputerPage({
         entry.package ? [entry.path] : [],
       ),
     ),
-    ...(folderWalk.data?.entries ?? []).flatMap((entry) =>
-      entry.package ? [entry.path] : [],
-    ),
+    ...walkedMatches.flatMap((entry) => (entry.package ? [entry.path] : [])),
   ]);
   // A search's matches from beyond what is listed are found by path too, so
   // what is done to the selection reaches them.
@@ -2831,13 +2856,13 @@ export function ComputerPage({
                   onRenameCommit={rename}
                   canRenameItem={(item) => keptInPlace(item) === undefined}
                   search={query ?? ""}
-                  {...(folderWalk.data
+                  {...(folderSearch.data
                     ? {
                         searchResults: {
                           items: searchItems,
                           // A folder Spotlight found something in is one the
                           // system already lets the app read.
-                          asks: folderWalk.data.asks
+                          asks: folderSearch.data.asks
                             .filter(
                               (ask) =>
                                 !(spotlight.data ?? []).some((entry) =>
@@ -2855,23 +2880,28 @@ export function ComputerPage({
                               ...(ask.refused ? { refused: true } : {}),
                               ...(ask.searchIn ? { searchIn: true } : {}),
                             })),
-                          stalledAt:
-                            folderWalk.data.stalledAt === undefined
-                              ? undefined
-                              : nameOf(folderWalk.data.stalledAt),
-                          truncated: folderWalk.data.truncated,
                         },
                       }
                     : {})}
                   searchResultsPending={
-                    isSearching && !isFolderless && folderWalk.isPending
+                    isSearching &&
+                    !isFolderless &&
+                    (folderSearch.isPending ||
+                      folderSearch.isPlaceholderData ||
+                      (spotlightAsked && spotlight.isFetching))
                   }
                   onSearchKindsChange={setSearchKinds}
                   onAllowFolder={async (folder) => {
-                    await askFolder.mutateAsync({ path: folder });
+                    const answer = await askFolder.mutateAsync({
+                      path: folder,
+                    });
+                    // Let in, the folder is walked: the search starts over.
+                    if (answer === "allowed") {
+                      setWalkRound((round) => round + 1);
+                    }
                     await Promise.all([
                       queryClient.invalidateQueries({
-                        queryKey: rpcClient.files.walkFolder.key(),
+                        queryKey: rpcClient.files.searchFolder.key(),
                       }),
                       queryClient.invalidateQueries({
                         queryKey: rpcClient.files.spotlightMatches.key(),

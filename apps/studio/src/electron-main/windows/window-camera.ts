@@ -42,14 +42,23 @@ const SECRET_FIELDS_UP = `(() => {
     (field.tagName === "INPUT" && !NOT_TYPED.includes(field.type)) ||
     field.isContentEditable === true);
   const boxes = [];
+  // A document and every open shadow root in it, which a selector on the
+  // document alone does not reach into.
+  const rootsOf = (root) => [root, ...[...root.querySelectorAll("*")].flatMap((element) => element.shadowRoot ? rootsOf(element.shadowRoot) : [])];
   const visit = (doc, dx, dy) => {
-    const typing = doc.activeElement;
-    for (const field of [...doc.querySelectorAll(SECRET), ...(isTyping(typing) ? [typing] : [])]) {
+    const roots = rootsOf(doc);
+    // Focus inside a shadow root shows as its host; followed down to the
+    // field. One in a closed root stays its host, whose whole box goes.
+    let typing = doc.activeElement;
+    while (typing && typing.shadowRoot && typing.shadowRoot.activeElement) typing = typing.shadowRoot.activeElement;
+    const sealed = typing !== null && typing !== doc.body && typing.localName.includes("-") && !typing.shadowRoot;
+    const secrets = roots.flatMap((root) => [...root.querySelectorAll(SECRET)]);
+    for (const field of [...secrets, ...(isTyping(typing) || sealed ? [typing] : [])]) {
       if (doc.defaultView.getComputedStyle(field).visibility === "hidden") continue;
       const box = field.getBoundingClientRect();
       boxes.push({ bottom: box.bottom + dy, left: box.left + dx, right: box.right + dx, top: box.top + dy });
     }
-    for (const frame of doc.querySelectorAll("iframe, frame")) {
+    for (const frame of roots.flatMap((root) => [...root.querySelectorAll("iframe, frame")])) {
       let inner = null;
       try { inner = frame.contentDocument; } catch {}
       if (inner) {

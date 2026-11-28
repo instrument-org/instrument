@@ -55,7 +55,8 @@ export function Favicon({
       className={cn(
         // A rounded rectangle, the way a browser tab softens a site's
         // own square mark, and what tells a site from an app's circle.
-        "size-4 shrink-0 rounded-sm border border-border/50 dark:border-transparent",
+        // The hairline is a ring outside the box, so the icon has all of it.
+        "size-4 shrink-0 rounded-sm ring-1 ring-border/50 dark:ring-0",
         FAVICON_SCHEME_CLASS_NAME,
         arrivalClassName,
         className,

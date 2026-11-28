@@ -6,6 +6,7 @@ import { entryExists, moveEntrySync } from "../move-entry";
 import { type PathMove, rewriteStoredPaths } from "../rewrite-stored-paths";
 import { removeFolderLeftEmpty } from "../system-clutter";
 import { type DraftsMigration } from "./migrate";
+import { isDraftFileName } from "./draft-file";
 import { draftsFolderDir } from "./draft-folder";
 
 /**
@@ -15,13 +16,14 @@ import { draftsFolderDir } from "./draft-folder";
 const TOP_LEVEL_DRAFTS_FOLDER_NAME = "Drafts";
 
 /**
- * Moves every folder in a top-level `Drafts/`, where a build before kept the
- * drafts, into the drafts folder in `.instrument/`, each under its own name
+ * Moves every draft folder (one holding a `DRAFT*.md`) in a top-level
+ * `Drafts/`, where a build before kept the drafts, into the drafts folder in
+ * `.instrument/`, each under its own name
  * or that name numbered where one is taken there (`2026-10-14 2`), and
  * removes `Drafts/` once nothing is left in it but a file manager's records.
  * A draft is its `id`, never its folder's name, so a renamed folder still
- * holds its draft. Anything in `Drafts/` that is not a folder is left there,
- * and so is `Drafts/` with it.
+ * holds its draft. Anything else in `Drafts/` is the person's and is left
+ * there, and so is `Drafts/` with it.
  *
  * Runs at every launch, since another device, a sync engine or an older
  * build can still put a draft there. Paths the app stored into a folder
@@ -41,7 +43,10 @@ export function moveTopLevelDrafts({
   try {
     folders = fs
       .readdirSync(from, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
+      .filter(
+        (entry) =>
+          entry.isDirectory() && holdsDraftFile(path.join(from, entry.name)),
+      )
       .map((entry) => entry.name)
       .toSorted();
   } catch {
@@ -64,6 +69,16 @@ export function moveTopLevelDrafts({
   removeFolderLeftEmpty(from);
   moved.done.push(...rewriteStoredPaths({ machineDir, moves, rootDir }));
   return moved;
+}
+
+/** Whether `dir` has a draft's file in it; a folder that cannot be read has none. */
+function holdsDraftFile(dir: string): boolean {
+  try {
+    // oxlint-disable-next-line studio/no-sync-content-read -- a launch step before the workspace is up, synchronous like the renames it decides; a listing reads no file's contents.
+    return fs.readdirSync(dir).some(isDraftFileName);
+  } catch {
+    return false;
+  }
 }
 
 /** `name`, or it numbered as the drafts folder numbers its folders, where it is taken. */

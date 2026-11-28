@@ -104,6 +104,20 @@ describe("moving the top-level drafts in", () => {
     ]);
   });
 
+  it("leaves a folder of the person's that holds no draft", () => {
+    draft(path.join(rootDir, "Drafts", "2026-10-14"), "d1");
+    write(path.join(rootDir, "Drafts", "Novel", "chapter1.docx"), "words");
+    write(path.join(rootDir, "Drafts", "Novel", "draft.md"), "mine");
+
+    move();
+
+    expect(tree()).toEqual([
+      ".instrument/drafts/2026-10-14/DRAFT.md",
+      "Drafts/Novel/chapter1.docx",
+      "Drafts/Novel/draft.md",
+    ]);
+  });
+
   it("writes a stored path into a moved folder where it went", () => {
     draft(path.join(rootDir, "Drafts", "2026-10-14"), "d1");
     const was = path.join(rootDir, "Drafts", "2026-10-14");

@@ -1,6 +1,6 @@
 # How much agent typing still takes the person's caret
 
-**Status:** open · **Check after:** 2026-11-26 · **Last checked:** never
+**Status:** open · **Check after:** 2026-12-12 · **Last checked:** 2026-11-28
 
 ## What we're waiting to learn
 
@@ -32,4 +32,6 @@ The main log of a build in daily use: `apps/studio/.logs/` in development, the r
 
 ## Result
 
-Windows, 2.0.7 installed: agent-browser filled the booking form's seven fields, the cross-site card frame's two included, and sent it with `press Tab` and `press Enter` while the person typed 665 characters into the message box. Every value arrived and the form was submitted, the person's text came through whole with the caret still in the box, and the log read `typed without focus … text=57 keys=4` with no command taking focus, the same as on macOS. Daily-use counts are not checked yet.
+Windows, 2.0.7 installed: agent-browser filled the booking form's seven fields, the cross-site card frame's two included, and sent it with `press Tab` and `press Enter` while the person typed 665 characters into the message box. Every value arrived and the form was submitted, the person's text came through whole with the caret still in the box, and the log read `typed without focus … text=57 keys=4` with no command taking focus, the same as on macOS.
+
+Daily use, 2026-11-28, from the main logs of two Macs on the 2.0.10 and 2.1.0 betas (one log from 2026-11-17, the other from 2026-11-26): six `typed without focus` lines (149 characters, 9 keys) and three commands that took focus. Two were `no key translation`, both an agent's `press Meta+a` to select a search box's text before typing over it; one was `page did not answer`. Focus came back each time, and neither log has a `text sent without focus` line or a guest crash. Too few to rank reasons, but select-all is the one chord seen, and one of its fallbacks put a key in another tab that was counted as the person's ([agent-told-the-user-used-its-tab.md](agent-told-the-user-used-its-tab.md)). Still owed: the Linux run above, and more daily use before deciding whether `Meta+a` gets a route of its own.

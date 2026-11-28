@@ -1,6 +1,6 @@
 # What counts as the person using a tab when nobody touched it
 
-**Status:** open · **Check after:** 2026-11-24, or once a build carrying the `person input` log line has run a week of real browser chats and one recorded agent run · **Last checked:** never
+**Status:** open, narrowed to a key event the person never pressed (see Result) · **Check after:** 2026-12-12 · **Last checked:** 2026-11-28
 
 ## What we're waiting to learn
 
@@ -33,4 +33,10 @@ Search the main log for `person input targetId=<id> type=<type> windowFocused=<b
 
 ## Result
 
-Not yet checked.
+2026-11-28, from the main logs of two Macs in daily use on the 2.0.10 and 2.1.0 betas (one log from 2026-11-17, the other from 2026-11-26) and the records of the workspace both use. No recorded agent run was in the period.
+
+- **The notes are rare and the ones checked were true.** Since 2026-11-11, 23 chats ran agent-browser commands, and a bash result told the agent the user used a tab three times. Two fall inside a log: each was a run of `rawKeyDown` with `windowFocused=true` while a browser extension selected and closed tabs on those keys, so a person was pressing keys in that tab. The third came from the Mac whose log starts later.
+- **Real input is `rawKeyDown` or `mouseDown`.** Of 4,089 runs counted as the person's across both logs, 2,678 started with `rawKeyDown`, 1,410 with `mouseDown` and one with `keyDown`; five of them came with the window not focused.
+- **That one `keyDown` was almost certainly not the person.** It reached another tab of the same chat 1 ms after the window reclaimed keyboard focus from an agent's `press Meta+a`, which had taken focus because the chord has no key translation ([agent-typing-without-focus.md](agent-typing-without-focus.md)). No note reached the agent, but the guest counted it as the person's input, which is also what lets a page offer a link to another app (`mayOpenInAnotherApp`).
+
+What to watch now: `person input … type=keyDown` lines. Another one just after a `takes focus` line means a key from the agent's focus-taking fallback lands in a guest the focus guard does not cover: guard every guest of the window while a fallback holds focus, or stop counting `keyDown` in `noteUserInput` once a Windows log shows that a real key arrives as `rawKeyDown` there too. None by the check date: close.

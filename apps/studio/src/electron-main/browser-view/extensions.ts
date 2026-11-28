@@ -765,11 +765,18 @@ export function setBrowserExtensionEnabled(
  * say; the library, finding it running, downloads nothing of its own.
  */
 async function confirmInstall(details: {
+  frame?: { origin: string };
   icon: NativeImage;
   id: string;
   localizedName: string;
   manifest: unknown;
 }): Promise<{ action: "allow" | "deny" }> {
+  // The library hands its install calls to any page whose address only
+  // starts with the store's (`https://chromewebstore.google.com.example`),
+  // and the name and icon the question shows are the page's to choose.
+  if (details.frame?.origin !== new URL(CHROME_WEB_STORE_URL).origin) {
+    return { action: "deny" };
+  }
   const { id } = details;
   const shown = accessOf(details.manifest);
   const allowed = await askWindows({

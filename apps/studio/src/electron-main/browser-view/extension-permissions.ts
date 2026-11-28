@@ -119,6 +119,7 @@ const PERMISSION_LINES: [permission: string, line: string][] = [
   ["nativeMessaging", "Talk to its own app on this computer"],
   ["management", "See and manage the browser's other extensions"],
   ["downloads", "Manage what you download"],
+  ["downloads.open", "Open files you download"],
   ["notifications", "Show notifications"],
   ["privacy", "Change the browser's privacy settings"],
   ["clipboardRead", "Read what you copy"],

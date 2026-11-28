@@ -96,6 +96,15 @@ describe("newAccessLines", () => {
     expect(newAccessLines(granted, { origins, permissions })).toEqual(lines);
   });
 
+  it("asks again of an update that would open what it downloads", () => {
+    expect(
+      newAccessLines(
+        { origins: [], permissions: ["downloads"] },
+        { origins: [], permissions: ["downloads", "downloads.open"] },
+      ),
+    ).toEqual(["Open files you download"]);
+  });
+
   it("finds no site new to one that reaches every site", () => {
     expect(
       newAccessLines(

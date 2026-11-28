@@ -739,9 +739,7 @@ const bashCapability = defineCapability({
         const guidesShown = appGuidesShown(appGuides, outcome.output);
         const jobsEnded = endedJobsOf(sessionId);
         const pageDownloads =
-          (await pageDownloadsNote({ chatId, sessionId }))
-            ?.trimEnd()
-            .split("\n") ?? [];
+          pageDownloadsNote({ sessionId })?.trimEnd().split("\n") ?? [];
 
         return ok({
           ...(guidesShown.length > 0 ? { appGuides: guidesShown } : {}),

@@ -1,11 +1,9 @@
-import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import { type BrowserTargetId } from "../../types";
 import { getDownloadsDir } from "../chat-dir-utils";
 import { shellPath } from "../shell-path";
 import { actsIn, tabOfPage } from "../tab-activity";
 import { workDir } from "../work-dir";
-import { agentTabIdOf, chatPageTabs } from "./chat-tabs";
 
 /** A download a page an agent drives started, as the session is told of it. */
 interface PageDownload {
@@ -59,28 +57,17 @@ export function notePageDownload(
  * click on a download link does: where the file is, or that it is still
  * coming. Taken, so each is told once.
  */
-export async function pageDownloadsNote({
-  chatId,
+export function pageDownloadsNote({
   sessionId,
 }: {
-  chatId: ChatId;
   sessionId: StoreId.Session;
-}): Promise<string | undefined> {
+}): string | undefined {
   const downloads = [...(owed.get(sessionId)?.values() ?? [])];
   owed.delete(sessionId);
   if (downloads.length === 0) {
     return undefined;
   }
-  // Each page by the id agents name its tab by.
-  const tabs = await chatPageTabs(chatId);
-  return `${downloads
-    .map((download) =>
-      pageDownloadLine({
-        ...download,
-        from: agentTabIdOf(tabs, download.from),
-      }),
-    )
-    .join("\n")}\n`;
+  return `${downloads.map((download) => pageDownloadLine(download)).join("\n")}\n`;
 }
 
 /** A download's line, its page named by the id agents name its tab by (`from`). */

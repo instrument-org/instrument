@@ -781,10 +781,13 @@ async function replace(
   if (error !== undefined) {
     return { failed: true, said: error, target: arg };
   }
-  // The chat's act in the tab, which the task's next command there reports.
-  if (holder.session !== undefined && holder.targetId !== null) {
+  // The chat's act in the tab, which the task's next command there reports,
+  // on the page drawing it now, which the window names when the tab shows
+  // a page.
+  const page = parseBrowserTargetId(answer?.targetId ?? "") ?? holder.targetId;
+  if (holder.session !== undefined && page !== null) {
     noteTabCommand(
-      { tabId: holder.id, targetId: holder.targetId },
+      { tabId: holder.id, targetId: page },
       { chatId: ctx.chatId, sessionId: ctx.sessionId },
     );
   }

@@ -1666,7 +1666,7 @@ export function createAgentBrowserCommand({
       ...(drivesChatTabs
         ? [
             pageOpenedTabsNote({ sessionId }),
-            await pageDownloadsNote({ chatId, sessionId }),
+            pageDownloadsNote({ sessionId }),
             await tabNewsNote({ chatId, sessionId }),
             await closedTabsNote({ chatId, sessionId }),
           ]

@@ -24,20 +24,11 @@ export interface TabNews {
 /**
  * A tab and the page drawing it: by the id agents name the tab by, which
  * stays with it, and the page's own, which changes when a tab on an HTML
- * file walks to a file of another kind and back. A bare page id stands for
- * the tab it was last named drawing (`tabOfPage`), else a page tab, which
- * agents name by its page's id.
+ * file walks to a file of another kind and back.
  */
-export type TabPage =
-  | BrowserTargetId
-  | { tabId: string; targetId: BrowserTargetId };
-
-function tabIdOf(tab: TabPage): string {
-  return typeof tab === "string" ? tabOfPage(tab) : tab.tabId;
-}
-
-function pageIdOf(tab: TabPage): BrowserTargetId {
-  return typeof tab === "string" ? tab : tab.targetId;
+export interface TabPage {
+  tabId: string;
+  targetId: BrowserTargetId;
 }
 
 /**
@@ -50,7 +41,7 @@ const FIRST_LOOK_MS = 2 * 60_000;
 /** How many tabs' acts are kept; the tabs acted in longest ago go first past it. */
 const KEPT = 256;
 
-/** How many pages' tabs are kept; the pages named longest ago go first past it. */
+/** How many pages' tabs are kept, both ways; the pages named longest ago go first past it. */
 const PAGES_KEPT = 1024;
 
 /**
@@ -62,18 +53,27 @@ const actsByTab = new Map<string, Map<StoreId.Session, TabAct>>();
 /** The tab each page draws, by the page's id, as commands and the window's lists named them. */
 const tabByPage = new Map<BrowserTargetId, string>();
 
-/** The page drawing each tab, as last named. */
+/** The page drawing each tab, as last named: only pages `tabByPage` still has, so it is bounded with it. */
 const pageByTab = new Map<string, BrowserTargetId>();
 
-function notePage(targetId: BrowserTargetId, tabId: string) {
+/** Lets go of a page, and of its tab's way back to it. */
+function forgetPage(targetId: BrowserTargetId) {
+  const tabId = tabByPage.get(targetId);
   tabByPage.delete(targetId);
+  if (tabId !== undefined && pageByTab.get(tabId) === targetId) {
+    pageByTab.delete(tabId);
+  }
+}
+
+function notePage(targetId: BrowserTargetId, tabId: string) {
+  forgetPage(targetId);
   tabByPage.set(targetId, tabId);
   pageByTab.set(tabId, targetId);
   for (const oldest of tabByPage.keys()) {
     if (tabByPage.size <= PAGES_KEPT) {
       break;
     }
-    tabByPage.delete(oldest);
+    forgetPage(oldest);
   }
 }
 
@@ -88,11 +88,16 @@ export function noteTabPages(
 
 /**
  * The id agents name the tab a page draws by, for a page reporting what
- * happened in it (a popup, a download, the person's input, the window's
- * marks): the page's own id where no command or list named its tab.
+ * happened in it (a popup, a download, the window's marks): the page's own
+ * id where no command or list named its tab.
  */
 export function tabOfPage(targetId: BrowserTargetId): string {
-  return tabByPage.get(targetId) ?? targetId;
+  return namedTabOfPage(targetId) ?? targetId;
+}
+
+/** The tab a command or list last named a page drawing, or none where none did. */
+export function namedTabOfPage(targetId: BrowserTargetId): string | undefined {
+  return tabByPage.get(targetId);
 }
 
 /** The page last named drawing a tab, or none for a tab no command or list named. */
@@ -123,13 +128,8 @@ export function noteTabCommand(
   { chatId, sessionId }: { chatId: ChatId; sessionId: StoreId.Session },
   now: number = Date.now(),
 ): void {
-  const tabId = tabIdOf(tab);
-  const targetId = pageIdOf(tab);
-  // A bare page id names its own tab unless a list or command named
-  // another, which stands.
-  if (typeof tab !== "string" || tabId === targetId) {
-    notePage(targetId, tabId);
-  }
+  const { tabId, targetId } = tab;
+  notePage(targetId, tabId);
   // Moved to the end on every command, so the tabs dropped past `KEPT` are
   // the ones nobody has acted in for longest.
   const acts = actsByTab.get(tabId) ?? new Map<StoreId.Session, TabAct>();
@@ -331,12 +331,12 @@ export function takenOverFrom(
   tab: TabPage,
   sessionId: StoreId.Session,
 ): boolean {
-  const tabId = tabIdOf(tab);
+  const { tabId, targetId } = tab;
   const mine = lastActOf(tabId, sessionId);
   if (mine === undefined) {
     return false;
   }
-  const person = getWorkspaceConfig().browser.personInputAt(pageIdOf(tab));
+  const person = getWorkspaceConfig().browser.personInputAt(targetId);
   return (
     (person !== undefined && person > mine) ||
     actsIn(tabId).some((act) => act.sessionId !== sessionId && act.at > mine)
@@ -370,9 +370,8 @@ export function takePopups(sessionId: StoreId.Session): PageOpenedTab[] {
 export function forgetTab(tabId: string): void {
   actsByTab.delete(tabId);
   const page = pageByTab.get(tabId);
-  pageByTab.delete(tabId);
-  if (page !== undefined && tabByPage.get(page) === tabId) {
-    tabByPage.delete(page);
+  if (page !== undefined) {
+    forgetPage(page);
   }
   for (const tabs of turnTabs.values()) {
     tabs.delete(tabId);

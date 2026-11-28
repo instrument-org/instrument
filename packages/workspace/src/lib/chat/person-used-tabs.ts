@@ -3,14 +3,18 @@ import ms from "ms";
 import { type BrowserTargetId } from "../../types";
 import { updateChatState } from "../chat-record";
 import { chatDir, resolveChat } from "../record-folders";
-import { tabOfPage } from "../tab-activity";
+import { namedTabOfPage } from "../tab-activity";
+import { chatPageTabs } from "./chat-page-tabs";
 import { getWorkspaceConfig } from "../workspace-config";
 
 /** How long after a failed write a tab's use is not tried again. */
 export const USE_MARK_RETRY_MS = ms("30 seconds");
 
-// Tabs by the id agents name them by, which `openedTabs` keeps them by.
-/** Tabs whose use is on record, or that are in no chat and so never closed for the app. */
+/**
+ * Tabs whose use is on record, or that are in no chat and so never closed
+ * for the app: by the id agents name them by, which `openedTabs` keeps them
+ * by, as is every set below but `watched`.
+ */
 const noted = new Set<string>();
 /** Tabs used before their entry was there, which `noteOpenedTab` marks as it writes one. */
 const pending = new Set<string>();
@@ -18,8 +22,10 @@ const pending = new Set<string>();
 const writing = new Set<string>();
 /** When each tab whose write failed may be tried again. */
 const retryAt = new Map<string, number>();
-/** Pages whose guest going clears what is above for the tab each draws. */
-const watched = new Set<BrowserTargetId>();
+/** Pages whose guest going clears what is above, each with the tab it draws. */
+const watched = new Map<BrowserTargetId, string>();
+/** Pages whose tab is being looked up in the window's list. */
+const finding = new Set<BrowserTargetId>();
 
 /**
  * Marks a tab an agent opened as used by the person, on its chat's
@@ -30,13 +36,46 @@ const watched = new Set<BrowserTargetId>();
  * when the tab's use is not on record. One whose entry is not written yet (a
  * popup the person reached first) is marked when `noteOpenedTab` writes it.
  * `page` is the page the person used, which may draw a tab on an HTML file
- * agents name by another id. Cheap to call on every input event.
+ * agents name by another id: a page no command or list named yet is looked
+ * up in the window's list of its chat's tabs first, once. Cheap to call on
+ * every input event.
  */
 export function notePersonUsedTab(
   page: BrowserTargetId,
   openerOf: () => string | undefined,
 ): void {
-  const id = tabOfPage(page);
+  const named = namedTabOfPage(page) ?? watched.get(page);
+  if (named !== undefined) {
+    noteUse(page, named, openerOf);
+    return;
+  }
+  if (finding.has(page)) {
+    return;
+  }
+  const opener = openerOf();
+  const chatId = opener === undefined ? undefined : resolveChat(opener);
+  if (chatId === undefined) {
+    noteUse(page, page, () => opener);
+    return;
+  }
+  finding.add(page);
+  chatPageTabs(chatId)
+    .catch(() => undefined)
+    .then(() => {
+      noteUse(page, namedTabOfPage(page) ?? page, () => opener);
+    })
+    .catch(getWorkspaceConfig().captureException)
+    .finally(() => {
+      finding.delete(page);
+    });
+}
+
+/** Marks a tab's use, by the id agents name it by (`id`), as the person used `page`. */
+function noteUse(
+  page: BrowserTargetId,
+  id: string,
+  openerOf: () => string | undefined,
+): void {
   if (
     noted.has(id) ||
     pending.has(id) ||
@@ -102,14 +141,16 @@ export function takePendingUse(id: string): boolean {
  * record on disk answers for it next time. False for a guest already gone.
  */
 function watch(page: BrowserTargetId, id: string): boolean {
-  if (watched.has(page)) {
+  const known = watched.has(page);
+  watched.set(page, id);
+  if (known) {
     return true;
   }
-  watched.add(page);
   getWorkspaceConfig().browser.onTargetDestroyed(page, () => {
-    noted.delete(id);
-    pending.delete(id);
-    retryAt.delete(id);
+    const tab = watched.get(page) ?? id;
+    noted.delete(tab);
+    pending.delete(tab);
+    retryAt.delete(tab);
     watched.delete(page);
   });
   return watched.has(page);

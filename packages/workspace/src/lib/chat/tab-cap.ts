@@ -13,6 +13,7 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { type BrowserTargetId, parseBrowserTargetId } from "../../types";
 import {
   type ChatPageTab,
+  type ChatTabs,
   chatTabs,
   openedTabId,
   pageTabNamed,
@@ -46,7 +47,7 @@ export async function closeTabsOverCap(chatId: ChatId): Promise<void> {
     const openedTabs = await nameOpenedTabs(chatId, kept, listed);
     const hidden = openedTabs
       .filter((tab) => isListed(listed, tab))
-      .filter((tab) => isUnused(tab, listed))
+      .filter((tab) => isUnused(tab, window))
       .map((tab) => ({ aloneForMs: aloneForMs(pageOf(listed, tab.id)), tab }))
       .toSorted((a, b) => b.aloneForMs - a.aloneForMs);
     const over = hidden
@@ -110,22 +111,33 @@ export function closeChatTabs(
   });
   const done = inTurn(chatId, async () => {
     const { openedTabs } = await getChatState(chatDir(chatId));
-    const closing = trashed
-      ? openedTabs
-      : openedTabs.filter((tab) => isUnused(tab, undefined));
-    if (closing.length === 0) {
+    if (openedTabs.length === 0) {
       count(0);
       return;
     }
-    const ids = new Set(closing.map((tab) => tab.id));
+    const window = await chatTabs(chatId);
+    const listed = window?.pages;
+    // A tab the person closed, or moved to a group of their own, is theirs.
+    const gone = openedTabs.filter((tab) => isGone(window, tab));
+    const closing = openedTabs
+      .filter((tab) => !isGone(window, tab))
+      .filter((tab) => trashed || isUnused(tab, window));
+    if (closing.length === 0 && gone.length === 0) {
+      count(0);
+      return;
+    }
+    const ids = new Set([...closing, ...gone].map((tab) => tab.id));
     await updateChatState(chatDir(chatId), (state) => ({
       openedTabs: state.openedTabs.filter((tab) => !ids.has(tab.id)),
     }));
     count(closing.length);
+    for (const tab of gone) {
+      forgetTab(openedTabId(listed, tab.id));
+    }
     for (const tab of closing) {
-      forgetTab(tab.id);
+      forgetTab(openedTabId(listed, tab.id));
       await askWindow({
-        action: { kind: "close", tabId: tab.id },
+        action: { kind: "close", tabId: openedTabId(listed, tab.id) },
         askedBy: chatId,
         group: resolveChat(chatId),
       });
@@ -150,11 +162,26 @@ function aloneForMs(id: BrowserTargetId): number {
     : Math.min(hiddenForMs, Date.now() - agentAt);
 }
 
-/** Whether a tab is one the person never used, and not on screen. */
-function isUnused(tab: OpenedTab, listed: ChatPageTab[] | undefined): boolean {
+/**
+ * Whether a tab is one the person never used, and not on screen: by its
+ * page, or for a tab on a file no page draws, by the window's layout.
+ */
+function isUnused(tab: OpenedTab, window: ChatTabs | undefined): boolean {
+  const drawn =
+    tabLifetime(pageOf(window?.pages, tab.id))?.drawn ??
+    window?.onScreen.has(openedTabId(window.pages, tab.id));
+  return tab.usedByPerson !== true && drawn !== true;
+}
+
+/**
+ * Whether an opened tab is gone from the chat's tab group, closed or moved
+ * out: false with no window to ask.
+ */
+function isGone(window: ChatTabs | undefined, tab: OpenedTab): boolean {
   return (
-    tab.usedByPerson !== true &&
-    tabLifetime(pageOf(listed, tab.id))?.drawn !== true
+    window !== undefined &&
+    !isListed(window.pages, tab) &&
+    !window.standing.has(openedTabId(window.pages, tab.id))
   );
 }
 
@@ -183,17 +210,15 @@ async function inTurn(chatId: ChatId, close: () => Promise<void>) {
 async function closeOpened(
   chatId: ChatId,
   tabs: readonly OpenedTab[],
-  window: Awaited<ReturnType<typeof chatTabs>>,
+  window: ChatTabs | undefined,
   reason: ClosedTab["reason"],
 ): Promise<void> {
   const listed = window?.pages;
   // A tab the person closed already has nothing left to close.
   const open = tabs.filter((tab) => isListed(listed, tab));
   const gone = window
-    ? (await getChatState(chatDir(chatId))).openedTabs.filter(
-        (tab) =>
-          !isListed(listed, tab) &&
-          !window.standing.has(openedTabId(listed, tab.id)),
+    ? (await getChatState(chatDir(chatId))).openedTabs.filter((tab) =>
+        isGone(window, tab),
       )
     : [];
   if (open.length === 0 && gone.length === 0) {

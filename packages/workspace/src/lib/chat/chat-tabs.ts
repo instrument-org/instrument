@@ -1,105 +1,24 @@
 import { type ChatId } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
 import { type ClosedTab } from "../../schemas/chat-state";
-import { type WindowTabAnswer } from "../../schemas/window-tab";
-import { type BrowserTargetId, parseBrowserTargetId } from "../../types";
+import { type BrowserTargetId } from "../../types";
 import { getChatState, updateChatState } from "../chat-record";
-import { chatDir, resolveChat, sessionOfChat } from "../record-folders";
-import { actsIn, noteTabPages } from "../tab-activity";
+import { chatDir, sessionOfChat } from "../record-folders";
+import { actsIn } from "../tab-activity";
 import { isWorking } from "./activity";
 import { listChildTasks } from "./children";
+import { chatPageTabs } from "./chat-page-tabs";
 import { takePendingUse } from "./person-used-tabs";
-import { askWindow } from "./window-tab";
 
-/**
- * A page tab of the chat's, as the window lists it: by the id agents name it
- * by (`id`) and the page an agent drives in it (`targetId`), which differ
- * for a tab on an HTML file.
- */
-export type ChatPageTab = NonNullable<WindowTabAnswer["pages"]>[number] & {
-  targetId: BrowserTargetId;
-};
-
-/**
- * The chat's page tabs, as the window has them now, in the strip's order:
- * every one is every session's to see and drive. Undefined when no window
- * answered.
- */
-export async function chatPageTabs(
-  chatId: ChatId,
-): Promise<ChatPageTab[] | undefined> {
-  return (await chatTabs(chatId))?.pages;
-}
-
-/**
- * The chat's page tabs (`chatPageTabs`), and the ids of every tab the
- * window has in any group, a tab on a file no page draws among them.
- * Undefined when no window answered.
- */
-export async function chatTabs(
-  chatId: ChatId,
-): Promise<{ pages: ChatPageTab[]; standing: Set<string> } | undefined> {
-  const answer = await askWindow({
-    action: { kind: "list" },
-    askedBy: chatId,
-    group: resolveChat(chatId),
-  });
-  if (!answer?.pages) {
-    return undefined;
-  }
-  const pages = answer.pages.flatMap((tab) => {
-    const targetId = parseBrowserTargetId(tab.targetId ?? tab.id);
-    return targetId === null ? [] : [{ ...tab, targetId }];
-  });
-  noteTabPages(pages);
-  const standing = new Set<string>(pages.map((tab) => tab.id));
-  for (const group of (answer.windows ?? []).flatMap(
-    (window) => window.groups,
-  )) {
-    for (const tab of group.sides.flatMap((side) => side.tabs)) {
-      standing.add(tab.id);
-    }
-  }
-  return { pages, standing };
-}
-
-/**
- * The tab an id names among the chat's page tabs: by the id agents name it
- * by, else by its page's id, which earlier builds named a tab on an HTML
- * file by.
- */
-export function pageTabNamed(
-  tabs: readonly ChatPageTab[] | undefined,
-  id: string,
-): ChatPageTab | undefined {
-  return (
-    tabs?.find((tab) => tab.id === id) ??
-    tabs?.find((tab) => tab.targetId === id)
-  );
-}
-
-/**
- * The id agents name the tab a page draws by: the tab's, for a page the
- * window lists, else the page's own.
- */
-export function agentTabIdOf(
-  tabs: readonly ChatPageTab[] | undefined,
-  targetId: string,
-): string {
-  return tabs?.find((tab) => tab.targetId === targetId)?.id ?? targetId;
-}
-
-/**
- * The id agents name a tab an agent opened by, from its entry in the chat's
- * state: the tab's, or, for an entry an earlier build kept by its page's
- * id, the tab that page draws.
- */
-export function openedTabId(
-  tabs: readonly ChatPageTab[] | undefined,
-  id: string,
-): string {
-  return pageTabNamed(tabs, id)?.id ?? id;
-}
+export {
+  agentTabIdOf,
+  type ChatPageTab,
+  chatPageTabs,
+  type ChatTabs,
+  chatTabs,
+  openedTabId,
+  pageTabNamed,
+} from "./chat-page-tabs";
 
 /**
  * Keeps a tab a session of the chat opened, by the id agents name it by,

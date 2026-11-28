@@ -92,6 +92,15 @@ export async function pendingProblemsAsShown(): Promise<PendingProblem[]> {
   return redactPending(pending, (await signedInPeople()).people);
 }
 
+/**
+ * An error report's title as it is sent. It is the error's own message,
+ * which can name the home folder, an email, a key or an address with its
+ * query, and Show details never shows it, so it is redacted as the log is.
+ */
+export async function reportTitleAsSent(title: string): Promise<string> {
+  return reportRedactor({ people: (await signedInPeople()).people }).log(title);
+}
+
 function redactPending(
   problems: readonly PendingProblem[],
   people: ReportKnownValues["people"],

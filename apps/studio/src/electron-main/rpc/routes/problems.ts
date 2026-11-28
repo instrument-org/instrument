@@ -9,6 +9,7 @@ import {
   feedbackReportInput,
   pendingProblemsAsShown,
   readFeedbackImages,
+  reportTitleAsSent,
   sendReport,
 } from "@/electron-main/lib/problem-reports";
 import { MAX_FEEDBACK_IMAGES } from "@/shared/feedback-images";
@@ -123,7 +124,10 @@ const send = base
   )
   .handler(async ({ errors, input }) => {
     try {
-      const sent = await sendReport(input.report);
+      const sent = await sendReport({
+        ...input.report,
+        title: await reportTitleAsSent(input.report.title),
+      });
       if (input.pending) {
         clearPendingProblem(input.pending);
       }

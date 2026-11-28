@@ -1147,6 +1147,17 @@ function insertAfter(
 }
 
 /**
+ * The groups of some that are one tab and nothing else, as a built-in page
+ * opened as a group of its own makes one: no other tab, no second side.
+ */
+export function groupsOfOneTab(
+  state: WindowTabs,
+  groups: readonly string[],
+): string[] {
+  return groups.filter((group) => tabsIn(state, group).length === 1);
+}
+
+/**
  * The tab showing what an address shows in any of some groups: a screen tab
  * at it, or the page a file's tab became, which is still the file's tab. A
  * screen tab matches at the same file, folder or task however far it has

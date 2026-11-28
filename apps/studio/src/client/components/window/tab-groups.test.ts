@@ -7,6 +7,7 @@ import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 
 import { type Chat } from "./chats";
 import {
+  asksElsewhereThan,
   asksForDraft,
   copiedTabs,
   chatsWithNoTab,
@@ -35,6 +36,29 @@ describe("asksForDraft", () => {
     ["a draft by its id", newChatHref("d"), true],
   ])("%s waits on the drafts: %s", (_case, href, waits) => {
     expect(asksForDraft(href)).toBe(waits);
+  });
+});
+
+// A tab already showing what an address asks for walks only to a part the
+// address names: a bare address leaves it where the person left it.
+describe("asksElsewhereThan", () => {
+  it.each([
+    [
+      "another part of Settings",
+      "/settings/providers",
+      "/settings/general",
+      true,
+    ],
+    [
+      "Settings with no part named",
+      "/settings",
+      "/settings/permissions",
+      false,
+    ],
+    ["the part it is at", "/settings/general", "/settings/general", false],
+    ["the debug landing page", "/debug", "/debug/billing", false],
+  ])("%s: %s from %s walks: %s", (_case, asked, shown, walks) => {
+    expect(asksElsewhereThan(asked, shown)).toBe(walks);
   });
 });
 

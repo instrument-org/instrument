@@ -24,6 +24,7 @@ import {
   focusSide,
   joinSides,
   groupLayoutOf,
+  groupsOfOneTab,
   isBlankNewTab,
   isTabNamed,
   moveTabTo,
@@ -1091,6 +1092,40 @@ describe("popupClosed", () => {
     const state = windowOf(tabs.slice(0, 2));
 
     expect(popupClosed(state, "popup", "opener")).toBe(state);
+  });
+});
+
+// A built-in page asked for again (Settings from Cmd+,) comes up only in a
+// group that is just its tab: a group the person added a tab or a side to is
+// theirs, and the page opens as a group of its own beside it.
+describe("a built-in page's own group", () => {
+  const ALONE = "settings-alone";
+  const state = windowOf([
+    screenTab("chat", `/chats/${CHAT}`, CHAT),
+    { ...screenTab("split", "/settings/permissions", CHAT), side: 1 },
+    screenTab("note", "/release-notes", OTHER),
+    screenTab("among", "/settings/general", OTHER),
+    screenTab("alone", "/settings/models", ALONE),
+  ]);
+
+  it("is found past groups with other tabs or a second side", () => {
+    expect(groupsOfOneTab(state, [CHAT, OTHER, ALONE])).toEqual([ALONE]);
+    expect(
+      tabShowing(
+        state,
+        groupsOfOneTab(state, [CHAT, OTHER, ALONE]),
+        "/settings",
+        { exact: true, onScreen: CHAT },
+      )?.id,
+    ).toBe("alone");
+  });
+
+  it("is none where every Settings tab shares its group", () => {
+    expect(
+      tabShowing(state, groupsOfOneTab(state, [CHAT, OTHER]), "/settings", {
+        exact: true,
+      }),
+    ).toBeUndefined();
   });
 });
 

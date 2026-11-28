@@ -40,6 +40,7 @@ import {
   chatUpIn,
   draftOfTab,
   groupLayoutOf,
+  groupsOfOneTab,
   isBlankNewTab,
   isNewChatTab,
   selectedTabIn,
@@ -947,16 +948,16 @@ export function useTabGroupActions() {
         ? tabsIn(state, moving.group).map((tab) => tab.id)
         : moving.tabs;
     const isMoving = (tab: { id: string }) => ids.includes(tab.id);
-    const froms = [
+    const forms = [
       ...new Set(state.tabs.filter(isMoving).flatMap((tab) => tab.group ?? [])),
     ];
-    if (ids.length === 0 || froms.some((group) => !listed.includes(group))) {
+    if (ids.length === 0 || forms.some((group) => !listed.includes(group))) {
       return {
         error:
           "that is not in the window you work in, so no window opened; it goes to a new one from its own.",
       };
     }
-    const emptied = froms.filter((group) =>
+    const emptied = forms.filter((group) =>
       tabsIn(state, group).every(isMoving),
     );
     if (listed.every((group) => emptied.includes(group))) {
@@ -965,8 +966,8 @@ export function useTabGroupActions() {
           "that is everything the window has, so it is in a window of its own already.",
       };
     }
-    const [from] = froms;
-    const isWhole = froms.length === 1 && emptied.length === 1;
+    const [from] = forms;
+    const isWhole = forms.length === 1 && emptied.length === 1;
     const group = isWhole && from !== undefined ? from : undefined;
     if (group === undefined) {
       for (const each of emptied) {
@@ -1089,27 +1090,26 @@ export function useTabGroupActions() {
   };
 
   /**
-   * Puts up one thing handed over from outside the app (a link, a file from
-   * the Finder): a tab in one of this window's groups already showing
-   * exactly it (`tabShowing`) comes up in its group, walked to the part
+   * Brings up a tab in one of this window's groups already showing exactly
+   * what an address shows (`tabShowing`) in its group, walked to the part
    * asked for where it stands elsewhere in it (another part of Settings),
-   * and is given back for the window to light. Otherwise it opens as a new
-   * group of its own, since something from outside never joins a group the
-   * person has; `returns` says how long a group made goes back to the one up
-   * now (`GroupReturn`).
+   * and gives it back for the window to light; undefined where no tab shows
+   * it. With `alone`, only a tab that is the one tab of its group counts,
+   * since a group the person added a tab or a side to is theirs.
    */
-  const showOrMake = (
+  const bringUp = (
     href: string,
-    { returns }: { returns?: GroupReturns } = {},
+    { alone = false }: { alone?: boolean } = {},
   ): undefined | WindowTab => {
+    const state = store.get(windowTabsAtom);
+    const here = store.get(windowTabGroupsAtom) ?? [];
     const tab = tabShowing(
-      store.get(windowTabsAtom),
-      store.get(windowTabGroupsAtom) ?? [],
+      state,
+      alone ? groupsOfOneTab(state, here) : here,
       href,
       { exact: true, onScreen: groupUp() },
     );
     if (tab?.group === undefined) {
-      make({ href, ...(returns === undefined ? {} : { returns }) });
       return undefined;
     }
     windowTabs.select(tab.id);
@@ -1117,6 +1117,24 @@ export function useTabGroupActions() {
       windowTabs.visitHref(tab.id, href);
     }
     show(tab.group);
+    return tab;
+  };
+
+  /**
+   * Puts up one thing handed over from outside the app (a link, a file from
+   * the Finder) in the tab already showing it (`bringUp`), and otherwise as
+   * a new group of its own, since something from outside never joins a
+   * group the person has; `returns` says how long a group made goes back to
+   * the one up now (`GroupReturn`).
+   */
+  const showOrMake = (
+    href: string,
+    { returns }: { returns?: GroupReturns } = {},
+  ): undefined | WindowTab => {
+    const tab = bringUp(href);
+    if (tab === undefined) {
+      make({ href, ...(returns === undefined ? {} : { returns }) });
+    }
     return tab;
   };
 
@@ -1203,6 +1221,7 @@ export function useTabGroupActions() {
     store.get(windowTabsAtom).tabs.some((tab) => tab.group === group);
 
   return {
+    bringUp,
     close,
     closeAll,
     duplicate,
@@ -1235,12 +1254,18 @@ export function useTabGroupActions() {
  * Whether an address asks the tab already showing its thing to go somewhere
  * it is not: another part of Settings, or a selection or layout the tab does
  * not have (`asksMoreThan`). A file's tab with its folder and layout as the
- * person left them asks nothing more of a bare link to the file.
+ * person left them asks nothing more of a bare link to the file, and a tab
+ * at a part of Settings or the debug pages nothing more of the page's bare
+ * address (`/settings`).
  */
-function asksElsewhereThan(asked: string, shown: string): boolean {
+export function asksElsewhereThan(asked: string, shown: string): boolean {
   const pathOf = (href: string) =>
     new URL(href, "http://tabs").pathname.replace(/\/$/, "");
-  return pathOf(asked) !== pathOf(shown) || asksMoreThan(asked, shown);
+  const path = pathOf(asked);
+  return (
+    (path !== pathOf(shown) && path.split("/").filter(Boolean).length > 1) ||
+    asksMoreThan(asked, shown)
+  );
 }
 
 /** Whether an address asks for a draft by its id, which upkeep can act on only once main has read the drafts. Every other address, a new tab's included, is kept without them. */

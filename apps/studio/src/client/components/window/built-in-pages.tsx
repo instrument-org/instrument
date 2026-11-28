@@ -45,7 +45,7 @@ let openAsGroup: ((href: string) => void) | undefined;
 
 /**
  * Sets how this window opens a built-in page no tab of the group up shows:
- * as a group of its own, or the group already showing it. Answers with the
+ * as a group of its own, or a group that is only a tab showing it. Answers with the
  * way to take it back.
  */
 export function setBuiltInPageGroupOpener(open: (href: string) => void) {
@@ -61,8 +61,8 @@ export function setBuiltInPageGroupOpener(open: (href: string) => void) {
  * Opens the built-in pages asked for from anywhere in the window
  * (`openBuiltInPage`, `openSettings`): the tab of the group up already
  * showing the page comes forward, at the part asked for, and otherwise the
- * page comes up as a tab group of its own, as ⌘N makes one, or in the group
- * already showing it (`setBuiltInPageGroupOpener`). Settings with no part
+ * page comes up as a tab group of its own, as ⌘N makes one, or in a group
+ * that is only a tab showing it (`setBuiltInPageGroupOpener`). Settings with no part
  * named opens at General.
  */
 export function BuiltInPageOpener() {
@@ -79,11 +79,13 @@ export function BuiltInPageOpener() {
     if (!appWindow || bringForwardShowing(windowTabs, href)) {
       return;
     }
-    const to = href === "/settings" ? SCREENS.settings.href : href;
     if (openAsGroup) {
-      openAsGroup(to);
+      openAsGroup(href);
     } else {
-      appWindow.openScreen(to, { newTab: "reuseBlank" });
+      appWindow.openScreen(
+        href === "/settings" ? SCREENS.settings.href : href,
+        { newTab: "reuseBlank" },
+      );
     }
   });
   useEffect(() => {

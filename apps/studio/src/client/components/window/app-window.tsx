@@ -1522,21 +1522,30 @@ function WindowShell({
   };
   // A built-in page asked for from anywhere (Settings, History, Manage
   // Extensions, the sidebar's pages) is a group of its own, as New Tab Group
-  // makes one: the tab of a group already showing it comes up there, and a
-  // blank new tab up takes it in place, as a browser's own pages do, whatever
-  // else its group has, unless the group is a split. It goes back to the
-  // group it was opened from, as Back or closing it.
+  // makes one: a group that is only a tab showing it comes up, and a blank
+  // new tab up takes it in place, as a browser's own pages do, whatever else
+  // its group has, unless the group is a split. A group the person added a
+  // tab or a side to is theirs, so the page opens apart from it. It goes
+  // back to the group it was opened from, as Back or closing it. Settings
+  // asked for with no part named opens at General and leaves a tab of it
+  // where it stands.
   const openBuiltInApart = useEffectEvent((href: string) => {
+    const opensAt = href === "/settings" ? SCREENS.settings.href : href;
     const up = windowTabs.active;
     if (
       up?.group !== undefined &&
       isBlankNewTab(up) &&
       !isSplit(windowTabs.layoutOf(up.group))
     ) {
-      openScreen(href, { newTab: "reuseBlank" });
+      openScreen(opensAt, { newTab: "reuseBlank" });
       return;
     }
-    lightTab(groups.showOrMake(href, { returns: "untilUnrelated" }));
+    const tab = groups.bringUp(href, { alone: true });
+    if (tab === undefined) {
+      groups.make({ href: opensAt, returns: "untilUnrelated" });
+      return;
+    }
+    lightTab(tab);
   });
   useLayoutEffect(
     () =>

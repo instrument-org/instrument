@@ -5,7 +5,7 @@ import { AbsolutePathSchema } from "../../schemas/paths";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type StoreId } from "../../schemas/store-id";
 import { keepVersion, type KeptVersion } from "../file-versions";
-import { workDir } from "../work-dir";
+import { workDir, workFoldersRoot } from "../work-dir";
 import { getWorkspaceConfig } from "../workspace-config";
 import { VERSIONS_FOLDER } from "./versions-folder";
 
@@ -97,6 +97,7 @@ export async function keepOriginal(original: Original): Promise<boolean> {
       folder,
       ...(await turn.readKept(hostPath, folder)),
       read: () => Promise.resolve(bytes),
+      within: workFoldersRoot(),
     });
     if (version?.copy !== undefined) {
       turn.bytes += version.size;

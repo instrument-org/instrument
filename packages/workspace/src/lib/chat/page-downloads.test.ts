@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -59,6 +61,25 @@ describe("a download a page an agent drives starts", () => {
     expect(told(session)).toBe(
       `The page in tab ${tabId} downloaded report.csv to ${shellPath(saved)}.\n`,
     );
+  });
+
+  it("is the person's when a link stands where the chat's downloads folder goes", () => {
+    const tab = newTab();
+    noteTabCommand(
+      { tabId: tab, targetId: tab },
+      { chatId: CHAT, sessionId: StoreId.newSessionId() },
+    );
+    const folder = path.join(MOCK_WORKSPACE_DIRS.work, CHAT, "downloads");
+    const elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), "elsewhere-"));
+    fs.rmSync(folder, { force: true, recursive: true });
+    fs.mkdirSync(path.dirname(folder), { recursive: true });
+    fs.symlinkSync(elsewhere, folder);
+    try {
+      expect(agentDownloadsFolder(tab)).toBeUndefined();
+    } finally {
+      fs.rmSync(folder);
+      fs.rmSync(elsewhere, { recursive: true });
+    }
   });
 
   it("is the person's in a tab no session acted in", () => {

@@ -26,7 +26,7 @@ import {
   SubprocessTreeTerminationError,
   withSubprocessTreeListener,
 } from "./subprocess-tree";
-import { workDir } from "./work-dir";
+import { workDir, workFoldersRoot } from "./work-dir";
 
 /**
  * How many processes may run at once per task. A ceiling the agent can hit beats
@@ -1115,7 +1115,7 @@ function openLogFile({ id, chatId }: { id: string; chatId: ChatId }):
       file: absolutePathJoin(workDir(chatId), logFilePath),
       flags:
         fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC,
-      folder: workDir(chatId),
+      folder: workFoldersRoot(),
       make: true,
     });
     return { fd, logFilePath };

@@ -6,6 +6,7 @@ import { openStepFacts, settleStepFacts } from "../lib/transcript/step-facts";
 import { type ChatId } from "../schemas/chat-id";
 import ms from "ms";
 import { ok } from "neverthrow";
+import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as setTimeoutPromise } from "node:timers/promises";
@@ -103,7 +104,7 @@ import { RelativePathSchema } from "../schemas/paths";
 import { defineCapability } from "../lib/capabilities/define";
 import { modelTool } from "../lib/capabilities/tool";
 import { skillInstructions } from "./load-skill";
-import { workDir } from "../lib/work-dir";
+import { ownWorkFolder, workDir } from "../lib/work-dir";
 import {
   interruptedByUser,
   interruptibleWait,
@@ -701,9 +702,16 @@ const bashCapability = defineCapability({
             path.posix.join(CHAT_FOLDER_NAMES.toolOutput, `${partId}.log`),
           );
           const absPath = absolutePathJoin(workDir(chatId), spillFilePath);
-          await fs.mkdir(path.dirname(absPath), { recursive: true });
+          // Written as the app, outside every sandbox, in a folder a program
+          // the agent ran can put a link in.
+          ownWorkFolder(path.dirname(absPath), { make: true });
           await fs.writeFile(absPath, output, {
             encoding: "utf8",
+            flag:
+              fsConstants.O_WRONLY |
+              fsConstants.O_CREAT |
+              fsConstants.O_TRUNC |
+              (fsConstants.O_NOFOLLOW ?? 0),
             signal,
           });
         }

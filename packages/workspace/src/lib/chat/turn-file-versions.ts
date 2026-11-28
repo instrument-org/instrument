@@ -10,7 +10,7 @@ import { ChatWrites } from "../chat-writes";
 import { keepVersion, trimVersions } from "../file-versions";
 import { filesNamedIn } from "../parse-files-block";
 import { resolveWorkspaceFilePaths } from "../resolve-workspace-file-path";
-import { workDir } from "../work-dir";
+import { workDir, workFoldersRoot } from "../work-dir";
 import { sessionToolFs } from "../tool-fs";
 import { shellPath } from "../workspace-fs-layout";
 import { thisDevice } from "./asks";
@@ -88,6 +88,7 @@ export async function keepTurnFileVersions({
   if (originals.length > 0 || files.length > 0) {
     await trimVersions(
       VERSIONS_FOLDERS.map((name) => path.join(workDir(chatId), name)),
+      { within: workFoldersRoot() },
     );
   }
 }
@@ -148,6 +149,7 @@ async function keepNamedFiles({
       folder,
       ...keptOf(records, hostPath, folder),
       read: () => agentFs.fs.readFileBuffer(shellPath(hostPath)),
+      within: workFoldersRoot(),
     }).catch(() => undefined);
     if (kept) {
       files.push({

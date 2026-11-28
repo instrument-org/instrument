@@ -3,7 +3,7 @@ import { type BrowserTargetId } from "../../types";
 import { getDownloadsDir } from "../chat-dir-utils";
 import { shellPath } from "../shell-path";
 import { actsIn, tabOfPage } from "../tab-activity";
-import { workDir } from "../work-dir";
+import { ownWorkFolder, workDir } from "../work-dir";
 
 /** A download a page an agent drives started, as the session is told of it. */
 interface PageDownload {
@@ -19,14 +19,27 @@ const owed = new Map<StoreId.Session, Map<string, PageDownload>>();
 
 /**
  * The downloads folder of the chat whose session last acted in a tab, where
- * a download the agent's own click or navigation started goes; undefined
- * for a tab no session has acted in, whose downloads are the person's.
+ * a download the agent's own click or navigation started goes, made where it
+ * is missing; undefined for a tab no session has acted in, whose downloads
+ * are the person's, and for a folder reached through a link or that cannot
+ * be made, whose download goes to the person's place too. The browser saves
+ * there as the app, outside every sandbox, and a program the agent ran can
+ * put a link at any name in the work folder (`ownWorkFolder`).
  */
 export function agentDownloadsFolder(
   targetId: BrowserTargetId,
 ): string | undefined {
   const [driver] = actsIn(tabOfPage(targetId));
-  return driver ? getDownloadsDir(workDir(driver.chatId)) : undefined;
+  if (!driver) {
+    return undefined;
+  }
+  const folder = getDownloadsDir(workDir(driver.chatId));
+  try {
+    ownWorkFolder(folder, { make: true });
+  } catch {
+    return undefined;
+  }
+  return folder;
 }
 
 /**

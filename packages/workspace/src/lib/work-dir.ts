@@ -2,6 +2,7 @@ import path from "node:path";
 
 import { type ChatId } from "../schemas/chat-id";
 import { type WorkDir, WorkDirSchema } from "../schemas/paths";
+import { ownFolder } from "./own-file";
 import { chatDir } from "./record-folders";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -23,4 +24,27 @@ export function workDir(id: ChatId): WorkDir {
   return WorkDirSchema.parse(
     path.join(getWorkspaceConfig().workFoldersDir, id),
   );
+}
+
+/**
+ * The folder every workspace's work folders are in (`~/.instrument/work`).
+ * A program the agent runs can change anything in it, rename a work folder
+ * and put a link in its place included, and nothing its parent has. What
+ * the app writes, reads or removes as itself in a work folder is checked
+ * from here down for links (`ownFolder`).
+ */
+export function workFoldersRoot(): string {
+  return path.dirname(getWorkspaceConfig().workFoldersDir);
+}
+
+/**
+ * Checks that nothing from {@link workFoldersRoot} down to `dir`, a folder
+ * in a chat's work folder, is a link, making the folders that are missing
+ * where `make` asks; throws where one is (`ownFolder`).
+ */
+export function ownWorkFolder(
+  dir: string,
+  { make = false }: { make?: boolean } = {},
+): void {
+  ownFolder({ dir, folder: workFoldersRoot(), make });
 }

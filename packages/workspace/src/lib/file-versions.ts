@@ -3,6 +3,8 @@ import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { ownFolder } from "./own-file";
+
 /** The largest file a version is copied for; a bigger one is recorded without a copy. */
 export const MOST_COPIED_BYTES = 10 * 1024 * 1024;
 
@@ -91,6 +93,7 @@ export async function keepVersion({
   kept = [],
   read,
   taken = new Set(),
+  within,
 }: {
   file: string;
   folder: string;
@@ -105,6 +108,12 @@ export async function keepVersion({
   read?: () => Promise<Uint8Array>;
   /** The folders in `folder` other files' versions are kept in, by name. */
   taken?: ReadonlySet<string>;
+  /**
+   * A folder above `folder` the agent can change and whose parent it
+   * cannot, from which down to the copy no link is followed (`ownFolder`):
+   * the app writes the copy as itself, outside every sandbox.
+   */
+  within?: string;
 }): Promise<KeptVersion | undefined> {
   const stats = await fs.stat(file).catch(() => undefined);
   if (!stats?.isFile()) {
@@ -141,7 +150,13 @@ export async function keepVersion({
       }
     }
   }
+  if (within !== undefined) {
+    ownFolder({ dir: folder, folder: within, make: true });
+  }
   const into = await folderFor({ file, folder, kept, taken });
+  if (within !== undefined) {
+    ownFolder({ dir: into, folder: within });
+  }
   const ext = path.extname(file);
   // The newest version's number, for a copy of it this computer lacks.
   if (same !== undefined) {
@@ -192,30 +207,37 @@ export async function contentsOf(
 
 /**
  * Removes the oldest copies in `folders` until what they keep together fits
- * `most` bytes, and any folder that leaves empty.
+ * `most` bytes, and any folder that leaves empty. Follows no link in them,
+ * and with `within`, none from it down to each folder (`ownFolder`): the
+ * app removes as itself, outside every sandbox, and a folder a link leads
+ * to is not the chat's.
  */
 export async function trimVersions(
   folders: readonly string[],
-  most = MOST_KEPT_BYTES,
+  { most = MOST_KEPT_BYTES, within }: { most?: number; within?: string } = {},
 ): Promise<void> {
-  const entries = (
+  const owned = folders.filter((folder) => {
+    if (within === undefined) {
+      return true;
+    }
+    try {
+      ownFolder({ dir: folder, folder: within });
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  const found = (await Promise.all(owned.map(filesIn))).flat();
+  const files = (
     await Promise.all(
-      folders.map((folder) =>
-        fs
-          .readdir(folder, { recursive: true, withFileTypes: true })
-          .catch(() => []),
-      ),
+      found.map(async (at) => {
+        const stats = await fs.lstat(at).catch(() => undefined);
+        return stats?.isFile()
+          ? [{ at, mtimeMs: stats.mtimeMs, size: stats.size }]
+          : [];
+      }),
     )
   ).flat();
-  const files = await Promise.all(
-    entries
-      .filter((entry) => entry.isFile())
-      .map(async (entry) => {
-        const at = path.join(entry.parentPath, entry.name);
-        const stats = await fs.stat(at);
-        return { at, mtimeMs: stats.mtimeMs, size: stats.size };
-      }),
-  );
   let total = files.reduce((sum, file) => sum + file.size, 0);
   for (const file of files.toSorted((a, b) => a.mtimeMs - b.mtimeMs)) {
     if (total <= most) {
@@ -225,6 +247,23 @@ export async function trimVersions(
     await fs.rmdir(path.dirname(file.at)).catch(() => undefined);
     total -= file.size;
   }
+}
+
+/** Every file in `folder` and the folders in it, reached through no link. */
+async function filesIn(folder: string): Promise<string[]> {
+  const entries = await fs
+    .readdir(folder, { withFileTypes: true })
+    .catch(() => []);
+  const each = await Promise.all(
+    entries.map((entry) => {
+      const at = path.join(folder, entry.name);
+      if (entry.isDirectory()) {
+        return filesIn(at);
+      }
+      return Promise.resolve(entry.isFile() ? [at] : []);
+    }),
+  );
+  return each.flat();
 }
 
 /**

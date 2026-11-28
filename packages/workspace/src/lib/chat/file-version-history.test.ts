@@ -39,7 +39,10 @@ vi.mock("../tool-fs", async () => {
       }),
   };
 });
-vi.mock("../work-dir", () => ({ workDir: () => path.join(dir, "work") }));
+vi.mock("../work-dir", () => ({
+  workDir: () => path.join(dir, "work"),
+  workFoldersRoot: () => dir,
+}));
 vi.mock("./asks", () => ({ thisDevice: () => "mac" }));
 vi.mock("../chat-reads", () => ({
   ChatReads: {

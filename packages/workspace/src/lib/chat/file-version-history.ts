@@ -18,7 +18,7 @@ import {
 } from "../file-versions";
 import { sessionOfChat } from "../record-folders";
 import { sessionToolFs } from "../tool-fs";
-import { workDir } from "../work-dir";
+import { workDir, workFoldersRoot } from "../work-dir";
 import { shellPath } from "../workspace-fs-layout";
 import { thisDevice } from "./asks";
 import { keptOf, versionRecords } from "./version-records";
@@ -184,6 +184,7 @@ export async function restoreFileVersion({
     kept,
     read: () => agentFs.fs.readFileBuffer(shellPath(file)),
     taken,
+    within: workFoldersRoot(),
   });
   if (before?.copy === undefined && existsSync(file)) {
     // Too big to copy, or unreadable to the agent: nothing would bring back
@@ -216,6 +217,7 @@ export async function restoreFileVersion({
     fresh: true,
     kept: isNew ? [...kept, before] : kept,
     taken,
+    within: workFoldersRoot(),
   });
   const entry = (each: KeptVersion) => ({
     ...(each.copy !== undefined && {
@@ -243,6 +245,7 @@ export async function restoreFileVersion({
   // The copies just made are the newest, so the trim leaves them for Undo.
   await trimVersions(
     VERSIONS_FOLDERS.map((name) => path.join(workDir(chatId), name)),
+    { within: workFoldersRoot() },
   );
   return before?.copy === undefined
     ? { modifiedAt }

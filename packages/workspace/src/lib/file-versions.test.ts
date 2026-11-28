@@ -247,8 +247,65 @@ describe("trimVersions", () => {
       await fs.writeFile(file, "x".repeat(10));
       await fs.utimes(file, i + 1, i + 1);
     }
-    await trimVersions(folders, 20);
+    await trimVersions(folders, { most: 20 });
     expect((await fs.readdir(folders[0] ?? "")).toSorted()).toEqual(["b", "c"]);
     expect(await fs.readdir(folders[1] ?? "")).toEqual([]);
+  });
+
+  it("follows no link in a folder, and leaves a folder a link leads to", async () => {
+    const elsewhere = path.join(dir, "elsewhere");
+    await fs.mkdir(elsewhere);
+    await fs.writeFile(path.join(elsewhere, "mine.txt"), "x".repeat(100));
+    await fs.utimes(path.join(elsewhere, "mine.txt"), 1, 1);
+    const work = path.join(dir, "work");
+    const folder = path.join(work, "chat", "Versions");
+    await fs.mkdir(folder, { recursive: true });
+    await fs.symlink(elsewhere, path.join(folder, "notes.md"));
+    await trimVersions([folder], { most: 0, within: work });
+    expect(await fs.readdir(elsewhere)).toEqual(["mine.txt"]);
+
+    await fs.rm(path.join(work, "chat"), { recursive: true });
+    await fs.mkdir(path.join(dir, "planted"));
+    await fs.symlink(elsewhere, path.join(dir, "planted", "Versions"));
+    await fs.symlink(path.join(dir, "planted"), path.join(work, "chat"));
+    await trimVersions([folder], { most: 0, within: work });
+    expect(await fs.readdir(elsewhere)).toEqual(["mine.txt"]);
+  });
+});
+
+describe("keepVersion within a folder the agent can change", () => {
+  it("writes no copy through a link on the way to it", async () => {
+    const file = path.join(dir, "report.md");
+    await fs.writeFile(file, "words");
+    const elsewhere = path.join(dir, "elsewhere");
+    await fs.mkdir(elsewhere);
+    const work = path.join(dir, "work");
+    await fs.mkdir(path.join(dir, "planted", "Versions"), { recursive: true });
+    await fs.symlink(
+      elsewhere,
+      path.join(dir, "planted", "Versions", "report.md"),
+    );
+    await fs.mkdir(work);
+    await fs.symlink(path.join(dir, "planted"), path.join(work, "chat"));
+    const folder = path.join(work, "chat", "Versions");
+
+    await expect(keepVersion({ file, folder, within: work })).rejects.toThrow(
+      /symbolic link/,
+    );
+
+    await fs.rm(path.join(work, "chat"));
+    await fs.rename(path.join(dir, "planted"), path.join(work, "chat"));
+    const kept = [
+      {
+        copy: path.join(folder, "report.md", "v1.md"),
+        hash: "older",
+        number: 1,
+        size: 3,
+      },
+    ];
+    await expect(
+      keepVersion({ file, folder, kept, within: work }),
+    ).rejects.toThrow(/symbolic link/);
+    expect(await fs.readdir(elsewhere)).toEqual([]);
   });
 });

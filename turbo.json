@@ -8,6 +8,7 @@
   "globalPassThroughEnv": [
     "GOMAXPROCS",
     "INSTRUMENT_EVAL_HOME",
+    "PSModuleAnalysisCachePath",
     "USERPROFILE",
     "VITEST_MAX_WORKERS"
   ],

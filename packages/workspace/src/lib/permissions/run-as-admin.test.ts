@@ -172,11 +172,7 @@ describe("windows scripts", () => {
     async () => {
       const folder = await fs.mkdtemp(path.join(os.tmpdir(), "admin-test-"));
       const outFile = path.join(folder, "out.txt");
-      // cmd by its full path: a bare name sends Windows PowerShell looking
-      // through every module on PSModulePath first, which on a CI runner's
-      // image outlasts the timeout.
-      const command =
-        "Write-Output 'it''s' \"$(1+1)\"; & $env:ComSpec /c exit 4";
+      const command = "Write-Output 'it''s' \"$(1+1)\"; cmd /c exit 4";
       const encoded = Buffer.from(
         windowsElevatedScript(command, outFile),
         "utf16le",
@@ -194,7 +190,7 @@ describe("windows scripts", () => {
       expect(exit).toBe(4);
       expect(await fs.readFile(outFile, "utf8")).toMatch(/it's\r?\n2/u);
     },
-    // PowerShell takes seconds to start on a CI runner.
+    // The first Windows PowerShell on a CI runner takes seconds to start.
     30_000,
   );
 });

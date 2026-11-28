@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { storeFileOpenNativeImage } from "../app-protocol";
 import { powerShellArgs, runThrottledHelper } from "./helper-process";
+import { windowsPowerShell } from "../windows-system-program";
 import { type ResolvedApp } from "./types";
 
 const Win32ResultSchema = z.object({
@@ -54,7 +55,7 @@ if (-not $name) { $name = [IO.Path]::GetFileNameWithoutExtension($exe) }
 `;
   const stdout = await runThrottledHelper({
     args: powerShellArgs(script),
-    file: "powershell",
+    file: windowsPowerShell(),
   });
   const trimmed = stdout.trim();
   if (!trimmed) {

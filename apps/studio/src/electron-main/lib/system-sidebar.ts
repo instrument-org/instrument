@@ -11,6 +11,7 @@ import { getMachinePreferences } from "../stores/machine/preferences";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { powerShellArgs, runHelper } from "./file-open-target/helper-process";
 import { finderFavorites } from "./mac-native";
+import { windowsPowerShell } from "./windows-system-program";
 
 /**
  * The folders the system's own file manager pins to its sidebar, in its
@@ -34,7 +35,7 @@ async function systemSidebarFolders(): Promise<string[] | undefined> {
   if (process.platform === "win32") {
     const stdout = await runHelper({
       args: powerShellArgs(QUICK_ACCESS_SCRIPT),
-      file: "powershell",
+      file: windowsPowerShell(),
     });
     return quickAccessFolders(stdout);
   }

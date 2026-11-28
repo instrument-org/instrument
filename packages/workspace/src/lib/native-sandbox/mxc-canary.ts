@@ -15,6 +15,7 @@ import path from "node:path";
 import { type Rules } from "../permissions/rules";
 import { runtimeLayout } from "../runtime-dir";
 import { getWorkspaceConfig } from "../workspace-config";
+import { windowsSystemProgram } from "../windows-system-program";
 
 /**
  * Whether MXC holds on this machine, decided by running it rather than by
@@ -139,7 +140,7 @@ function verdictKey(exec: string): string {
 function updateRevision(): number | undefined {
   try {
     const output = execFileSync(
-      "reg.exe",
+      windowsSystemProgram("reg"),
       [
         "query",
         "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",

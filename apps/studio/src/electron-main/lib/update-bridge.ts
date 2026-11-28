@@ -32,6 +32,10 @@ import {
 } from "./create-app-updater";
 import { judgeSignatures, readSignatures } from "./update-signature";
 import { hasFeedFile, joinFeed, UnsignedUpdateError } from "./update-velopack";
+import {
+  windowsPowerShell,
+  windowsSystemProgram,
+} from "./windows-system-program";
 
 type Logger = {
   error: (message: string, ...args: unknown[]) => void;
@@ -467,9 +471,9 @@ Log 'move to Velopack done'
   // Written out as cmd reads it, with the script's path quoted once, since a
   // home folder's name can have spaces in it.
   spawn(
-    "cmd.exe",
+    windowsSystemProgram("cmd"),
     [
-      `/d /c start "" /min powershell.exe -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "${scriptFile}"`,
+      `/d /c start "" /min "${windowsPowerShell()}" -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File "${scriptFile}"`,
     ],
     {
       detached: true,

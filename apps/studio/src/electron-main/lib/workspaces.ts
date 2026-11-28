@@ -22,6 +22,7 @@ import {
   type FolderConcern,
   folderConcernHere,
 } from "./workspace-folder-check";
+import { windowsSystemProgram } from "./windows-system-program";
 
 /**
  * Which workspace folder this process runs, out of the ones this machine knows.
@@ -1099,7 +1100,7 @@ function executableNameOf(pid: number): string | undefined {
         return path.basename(fs.readlinkSync(`/proc/${pid.toString()}/exe`));
       case "win32": {
         const row = /^"([^"]*)","(\d+)"/m.exec(
-          ask("tasklist", [
+          ask(windowsSystemProgram("tasklist"), [
             "/FI",
             `PID eq ${pid.toString()}`,
             "/FO",

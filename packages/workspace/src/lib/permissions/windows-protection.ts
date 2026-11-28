@@ -9,6 +9,10 @@ import { APP_NAME } from "@instrument-org/shared";
 import { type Asker, recordAsk } from "../chat/asks";
 import { getWorkspaceConfig } from "../workspace-config";
 import { ABOVE_REPLY_BOX } from "../screen-words";
+import {
+  windowsPowerShell,
+  windowsSystemProgram,
+} from "../windows-system-program";
 
 // Windows' ransomware protection (Controlled folder access) keeps programs
 // it does not trust from changing the folders it guards, and a blocked
@@ -84,7 +88,7 @@ export function protectionBlocks(): Promise<boolean> {
 async function readMode(): Promise<boolean> {
   for (const key of MODE_KEYS) {
     const value = await execFileAsync(
-      "reg.exe",
+      windowsSystemProgram("reg"),
       ["query", key, "/v", MODE_VALUE],
       {
         timeout: 5000,
@@ -179,7 +183,7 @@ async function blocksSince(since: Date): Promise<ProtectionBlock[]> {
   const query = `*[System[(EventID=${BLOCK_EVENT_ID}) and TimeCreated[@SystemTime>='${since.toISOString()}']]]`;
   try {
     const { stdout } = await execFileAsync(
-      "wevtutil.exe",
+      windowsSystemProgram("wevtutil"),
       ["qe", DEFENDER_LOG, `/q:${query}`, "/f:xml", "/rd:true", "/c:50"],
       { maxBuffer: 4 * 1024 * 1024, timeout: 5000, windowsHide: true },
     );
@@ -391,10 +395,10 @@ export async function allowThroughProtection(
   ).toString("base64");
   // 1223 is Windows' "the operation was canceled by the user", which is
   // what declining the prompt throws.
-  const outer = `try { $p = Start-Process -FilePath powershell.exe -Verb RunAs -WindowStyle Hidden -Wait -PassThru -ArgumentList '-NoProfile','-NonInteractive','-EncodedCommand','${encoded}'; exit $p.ExitCode } catch { exit 1223 }`;
+  const outer = `try { $p = Start-Process -FilePath (Join-Path $PSHOME 'powershell.exe') -Verb RunAs -WindowStyle Hidden -Wait -PassThru -ArgumentList '-NoProfile','-NonInteractive','-EncodedCommand','${encoded}'; exit $p.ExitCode } catch { exit 1223 }`;
   try {
     await execFileAsync(
-      "powershell.exe",
+      windowsPowerShell(),
       ["-NoProfile", "-NonInteractive", "-Command", outer],
       { timeout: 5 * 60_000, windowsHide: true },
     );

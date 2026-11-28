@@ -31,6 +31,10 @@ vi.mock("../../../resources/instrument-folder-windows.ico?asset", async () => {
 import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { applyLinuxFolderIcon } from "./output-folder-icon-linux";
 import { applyWindowsFolderIcon } from "./output-folder-icon-windows";
+import {
+  windowsPowerShell,
+  windowsSystemProgram,
+} from "./windows-system-program";
 
 let folder: string;
 beforeEach(async () => {
@@ -57,9 +61,15 @@ it("writes a Unicode Windows customization and sets Shell attributes", async () 
   expect(
     execute.mock.calls.slice(0, 3).map(([file, args]) => [file, args]),
   ).toEqual([
-    ["attrib.exe", ["+h", path.join(folder, ".instrument-folder.ico")]],
-    ["attrib.exe", ["+h", "+s", path.join(folder, "desktop.ini")]],
-    ["attrib.exe", ["+r", folder]],
+    [
+      windowsSystemProgram("attrib"),
+      ["+h", path.join(folder, ".instrument-folder.ico")],
+    ],
+    [
+      windowsSystemProgram("attrib"),
+      ["+h", "+s", path.join(folder, "desktop.ini")],
+    ],
+    [windowsSystemProgram("attrib"), ["+r", folder]],
   ]);
   const icon = await fs.readFile(path.join(folder, ".instrument-folder.ico"));
   expect(icon.readUInt16LE(2)).toBe(1);
@@ -74,7 +84,7 @@ it("writes a Unicode Windows customization and sets Shell attributes", async () 
 it("hands the Shell refresh to PowerShell on stdin rather than its command line", async () => {
   await applyWindowsFolderIcon(folder);
   expect(execute.mock.calls[3]?.slice(0, 2)).toEqual([
-    "powershell.exe",
+    windowsPowerShell(),
     ["-NoProfile", "-NonInteractive", "-Command", "-"],
   ]);
   expect(stdin).toHaveBeenCalledWith(expect.stringContaining("SHChangeNotify"));

@@ -3,6 +3,8 @@ import { BrowserWindow } from "electron";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
+import { windowsPowerShell } from "../lib/windows-system-program";
+
 const execFileAsync = promisify(execFile);
 
 const LOOKUP_TIMEOUT_MS = 5000;
@@ -67,7 +69,7 @@ export async function isAppInFront(): Promise<boolean> {
 async function windowsForegroundProcessId(): Promise<number | undefined> {
   try {
     const { stdout } = await execFileAsync(
-      "powershell",
+      windowsPowerShell(),
       [
         "-NoProfile",
         "-NonInteractive",

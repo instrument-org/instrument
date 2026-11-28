@@ -7,9 +7,24 @@ import path from "node:path";
  * there would run in its place, outside any sandbox.
  */
 export function windowsSystemProgram(name: string): string {
-  const systemRoot =
+  return path.win32.join(systemRoot(), "System32", `${name}.exe`);
+}
+
+/** Windows PowerShell by its whole path, for the same reason as {@link windowsSystemProgram}. */
+export function windowsPowerShell(): string {
+  return path.win32.join(
+    systemRoot(),
+    "System32",
+    "WindowsPowerShell",
+    "v1.0",
+    "powershell.exe",
+  );
+}
+
+function systemRoot(): string {
+  return (
     Object.entries(process.env).find(
       ([key]) => key.toLowerCase() === "systemroot",
-    )?.[1] ?? "C:\\Windows";
-  return path.win32.join(systemRoot, "System32", `${name}.exe`);
+    )?.[1] ?? "C:\\Windows"
+  );
 }

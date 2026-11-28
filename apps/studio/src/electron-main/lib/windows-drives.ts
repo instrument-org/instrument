@@ -5,6 +5,7 @@ import {
 import { z } from "zod";
 
 import { powerShellArgs, runHelper } from "./file-open-target/helper-process";
+import { windowsPowerShell } from "./windows-system-program";
 
 /** `System.IO.DriveType`, as the kind of disk each number stands for. */
 const DRIVE_KINDS: Record<number, WindowsDriveKind | undefined> = {
@@ -133,7 +134,7 @@ async function askWindows(): Promise<Record<string, string> | undefined> {
   try {
     const stdout = await runHelper({
       args: powerShellArgs(SCRIPT),
-      file: "powershell",
+      file: windowsPowerShell(),
     });
     const trimmed = stdout.trim();
     return trimmed ? driveNamesOf(trimmed) : undefined;

@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { truncateMiddle } from "../truncate-buffer";
+import { windowsPowerShell } from "../windows-system-program";
 
 /**
  * Runs a command the person allowed on an admin card as an administrator,
@@ -113,7 +114,7 @@ export function windowsLauncherScript(
   const encoded = encodedCommand(windowsElevatedScript(command, outFile));
   return [
     "try {",
-    `  $p = Start-Process -FilePath powershell.exe -Verb RunAs -WindowStyle Hidden -Wait -PassThru -ArgumentList '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-EncodedCommand','${encoded}'`,
+    `  $p = Start-Process -FilePath (Join-Path $PSHOME 'powershell.exe') -Verb RunAs -WindowStyle Hidden -Wait -PassThru -ArgumentList '-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-EncodedCommand','${encoded}'`,
     "  'instrument-exit ' + $p.ExitCode",
     "} catch {",
     "  $e = $_.Exception",
@@ -199,7 +200,7 @@ async function runOnWindows(command: string): Promise<AdminRun> {
   const folder = await fs.mkdtemp(path.join(os.tmpdir(), "instrument-admin-"));
   const outFile = path.join(folder, "output.txt");
   try {
-    const { stdout } = await run("powershell.exe", [
+    const { stdout } = await run(windowsPowerShell(), [
       "-NoProfile",
       "-NonInteractive",
       "-Command",

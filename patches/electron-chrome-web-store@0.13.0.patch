@@ -1,0 +1,39 @@
+diff --git a/dist/chrome-web-store.preload.js b/dist/chrome-web-store.preload.js
+index 94fb2b4c5d240bc80aba0d8e72b526b12684daf9..40f171a22a48238fa565c2f39823a71b73007275 100644
+--- a/dist/chrome-web-store.preload.js	
++++ b/dist/chrome-web-store.preload.js
+@@ -292,7 +292,7 @@
+       window.navigation.addEventListener("navigate", maybeUpdateBranding);
+     }
+   }
+-  if (location.href.startsWith("https://chromewebstore.google.com")) {
++  if (location.origin === "https://chromewebstore.google.com") {
+     log("Injecting Chrome Web Store API");
+     setupChromeWebStoreApi();
+   }
+diff --git a/dist/cjs/browser/index.js b/dist/cjs/browser/index.js
+index 4580b782dcf28a2d8d9ec2f0318276365cf2b957..444df6473ced557bcb01eb6f7b18fbec1af8c8c1 100644
+--- a/dist/cjs/browser/index.js	
++++ b/dist/cjs/browser/index.js
+@@ -1275,7 +1275,7 @@ function registerWebStoreApi(webStoreState) {
+       import_electron3.ipcMain.handle(channel, async function handleWebStoreIpc(event, ...args) {
+         d3("received %s", channel);
+         const senderOrigin = event.senderFrame?.origin;
+-        if (!senderOrigin || !senderOrigin.startsWith(WEBSTORE_URL)) {
++        if (senderOrigin !== WEBSTORE_URL) {
+           d3("ignoring webstore request from %s", senderOrigin);
+           return;
+         }
+diff --git a/dist/esm/browser/index.mjs b/dist/esm/browser/index.mjs
+index 85ba0e0023ea491e8d07b9a8effd01cfc89ee977..f4d4e766b52c4231faa77b412eb9fd33de4a8bf5 100644
+--- a/dist/esm/browser/index.mjs	
++++ b/dist/esm/browser/index.mjs
+@@ -552,7 +552,7 @@ function registerWebStoreApi(webStoreState) {
+       ipcMain.handle(channel, async function handleWebStoreIpc(event, ...args) {
+         d3("received %s", channel);
+         const senderOrigin = event.senderFrame?.origin;
+-        if (!senderOrigin || !senderOrigin.startsWith(WEBSTORE_URL)) {
++        if (senderOrigin !== WEBSTORE_URL) {
+           d3("ignoring webstore request from %s", senderOrigin);
+           return;
+         }

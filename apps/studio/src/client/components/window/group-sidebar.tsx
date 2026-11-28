@@ -330,6 +330,8 @@ export function GroupSidebar({
           projects={projects}
         />
       )}
+      {/* Room between the project tiles and the pinned rows, so the first pinned row isn't read as a project. */}
+      {!project && pinned.length > 0 && <div className="h-1 shrink-0" />}
       <AnimatePresence>
         {pinned.map((entry) => listItem(entry, "pinned"))}
         {hasDivider && (
@@ -836,6 +838,12 @@ export function GroupRow({
             />
           </span>
         ) : undefined
+      }
+      pin={
+        menu && {
+          isPinned: menu.isPinned,
+          run: menu.onTogglePin,
+        }
       }
       sides={sides}
     />

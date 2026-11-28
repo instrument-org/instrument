@@ -4,6 +4,7 @@ import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { cn } from "@/client/lib/utils";
 import { extensionOf } from "@/shared/rendered-kinds";
+import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { XIcon } from "@phosphor-icons/react/X";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { type ReactNode } from "react";
@@ -49,6 +50,10 @@ interface MarkRun {
  * the sidebar means a project; it stands in place of the lead tab's folders
  * or site, unless the lead is a chat, whose line says what it is doing. While
  * the person names the group, the field for it (`nameField`) stands there.
+ * A row that can be pinned (`pin`) shows Pin just before the X under the
+ * pointer, the X keeping the line's end on every row; a pinned row wears a
+ * filled pin in that same place at rest, so nothing moves as the pointer
+ * arrives and the filled pin is the one that unpins.
  */
 export function GroupRowLines({
   chatTitles,
@@ -59,6 +64,7 @@ export function GroupRowLines({
   isOnScreen,
   name,
   nameField,
+  pin,
   sides,
   titleRanges = null,
 }: {
@@ -75,6 +81,8 @@ export function GroupRowLines({
   name?: string | undefined;
   /** The field the person names the group in, shown in place of the second line while they do. */
   nameField?: ReactNode;
+  /** Whether the group is pinned, and what pins or unpins it. */
+  pin?: { isPinned: boolean; run: () => void } | undefined;
   sides: RowSides;
   /** What a search matched in the title. */
   titleRanges?: null | number[];
@@ -195,6 +203,20 @@ export function GroupRowLines({
         {close && (
           <RowActionBar
             actions={[
+              ...(pin
+                ? [
+                    {
+                      icon: (
+                        <PushPinIcon
+                          weight={pin.isPinned ? "fill" : "regular"}
+                        />
+                      ),
+                      id: "pin",
+                      label: pin.isPinned ? "Unpin Tab Group" : "Pin Tab Group",
+                      run: pin.run,
+                    },
+                  ]
+                : []),
               {
                 icon: <XIcon />,
                 id: "close",
@@ -203,6 +225,22 @@ export function GroupRowLines({
               },
             ]}
             isHeld={isCloseShown}
+            resting={
+              pin?.isPinned && (
+                // The pin in Pin's place, with the X's room left empty after it.
+                <span className="-my-0.5 flex items-center gap-0.5 text-foreground/45">
+                  <span className="grid size-6 place-items-center">
+                    <PushPinIcon
+                      aria-label="Pinned"
+                      className="size-4"
+                      role="img"
+                      weight="fill"
+                    />
+                  </span>
+                  <span className="size-6" />
+                </span>
+              )
+            }
           />
         )}
         {end}

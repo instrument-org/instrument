@@ -1,5 +1,6 @@
 import {
   endOwnFileDrag,
+  isOwnFileDragOf,
   isSelfFileDrag,
   releaseSelfFileDrag,
 } from "@/client/lib/self-file-drag";
@@ -46,16 +47,17 @@ export function useWindowDropFallback(
       // Cancelled either way, so a file let go of here is never the page
       // the window navigates to.
       event.preventDefault();
-      const isOwnDrag = isSelfFileDrag();
+      // Read while the drop is being dispatched: the items empty after.
+      const dropped = event.dataTransfer ? filesOfDrop(event.dataTransfer) : [];
+      // A file this app put in the air and let go of again nowhere in
+      // particular: a click that moved too far, or rows of Files carried
+      // however long to a place that takes none.
+      const isOwnDrag =
+        isSelfFileDrag() ||
+        isOwnFileDragOf(dropped.map((file) => file.hostPath));
       releaseSelfFileDrag();
       endOwnFileDrag();
-      // A file this app put in the air and let go of again nowhere in
-      // particular, as a click that moved too far does.
-      if (isOwnDrag || !event.dataTransfer) {
-        return;
-      }
-      const dropped = filesOfDrop(event.dataTransfer);
-      if (dropped.length > 0) {
+      if (!isOwnDrag && dropped.length > 0) {
         handlers.onOpen(dropped);
       }
     };

@@ -778,6 +778,12 @@ export function useTabGroupActions() {
       const tab = screenTab(group, href ?? NEW_TAB_HREF);
       windowTabs.openIn(tab, { group, select: true });
     }
+    // A group that starts as a new chat alone, where something is about to
+    // start, starts with its side panel open.
+    const [first, ...rest] = tabsIn(store.get(windowTabsAtom), group);
+    if (first !== undefined && rest.length === 0 && isNewChatTab(first)) {
+      windowTabs.setGroupOwn(group, { sidePanel: true });
+    }
     if (isShownHere) {
       // From a screen or page that is no tab group's, the new group takes its place.
       const up = groupUp();

@@ -74,7 +74,7 @@ export interface GroupOwn {
   project?: string;
   /** The left side's share of the row past the gutter, as the person dragged it. */
   share?: number;
-  /** The side panel opened (true) or closed (false) by the person; none follows the tab up (`isSidePanelOpen`). */
+  /** The side panel open (true), as the person or the group's start left it; closed otherwise (`isSidePanelOpen`). */
   sidePanel?: boolean;
   /** When a window last came to stand on it, in ms, which the agent's list says. */
   shownAt?: number;

@@ -15,31 +15,16 @@ import {
   closeExtensionSidePanel,
   useExtensionSidePanelOf,
 } from "./extension-side-panel";
-import { type GroupLayout, type GroupOwn, isNewChatTab } from "./tab-model";
+import { type GroupOwn, isNewChatTab } from "./tab-model";
 import { useWindowTabs } from "./window-tabs";
 
 /**
- * Whether a group's side panel is open: as the person last left it there,
- * and otherwise open over a new group that is a new tab alone, where
- * something is about to start, and closed over anything else, so sending
- * from the new tab puts it away and a new tab opened in a group already in
- * use leaves the panel shut.
+ * Whether a group's side panel is open, as the person or the group's start
+ * left it (`GroupOwn.sidePanel`): a group made as a new chat alone starts
+ * with it open, and sending from that new tab puts it away.
  */
-function isSidePanelOpen(
-  own: GroupOwn | undefined,
-  layout: GroupLayout,
-): boolean {
-  if (own?.sidePanel !== undefined) {
-    return own.sidePanel;
-  }
-  const [only, other] = layout.sides;
-  const up = only?.tabs.find((tab) => tab.id === only.up);
-  return (
-    other === undefined &&
-    only?.tabs.length === 1 &&
-    up !== undefined &&
-    isNewChatTab(up)
-  );
+function isSidePanelOpen(own: GroupOwn | undefined): boolean {
+  return own?.sidePanel === true;
 }
 
 /**
@@ -175,9 +160,7 @@ export function useSidePanel(group: string | undefined) {
   );
   const isRoomy = hasRoom && sidesFit;
   const isGroupOpen =
-    group !== undefined &&
-    layout !== undefined &&
-    isSidePanelOpen(windowTabs.groupOwn[group], layout);
+    group !== undefined && isSidePanelOpen(windowTabs.groupOwn[group]);
   const isOpen =
     (group !== undefined && extensionPanel !== undefined) ||
     (isGroupOpen && isRoomy);
@@ -251,10 +234,10 @@ export function useSidePanel(group: string | undefined) {
 }
 
 /**
- * Sending from a new tab puts its group's side panel away: the tab is a
- * chat now, and one the person opened over the new tab goes back to
- * following the tab up, which closes it. One they closed stays closed, and
- * a pick from the panel itself keeps it open.
+ * Sending from a new tab puts its group's side panel away, since the tab is
+ * a chat now: one open over the new tab closes, whether the group started
+ * with it or the person opened it. A pick from the panel itself keeps it
+ * open.
  */
 export function useSidePanelUpkeep(group: string | undefined) {
   const windowTabs = useWindowTabs();

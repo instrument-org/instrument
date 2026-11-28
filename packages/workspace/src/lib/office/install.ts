@@ -154,15 +154,40 @@ async function ownOfficeCandidate(): Promise<
       .map((dir) => path.join(dir, "soffice")),
     "/usr/lib/libreoffice/program/soffice",
   ]) {
-    if (!existsSync(soffice)) {
+    const installed = await systemInstalled(soffice);
+    if (installed === undefined) {
       continue;
     }
-    const version = await sofficeVersion(soffice);
+    const version = await sofficeVersion(installed);
     if (version) {
-      return { soffice, version };
+      return { soffice: installed, version };
     }
   }
   return undefined;
+}
+
+/**
+ * Where `file` really is, when that is a file the system installed: owned by
+ * root, in a folder owned by root that no one else may change. The version
+ * check runs it as the app, outside every sandbox, and a folder on PATH can
+ * be one the agent may write (`~/.local/bin`), so a `soffice` it put there
+ * would run there too; a link on PATH to the system's own is taken as it.
+ */
+async function systemInstalled(file: string): Promise<string | undefined> {
+  try {
+    const real = await fs.realpath(file);
+    const [stats, folder] = await Promise.all([
+      fs.stat(real),
+      fs.stat(path.dirname(real)),
+    ]);
+    const isRoots = (each: { mode: number; uid: number }) =>
+      each.uid === 0 && (each.mode & 0o022) === 0;
+    return stats.isFile() && isRoots(stats) && isRoots(folder)
+      ? real
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** `LibreOffice 26.2.7.3 08df…` → `26.2.7.3`. */

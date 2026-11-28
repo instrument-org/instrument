@@ -230,6 +230,18 @@ export function arMembers(archive: Buffer): ArMember[] {
 }
 
 /**
+ * The system's own `tar`, by its full path: the app runs it outside every
+ * sandbox, and a `tar` found on PATH could be one the agent put in a folder
+ * it may write (`~/.local/bin`).
+ */
+function systemTar(): string {
+  return (
+    ["/usr/bin/tar", "/bin/tar"].find((each) => existsSync(each)) ??
+    "/usr/bin/tar"
+  );
+}
+
+/**
  * Unpacks every `.deb` in TDF's tarball into `dest` the way `dpkg` would
  * lay out their files, with nothing installed: the tarball by `tar`, each
  * `.deb`'s `data.tar.*` taken out of its `ar` archive, then by `tar`.
@@ -240,7 +252,7 @@ export async function unpackDebTarball(
 ): Promise<void> {
   const work = await fs.mkdtemp(path.join(os.tmpdir(), "office-deb-"));
   try {
-    await execa("tar", ["-xzf", tarball, "-C", work], {
+    await execa(systemTar(), ["-xzf", tarball, "-C", work], {
       cancelSignal: AbortSignal.timeout(UNPACK_TIMEOUT_MS),
       stdin: "ignore",
     });
@@ -277,7 +289,7 @@ async function unpackDeb(
     archive.subarray(data.offset, data.offset + data.size),
   );
   // tar reads gzip, xz and zstd by what the file starts with.
-  await execa("tar", ["-xf", member, "-C", dest], {
+  await execa(systemTar(), ["-xf", member, "-C", dest], {
     cancelSignal: AbortSignal.timeout(UNPACK_TIMEOUT_MS),
     stdin: "ignore",
   });

@@ -325,6 +325,21 @@ describe("workspace ids", () => {
     });
   });
 
+  it("keeps a field a newer build wrote when it writes the record back", () => {
+    const dir = defaultWorkspacePath(userDataDir);
+    fs.mkdirSync(workspaceLayout(dir).dataDir, { recursive: true });
+    const file = path.join(workspaceLayout(dir).dataDir, "workspace.json");
+    fs.writeFileSync(file, JSON.stringify({ name: "Mine", syncedAs: "x" }));
+
+    openDefault(() => "01MINTED");
+
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).toMatchObject({
+      id: "01MINTED",
+      name: "Mine",
+      syncedAs: "x",
+    });
+  });
+
   it("gives a copy of a registered workspace an id of its own", () => {
     const original = registerWorkspace("original");
     settleWorkspace({

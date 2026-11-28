@@ -110,9 +110,11 @@ export const WORKSPACE_FORMAT_VERSION = 2;
 
 /**
  * What a workspace says about itself, kept inside it so a copied or moved
- * workspace keeps its name.
+ * workspace keeps its name. Loose, so a field a newer build added (on another
+ * computer the workspace syncs to) goes back out as it came in when this
+ * build rewrites the file.
  */
-export const WorkspaceIdentitySchema = z.object({
+export const WorkspaceIdentitySchema = z.looseObject({
   color: WorkspaceColorSchema.catch("gray"),
   createdBy: WorkspaceCreatorSchema.catch({ kind: "person" }),
   /** Set once every chat in the workspace is on its records rather than a `chat.db`. */

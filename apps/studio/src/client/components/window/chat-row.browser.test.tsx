@@ -1,10 +1,12 @@
 import type * as FaviconUrl from "@/client/lib/favicon-url";
 
+import { applyBookmarkOpsAtom } from "@/client/bookmarks/store";
 import { resetDrafts } from "@/client/drafts/store";
 import { siteIconChanged } from "@/client/lib/favicon-url";
 import { isMacOS } from "@/client/lib/utils";
 import { type Draft } from "@/shared/drafts";
 import { renderInBrowser } from "@/tests/render-browser";
+import { chatAddressOf } from "@instrument-org/shared";
 import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { createStore } from "jotai";
 import { toast, Toaster } from "sonner";
@@ -291,6 +293,30 @@ async function renderRow(
     throw new Error("no row");
   }
   return { ...rest, onOpen, onSetProject, openScreen, row: element };
+}
+
+/** A store with the chat kept as a bookmark, which is what puts a star on its row. */
+async function withChatBookmarked() {
+  const store = createStore();
+  await store.set(applyBookmarkOpsAtom, [
+    {
+      bookmark: {
+        id: "chat-bookmark",
+        order: 0,
+        title: TITLE,
+        url: chatAddressOf(CHAT_ID),
+      },
+      type: "add",
+    },
+  ]);
+  return store;
+}
+
+/** Takes the chat's bookmark away again, since the bookmarks outlast one test. */
+async function forgetChatBookmark(store: ReturnType<typeof createStore>) {
+  await store.set(applyBookmarkOpsAtom, [
+    { id: "chat-bookmark", type: "remove" },
+  ]);
 }
 
 /** Several rows at once, each in a box of the list's width, so one test can compare them without a second render. */
@@ -1080,7 +1106,7 @@ describe("the row's actions", () => {
   it("end the title's line while the pointer is on it, out of the flow at rest", async () => {
     const { row } = await renderRow(chat());
     const { bar, labels } = barOf(row);
-    expect(labels).toEqual(["Archive", "Mark as Unread", "Star"]);
+    expect(labels).toEqual(["Archive", "Mark as Unread", "Bookmark"]);
     // The pointer is wherever the last test left it, which may be here.
     await userEvent.unhover(row);
     expect(bar.getClientRects().length).toBe(0);
@@ -1115,7 +1141,11 @@ describe("the row's actions", () => {
 
   it("offers a chat put away the way back", async () => {
     const { row } = await renderRow(chat({ archived: true }));
-    expect(barOf(row).labels).toEqual(["Unarchive", "Mark as Unread", "Star"]);
+    expect(barOf(row).labels).toEqual([
+      "Unarchive",
+      "Mark as Unread",
+      "Bookmark",
+    ]);
     await userEvent.hover(titleOf(row));
     await userEvent.click(actionOf(row, "Unarchive"));
     expect(calls.unarchive).toHaveBeenCalledWith(INPUT);
@@ -1142,7 +1172,11 @@ describe("the row's actions", () => {
 
   it("offers Mark as Unread on a chat with nothing said in it yet", async () => {
     const { row } = await renderRow(chat({ latest: undefined, unread: false }));
-    expect(barOf(row).labels).toEqual(["Archive", "Mark as Unread", "Star"]);
+    expect(barOf(row).labels).toEqual([
+      "Archive",
+      "Mark as Unread",
+      "Bookmark",
+    ]);
   });
 
   it("raises the row's menu on a right click: the way in, the actions, and the projects", async () => {
@@ -1161,7 +1195,7 @@ describe("the row's actions", () => {
       "Open in New Tab",
       "Open in New Window",
       "Mark as Read",
-      "Star",
+      "Bookmark",
       "Rename",
       "Project",
       "Export as Markdown…",
@@ -1237,12 +1271,12 @@ describe("the row's actions", () => {
   // The row's controls take a click each, so the click stops at them; a
   // right click is the row's whatever is under the pointer, or the menu is
   // only there on the words.
-  it("raises the row's menu on a right click on a pill, the star, and the corner's bar", async () => {
+  it("raises the row's menu on a right click on a pill, the bookmark star, and the corner's bar", async () => {
     const { onOpen, row } = await renderRow(chat({ project: "house" }));
     const menu = page.getByRole("menu");
     for (const target of [
       pillOf(row),
-      row.querySelector<HTMLElement>('[aria-label="Star"]'),
+      row.querySelector<HTMLElement>('[aria-label="Bookmark"]'),
       row.querySelector<HTMLElement>('[aria-label="Project"]'),
       row.querySelector<HTMLElement>('[aria-label="Archive"]'),
     ]) {
@@ -1257,40 +1291,47 @@ describe("the row's actions", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("marks a starred row with a star past its projects, not a control", async () => {
-    const { rows } = await renderRows([
-      chat({ starred: true, project: "house" }),
-      chat(),
-    ]);
-    const [starred, plain] = rows;
-    if (!starred || !plain) {
+  it("marks a bookmarked row with a star past its projects, not a control", async () => {
+    const store = await withChatBookmarked();
+    const { rows } = await renderRows(
+      [
+        chat({ project: "house" }),
+        chat({ id: ChatIdSchema.parse("2026-11-09-another-chat") }),
+      ],
+      { store },
+    );
+    const [bookmarked, plain] = rows;
+    if (!bookmarked || !plain) {
       throw new Error("no rows");
     }
-    const mark = starred.querySelector('[aria-label="Starred"]');
+    const mark = bookmarked.querySelector('[aria-label="Bookmarked"]');
     expect(mark?.closest("button")).toBeNull();
     expect(mark?.getBoundingClientRect().left).toBeGreaterThanOrEqual(
-      pillOf(starred)?.getBoundingClientRect().right ?? 0,
+      pillOf(bookmarked)?.getBoundingClientRect().right ?? 0,
     );
-    expect(plain.querySelector('[aria-label="Starred"]')).toBeNull();
-    // Taking the star back ends the corner's bar, over where the star stood.
-    expect(barOf(starred).labels.at(-1)).toBe("Unstar");
+    expect(plain.querySelector('[aria-label="Bookmarked"]')).toBeNull();
+    // Removing the bookmark ends the corner's bar, over where the star stood.
+    expect(barOf(bookmarked).labels.at(-1)).toBe("Remove Bookmark");
+    await forgetChatBookmark(store);
   });
 
-  it("puts the bar's star exactly where the starred row's star stands at rest", async () => {
-    const { row } = await renderRow(chat({ starred: true, project: "house" }));
-    const mark = row.querySelector('[aria-label="Starred"]');
+  it("puts the bar's star exactly where the bookmarked row's star stands at rest", async () => {
+    const store = await withChatBookmarked();
+    const { row } = await renderRow(chat({ project: "house" }), { store });
+    const mark = row.querySelector('[aria-label="Bookmarked"]');
     if (!mark) {
       throw new Error("no star");
     }
     await userEvent.unhover(row);
     const resting = mark.getBoundingClientRect();
     await userEvent.hover(titleOf(row));
-    const unstar = actionOf(row, "Unstar");
+    const remove = actionOf(row, "Remove Bookmark");
     await vi.waitFor(() => {
-      expect(unstar.getClientRects().length).toBeGreaterThan(0);
+      expect(remove.getClientRects().length).toBeGreaterThan(0);
     });
-    const raised = unstar.querySelector("svg")?.getBoundingClientRect();
+    const raised = remove.querySelector("svg")?.getBoundingClientRect();
     expect(raised?.toJSON()).toEqual(resting.toJSON());
     await userEvent.unhover(titleOf(row));
+    await forgetChatBookmark(store);
   });
 });

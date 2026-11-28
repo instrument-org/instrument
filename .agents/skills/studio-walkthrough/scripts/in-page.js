@@ -97,8 +97,15 @@
     encodeURIComponent(
       '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><rect width="96" height="96" fill="#4f7a68"/><circle cx="48" cy="38" r="17" fill="#d9e8df"/><path d="M16 92c4-20 18-30 32-30s28 10 32 30" fill="#d9e8df"/></svg>',
     );
+  const STAND_IN = { email: "sam@example.com", name: "Sam Rivera" };
 
-  const present = ({ rootCrumb } = {}) => {
+  /**
+   * `machineFolders`: the names of the folders down to the workspace (this
+   * machine's own: the login, the cache folders, the clean room and its home),
+   * hidden where a tab group's row or a tab spells out the way to a file.
+   */
+  const present = ({ rootCrumb, machineFolders = [] } = {}) => {
+    const folders = new Set(machineFolders);
     if (!document.getElementById("walkthrough-present")) {
       const style = document.createElement("style");
       style.id = "walkthrough-present";
@@ -151,6 +158,12 @@
           }
         }
       }
+      if (folders.size) {
+        for (const span of document.querySelectorAll("[data-group-row] span, [data-tab-key] span, [role=tab] span")) {
+          if (span.children.length || span.classList.contains("sr-only")) continue;
+          if (folders.has(squash(span.textContent).replace(/\s*›$/, ""))) span.setAttribute("data-walkthrough-gone", "");
+        }
+      }
       // The development pills (server, workspace, instance) beside the bell.
       for (const span of document.querySelectorAll("span.truncate")) {
         if (squash(span.textContent) !== "Staging") continue;
@@ -162,6 +175,23 @@
       // The signed-in account's photo, for a stand-in.
       for (const img of document.querySelectorAll("img")) {
         if (/googleusercontent|gravatar|avatars\./.test(img.src)) img.src = AVATAR;
+      }
+      // The signed-in account's name, read once from the sidebar's foot, where
+      // it sits beside the account's picture, swapped for a stand-in's wherever
+      // it shows, along with the address under it in the account card.
+      const foot = document.querySelector("button > [data-slot=avatar] + span");
+      if (!window.__walkthroughName && foot && squash(foot.textContent) !== STAND_IN.name) {
+        window.__walkthroughName = squash(foot.textContent);
+      }
+      const name = window.__walkthroughName;
+      if (name) {
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          if (!node.nodeValue.includes(name)) continue;
+          node.nodeValue = node.nodeValue.replaceAll(name, STAND_IN.name);
+          const address = node.parentElement?.nextElementSibling;
+          if (address && /^\S+@\S+$/.test(squash(address.textContent))) address.textContent = STAND_IN.email;
+        }
       }
     };
     dress();

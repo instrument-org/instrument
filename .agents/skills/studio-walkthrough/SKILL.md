@@ -47,20 +47,24 @@ A walk script is a `studio-drive run` script that drives Studio through `createA
 | `act.chapter(title, caption)` | starts a chapter; the caption shows under the replay |
 | `act.click(target, { right, double })` | moves the hand there in an arc, presses |
 | `act.hover(target)` | moves there and rests, for what shows only under a hand |
-| `act.type(text)` | types at a person's pace into what has focus |
+| `act.type(text)` | types at a person's pace into what has focus, a plain field included |
 | `act.key("Enter")` | presses a key or chord, shown as keycaps |
+| `act.chord("Meta+t")` | a chord only the menu bar answers (⌘T, ⇧⌘W, ⌘N), shown as keycaps |
 | `act.caption(text)` | a caption of its own |
-| `act.camera(target, { zoom })`, `act.camera(null)` | pushes in by hand and back out |
+| `act.camera(target, { zoom })`, `act.camera(null)` | pushes in by hand and back out; the hand acts only once a push lands |
+| `act.box(target, { pad })` | a target's box once the page holds still, for a push |
 | `act.still(name, caption, { poster })` | the page as HTML and PNG; `poster` makes it its chapter's picture |
 | `act.waitFor(expression)`, `act.hold(ms)` | waits on the page, or for a beat |
 
-The script gets `args.out` (hand it to `createAct`) and `args.workspace`, the clean room's folder, for Files addresses (`/files?path=<folder in it>&root=<args.workspace>&view=list`). `act.prepare({ rootCrumb: path.basename(args.workspace) })` hides the address bar's folders above the workspace, which name this machine's own.
+The script gets `args.out` (hand it to `createAct`) and `args.workspace`, the clean room's folder, for Files addresses (`/files?path=<folder in it>&root=<args.workspace>&view=list`). `act.prepare({ rootCrumb: path.basename(args.workspace), workspace: args.workspace })` hides the folders above the workspace, which name this machine's own: in the address bar, and in tab group rows and tabs.
+
+`act.mjs` also exports what a walk runs before recording: `uiZoom(app, 1.5)` sets the app's UI zoom with its own zoom chords (a rung of its ladder: 1.1, 1.25, 1.5, 1.75, 2), and `settled(app, expression)` reads a value once the page holds still. `recordClip` films a feature clip ([below](#feature-clips)).
 
 A target is `{ text }` (the exact name), `{ contains }`, `{ label }` (aria-label), `{ placeholder }`, or `{ selector }`, alone or together. A target covered by something else is refused rather than clicked through.
 
 The camera pushes in by itself wherever the hand keeps working in one small area (a dialog, a row and its menu, a field being typed into) and pulls back as the hand leaves; a chapter opens wide. Add `act.camera` only for what the hand never touches, such as an answer appearing. An agent's answer is sped through at 3x, from a moment after Enter until the take's next still.
 
-Presentation mode hides the development pills and swaps the signed-in account's photo while recording, and the build takes this machine's paths out of every file. It cannot reach what a model writes: an answer can still name the signed-in person.
+Presentation mode hides the development pills and swaps the signed-in account's photo, name and address for a stand-in's while recording, and the build takes this machine's paths out of every file. It cannot reach what a model writes: an answer can still name the signed-in person.
 
 ## Look before sharing
 
@@ -85,12 +89,29 @@ node $W check ~/walkthroughs/my-feature/video/walkthrough-clip.mp4
 | length | 9 s | the whole clip |
 | text | 8.5 px | Studio's body text as shown, wherever the hand or a key acts |
 
-Text shows at 14 × UI zoom × camera zoom × 448 ÷ window width, so a clip needs both levers:
+A clip has to say where in the app it is without its title, and a frame cropped to the feature's box never does. Text shows at 14 × UI zoom × camera zoom × 448 ÷ window width, so a clip opens wide and pushes in only as far as the text needs:
 
-- **Raise the app's UI zoom** before the take: `window.api.keptState.set("view", "zoom.v1", 1.5)`, then reload. Use 1.25 where 1.5 truncates the thing being shown.
-- **Frame only the feature from the first frame.** An `act.camera(target, { ms: 1, tight: true, zoom: 3 })` noted before `act.begin` frames the take before it starts. `tight` drops the padding, and a target may be `{ box: { x, y, w, h } }` measured from the page.
-- **Start on the action.** Park the hand next to its first target and give a click a short `ms`, so something changes within half a second. Show one idea: a second idea is a second clip.
-- **Measure boxes once the page holds still.** A sidebar closing or a pane opening animates, and a box read during it is not where the take finds it.
+- **Raise the app's UI zoom** before the take: `await uiZoom(app, 1.5)`. Use 1.25 where 1.5 truncates the thing being shown.
+- **Open wide, then push in.** `recordClip` opens on the whole window (or `wide`, a box or target), holds 0.4 s, and pushes in on `close` as the hand sets off; the hand acts once the push lands, so the text check measures the framing the viewer reads. `close` is the side or pane the feature is in, and the sidebar when that is where it lives, never the feature's box alone: at UI zoom 1.5 in a 1240-pixel window a push of 1.2x to 1.5x reads at 9 to 11 px, and a push past 2x crops away where you are.
+
+  ```js
+  const { recordClip, settled, uiZoom } = await import("<skill>/scripts/act.mjs");
+  export default async (app, args) => {
+    await uiZoom(app, 1.5);
+    const row = await settled(app, `...`); // what the framing depends on
+    return recordClip(app, args, {
+      title: "Name a tab group",
+      close: { x: 0, y: row.y - 220, w: 760, h: 507 }, // the sidebar around the row
+      pointer: { x: row.x + 150, y: row.y + 90 },     // where the hand waits
+    }, async (act) => {
+      await act.click({ selector: "[data-group-row]" }, { right: true });
+      // ...
+    });
+  };
+  ```
+
+- **Start on the action.** Park the hand near its first target so it sets off as the push starts. Show one idea: a second idea is a second clip.
+- **Measure boxes once the page holds still** (`act.box`, `settled`): a sidebar closing or a pane opening animates, and a box read during it is not where the take finds it.
 - **Hover right to left** along a row whose items widen under the hand, so each one stays where the hand finds it.
 
 `--clip` also writes `walkthrough-clip-strip.png`: the clip at 448 pixels, a frame every half second, each stamped with its text size. Read it, then hand it with the line it goes beside to a fresh agent, asking what a first-time viewer would think it shows and where it wastes time, before anyone else watches it.

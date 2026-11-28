@@ -105,7 +105,7 @@ export async function checkClip(file, { actions = [], appZoom = 1, fps = 30, sca
   const fails = [];
   const at = (ms) => `${(ms / 1000).toFixed(1)}s`;
   if (measured.leadMs > LIMITS.leadMs) {
-    fails.push(`FAIL lead: nothing changes for the first ${at(measured.leadMs)} (limit ${at(LIMITS.leadMs)}) -> start the take on the action, or push the camera in from its first frame`);
+    fails.push(`FAIL lead: nothing changes for the first ${at(measured.leadMs)} (limit ${at(LIMITS.leadMs)}) -> start the take on the action, or start the push from the wide opening sooner (recordClip's hold)`);
   }
   if (measured.deadMs > LIMITS.deadMs) {
     fails.push(`FAIL dead: nothing changes for ${at(measured.deadMs)} from ${at(measured.deadFromMs)} (limit ${at(LIMITS.deadMs)}) -> cut the hold, or move the camera to what comes next`);

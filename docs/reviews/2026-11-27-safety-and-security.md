@@ -97,13 +97,13 @@ A safety and security audit of everything landed since the 2026-11-14 review, as
 
 ### Q. The extension library still answers spoofed store origins and gives every extension all cookies
 
-- Status: open
+- Status: fixed `84daedf88` (the store's origin check); open for the cookies
 - Where: `electron-chrome-web-store` and `electron-chrome-extensions` (library code)
-- What: `chrome.management.getAll` is reachable from a page at a look-alike store origin, and every extension gets `chrome.cookies` for every site and full URLs from `tabs.query`, whatever its manifest asks for. Outside the threat model's lines; fixing it means patching the libraries.
+- What: `chrome.management.getAll` was reachable from a page at a look-alike store origin, and every extension gets `chrome.cookies` for every site and full URLs from `tabs.query`, whatever its manifest asks for. The store check is patched to the exact origin; scoping cookies and tabs to the manifest is a much larger patch to `electron-chrome-extensions` and outside the threat model's lines.
 
 ### R. Removing an extension from the Web Store's page asks nothing
 
-- Status: open
+- Status: fixed `af9cb46af`
 - Where: [extensions.ts:454](/apps/studio/src/electron-main/browser-view/extensions.ts#L454)
 
 ### S. A memory file left with no text is deleted with someone else's front matter in it
@@ -118,21 +118,21 @@ A safety and security audit of everything landed since the 2026-11-14 review, as
 
 ### U. Launch settles a draft another computer is still sending
 
-- Status: open
+- Status: fixed `49c60f9c5`
 - Where: [drafts/send.ts:72](/packages/workspace/src/lib/drafts/send.ts#L72)
 - What: a draft marked `sending` whose message has not synced in yet reads as a send that never landed, so it is rewritten as the person's draft again, and once the other computer's message arrives it is sent twice or left behind. Telling them apart needs the sending computer in the draft.
 
 ### V. A project folder that syncs in before its id file gets an id of its own
 
-- Status: open
+- Status: fixed `105eb0bef`
 - Where: [projects.ts:288](/packages/workspace/src/lib/chat/projects.ts#L288)
-- What: with no `.instrument-project` yet, the folder takes the id its name gives and writes that id file, which then meets the real one from the other computer as a sync conflict.
+- What: with no `.instrument-project` yet, the folder takes the id its name gives and writes that id file, which then meets the real one from the other computer as a sync conflict. A new project's id is the one its name gives, so this bites only a project renamed or copied on the other computer.
 
 ### W. New values in existing enums of stored data parts
 
-- Status: open
-- Where: [message-data-part.ts](/packages/workspace/src/schemas/session/message-data-part.ts)
-- What: `closedTabs.reason` gained `chat` and `movedOut`, `chatChanges.field` `unread`, `pageTakeover.stage` `closed` and `continued`, and the permission parts `admin`. `CLAUDE.md` forbids a value added to an existing enum, since an older build sharing the workspace fails to read the part.
+- Status: open (the rule's wording)
+- Where: [message-data-part.ts](/packages/workspace/src/schemas/session/message-data-part.ts), [ask.ts:240](/packages/workspace/src/schemas/ask.ts#L240)
+- What: `closedTabs.reason` gained `chat` and `movedOut`, `chatChanges.field` `unread`, `pageTakeover.stage` `closed` and `continued`, the permission parts `admin`, and `permissionAnswer.answer` `ran-by-hand` and `without-admin`. `CLAUDE.md` forbids a value added to an existing enum. 2.0.11 and the 2.1 betas read the same records, but a data part whose payload fails its schema reads as `data-unknown` there (`coerceDataPart`), as a new part type does, so the data parts lose nothing. The one line an older build drops is a permission `ask` record with `on: admin`, an ask only its own computer acts on.
 
 ### X. A home-rooted Files tab is a different tab in main than in the window
 
@@ -162,13 +162,13 @@ A safety and security audit of everything landed since the 2026-11-14 review, as
 
 ### AC. Windows programs run by bare name from main and the workspace server
 
-- Status: fixed `37ba597fb` (`reg`, `msiexec`, `taskkill`); open for `powershell`
+- Status: fixed `37ba597fb` (`reg`, `msiexec`, `taskkill`), `6dfe9c718` (`powershell`, `cmd`, `tasklist`, `attrib`, `wevtutil`, and the elevated PowerShell `Start-Process` starts)
 - Where: [run-as-admin.ts:202](/packages/workspace/src/lib/permissions/run-as-admin.ts#L202), [resolve-win32.ts:57](/apps/studio/src/electron-main/lib/file-open-target/resolve-win32.ts#L57), [windows-drives.ts:136](/apps/studio/src/electron-main/lib/windows-drives.ts#L136), [output-folder-icon-windows.ts:53](/apps/studio/src/electron-main/lib/output-folder-icon-windows.ts#L53), [system-sidebar.ts:37](/apps/studio/src/electron-main/lib/system-sidebar.ts#L37), [update-signature.ts:278](/apps/studio/src/electron-main/lib/update-signature.ts#L278), [app-in-front.ts:70](/apps/studio/src/electron-main/windows/app-in-front.ts#L70), [update-bridge.ts:472](/apps/studio/src/electron-main/lib/update-bridge.ts#L472)
 - What: Windows looks a bare name up in the working folder and then the PATH, where a folder a chat may write can come first.
 
 ### AD. `window sites` is still offered while chats may not see history
 
-- Status: open
+- Status: fixed `a6b1106b6`
 - Where: [capabilities/window.ts:1750](/packages/workspace/src/lib/capabilities/window.ts#L1750)
 
 ### AE. A draft written while its file cannot be read loses another build's front matter

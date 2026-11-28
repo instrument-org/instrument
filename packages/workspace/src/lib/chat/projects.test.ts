@@ -432,17 +432,32 @@ describe("project folders", () => {
       },
     ]);
     // Each goes by an id drawn from its folder's name, the same on every
-    // read and every computer, and a running workspace writes it down.
+    // read and every computer.
     expect(listed.map((project) => project.id)).toEqual([
       folderProjectId("Garden"),
       folderProjectId("Repo"),
     ]);
     expect(await storeOf(folderProjectId("Garden"))).toBeDefined();
-    expect(idFileOf("Garden")).toBe(folderProjectId("Garden"));
     expect((await listProjects()).map((project) => project.id)).toEqual(
       listed.map((project) => project.id),
     );
     expect(tree(projectsDir())).toEqual(["Repo/AGENTS.md", "notes.txt"]);
+  });
+
+  it("writes a new folder's id down only once its own could no longer be syncing in", async () => {
+    await fs.mkdir(path.join(projectsDir(), "Garden"), { recursive: true });
+
+    await listProjects();
+    const whileNew = idFileOf("Garden");
+    vi.useFakeTimers({ now: Date.now() + 10 * 60 * 1000, toFake: ["Date"] });
+    try {
+      await listProjects();
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(whileNew).toBeUndefined();
+    expect(idFileOf("Garden")).toBe(folderProjectId("Garden"));
   });
 
   it("keeps a folder's id through a rename once something names it", async () => {

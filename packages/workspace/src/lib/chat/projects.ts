@@ -195,10 +195,11 @@ export async function saveProjectId(
   projectId: string,
   rootDir?: string,
 ): Promise<boolean> {
-  const projects = await readProjects(
+  const projects = await readProjectsKeeping(
     rootDir === undefined
-      ? undefined
+      ? runningPlace()
       : { device: getWorkspaceConfig().deviceId, rootDir },
+    projectId,
   );
   return projects.some((entry) => entry.id === projectId);
 }
@@ -224,24 +225,38 @@ interface FolderRead {
  * already has (a copy made in a file manager). A read with something to
  * write down reads again alone, since a change under way can look like that.
  */
-export async function readProjects(
+export function readProjects(
   place: WorkspacePlace = runningPlace(),
 ): Promise<Project[]> {
+  return readProjectsKeeping(place);
+}
+
+/**
+ * {@link readProjects}, writing down the id of the project `keeping` names
+ * even in a folder too new for {@link settled} to, since something here now
+ * ties to it.
+ */
+async function readProjectsKeeping(
+  place: WorkspacePlace,
+  keeping?: string,
+): Promise<Project[]> {
   const store = await projectsStore(place);
-  const read = settled(store, await readFolders(place.rootDir));
+  const read = settled(store, await readFolders(place.rootDir), keeping);
   return read.idFiles.length === 0 && read.records.length === 0
     ? read.projects
-    : store.exclusive(() => readProjectsAlone(store, place.rootDir));
+    : store.exclusive(() => readProjectsAlone(store, place.rootDir, keeping));
 }
 
 /** `readProjects` inside a change, which is alone already. */
 async function readProjectsAlone(
   store: SyncedStore,
   rootDir: string,
+  keeping?: string,
 ): Promise<Project[]> {
   const { idFiles, projects, records } = settled(
     store,
     await readFolders(rootDir),
+    keeping,
   );
   await writeProjectRecords(store, records);
   for (const { folder, id } of idFiles) {
@@ -283,11 +298,16 @@ async function readFolders(
  * folder whose `AGENTS.md` cannot be read keeps its id from the others and
  * is left out of the list until it can, and one whose `.instrument-project`
  * cannot be read claims and writes nothing until it can, since the id it
- * names is the only tie to its chats.
+ * names is the only tie to its chats. A folder that names no id and is
+ * newer than {@link ID_FILE_WAIT_MS} takes the one its name gives without
+ * writing it down: it may be another computer's project synced in ahead of
+ * its `.instrument-project`, whose id the name does not give once renamed.
+ * The project `keeping` names is written down however new its folder.
  */
 function settled(
   store: SyncedStore,
   folders: readonly (FolderRead | undefined)[],
+  keeping?: string,
 ): {
   idFiles: { folder: string; id: string }[];
   projects: Project[];
@@ -317,7 +337,11 @@ function settled(
     if (folder.unreadable) {
       continue;
     }
-    if (folder.idFile !== id) {
+    const mayBeSyncing =
+      named === undefined &&
+      id !== keeping &&
+      Date.now() - folder.made.getTime() < ID_FILE_WAIT_MS;
+    if (folder.idFile !== id && !mayBeSyncing) {
       idFiles.push({ folder: folder.name, id });
     }
     const record = records.get(id);
@@ -348,6 +372,12 @@ function settled(
   }
   return { idFiles, projects: inListOrder(projects), records: toWrite };
 }
+
+/**
+ * How long a project folder that names no id goes without one written: time
+ * for a sync engine to bring the `.instrument-project` it was made with.
+ */
+const ID_FILE_WAIT_MS = 10 * 60 * 1000;
 
 /** The id drawn from a folder's name, or the next one past an id in use. */
 function unusedFolderId(name: string, taken: ReadonlySet<string>): string {

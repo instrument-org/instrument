@@ -12,6 +12,8 @@ export interface Chapter {
 export interface Take {
   chapters: Chapter[];
   duration: number;
+  /** The app window's own pixels: a video beside the take, its first frame at `start` (wall-clock ms). */
+  pixels?: { src: string; start: number };
   title: string;
   viewport: { h: number; w: number };
 }

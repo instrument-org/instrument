@@ -5,9 +5,9 @@ description: Record a walkthrough of a Studio feature from a script, then build 
 
 # Studio walkthroughs
 
-A take is Studio driven by a short script in a clean room, recorded as it runs: the page itself, through the internal repo's recorder (rrweb), and beside it a track of what the script meant (chapters, captions, presses, keys, camera pushes, stills). Everything a person watches is built from that one recording afterwards, so the chapters, the snippets, the stills and the clips always agree, and a take is re-cut without re-recording.
+A take is Studio driven by a short script in a clean room, recorded as it runs: the page itself, through the internal repo's recorder (rrweb), the window's own pixels as it paints them, and beside them a track of what the script meant (chapters, captions, presses, keys, camera pushes, stills). Everything a person watches is built from that one recording afterwards, so the chapters, the snippets, the stills and the clips always agree, and a take is re-cut without re-recording.
 
-The replay is the app's own DOM, styles and fonts, so it matches a live screenshot to within half a percent of pixels and stays sharp when the camera pushes in. [DESIGN.md](DESIGN.md) is how it is built and why, with its sources; read it before changing the skill.
+The replay is the app's own DOM, styles and fonts, so it matches a live screenshot to within half a percent of pixels and stays sharp when the camera pushes in. The in-app browser's pages are not in the DOM, so the window's pixels, web pages included, play over the replay inside the camera and under the hand and keys, in every video and in the chapters and snippets pages. [DESIGN.md](DESIGN.md) is how it is built and why, with its sources; read it before changing the skill.
 
 ```bash
 W=$(git rev-parse --show-toplevel)/.agents/skills/studio-walkthrough/scripts/walkthrough.mjs
@@ -123,19 +123,19 @@ A clip has to say where in the app it is without its title, and a frame cropped 
 | `snippets.html` | a loop per chapter, the easiest to take in |
 | `chapters.html` | the whole take, chapters beside it; Open this moment opens any frame as its own page |
 | `stills.html` | each still as a picture, the live page and an outline; Copy for agent hands over all three |
-| `video/` | `render` writes MP4s here at 1080p, `--gif` a GIF beside each, `--plain` one without captions or camera, `--clip` a feature clip |
-| `share/` | `share` writes a page as one file (data and posters inside) for the instrument-page skill's `share.mjs`; the host takes up to 8 MB, about four minutes of Studio |
-| `recording/` | the raw take: `events.jsonl`, `script.jsonl`, the stills as taken |
+| `video/` | `render` writes MP4s here at 1080p, `--gif` a GIF beside each, `--plain` one without captions or camera, `--clip` a feature clip; `--no-pixels` leaves out the window's pixels, for the replay alone |
+| `share/` | `share` writes a page as one file (data and posters inside) for the instrument-page skill's `share.mjs`; the host takes up to 8 MB, about four minutes of Studio. It leaves the pixels out, so its web pages show blank |
+| `recording/` | the raw take: `events.jsonl`, `script.jsonl`, the stills as taken, and `pixels.mp4` with `pixels.json`, the window's pixels and each frame's time (`WALKTHROUGH_PIXELS=0` on `take` keeps none) |
 
 ## Video in the page
 
 A page's `<video>` replays from its file's URL: `render` sets each video to its frame's time and waits for the seek before capturing, and the live pages let it play, so it moves as smoothly as the app's. A file only Studio can reach (an `instrument-local://` one in Files) does not load in a replay.
 
-For any clip of a page with a moving video in it, take one here. Studio's own screenshots (`studio-drive shot`, CDP `Page.captureScreenshot`) never draw a new video frame, and a video laid over screenshots afterwards, or a capture taken before a seek lands, stutters against the page.
+For any clip of a page with a moving video in it, take one here, and render it with `--no-pixels` if the window's pixels, which cover the replay, show the video less smoothly. Studio's own screenshots (`studio-drive shot`, CDP `Page.captureScreenshot`) never draw a new video frame, and a video laid over screenshots afterwards, or a capture taken before a seek lands, stutters against the page.
 
 ## Limits
 
-- The in-app browser's pages run in their own processes, so a DOM recording does not see them.
+- The in-app browser's pages run in their own processes, so the DOM recording, the stills and Open this moment show them blank; only the window's pixels show them. Those show whatever the clean room's browser profile shows, and presentation mode cannot reach inside a page, so a walk uses web pages that are not signed in to anything.
 - A movie renders slower than real time while CSS animations run on the clock, so entrances look quicker in an MP4 than in the app.
 - Hover follows the recorder's 50 ms pointer samples, a little behind the drawn hand.
 - Agent answers differ every take; captions describe what happens, never quote it.

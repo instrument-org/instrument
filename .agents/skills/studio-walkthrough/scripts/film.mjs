@@ -6,6 +6,7 @@
 import path from "node:path";
 
 import { launch, sizedPage } from "./browser.mjs";
+import { pixelLayer } from "./pixels.mjs";
 
 export async function filmTake(take, { every = 2000, out } = {}) {
   const sheet = out ?? path.join(take, "contact-sheet.png");
@@ -20,14 +21,17 @@ export async function filmTake(take, { every = 2000, out } = {}) {
   });
   await page.waitForFunction(() => window.renderInfo);
   const { length } = await page.evaluate(() => window.renderInfo);
+  const pixels = await pixelLayer(page, take);
   const frames = [];
   for (let p = 0; p <= length; p += every) {
     await page.evaluate((at) => window.renderAt(at), p);
+    await pixels?.show();
     await page.waitForTimeout(200);
     const jpeg = await capture(null, { format: "jpeg", quality: 82 });
     frames.push({ p, src: `data:image/jpeg;base64,${jpeg.toString("base64")}` });
   }
   await page.close();
+  pixels?.done();
 
   const columns = 5;
   const sheetPage = await browser.newPage({

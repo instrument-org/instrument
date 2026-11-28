@@ -35,6 +35,22 @@ One engine ([player/engine.js](player/engine.js)) serves every cut at a differen
 - Native menu shortcuts (⌘I and the like) are handled by the menu bar, which CDP cannot reach: walk through the context menu instead.
 - Files loads pictures over `instrument-local://`, which a shared page cannot fetch, so `in-page.js` keeps each one as data while recording. A `<video>` is recorded as its element (its address and where it is in its time), and the replay plays the file from that address. The in-app browser's pages, which run in their own processes, are not in a DOM recording at all.
 
+## The window's pixels
+
+The DOM recording left every in-app web page blank: 10 of the first feature-clip round's 66 clips. The browser's pages are `<webview>` guests inside the app window, so CDP's `Page.startScreencast` on the app page sends them along with everything else, a frame each time the compositor paints, at the window's 2x. It runs with the instance off screen and unfocused, as `studio-drive` boots it, so a take still takes nobody's screen. A probe on one bookmark take settled it:
+
+| | DOM replay | Window pixels |
+|---|---|---|
+| The web page | blank | shown |
+| Frames | drawn at each rendered moment | 120 in 2 s of a spinning element (p95 18.3 ms apart), 102 in 2 s of a scrolled page (p95 50 ms), none while idle |
+| Sharpness at 448 px (Laplacian variance) | 1531 | 2099 |
+| Against the presses and keys | the reference | within 2 frames at 30 fps |
+| Take time with boot | 31 s | 30 s |
+
+So the pixels are a layer, not a second method: [scripts/pixels.mjs](scripts/pixels.mjs) keeps them as `pixels.mp4` with each frame's wall-clock time in `pixels.json` (the clock rrweb's events use), and the replay stays under them for everything else. They lie inside the camera, so pushes and warps carry over, and under the drawn hand, press rings and keys. Presentation mode is applied in the live app, so the pixels show the stand-in account and hidden folders too. A render takes the frames out of the video one picture each and shows the last one painted by each moment, frame-exact; the chapters and snippets pages play the video beside the replay and seek it only when it drifts a quarter second, at the rate the replay's clock moves (a warp plays it at 3x). Stills and Open this moment are the DOM's, and a shared page leaves the video out for the host's 8 MB.
+
+The raw frames are JPEGs of tens of KB to a few hundred KB each, 65 to 91 MB for 4 to 6 s of a page loading and a card opening, so they go to a temporary folder and only the encoded video, 1.4 to 2 MB for the same takes, lands beside the recording, which a synced folder carries to every computer.
+
 ## Building
 
 [scripts/build.mjs](scripts/build.mjs) turns `recording/` into a take's pages:
@@ -43,6 +59,7 @@ One engine ([player/engine.js](player/engine.js)) serves every cut at a differen
 - **Fonts** are inlined from the faces the page actually loaded (the resource timing buffer fills up during a take, so it cannot list them), and any font source left pointing at the development server is dropped.
 - **This machine** is scrubbed from every file: the checkout and home paths, the home folder's name, drive names, the clean room's folder and the account photo.
 - **Test ids** are removed. Content blockers hide elements by them: 1Blocker on iOS hides anything whose `data-testid` starts with "app", and Studio's whole page sits in `data-testid="app-page"`, so clips played as an empty frame with only the cursor moving. The blocker's stylesheet is user-origin `!important`, which no page CSS outranks, so the only fix is not to match. A rule like this cannot be seen from a desktop, so it was found on the phone, by taking away one attribute, class, sibling or child of the hidden element at a time until it showed.
+- **Custom elements** the replay cannot define keep their place as plain divs. The replay defines one for every node recorded as custom, and the browser's `<webview>` has no dash in its name, so defining it threw and a take whose first snapshot held a web page replayed black.
 - **Waits** for an agent's answer play at 3x, from 2.2 s after Enter until 1.6 s before the next still, where that gap runs over 6 s.
 - Each chapter's poster is a still taken in it, and each still gets an outline from its accessibility snapshot, the few hundred words an agent needs instead of the whole page.
 
@@ -74,6 +91,7 @@ A feature clip (`recordClip` in [scripts/act.mjs](scripts/act.mjs)) opens on the
 | `scripts/in-page.js` | runs in Studio: finding targets, presentation, stills, picture capture |
 | `scripts/build.mjs` | recording to take: pictures, fonts, scrubbing, test ids, chapters, warps, pages |
 | `scripts/film.mjs`, `scripts/render.mjs`, `scripts/browser.mjs` | contact sheet, MP4 and GIF, the headless browser they share |
+| `scripts/pixels.mjs` | the window's pixels: encoding a take's frames, taking them out again, the layer a render shows |
 | `player/` | the engine and the chapters, snippets and render pages, bundled into `vendor/player.js` and `vendor/player.css` |
 | `player/capture-entry.ts` | the recorder's capture, wired to the CDP binding, bundled into `vendor/capture.js` |
 | `vendor/build.mjs` | builds the bundles from a checkout of the internal repo |

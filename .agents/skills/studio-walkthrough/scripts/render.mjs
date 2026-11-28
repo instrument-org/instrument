@@ -8,6 +8,10 @@
 // around it, the camera on, no captions, keys large across the middle, cut
 // to 3:2 at 1200x800, with a poster from its last frame. It is checked as it
 // is written (check.mjs), and the check's FAIL lines come back with it.
+//
+// A take that kept the app window's own pixels (pixels.mjs) shows them over
+// the replay, inside the camera and under the hand and keys, so the in-app
+// browser's pages show; `pixels: false` renders the replay alone.
 
 import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -15,10 +19,11 @@ import path from "node:path";
 
 import { launch, sizedPage } from "./browser.mjs";
 import { checkClip } from "./check.mjs";
+import { pixelLayer } from "./pixels.mjs";
 
 export async function renderClip(
   take,
-  { chapter, clip = false, fps = 30, gif = false, out, plain = false } = {},
+  { chapter, clip = false, fps = 30, gif = false, out, pixels = true, plain = false } = {},
 ) {
   const name = chapter ? `chapter-${chapter}` : "walkthrough";
   const suffix = clip ? "-clip" : plain ? "-plain" : "";
@@ -43,6 +48,8 @@ export async function renderClip(
   await page.waitForFunction(() => window.renderInfo);
   await page.waitForTimeout(500);
   const { actions, appZoom, length } = await page.evaluate(() => window.renderInfo);
+  // The take's own pixels of the app window, inside the camera, under the hand and keys.
+  const pixelsShown = pixels ? await pixelLayer(page, take) : null;
   // A beat held on the first and last frames, as a film starts and ends. A
   // clip starts on its action and holds its result a little less.
   const lead = clip ? 0 : 400;
@@ -74,6 +81,7 @@ export async function renderClip(
       await window.renderAt(at);
       return window.engine.camera().s;
     }, p));
+    await pixelsShown?.show();
     const jpeg = await capture(null, { format: "jpeg", quality: 92 });
     if (exited !== null) throw new Error(`ffmpeg exited (${exited}) at frame ${i}`);
     if (!ffmpeg.stdin.write(jpeg)) {
@@ -83,6 +91,7 @@ export async function renderClip(
   ffmpeg.stdin.end();
   if (exited === null) await new Promise((r) => ffmpeg.on("close", r));
   await browser.close();
+  pixelsShown?.done();
 
   const result = { file, frames, renderSeconds: Math.round((Date.now() - started) / 1000), seconds: frames / fps };
   if (clip) {

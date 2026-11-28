@@ -6,7 +6,7 @@
 //   node walkthrough.mjs take <name.walk.mjs> --seed <name> --out <take dir>
 //   node walkthrough.mjs build <take dir>                  pages from a recording
 //   node walkthrough.mjs film <take dir>                   the contact sheet
-//   node walkthrough.mjs render <take dir> [--chapter <n>] [--plain | --clip] [--gif]
+//   node walkthrough.mjs render <take dir> [--chapter <n>] [--plain | --clip] [--no-pixels] [--gif]
 //   node walkthrough.mjs check <clip.mp4>                  a feature clip judged at What's new's size
 //   node walkthrough.mjs share <take dir> [--page snippets|chapters] [--title <t> --lede <line>]
 //
@@ -249,8 +249,9 @@ function share(takeDir, page, { lede, title } = {}) {
   const dir = path.resolve(takeDir);
   const data = readFileSync(path.join(dir, "data.js"), "utf8");
   const parsed = JSON.parse(readFileSync(path.join(dir, "walkthrough.json"), "utf8"));
-  // The posters go inside too, smaller: the page has no folder beside it.
-  let inline = data;
+  // The posters go inside too, smaller: the page has no folder beside it. The
+  // pixel video stays out, which would take most of the host's 8 MB.
+  let inline = data.replace(/,"pixels":\{"src":"[^"]*","start":\d+\}/, "");
   for (const chapter of parsed.chapters) {
     if (!chapter.still) continue;
     const jpeg = execFileSync(
@@ -301,6 +302,7 @@ const commands = {
       chapter: flag("--chapter") ? Number(flag("--chapter")) : undefined,
       clip: args.includes("--clip"),
       gif: args.includes("--gif"),
+      pixels: !args.includes("--no-pixels"),
       plain: args.includes("--plain"),
     }),
   seed: () => seed(path.resolve(subject)),

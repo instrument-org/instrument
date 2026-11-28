@@ -231,6 +231,53 @@ function liveMedia(replayer) {
 }
 
 /**
+ * The app window's own pixels (`data.pixels`, a video of the frames the window
+ * painted, web pages included, the first at `start` on the recording's wall
+ * clock) over the replay, for a live player. The video plays on its own at
+ * the rate the replay's clock moves, warps included, and is sought only once
+ * it drifts, as a page's own videos are. A render lays the frames itself.
+ */
+function pixelsVideo(root, data, w, h) {
+  const t0 = data.events[0].timestamp;
+  const video = document.createElement("video");
+  video.className = "wt-pixels";
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "auto";
+  video.hidden = true;
+  video.style.cssText = `position:absolute;left:0;top:0;width:${w}px;height:${h}px;z-index:1;pointer-events:none`;
+  video.addEventListener("loadeddata", () => (video.hidden = false), { once: true });
+  // Away from its take, as a page shared alone, the replay shows by itself.
+  video.addEventListener("error", () => video.remove(), { once: true });
+  video.src = data.pixels.src;
+  // Its own stacking context, so the hand and the press rings stay above.
+  root.style.isolation = "isolate";
+  root.append(video);
+  let last = null;
+  let rate = 1;
+  let idle;
+  return (r) => {
+    const t = Math.max(0, (t0 + r - data.pixels.start) / 1000);
+    const now = performance.now();
+    const moving = last && now > last.now && t > last.t;
+    if (moving) rate = rate * 0.8 + ((t - last.t) / ((now - last.now) / 1000)) * 0.2;
+    last = { now, t };
+    const off = Math.abs(video.currentTime - t);
+    clearTimeout(idle);
+    if (moving) {
+      const want = Math.min(4, Math.max(0.25, rate));
+      if (Math.abs(video.playbackRate - want) > 0.1) video.playbackRate = want;
+      if (off > 0.25) video.currentTime = t;
+      if (video.paused) video.play().catch(() => {});
+      idle = setTimeout(() => video.pause(), 250);
+    } else {
+      if (!video.paused) video.pause();
+      if (off > 0.04) video.currentTime = t;
+    }
+  };
+}
+
+/**
  * @param {HTMLElement} root
  * @param {import("./types").Take & Record<string, any>} data
  * @param {import("./types").EngineOptions} [options]
@@ -339,9 +386,11 @@ export function createEngine(root, data, options = {}) {
   // frame, so its videos would never settle and show one stale picture. Live,
   // a video plays on its own and is sought only once it drifts.
   const media = mode === "render" ? null : liveMedia(replayer);
+  const pixels = mode !== "render" && data.pixels ? pixelsVideo(replayRoot, data, w, h) : null;
   let shown = -1;
   const focusSheets = new WeakSet();
   const seek = (r) => {
+    pixels?.(r);
     const at = Math.round(r);
     if (at === shown) return;
     replayer.pause(Math.max(1, at));

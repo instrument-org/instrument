@@ -1,5 +1,5 @@
 // Builds a recorded take into pages. Reads <take>/recording/ (events.jsonl,
-// script.jsonl, assets.json, stills/) and writes beside it:
+// script.jsonl, assets.json, stills/, pixels.mp4) and writes beside it:
 //
 //   chapters.html   the whole take in one player, chapters in a rail
 //   snippets.html   a loop per chapter
@@ -24,6 +24,7 @@ import path, { basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { launch, REPO_ROOT } from "./browser.mjs";
+import { readPixels } from "./pixels.mjs";
 
 const VENDOR = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -71,7 +72,8 @@ export const scrub = (text) => {
  * Test ids are for tests and no style reads them, but content blockers hide
  * elements by them (one hides any whose id starts with "app", which takes
  * Studio's whole page), so a shared take carries none. Clears them from every
- * serialized node and attribute change in a recording, in place.
+ * serialized node and attribute change in a recording, in place, and keeps
+ * each custom element the replay could not define as a plain div.
  */
 const withoutTestIds = (value) => {
   if (Array.isArray(value)) {
@@ -80,6 +82,15 @@ const withoutTestIds = (value) => {
     const { attributes } = value;
     if (attributes && typeof attributes === "object" && !Array.isArray(attributes)) {
       delete attributes["data-testid"];
+    }
+    // The replay defines a custom element for every node marked custom, and
+    // the in-app browser's <webview>, which keeps its page in a shadow root,
+    // has no dash in its name, so defining it throws and the whole replay
+    // shows black. Its page is never in the DOM recording anyway (the pixel
+    // layer shows it), so the element replays as a plain div.
+    if (value.isCustom && typeof value.tagName === "string" && !value.tagName.includes("-")) {
+      value.tagName = "div";
+      delete value.isCustom;
     }
     for (const inner of Object.values(value)) withoutTestIds(inner);
   }
@@ -217,7 +228,9 @@ export async function buildTake(take) {
     viewport: begin?.viewport ?? { h: 840, w: 1240 },
     warps,
   };
-  const dataJs = `window.WALKTHROUGH = ${JSON.stringify({ ...data, script })};\nwindow.WALKTHROUGH.pictures = ${JSON.stringify(pictures)};\nwindow.WALKTHROUGH.events = ${eventsJson};\n`;
+  // The app window's own pixels, played over the replay by the live pages.
+  const pixels = readPixels(take);
+  const dataJs = `window.WALKTHROUGH = ${JSON.stringify({ ...data, script, ...(pixels && { pixels: { src: "recording/pixels.mp4", start: pixels.start } }) })};\nwindow.WALKTHROUGH.pictures = ${JSON.stringify(pictures)};\nwindow.WALKTHROUGH.events = ${eventsJson};\n`;
   writeFileSync(path.join(take, "data.js"), dataJs);
   writeFileSync(
     path.join(take, "walkthrough.json"),

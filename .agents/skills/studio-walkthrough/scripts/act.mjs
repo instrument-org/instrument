@@ -9,6 +9,8 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { encodePixels, framesDir } from "./pixels.mjs";
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CAPTURE = readFileSync(path.join(HERE, "../vendor/capture.js"), "utf8");
 const IN_PAGE = readFileSync(path.join(HERE, "in-page.js"), "utf8");
@@ -27,10 +29,20 @@ function jitter(seed) {
   };
 }
 
-export async function createAct(app, { out, viewport }) {
+/**
+ * `pixels`: keep the app window's own pixels beside the recording (on unless
+ * WALKTHROUGH_PIXELS=0), which shows the in-app browser's pages the DOM
+ * recording cannot see.
+ */
+export async function createAct(app, { out, viewport, pixels = process.env.WALKTHROUGH_PIXELS !== "0" }) {
   const { cdp } = app;
   mkdirSync(path.join(out, "stills"), { recursive: true });
   const events = [];
+  // The app window's own pixels, web pages included, a frame each time it
+  // paints, on the page's wall clock (`ts`, ms) like the capture's events.
+  const frames = [];
+  let rawFrames = null;
+  let pixelsKept = null;
   const script = [];
   const status = [];
   let pos = { x: viewport.w * 0.62, y: viewport.h * 0.55 };
@@ -66,6 +78,14 @@ export async function createAct(app, { out, viewport }) {
     const payload = JSON.parse(message.params.payload);
     if (payload.kind === "batch") events.push(...payload.events);
     else status.push({ t: Date.now(), ...payload });
+  });
+  cdp.on((message) => {
+    if (message.method !== "Page.screencastFrame" || !rawFrames) return;
+    const { data, metadata, sessionId } = message.params;
+    const file = `${String(frames.length).padStart(5, "0")}.jpg`;
+    frames.push({ file, ts: metadata.timestamp * 1000, at: Date.now() });
+    writeFileSync(path.join(rawFrames, file), Buffer.from(data, "base64"));
+    cdp.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
   });
 
   const mouse = (type, x, y, extra = {}) =>
@@ -118,6 +138,10 @@ export async function createAct(app, { out, viewport }) {
     },
 
     async begin(meta) {
+      if (pixels) {
+        rawFrames = framesDir();
+        await cdp.send("Page.startScreencast", { format: "jpeg", quality: 92 });
+      }
       await evaluate("window.__walkthrough.start()");
       recording = true;
       startedAt = Date.now();
@@ -136,6 +160,13 @@ export async function createAct(app, { out, viewport }) {
         await sleep(50);
       }
       recording = false;
+      if (rawFrames) {
+        await cdp.send("Page.stopScreencast");
+        await sleep(150);
+        const dir = rawFrames;
+        rawFrames = null;
+        pixelsKept = await encodePixels({ dir, frames, out });
+      }
       writeFileSync(
         path.join(out, "events.jsonl"),
         events.map((e) => JSON.stringify(e)).join("\n") + "\n",
@@ -144,7 +175,7 @@ export async function createAct(app, { out, viewport }) {
         path.join(out, "script.jsonl"),
         script.map((e) => JSON.stringify(e)).join("\n") + "\n",
       );
-      return { assets, events: events.length, script: script.length, ms: Date.now() - startedAt, status };
+      return { assets, events: events.length, pixels: pixelsKept, script: script.length, ms: Date.now() - startedAt, status };
     },
 
     async chapter(title, caption) {

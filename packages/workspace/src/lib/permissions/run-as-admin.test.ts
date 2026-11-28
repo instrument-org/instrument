@@ -172,7 +172,11 @@ describe("windows scripts", () => {
     async () => {
       const folder = await fs.mkdtemp(path.join(os.tmpdir(), "admin-test-"));
       const outFile = path.join(folder, "out.txt");
-      const command = "Write-Output 'it''s' \"$(1+1)\"; cmd /c exit 4";
+      // cmd by its full path: a bare name sends Windows PowerShell looking
+      // through every module on PSModulePath first, which on a CI runner's
+      // image outlasts the timeout.
+      const command =
+        "Write-Output 'it''s' \"$(1+1)\"; & $env:ComSpec /c exit 4";
       const encoded = Buffer.from(
         windowsElevatedScript(command, outFile),
         "utf16le",

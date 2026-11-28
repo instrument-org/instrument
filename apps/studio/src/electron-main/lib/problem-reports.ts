@@ -108,8 +108,8 @@ function redactPending(
   const redactor = reportRedactor({ people });
   return problems.map((problem) => ({
     ...problem,
-    details: redactor.text(problem.details),
-    title: redactor.text(problem.title),
+    details: redactor.log(problem.details),
+    title: redactor.log(problem.title),
     ...(problem.events && {
       events: problem.events.map((event) => redactEvent(redactor, event)),
     }),
@@ -315,7 +315,7 @@ export function describeProblem({
       ? ["Last log lines:", redactor.log(tail.join("\n"))].join("\n")
       : undefined;
   const compose = (events: readonly ExceptionEvent[]) =>
-    redactor.text(
+    redactor.log(
       [
         head,
         ...events.map((event, index) =>
@@ -411,7 +411,7 @@ function redactEvent(
   redactor: ReportRedactor,
   event: ExceptionEvent,
 ): ExceptionEvent {
-  return ExceptionEventSchema.parse(redactor.deep(event));
+  return ExceptionEventSchema.parse(redactor.deepLog(event));
 }
 
 // Room left in the service's cap for the note, the title, and the rest.

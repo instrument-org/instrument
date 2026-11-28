@@ -219,6 +219,26 @@ describe("createReportRedactor", () => {
     `);
   });
 
+  it("takes a deleted chat's id out of an error's events, keeping this chat's", () => {
+    const redactor = createReportRedactor({
+      chatId: "2026-11-02-fix-the-build",
+    });
+    expect(
+      redactor.deepLog({
+        message:
+          "ENOENT: chats/2026-10-21-plan-sams-birthday/state.json, from 2026-11-02-fix-the-build",
+        stack: ["at 2026-10-21-plan-sams-birthday"],
+      }),
+    ).toMatchInlineSnapshot(`
+      {
+        "message": "ENOENT: chats/[other chat]/state.json, from 2026-11-02-fix-the-build",
+        "stack": [
+          "at [other chat]",
+        ],
+      }
+    `);
+  });
+
   it("takes an email out whatever its case", () => {
     const redactor = createReportRedactor({
       people: [{ email: "Sam.Rivera@Example.com", name: "Sam Rivera" }],

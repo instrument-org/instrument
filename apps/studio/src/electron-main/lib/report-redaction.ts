@@ -219,20 +219,28 @@ export function createReportRedactor(known: ReportKnownValues) {
       ),
     );
 
-  const deep = (value: unknown): unknown => {
-    if (typeof value === "string") {
-      return text(value);
-    }
-    if (Array.isArray(value)) {
-      return value.map(deep);
-    }
-    if (isRecord(value)) {
-      return Object.fromEntries(
-        Object.entries(value).map(([key, item]) => [key, deep(item)]),
-      );
-    }
-    return value;
-  };
+  const everyString =
+    (redact: (value: string) => string) =>
+    (value: unknown): unknown => {
+      const walk = (item: unknown): unknown => {
+        if (typeof item === "string") {
+          return redact(item);
+        }
+        if (Array.isArray(item)) {
+          return item.map(walk);
+        }
+        if (isRecord(item)) {
+          return Object.fromEntries(
+            Object.entries(item).map(([key, inner]) => [key, walk(inner)]),
+          );
+        }
+        return item;
+      };
+      return walk(value);
+    };
+  const deep = everyString(text);
+  /** Every string in a value redacted as the log is: an error's events, which name chats the index may no longer know. */
+  const deepLog = everyString(log);
 
   /**
    * A record with the parts that tell the model about other things than this
@@ -400,7 +408,7 @@ export function createReportRedactor(known: ReportKnownValues) {
     }));
   };
 
-  return { chatFiles, deep, log, text };
+  return { chatFiles, deep, deepLog, log, text };
 }
 
 /** A field written as its kind and length: `[memory, 47 chars]`. */

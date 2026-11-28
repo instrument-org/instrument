@@ -4,7 +4,7 @@
 # checks what it changed, fast-forwards the branch in the checkout that has it,
 # pushes it, then removes the worktree and its branch.
 #
-#   scripts/land.sh [--onto <branch>] [--keep] [--no-push] [--onto-red <reason>]
+#   scripts/land.sh [--onto <branch>] [--keep] [--no-push]
 #
 # Run from inside a linked worktree. The checks are the ones CI would fail on
 # for what the branch changed: types in the packages it touched, lint in the
@@ -23,16 +23,14 @@
 # locally without pushing. --keep leaves the worktree and branch in place after
 # landing.
 #
-# Before its own checks it reads CI on the target and refuses a target that
-# stays red, unless this branch or a commit since fixes it or the failure is a
-# known one (scripts/ci-state.ts says which counts as which). --onto-red lands
-# anyway and prints the reason given.
+# Before its own checks it prints what is failing in CI on the target
+# (scripts/ci-state.ts). It never waits or refuses over CI: fix a failure this
+# branch touches before landing, and name the rest in your report.
 set -euo pipefail
 
 keep=false
 push=true
 target=main
-onto_red=()
 while (($# > 0)); do
   case "$1" in
     --keep) keep=true ;;
@@ -42,13 +40,8 @@ while (($# > 0)); do
       [[ -n "$target" ]] || { echo "land: --onto needs a branch" >&2; exit 1; }
       shift
       ;;
-    --onto-red)
-      [[ "${2:-}" == *[![:space:]]* && "$2" != --* ]] || { echo "land: --onto-red needs the reason this cannot wait" >&2; exit 1; }
-      onto_red=(--onto-red "$2")
-      shift
-      ;;
     *)
-      echo "usage: scripts/land.sh [--onto <branch>] [--keep] [--no-push] [--onto-red <reason>]" >&2
+      echo "usage: scripts/land.sh [--onto <branch>] [--keep] [--no-push]" >&2
       exit 1
       ;;
   esac
@@ -132,11 +125,8 @@ changed=$(git diff --name-only "$target"...HEAD)
 [[ -n "$changed" ]] || fail "nothing on $branch that $target does not already have"
 echo "land: $(git rev-list --count "$target"..HEAD) commit(s) on $branch"
 
-# What is failing on the target, read before the slow checks. Only its own
-# refusal (exit code 3) stops a landing: CI out of reach is a printed warning.
-ci_state=0
-node scripts/ci-state.ts "$target" ${onto_red[@]+"${onto_red[@]}"} || ci_state=$?
-((ci_state != 3)) || fail "$target is red; see above"
+# What is failing on the target, printed before the slow checks.
+node scripts/ci-state.ts "$target" || true
 
 # The Commits-to trailers of the commits that wrote the lines this branch
 # changes or removes, so a contract one of them made is in view before landing

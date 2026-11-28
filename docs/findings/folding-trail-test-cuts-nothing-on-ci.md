@@ -1,6 +1,6 @@
 # The folder trail's test cuts nothing on CI
 
-**Status:** open. Listed in `scripts/ci-known-failures.json` until 2026-12-11 so landings onto the branch go through; take the entry out once the cause is fixed.
+**Status:** open.
 
 `folding-trail.browser.test.tsx` fails on CI's Linux Chromium in some runs and passes in others, with no change to `FoldingTrail` or its test in between: on `tab-groups-prototype` it failed on 18e534f7c, passed on 1d1ac1f10, and failed on c7b6e0659 and ff25f926d. All three tests fail together, each on all three retries.
 

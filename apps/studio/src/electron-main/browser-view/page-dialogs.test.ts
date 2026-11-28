@@ -253,7 +253,7 @@ describe("a page's alert and confirm", () => {
       takePageDialogs(
         guest as unknown as WebContents,
         { targetId: tab } as BrowserEntry,
-        { dialogs, mayPageGoTo: () => true, personUsedAt: () => Date.now() },
+        { dialogs, personUsedAt: () => Date.now() },
       );
       const reply = vi.fn();
       guest.emit(
@@ -278,7 +278,7 @@ describe("a page's alert and confirm", () => {
     takePageDialogs(
       guest as unknown as WebContents,
       { targetId: tab } as BrowserEntry,
-      { dialogs, mayPageGoTo: () => true, personUsedAt: () => Date.now() },
+      { dialogs, personUsedAt: () => Date.now() },
     );
     const reply = vi.fn();
     guest.emit(

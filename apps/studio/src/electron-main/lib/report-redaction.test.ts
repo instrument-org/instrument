@@ -271,17 +271,17 @@ describe("createReportRedactor", () => {
   it("takes an address's first part out alone, unless it names a role or is short", () => {
     const redactor = createReportRedactor({
       people: [
-        { email: "tinychef@example.com" },
+        { email: "windowsuser@example.com" },
         { email: "support@example.com" },
         { email: "sam@example.com" },
       ],
     });
     expect(
       redactor.text(
-        "notes=C:\\Users\\tinychef\\Documents; ask support; sam said hi; tinychefs",
+        "notes=C:\\Users\\windowsuser\\Documents; ask support; sam said hi; windowsusers",
       ),
     ).toMatchInlineSnapshot(
-      `"notes=C:\\Users\\[email name]\\Documents; ask support; sam said hi; tinychefs"`,
+      `"notes=C:\\Users\\[email name]\\Documents; ask support; sam said hi; windowsusers"`,
     );
   });
 

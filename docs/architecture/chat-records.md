@@ -30,7 +30,8 @@ Who wrote a record is its device: a log's header names it, and so does every set
 Devices sharing a workspace run whatever build each has, so a change to anything in these files has to read safely on a build older and a build newer than the one making it.
 
 - An additive change never bumps the header's `format` or `workspace.json`'s `formatVersion`. Either bump makes every older build refuse what it covers: a session's logs, or the whole workspace.
-- New meaning goes in a new record type, a new field, or a new setting field, which an older build skips or strips. A new value is never added to an existing enum (`stop.by`, a setting's `field`), since an older build drops the whole line rather than the value.
+- New meaning goes in a new record type, a new field, or a new setting field, which an older build skips or strips. Outside a data part, a new value is never added to an existing enum (`stop.by`, an ask's `on`, a setting's `field`, a synced store's values), since an older build drops the whole line rather than the value; in a synced store it then shows the value before, and a write it makes to that key undoes the change it never saw.
+- A data part's payload may take a new enum value: an older build reads a payload its schema refuses as `data-unknown` (`coerceDataPart`), as it does a part type it does not know.
 - A reader skips what it does not know (a record type, a setting field, a part type, which reads as `data-unknown`) and never fails on it.
 - A file a device rewrites whole carries forward the fields it does not know (`json-record-file.ts`).
 

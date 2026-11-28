@@ -23,7 +23,7 @@ Rules whose violation loses data:
 
 - In a chat's records and in the synced stores, a device appends only to the files that carry its own id, and rewrites whole only its own state file. A chat is written only through `ChatWrites`; the workspace package reaches a synced store only through `heldStore`.
 - JSON the workspace package rewrites whole goes through `json-record-file.ts`, which keeps the fields it does not know and refuses a file it cannot read rather than writing over it.
-- Builds older and newer than this one read the same files: add a record type or a field, never a value to an existing enum ([changing the format](docs/architecture/chat-records.md#changing-the-format)).
+- Builds older and newer than this one read the same files ([changing the format](docs/architecture/chat-records.md#changing-the-format)). A new value inside a data part is fine: an older build reads the part as `data-unknown`, as it does a new part type. Anywhere else (a record's own fields, an ask, a setting, a synced store value) an older build skips the whole line, and a synced key it then writes undoes the change it never saw, so add a field there instead.
 - What names something on this computer (a granted folder, an app grant) is kept only in its machine folder; a `folders:` key in an `AGENTS.md` opens nothing.
 - Main is the one writer of drafts while the app runs: windows send ops, the agent only reads them, and a file taken out of a draft goes to the Trash.
 

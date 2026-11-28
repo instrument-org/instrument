@@ -164,7 +164,7 @@ describe("a window's ops", () => {
   it("take a thrown-away draft away, with what was pasted into it moved to the Trash", async () => {
     const { apply, store } = await open();
     apply({ draft: draft("a"), type: "create" });
-    const pasted = store.stage({
+    const pasted = await store.stage({
       content: Buffer.from("png").toString("base64"),
       draftId: "a",
       itemId: "i",
@@ -258,7 +258,7 @@ describe("a window's ops", () => {
       }),
       type: "create",
     });
-    const pasted = store.stage({
+    const pasted = await store.stage({
       content: Buffer.from("png").toString("base64"),
       draftId: "a",
       itemId: "i",
@@ -725,13 +725,13 @@ describe("a paste into a draft", () => {
   it("lands in the draft's own folder, made for it, the second of one name numbered", async () => {
     const { apply, store } = await open();
     apply({ draft: draft("d1"), type: "create" });
-    const first = store.stage({
+    const first = await store.stage({
       content: PNG,
       draftId: "d1",
       itemId: "a",
       name: "image.png",
     });
-    const second = store.stage({
+    const second = await store.stage({
       content: PNG,
       draftId: "d1",
       itemId: "b",
@@ -756,8 +756,8 @@ describe("a paste into a draft", () => {
         itemId: "a",
         name: "notes.txt",
       });
-    const first = stage();
-    expect(stage().path).toBe(first.path);
+    const first = await stage();
+    expect((await stage()).path).toBe(first.path);
     expect(tree()).toEqual([
       ".instrument/drafts/2026-10-19/DRAFT.md",
       ".instrument/drafts/2026-10-19/notes.txt",
@@ -769,16 +769,21 @@ describe("a paste into a draft", () => {
     async (name) => {
       const { apply, store } = await open();
       apply({ draft: draft("d1"), type: "create" });
-      expect(() =>
+      await expect(
         store.stage({ content: PNG, draftId: "d1", itemId: "a", name }),
-      ).toThrow();
+      ).rejects.toThrow();
     },
   );
 
   it("goes with its draft even when the draft was thrown away before it said so", async () => {
     const { apply, store } = await open();
     apply({ draft: draft("d3", { words: "see this" }), type: "create" });
-    store.stage({ content: PNG, draftId: "d3", itemId: "a", name: "a.png" });
+    await store.stage({
+      content: PNG,
+      draftId: "d3",
+      itemId: "a",
+      name: "a.png",
+    });
 
     apply({ id: "d3", type: "remove" });
     await settle();
@@ -789,9 +794,39 @@ describe("a paste into a draft", () => {
 
   it("refuses a draft the store does not have", async () => {
     const { store } = await open();
-    expect(() =>
+    await expect(
       store.stage({ content: PNG, draftId: "gone", itemId: "a", name: "a" }),
-    ).toThrow();
+    ).rejects.toThrow();
+  });
+
+  it("numbers two pastes of one name made at once", async () => {
+    const { apply, store } = await open();
+    apply({ draft: draft("d4"), type: "create" });
+    const paste = (itemId: string) =>
+      store.stage({ content: PNG, draftId: "d4", itemId, name: "image.png" });
+    const both = await Promise.all([paste("a"), paste("b")]);
+
+    expect(both.map((each) => path.basename(each.path))).toEqual([
+      "image.png",
+      "image 2.png",
+    ]);
+  });
+
+  it("goes to the Trash when its draft is thrown away as it is written", async () => {
+    const { apply, store } = await open();
+    apply({ draft: draft("d5", { words: "see this" }), type: "create" });
+    const pasting = store.stage({
+      content: PNG,
+      draftId: "d5",
+      itemId: "a",
+      name: "a.png",
+    });
+    apply({ id: "d5", type: "remove" });
+
+    await expect(pasting).rejects.toThrow();
+    await settle();
+    expect(tree()).toEqual([]);
+    expect(trashed()).toContain("a.png");
   });
 });
 

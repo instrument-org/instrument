@@ -547,7 +547,7 @@ export function createDraftStore({
      * a relaunch as a path. The folder is made for it if the draft has none
      * yet, since a paste can arrive before any words have.
      */
-    stage(asked: unknown): { path: string; size: number } {
+    async stage(asked: unknown): Promise<{ path: string; size: number }> {
       const request = StageRequestSchema.parse(asked);
       const draft = drafts.find((entry) => entry.id === request.draftId);
       if (draft === undefined) {
@@ -561,13 +561,25 @@ export function createDraftStore({
       // The one already written, where it is still in the folder the draft is
       // in now: a draft's folder can be taken away and made again.
       const was = staged.get(item);
+      // Names already pasted into this folder, one still being written too.
+      const pasted = new Set(
+        [...staged.values()]
+          .filter((other) => path.dirname(other) === where.dir)
+          .map((other) => path.basename(other)),
+      );
       const file =
         was !== undefined && path.dirname(was) === where.dir
           ? was
-          : path.join(where.dir, freeNameIn(where.dir, request.name));
+          : path.join(where.dir, freeNameIn(where.dir, request.name, pasted));
       staged.set(item, file);
       const bytes = Buffer.from(request.content, "base64");
-      fs.writeFileSync(file, bytes);
+      await fs.promises.writeFile(file, bytes);
+      // The draft was thrown away while its bytes were written: they go to
+      // the Trash with the rest of what it had.
+      if (!staged.has(item)) {
+        await moveToTrash(file);
+        throw new Error(`Draft ${request.draftId} was thrown away`);
+      }
       return { path: file, size: bytes.byteLength };
     },
 

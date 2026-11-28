@@ -2,6 +2,8 @@
 import { applyBookmarkOpsAtom } from "@/client/bookmarks/store";
 import { BranchFromReply } from "@/client/components/branch-from-reply";
 import { FileActionsMenuItems } from "@/client/components/file-actions-menu";
+import { SkillsSection } from "@/client/components/settings/skills-section";
+import { PermissionAsksFoot } from "@/client/components/permission-asks";
 import { PromptInput } from "@/client/components/prompt-input";
 import {
   ContextMenu,
@@ -12,6 +14,8 @@ import {
   contextMenuComponents,
   dropdownMenuComponents,
 } from "@/client/components/ui/menu-components";
+import { AdBlockingExtensionRow } from "@/client/components/window/ad-blocking-extension-row";
+import { AdBlockingPanel } from "@/client/components/window/ad-blocking-panel";
 import {
   AppContextMenu,
   AppMenuButton,
@@ -38,7 +42,8 @@ import { PageZoomStepper } from "@/client/components/window/page-menu-items";
 import { PaneTabs } from "@/client/components/window/pane-tabs";
 import { PlaceMenu } from "@/client/components/window/place-menu";
 import { ProjectsSection } from "@/client/components/window/projects-section";
-import { AllChats } from "@/client/components/window/side-panel";
+import { chatListOptions } from "@/client/components/window/chat-list-query";
+import { AllChats, SidePanel } from "@/client/components/window/side-panel";
 import {
   HistoryButton,
   RecentlyClosedMenu,
@@ -51,7 +56,9 @@ import {
   TabMenuAtPoint,
   TabMenuItems,
 } from "@/client/components/window/tab-menu-items";
+import { type WindowTabs } from "@/client/components/window/tab-model";
 import { WindowSpaceMenu } from "@/client/components/window/window-space-menu";
+import { HeldTabsContext } from "@/client/components/window/window-tabs";
 import { type FileSystemItem } from "@/client/components/extend/file-system";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { APP_PROTOCOL } from "@instrument-org/shared";
@@ -60,9 +67,11 @@ import { renderWithProviders } from "@/tests/render";
 import {
   BrowserTargetIdSchema,
   ChatIdSchema,
+  DeviceIdSchema,
   StoreId,
 } from "@instrument-org/workspace/client";
 import { act, cleanup, fireEvent, screen } from "@testing-library/react";
+import { atom } from "jotai";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { type ComponentProps, type ReactElement, type ReactNode } from "react";
@@ -208,6 +217,13 @@ const APP = {
 } as ComponentProps<typeof AppMenuButton>["app"];
 
 rpc.answers["apps.live.catalog"] = [{ name: "<app>", slug: "app" }];
+rpc.answers["apps.live.list"] = {
+  apps: [{ ...APP, home: PAGE.url, type: "web" }],
+};
+rpc.answers["browser.live.adBlocking"] = {
+  listsUpdatedAt: null,
+  pages: [{ agentOff: false, blocked: [], site: "<site>", targetId: TARGET }],
+};
 rpc.answers["browser.live.downloads"] = [
   {
     exists: true,
@@ -221,11 +237,47 @@ rpc.answers["browser.live.downloads"] = [
   },
 ];
 rpc.answers["files.clipboardHasFiles"] = { hasFiles: true };
+rpc.answers["workspace.computer.places"] = {
+  favorites: [
+    { kind: "folder", name: "<folder>", path: "/Users/mac-user/<folder>" },
+  ],
+  volumes: [],
+};
+rpc.answers["workspace.chats.live.asks"] = [
+  {
+    answerable: true,
+    askedAt: new Date(0),
+    askers: [{ at: new Date(0), sessionId: CHAT.sessionId }],
+    computer: "<this computer>",
+    device: DeviceIdSchema.parse("dev_MAC00000"),
+    here: true,
+    id: "ask",
+    kind: "admin",
+    status: "open",
+    target: "<command>",
+  },
+];
 rpc.answers["user.live.me"] = null;
 rpc.answers["utils.browserOpenTarget"] = { appName: "<default browser>" };
-rpc.answers["workspace.skill.list"] = [
-  { id: "skill", name: "<skill>", title: "<skill>", userInvocable: true },
+rpc.answers["workspace.skill.broken"] = [
+  {
+    folder: "/Users/mac-user/Skills/<skill>",
+    name: "<skill>",
+    problem: "no-skill-file",
+  },
 ];
+rpc.answers["workspace.skill.list"] = [
+  {
+    editable: true,
+    id: "skill",
+    name: "<skill>",
+    path: "/Users/mac-user/Skills/<skill>",
+    source: "workspace",
+    title: "<skill>",
+    userInvocable: true,
+  },
+];
+rpc.answers["workspace.storage.location"] = { rootDir: "/Users/mac-user" };
 rpc.answers["window.live.others"] = [{ id: "other", title: "<window>" }];
 
 /** Rows that stand for a list the user's own things fill. */
@@ -233,6 +285,8 @@ const LISTS: Record<string, string> = {
   "Loading apps…": "<apps that open it>",
   "No closed tabs": "<tabs and groups closed lately>",
   "No pages yet": "<recent pages>",
+  "/ (<skill>, Open in Files)": "<skill>",
+  "/ (<skill>, Your workspace)": "<skill>",
 };
 
 /** One thing a place offers: its words, the keys beside it, and a submenu's groups. */
@@ -385,7 +439,13 @@ function controls() {
   ].flatMap((element) => {
     const offer =
       element.getAttribute("role") === "switch"
-        ? offerOf(element.closest("label") ?? element)
+        ? offerOf(
+            element.closest("label") ??
+              (element instanceof HTMLButtonElement
+                ? element.labels[0]
+                : undefined) ??
+              element,
+          )
         : offerOf(element);
     if (offer.label === "" || seen.has(offer.label)) {
       return [];
@@ -516,6 +576,16 @@ function bar() {
   });
 }
 
+/** The side panel's own lists, with a chat and an app in them. */
+function panel() {
+  const { queryClient } = show(
+    <SidePanel group="group" onOpen={none} onVisit={none} />,
+  );
+  act(() => {
+    queryClient.setQueryData(chatListOptions().queryKey, [CHAT]);
+  });
+}
+
 function projects() {
   show(
     <ProjectsSection
@@ -560,28 +630,33 @@ const SECTIONS: {
       [
         "Right-click a tab group",
         () => {
+          // A group of a page, whose row shows a name it is given.
           show(
-            <GroupRow
-              chatTitles={new Map()}
-              entry={{
-                group: "group",
-                kind: "tabs",
-                pinned: false,
-                title: "<group>",
-              }}
-              isUp={false}
-              menu={{
-                isPinned: false,
-                onClose: none,
-                onCloseAbove: none,
-                onCloseBelow: none,
-                onCloseOthers: none,
-                onDuplicate: none,
-                onNewWindow: none,
-                onName: none,
-                onTogglePin: none,
-              }}
-            />,
+            <HeldTabsContext.Provider
+              value={atom<WindowTabs>({ activeByGroup: {}, tabs: [PAGE] })}
+            >
+              <GroupRow
+                chatTitles={new Map()}
+                entry={{
+                  group: "group",
+                  kind: "tabs",
+                  pinned: false,
+                  title: "<group>",
+                }}
+                isUp={false}
+                menu={{
+                  isPinned: false,
+                  onClose: none,
+                  onCloseAbove: none,
+                  onCloseBelow: none,
+                  onCloseOthers: none,
+                  onDuplicate: none,
+                  onNewWindow: none,
+                  onName: none,
+                  onTogglePin: none,
+                }}
+              />
+            </HeldTabsContext.Provider>,
           );
           return rightClick(screen.getByRole("button"));
         },
@@ -745,6 +820,21 @@ const SECTIONS: {
           );
         },
       ],
+      [
+        "Ad blocking, the shield at the toolbar's right",
+        async () => {
+          show(<AdBlockingPanel onClose={none} targetId={TARGET} />);
+          await settle();
+          return controls();
+        },
+      ],
+      [
+        "Ad blocking's row on the Extensions page",
+        () => {
+          show(<AdBlockingExtensionRow />);
+          return controls();
+        },
+      ],
     ],
     title: "A website's tab",
   },
@@ -837,8 +927,51 @@ const SECTIONS: {
           return menuOf("Add to this prompt");
         },
       ],
+      [
+        "Reply box's + › Skills",
+        async () => {
+          show(<Composer />);
+          await menuOf("Add to this prompt");
+          fireEvent.click(screen.getByRole("menuitem", { name: "Skills" }));
+          return menuUp();
+        },
+      ],
+      [
+        "A command that needs an administrator, a card over the reply box",
+        async () => {
+          show(<PermissionAsksFoot chatId={CHAT.id} sendMessage={none} />);
+          await settle();
+          return controls();
+        },
+      ],
     ],
     title: "A chat",
+  },
+  {
+    places: [
+      [
+        "Top to bottom, a heading opening all of its list",
+        async () => {
+          panel();
+          await settle();
+          return [
+            [
+              ...document.querySelectorAll<HTMLElement>(
+                '[aria-label="Close Side Panel"],h3',
+              ),
+            ].map(offerOf),
+          ];
+        },
+      ],
+      [
+        "Right-click an app in it",
+        () => {
+          panel();
+          return rightClick(screen.getByRole("button", { name: APP.name }));
+        },
+      ],
+    ],
+    title: "Side panel",
   },
   {
     places: [
@@ -963,6 +1096,38 @@ const SECTIONS: {
       ],
     ],
     title: "Apps",
+  },
+  {
+    places: [
+      [
+        "Skills, top to bottom",
+        async () => {
+          show(<SkillsSection />);
+          await settle();
+          const seen = new Set<string>();
+          return [
+            [
+              ...document.querySelectorAll<HTMLElement>("h3,h4,button,input"),
+            ].flatMap((element) => {
+              const offer = offerOf(element);
+              if (offer.label === "" || seen.has(offer.label)) {
+                return [];
+              }
+              seen.add(offer.label);
+              return [offer];
+            }),
+          ];
+        },
+      ],
+      [
+        "⋯ on a skill of the user's own",
+        () => {
+          show(<SkillsSection />);
+          return menuOf(/^More for/);
+        },
+      ],
+    ],
+    title: "Settings",
   },
   {
     places: [
@@ -1114,6 +1279,11 @@ describe("the product guide skill's places", () => {
     HTMLElement.prototype.scrollIntoView = none;
     // The window's own browser, which a row of the page's menu is there for.
     vi.stubGlobal("chrome", {});
+    // The app window, which every place here is in.
+    Object.defineProperty(window, "api", {
+      configurable: true,
+      value: { ...window.api, windowType: "app" },
+    });
     return () => {
       vi.unstubAllGlobals();
     };

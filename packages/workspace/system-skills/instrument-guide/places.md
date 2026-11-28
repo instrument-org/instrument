@@ -2,12 +2,12 @@
 
 # What each place offers
 
-Read one section, `sed -n '/^## Tabs/,/^## /p'` on this file; the sections are Sidebar, Tabs, A website's tab, Bookmarks bar, A chat, Chats in the side panel, Files, Apps, Command menu. `;` parts a menu's groups, `› [ ]` is a submenu, keys are the Mac's, then Windows and Linux's, and `<words>` stand for the user's own. An item that does not apply to what is up is left out of the menu or turned off. Places not here have more.
+Read one section, `sed -n '/^## Tabs/,/^## /p'` on this file; the sections are Sidebar, Tabs, A website's tab, Bookmarks bar, A chat, Side panel, Chats in the side panel, Files, Apps, Settings, Command menu. `;` parts a menu's groups, `› [ ]` is a submenu, keys are the Mac's, then Windows and Linux's, and `<words>` stand for the user's own. An item that does not apply to what is up is left out of the menu or turned off. Places not here have more.
 
 ## Sidebar
 
 - Top to bottom: Search (⌘K / Ctrl+K), Projects, New project, <project>, Actions for <project>, New (⌘N / Ctrl+N), Settings, Notifications, History, Help
-- Right-click a tab group: Open in New Window, Duplicate Tab Group; Pin; Close Tab Group, Close Other Tab Groups, Close Tab Groups Above, Close Tab Groups Below
+- Right-click a tab group: Open in New Window, Duplicate Tab Group; Pin, Name Tab Group; Close Tab Group, Close Other Tab Groups, Close Tab Groups Above, Close Tab Groups Below
 - Right-click the empty space: New Tab Group (⌘N / Ctrl+N), Reopen Closed Tab (⇧⌘T / Ctrl+Shift+T); New Window (⇧⌘N / Ctrl+Shift+N), Merge All Windows
 - Right-click a project, or its ⋯: View project details
 - Right-click the Projects heading: New Project…
@@ -26,7 +26,9 @@ Read one section, `sed -n '/^## Tabs/,/^## /p'` on this file; the sections are S
 ## A website's tab
 
 - More actions, the ⋮ at the toolbar's right end: History › [<recent pages>; Show All History], Bookmarks › [Bookmark this tab… (⌘D / Ctrl+D), Bookmark all tabs… (⇧⌘D / Ctrl+Shift+D), Show bookmarks bar (⇧⌘B / Ctrl+Shift+B), Bookmark manager (⌥⌘B / Ctrl+Shift+O)], Clear browsing data…; Zoom out, 100% › [50%, 75%, 100%, 125%, 150%, 200%, 300%, 400%], Zoom in; Print… (⌘P / Ctrl+P), Find in page (⌘F / Ctrl+F), Save page as…, Copy URL, Share… (Mac only), Open in <default browser>; Extensions › [Manage extensions, Chrome Web Store]; View as › [Actual size; Mobile (390×844), Tablet (820×1180), Desktop (1440×900)], Hard reload, Developer tools
-- Downloads, in the toolbar once something was downloaded: Downloads, Clear, Show in File Manager (Linux only), Show in File Explorer (Windows only), Show in Finder (Mac only), Remove from list
+- Downloads, in the toolbar once something was downloaded: Downloads, Clear, Show in Folder, Remove from list
+- Ad blocking, the shield at the toolbar's right: Block ads and trackers (<site>), Settings
+- Ad blocking's row on the Extensions page: Show in the row, Turn off ad blocking
 
 ## Bookmarks bar
 
@@ -43,6 +45,13 @@ Read one section, `sed -n '/^## Tabs/,/^## /p'` on this file; the sections are S
 - Under a reply: Branch from here
 - Reply box: Add to this prompt, Model, Dictate, Send; Stop while it works
 - Reply box's +: Browser, <this computer>; Attach files, Add a folder; Apps, Skills
+- Reply box's + › Skills: Skills, <skill>; New skill…
+- A command that needs an administrator, a card over the reply box: Copy command, Run as administrator, Don’t allow, What does this do?, Try without administrator, I’ll run it myself
+
+## Side panel
+
+- Top to bottom, a heading opening all of its list: Close Side Panel, Apps, Chats, Files, Bookmarks
+- Right-click an app in it: Open, Open in Split, Open in New Tab, Open in New Tab Group, Open in New Window; Manage
 
 ## Chats in the side panel
 
@@ -53,17 +62,22 @@ Read one section, `sed -n '/^## Tabs/,/^## /p'` on this file; the sections are S
 
 ## Files
 
-- Right-click a file: Open (⌘O / Enter), Open in Split, Open in New Tab, Open in New Tab Group, Open in New Window, Move to Recycle Bin (Del, Windows only), Open in (Mac only) › [<apps that open it>]; Move to Trash (⌘⌫ / Del, Mac and Linux only); Rename (↩ / F2), Cut (Ctrl+X, Windows and Linux only), Copy (⌘C / Ctrl+C), Duplicate (⌘D), Preview (Space), Properties (Alt+Enter, Windows and Linux only), Info (⌘I, Mac only); Add to Bookmarks, Copy Path (⌥⌘C / Ctrl+Shift+C), Show in File Manager (Linux only), Show in File Explorer (Windows only)
+- Right-click a file: Open (⌘O / Enter), Open in Split, Open in New Tab, Open in New Tab Group, Open in New Window, Move to Recycle Bin (Del, Windows only), Open in (Mac only) › [<apps that open it>; Finder]; Move to Trash (⌘⌫ / Del, Mac and Linux only); Rename (↩ / F2), Cut (Ctrl+X, Windows and Linux only), Copy (⌘C / Ctrl+C), Duplicate (⌘D), Preview (Space), Properties (Alt+Enter, Windows and Linux only), Info (⌘I, Mac only); Add to Bookmarks, Copy Path (⌥⌘C / Ctrl+Shift+C), Show in File Manager (Linux only), Show in File Explorer (Windows only)
 - A folder also has: Add to Favorites
 - Right-click the empty space: New Folder (⇧⌘N / Ctrl+Shift+N); Paste into “<folder>” (⌘V / Ctrl+V), Move into “<folder>” (⌥⌘V, Mac only)
-- Right-click a place in the sidebar or the address: Open in New Tab, Open in New Window, Show in File Manager (Linux only), Show in File Explorer (Windows only), Open in (Mac only) › [<apps that open it>]; Copy, Copy Path; Remove from Favorites
-- Right-click a file in a chat: Open in (Mac only) › [<apps that open it>]; Copy, Save as…, Show in File Manager (Linux only), Show in File Explorer (Windows only); Show in Finder (Mac only)
+- Right-click a place in the sidebar or the address: Open in New Tab, Open in New Window, Show in File Manager (Linux only), Show in File Explorer (Windows only), Open in (Mac only) › [<apps that open it>; Finder]; Copy, Copy Path; Remove from Favorites
+- Right-click a file in a chat: Open in (Mac only) › [<apps that open it>; Finder]; Copy, Save as…; Show in Folder
 
 ## Apps
 
 - Right-click an app's tile: See what Instrument can do, Check connection; Name account…, Connect another account; Disconnect, Remove
 - ⋯ by the app's name on its page: See what Instrument can do, Check connection; Remove
 - ⋯ on an account's row: Name account…; Disconnect, Remove
+
+## Settings
+
+- Skills, top to bottom: Skills, New skill, Can’t load, <skill> (This folder has no SKILL.md), Fix in chat, Search skills, Your skills, Open in Files, <skill>, More for <skill>
+- ⋯ on a skill of the user's own: Open in Files, Move to Recycle Bin… (Windows only); Move to Trash… (Mac and Linux only)
 
 ## Command menu
 

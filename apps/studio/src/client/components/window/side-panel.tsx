@@ -413,7 +413,7 @@ export function SidePanelHere({
  * bookmarks show the whole list in the panel, with Back to the rest,
  * sliding in and back out as the sidebar steps into a project.
  */
-function SidePanel({
+export function SidePanel({
   group,
   onOpen,
   onVisit,

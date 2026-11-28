@@ -20,7 +20,7 @@ export type FolderSize = { bytes: number; complete: boolean };
 const STAT_BATCH = 8;
 
 /** How long one step may take before the walk stops and says what it has. */
-const STALL_MS = 10_000;
+export const STALL_MS = 10_000;
 
 /** The Mac's data volume, which shows its folders a second time under this path. */
 const MAC_DATA_VOLUME = "/System/Volumes/Data";
@@ -48,10 +48,10 @@ export function folderSizeSkips({
   ]);
 }
 
-const STALLED = Symbol("stalled");
+export const STALLED = Symbol("stalled");
 
 /** `work`, or `STALLED` once it has taken longer than a step should. */
-async function withinStall<T>(work: Promise<T>, stallMs: number) {
+export async function withinStall<T>(work: Promise<T>, stallMs: number) {
   let timer: NodeJS.Timeout | undefined;
   const stalled = new Promise<typeof STALLED>((resolve) => {
     timer = setTimeout(() => {

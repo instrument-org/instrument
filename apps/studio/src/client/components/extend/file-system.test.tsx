@@ -6,7 +6,13 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { renderWithProviders } from "@/tests/render";
 import { installWindowStubs } from "@/tests/window-stubs";
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import * as React from "react";
 import {
   afterEach,
@@ -927,6 +933,182 @@ describe("FileSystem", () => {
 
       expect(onSearchChange.mock.calls).toEqual([["zebra"], [""]]);
       expect(names()).toEqual(["drafts", "notes.txt"]);
+    });
+
+    it.each([
+      // The folder's name, never the path of what is in it.
+      ["draft", ["drafts"]],
+      // A match in a folder below, listed flat rather than under its folder.
+      ["report", ["report.txt"]],
+    ])("lists what %j finds by name, flat", (search, found) => {
+      renderWithProviders(
+        <FileSystem
+          defaultSearch={search}
+          defaultView="table"
+          items={FOLDERS}
+        />,
+      );
+
+      expect(names()).toEqual(found);
+    });
+
+    it("matches what the caller read under the folder, and counts it alone", () => {
+      renderWithProviders(
+        <FileSystem
+          defaultSearch="plan"
+          defaultView="columns"
+          items={FOLDERS}
+          searchResults={{
+            items: [
+              { kind: "file", path: "deep/down/plan.md" },
+              { kind: "file", path: "deep/plan.txt" },
+            ],
+            asks: ["Desktop", "Downloads"].map((name) => ({
+              hostPath: `/Users/mac-user/${name}`,
+              name,
+              path: `${name}/`,
+            })),
+          }}
+          searchResultsPending={false}
+        />,
+      );
+
+      expect(names()).toEqual(["plan.md", "plan.txt"]);
+      expect(
+        document.querySelector("[data-file-system-status]")?.textContent,
+      ).toMatchInlineSnapshot(`"2 items"`);
+      expect(screen.queryByText(/searched/)).toBeNull();
+    });
+
+    it("names the folders it stepped over when nothing is found, with a way into each", () => {
+      const onAllowFolder = vi.fn(() => Promise.resolve());
+      const onOpenPrivacySettings = vi.fn();
+      renderWithProviders(
+        <FileSystem
+          defaultSearch="zebra"
+          items={FOLDERS}
+          onAllowFolder={onAllowFolder}
+          onOpenPrivacySettings={onOpenPrivacySettings}
+          searchResults={{
+            asks: [
+              {
+                hostPath: "/Users/mac-user/Desktop",
+                name: "Desktop",
+                path: "Desktop/",
+                refused: true,
+              },
+              {
+                hostPath: "/Users/mac-user/Documents",
+                name: "Documents",
+                path: "Documents/",
+              },
+              {
+                hostPath: "/Users/mac-user/Downloads",
+                name: "Downloads",
+                path: "Downloads/",
+              },
+            ],
+            items: [],
+          }}
+          searchResultsPending={false}
+        />,
+      );
+
+      expect(
+        screen.getByText("Nothing here matches “zebra”.").parentElement
+          ?.textContent,
+      ).toMatchInlineSnapshot(
+        `"Nothing here matches “zebra”.Documents and Downloads weren’t searched.Search DocumentsSearch DownloadsmacOS keeps Instrument out of Desktop.Open System Settings"`,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Search Downloads" }));
+      expect(onAllowFolder.mock.calls).toEqual([["/Users/mac-user/Downloads"]]);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Open System Settings" }),
+      );
+      expect(onOpenPrivacySettings).toHaveBeenCalledOnce();
+    });
+
+    it("moves the search into AppData when nothing is found on Windows", () => {
+      const onSearchInFolder = vi.fn();
+      renderWithProviders(
+        <FileSystem
+          defaultSearch="zebra"
+          items={FOLDERS}
+          onSearchInFolder={onSearchInFolder}
+          searchResults={{
+            asks: [
+              {
+                hostPath: String.raw`C:\Users\windows-user\AppData`,
+                name: "AppData",
+                path: "AppData/",
+                searchIn: true,
+              },
+            ],
+            items: [],
+          }}
+          searchResultsPending={false}
+        />,
+      );
+
+      expect(screen.getByText("AppData wasn’t searched.")).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Search AppData" }));
+
+      expect(onSearchInFolder.mock.calls).toEqual([["AppData/"]]);
+    });
+
+    it("shows neither a count nor nothing found while the search is read", () => {
+      renderWithProviders(
+        <FileSystem defaultSearch="draft" items={[]} searchResultsPending />,
+      );
+
+      expect(screen.queryByText(/Nothing here/)).toBeNull();
+      expect(document.querySelector("[data-file-system-status]")).toBeNull();
+    });
+
+    it("lists a kind picked alone from every folder the caller read", () => {
+      const onSearchKindsChange = vi.fn();
+      renderWithProviders(
+        <FileSystem
+          defaultView="columns"
+          items={FOLDERS}
+          onSearchKindsChange={onSearchKindsChange}
+          searchResults={{
+            items: [
+              { kind: "file", path: "deep/down/plan.md" },
+              { kind: "file", path: "deep/plan.txt" },
+              { kind: "file", path: "notes.txt" },
+            ],
+            asks: [],
+          }}
+        />,
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Search" }));
+      const kinds = screen.getByRole("listbox", { name: "Kinds" });
+      expect(
+        within(kinds)
+          .getAllByRole("option")
+          .map((option) => option.textContent),
+      ).toMatchInlineSnapshot(`
+        [
+          "Folder",
+          "Plain Text",
+        ]
+      `);
+      fireEvent.click(
+        within(kinds).getByRole("option", { name: "Plain Text" }),
+      );
+
+      expect(onSearchKindsChange.mock.lastCall).toMatchInlineSnapshot(`
+        [
+          {
+            "extensions": [
+              "txt",
+            ],
+            "folders": false,
+          },
+        ]
+      `);
+      expect(names()).toEqual(["notes.txt", "plan.txt"]);
     });
 
     it("says the search is emptied by walking into a folder", () => {

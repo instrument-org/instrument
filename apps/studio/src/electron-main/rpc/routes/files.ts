@@ -49,6 +49,14 @@ import {
   videoStoryboardDeps,
 } from "@/electron-main/lib/video-storyboard";
 import { folderItemCount, folderSize } from "@/electron-main/lib/folder-size";
+import { folderWalkSkips } from "@/electron-main/lib/folder-walk";
+import { matchWalked, walkForSearch } from "@/electron-main/lib/folder-search";
+import { spotlightMatches } from "@/electron-main/lib/spotlight-matches";
+import {
+  askFolder,
+  folderAnswers,
+  folderAsks,
+} from "@/electron-main/lib/folder-asks";
 import { probeMedia } from "@/electron-main/lib/media-probe";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
@@ -1165,6 +1173,144 @@ const folderSizeRoute = base
     return folderSize(folderPath, { signal });
   });
 
+const WalkedEntrySchema = z.object({
+  createdAt: z.number(),
+  folder: z.string(),
+  isFolder: z.boolean(),
+  modifiedAt: z.number(),
+  name: z.string(),
+  package: z.literal(true).optional(),
+  path: z.string(),
+  size: z.number().optional(),
+});
+
+/** The guarded folders the person let a Files search into, on this computer. */
+const searchedFolders = () => getMachineState().get("searchedFolders") ?? [];
+
+/**
+ * What a search of a folder finds by name and kind (`matchWalked`), from
+ * everything under it walked once for the search `walkId` (`walkForSearch`),
+ * going into the guarded folders the person let it into; null where the
+ * folder cannot be read. `asks` are the folders it stepped over that the
+ * person can let it into, `steppedOver` says it left out any folder, which
+ * Spotlight then fills in, and `walkId` is the search's own.
+ */
+const searchFolderRoute = base
+  .input(
+    z.object({
+      kinds: z
+        .object({ extensions: z.array(z.string()), folders: z.boolean() })
+        .optional(),
+      path: HostPathSchema,
+      query: z.string(),
+      walkId: z.string().min(1),
+    }),
+  )
+  .output(
+    z
+      .object({
+        asks: z.array(
+          z.object({
+            name: z.string(),
+            path: z.string(),
+            refused: z.literal(true).optional(),
+            searchIn: z.literal(true).optional(),
+          }),
+        ),
+        matches: z.array(WalkedEntrySchema),
+        steppedOver: z.boolean(),
+        walkId: z.string(),
+      })
+      .nullable(),
+  )
+  .handler(async ({ input }) => {
+    const folderPath = await followAliases(input.path);
+    if (await isClosed(input.path, folderPath)) {
+      return null;
+    }
+    const [root, home] = await Promise.all([
+      fs.realpath(folderPath).catch(() => folderPath),
+      fs.realpath(os.homedir()).catch(() => os.homedir()),
+    ]);
+    const known = folderAnswers(searchedFolders());
+    const top = `${root.replace(/[\\/]+$/, "")}${path.sep}`;
+    const walked = await walkForSearch({
+      also: [...known].flatMap(([folder, answer]) =>
+        answer === "allowed" && folder.startsWith(top) ? [folder] : [],
+      ),
+      root,
+      walkId: input.walkId,
+    });
+    if (!walked) {
+      return null;
+    }
+    // Looking a folder up never raises macOS's prompt; listing it would.
+    const asks = folderAsks({
+      home,
+      known,
+      notSearched: walked.notSearched,
+      root,
+    });
+    const present = await Promise.all(
+      asks.map((ask) =>
+        fs.stat(ask.path).then(
+          (stats) => stats.isDirectory(),
+          () => false,
+        ),
+      ),
+    );
+    return {
+      asks: asks.filter((_, at) => present[at]),
+      matches: matchWalked(walked, {
+        kinds: input.kinds,
+        query: input.query,
+      }),
+      steppedOver: walked.notSearched.length > 0,
+      walkId: input.walkId,
+    };
+  });
+
+/**
+ * Opens a folder a search stepped over, which on a Mac is when macOS asks
+ * the person about it, once. Allowed, searches from above it go into it from
+ * then on, on this computer.
+ */
+const askFolderRoute = base
+  .input(z.object({ path: HostPathSchema }))
+  .output(z.enum(["allowed", "refused"]))
+  .handler(async ({ input }) => {
+    const answer = await askFolder(input.path);
+    const kept = searchedFolders().filter((folder) => folder !== input.path);
+    getMachineState().set(
+      "searchedFolders",
+      answer === "allowed" ? [...kept, input.path] : kept,
+    );
+    return answer;
+  });
+
+/**
+ * What Spotlight finds by name in the folders a search of a folder stepped
+ * over, shaped as `walkFolder` lists them: on a Mac, only from the folders
+ * macOS lets this app read, and nothing anywhere else.
+ */
+const spotlightMatchesRoute = base
+  .input(z.object({ path: HostPathSchema, word: z.string().min(1) }))
+  .output(z.array(WalkedEntrySchema))
+  .handler(async ({ input }) => {
+    if (process.platform !== "darwin") {
+      return [];
+    }
+    const folderPath = await followAliases(input.path);
+    if (await isClosed(input.path, folderPath)) {
+      return [];
+    }
+    const [root, home] = await Promise.all([
+      fs.realpath(folderPath).catch(() => folderPath),
+      fs.realpath(os.homedir()).catch(() => os.homedir()),
+    ]);
+    return spotlightMatches(root, input.word, folderWalkSkips({ home }));
+  });
+
 /**
  * How many items a folder has directly in it, without the system's clutter,
  * or null where it cannot be read: one read of the folder, cheap enough for
@@ -1263,5 +1409,8 @@ export const files = {
   storyboard,
   trash,
   undo,
+  askFolder: askFolderRoute,
+  searchFolder: searchFolderRoute,
+  spotlightMatches: spotlightMatchesRoute,
   write,
 };

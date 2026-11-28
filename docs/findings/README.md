@@ -98,6 +98,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [Sandboxd deadlocks at 64 approvals in flight, and the app could send 64](sandboxd-deadlocks-at-64-approvals.md): contained: Node's file thread pool is 16 (`apps/studio/src/electron-main/thread-pool.ts`) and reads of workspace files are capped at 8 open at once (`package...
 - [The search backend returns more per result than we forwarded](search-result-fields-we-discard.md): fixed for what was fixable.
 - [Why the spell checker is `typos` and not `cspell`](spelling-check-cost-versus-signal.md): resolved.
+- [Spotlight answers only for folders the asking app can read](spotlight-search-follows-folder-permissions.md): open.
 - [Syncing a data folder through third-party file sync: upper bound and painful truths](syncing-a-data-folder-through-file-sync.md): research.
 - [Task attention state (unread / needs-input) must be persisted per task, not derived from live status](task-attention-state-persistence.md): applied to 2.0 chats: the unread mark is persisted per chat as its `unread` setting (`new` or `marked`, a `set` line in `settings.<device>.jsonl`, `records/r...
 - [Task file links resolve at render time, once per link](task-file-links-resolve-at-render-time.md): resolved 2026-08-06.

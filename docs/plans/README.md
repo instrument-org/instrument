@@ -43,6 +43,7 @@ Each entry is the plan's title and the opening of its status.
 - [Dependency sweep: what upstream has fixed for us](dependency-upgrade-sweep.md): Two passes landed;
 - [Dependency work behind the PR queue](dependency-work-behind-the-pr-queue.md): Items 1 and 2 done, 3 to 5 partly.
 - [Drive Studio a sequence at a time, not a command at a time](driving-studio-in-batches.md): The session runner landed (`studio-drive.mjs run` over `.agents/skills/studio-chrome-devtools/scripts/studio-app.mjs`), with saved recipes beside it (`sweep-...
+- [Files searches everything under the folder you're in](files-folder-search.md): Built: flat results, Folder column, name and kind matching in the main process, a spinner and a count, folders left out named when nothing is found.
 - [Moving files in the Finder](finder-moving-files.md): Accepted, 2026-10-02: undo-backed drag-to-move.
 - [Run the transcript scrollbar the full height of the pane](full-height-transcript-scrollbar.md): Proposed, not started: the composer is still a flex sibling below the `MessageScroller` in `task/chat.tsx`.
 - [Grouping a run of tool calls under what it is for](grouped-activities.md): In progress -- the `activity` field, the heading, and collapsing groups are built;
@@ -76,6 +77,7 @@ Each entry is the plan's title and the opening of its status.
 - [Inference through the user's Claude and ChatGPT subscriptions](subscription-inference.md): ChatGPT direct route landed (`ca68bb66d`, `8b3b27b53`, first shipped in v2.0.0-beta.37).
 - [One owner for every tab](tab-service.md): The back history of a discarded page, the table of where opens land, and keeping a page a person entered something into are done.
 - [Testing the Instrument folder](testing-the-instrument-folder.md): Under way.
+- [Find a file anywhere on the computer by name, for the person and the agent](whole-computer-search.md): Not started;
 - [Notices behind a bell in the window bar](window-notices.md): The bell is built (`NotificationsBell` in `WindowCorner`): problem reports (`4f94e0d72`), notices from the API (`1f62dc2af`), an update's result, a sandbox t...
 - [Windows sandbox: MXC behind `wrapNativeCommand`](windows-sandbox-mxc.md): Active.
 - [The workspace as a host every client attaches to](workspace-host-and-protocol.md): Proposed, nothing built (checked 2026-10-29: no host process, no protocol router, no command line).

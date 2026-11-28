@@ -2,6 +2,7 @@ import { undoOnShow } from "@/client/lib/undo-toast";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { useLatest } from "@/client/hooks/use-latest";
 import { useIsNarrower } from "@/client/hooks/use-is-narrower";
+import { useDebouncedValue } from "@/client/hooks/use-debounced-value";
 import { type ChosenItem } from "@/shared/drafts";
 import {
   computerColumnWidthAtom,
@@ -24,6 +25,7 @@ import {
   itemKindLabel,
   type FileSystemHandle,
   type FileSystemItem,
+  type SearchKinds,
   type FileSystemGroupKey,
   type FileSystemSortState,
   type FileSystemView,
@@ -88,6 +90,7 @@ import { FileDashedIcon } from "@phosphor-icons/react/FileDashed";
 import { FolderDashedIcon } from "@phosphor-icons/react/FolderDashed";
 import {
   keepPreviousData,
+  skipToken,
   useMutation,
   useQueries,
   useQuery,
@@ -154,7 +157,7 @@ import {
   SORT_BY,
 } from "./folder-menu";
 import { NotPermitted } from "./not-permitted";
-import { combineListings, useListedItems } from "./use-listed-items";
+import { combineListings, previewOf, useListedItems } from "./use-listed-items";
 import {
   dropEffectOf,
   fileActionFailed,
@@ -532,16 +535,116 @@ export function ComputerPage({
     showHiddenFiles,
     workspaceFolder,
   });
+  // A search reads everything under the folder the browser lists from once,
+  // as the search starts, and matches it in the main process as it is typed,
+  // so only the matches come here; what it lists is that moment's, while the
+  // folders on screen stay current. Nothing is read for a search opened with
+  // nothing typed or picked in it.
+  const [searchKinds, setSearchKinds] = useState<null | SearchKinds>(null);
+  const isSearching = (query ?? "").trim() !== "" || searchKinds !== null;
+  const walkedFrom = expandHomePath(hostPathOf(current), homePath);
+  // One walk per search: a new one for each search started, in each folder,
+  // and once a folder it stepped over is let in.
+  const [walkOwner] = useState(() => crypto.randomUUID());
+  const [walkRound, setWalkRound] = useState(0);
+  const [wasSearching, setWasSearching] = useState(false);
+  if (isSearching !== wasSearching) {
+    setWasSearching(isSearching);
+    if (isSearching) setWalkRound((round) => round + 1);
+  }
+  const walkId = `${walkOwner}:${walkRound}:${walkedFrom}`;
+  const folderSearch = useQuery(
+    rpcClient.files.searchFolder.queryOptions({
+      input:
+        isSearching && !isFolderless
+          ? {
+              ...(searchKinds ? { kinds: searchKinds } : {}),
+              path: walkedFrom,
+              query: query ?? "",
+              walkId,
+            }
+          : skipToken,
+      // The last keystroke's matches stay up while the next one's come, within
+      // one search; a new search starts blank.
+      placeholderData: (previous) =>
+        previous?.walkId === walkId ? previous : undefined,
+      refetchOnWindowFocus: false,
+      retry: false,
+    }),
+  );
+  // Spotlight fills in the folders the walk stepped over, from those macOS
+  // lets this app read, by the longest word typed; a kind alone asks nothing.
+  const spotlightWord = useDebouncedValue(
+    (query ?? "")
+      .trim()
+      .split(/\s+/)
+      .reduce(
+        (longest, word) => (word.length > longest.length ? word : longest),
+        "",
+      ),
+    250,
+  );
+  const spotlightAsked =
+    isSearching &&
+    spotlightWord !== "" &&
+    folderSearch.data?.steppedOver === true;
+  const spotlight = useQuery(
+    rpcClient.files.spotlightMatches.queryOptions({
+      input: spotlightAsked
+        ? { path: walkedFrom, word: spotlightWord }
+        : skipToken,
+      refetchOnWindowFocus: false,
+      retry: false,
+    }),
+  );
+  const askFolder = useMutation(rpcClient.files.askFolder.mutationOptions());
+  const openPrivacySettings = useMutation(
+    rpcClient.features.openPrivacySettings.mutationOptions(),
+  );
+  const walkedMatches = folderSearch.data?.matches ?? [];
+  const walkedPaths = new Set(walkedMatches.map((entry) => entry.path));
+  const searchItems = [
+    ...walkedMatches,
+    ...(spotlight.data ?? []).filter((entry) => !walkedPaths.has(entry.path)),
+  ].map((entry): FileSystemItem => {
+    const stamps = {
+      createdAt: new Date(entry.createdAt).toISOString(),
+      updatedAt: new Date(entry.modifiedAt).toISOString(),
+    };
+    const prefix = entry.folder === "" ? current : `${current}${entry.folder}/`;
+    if (entry.isFolder) {
+      return {
+        ...stamps,
+        hasChildren: true,
+        kind: "folder",
+        metadata: { hostPath: entry.path },
+        path: `${prefix}${entry.name}/`,
+      };
+    }
+    return {
+      ...stamps,
+      kind: "file",
+      metadata: { hostPath: entry.path },
+      path: `${prefix}${entry.name}`,
+      ...previewOf(entry, resolvedTheme),
+      ...(entry.size === undefined ? {} : { size: entry.size }),
+    };
+  });
   // Listed as files and opened as one, but folders inside, which the menu's
   // Show Package Contents goes into.
-  const packagePaths = new Set(
-    listings.flatMap(({ data }) =>
+  const packagePaths = new Set([
+    ...listings.flatMap(({ data }) =>
       (data?.entries ?? []).flatMap((entry) =>
         entry.package ? [entry.path] : [],
       ),
     ),
+    ...walkedMatches.flatMap((entry) => (entry.package ? [entry.path] : [])),
+  ]);
+  // A search's matches from beyond what is listed are found by path too, so
+  // what is done to the selection reaches them.
+  const itemsByPath = new Map(
+    [...searchItems, ...items].map((item) => [item.path, item]),
   );
-  const itemsByPath = new Map(items.map((item) => [item.path, item]));
   // The folders the list shows opened in place: every one listed here that
   // was left open anywhere. The recents open nothing.
   const openFolderSet = new Set(openFolderPaths);
@@ -2753,6 +2856,65 @@ export function ComputerPage({
                   onRenameCommit={rename}
                   canRenameItem={(item) => keptInPlace(item) === undefined}
                   search={query ?? ""}
+                  {...(folderSearch.data
+                    ? {
+                        searchResults: {
+                          items: searchItems,
+                          // A folder Spotlight found something in is one the
+                          // system already lets the app read.
+                          asks: folderSearch.data.asks
+                            .filter(
+                              (ask) =>
+                                !(spotlight.data ?? []).some((entry) =>
+                                  entry.path.startsWith(`${ask.path}/`),
+                                ),
+                            )
+                            .map((ask) => ({
+                              hostPath: ask.path,
+                              name: ask.name,
+                              path: `${current}${ask.path
+                                .slice(
+                                  walkedFrom.replace(/[\\/]+$/, "").length + 1,
+                                )
+                                .replaceAll("\\", "/")}/`,
+                              ...(ask.refused ? { refused: true } : {}),
+                              ...(ask.searchIn ? { searchIn: true } : {}),
+                            })),
+                        },
+                      }
+                    : {})}
+                  searchResultsPending={
+                    isSearching &&
+                    !isFolderless &&
+                    (folderSearch.isPending ||
+                      folderSearch.isPlaceholderData ||
+                      (spotlightAsked && spotlight.isFetching))
+                  }
+                  onSearchKindsChange={setSearchKinds}
+                  onAllowFolder={async (folder) => {
+                    const answer = await askFolder.mutateAsync({
+                      path: folder,
+                    });
+                    // Let in, the folder is walked: the search starts over.
+                    if (answer === "allowed") {
+                      setWalkRound((round) => round + 1);
+                    }
+                    await Promise.all([
+                      queryClient.invalidateQueries({
+                        queryKey: rpcClient.files.searchFolder.key(),
+                      }),
+                      queryClient.invalidateQueries({
+                        queryKey: rpcClient.files.spotlightMatches.key(),
+                      }),
+                    ]);
+                  }}
+                  onOpenPrivacySettings={() => {
+                    openPrivacySettings.mutate({ pane: "FilesAndFolders" });
+                  }}
+                  onSearchInFolder={(folder) => {
+                    setSelectedPaths([]);
+                    go({ path: folder, query: query ?? "", type: "walk" });
+                  }}
                   onSearchChange={(next) => {
                     go({ query: next, type: "search" });
                   }}

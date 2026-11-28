@@ -332,28 +332,27 @@ export function tabGroupsInOtherWindows(webContentsId: number): string[] {
 
 /**
  * Every open window's tab groups, the one in front first: each in its own
- * order, the group it shows, and which window asked.
+ * order, the group it shows, and which window asked. A window out of sight
+ * (minimized, the app hidden, a driven instance kept off screen) is listed
+ * too: its groups are still the person's, and a chat names them by id.
  */
 export function tabGroupsByWindow(webContentsId: number) {
-  return getAppWindows()
-    .filter((window) => window.isVisible())
-    .flatMap((window) => {
-      const id = appWindowIdOfWindow(window);
-      if (id === undefined) {
-        return [];
-      }
-      const model = keptTabsOf(id);
-      const up = model.tabs.find((tab) => tab.id === model.selectedId);
-      const shown =
-        up === undefined ? undefined : tabGroupOfAddress(up.pathname);
-      return [
-        {
-          groups: keptTabGroupsOfWindow(id),
-          isThisWindow: window.webContents.id === webContentsId,
-          ...(shown === undefined ? {} : { shown }),
-        },
-      ];
-    });
+  return getAppWindows().flatMap((window) => {
+    const id = appWindowIdOfWindow(window);
+    if (id === undefined) {
+      return [];
+    }
+    const model = keptTabsOf(id);
+    const up = model.tabs.find((tab) => tab.id === model.selectedId);
+    const shown = up === undefined ? undefined : tabGroupOfAddress(up.pathname);
+    return [
+      {
+        groups: keptTabGroupsOfWindow(id),
+        isThisWindow: window.webContents.id === webContentsId,
+        ...(shown === undefined ? {} : { shown }),
+      },
+    ];
+  });
 }
 
 /** A window's tabs, as it keeps them. */

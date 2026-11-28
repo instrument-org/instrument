@@ -363,6 +363,24 @@ describe("moveMemoryFrontMatterToStore", () => {
     `);
   });
 
+  it("deletes a file left with no text only when no one else's front matter is in it", async () => {
+    await fs.writeFile(
+      path.join(dir, "empty.md"),
+      "---\nupdated: 2026-10-22T09:00:00Z\n---\n",
+    );
+    await fs.writeFile(
+      path.join(dir, "tagged.md"),
+      "---\nupdated: 2026-10-22T09:00:00Z\nproject: Kitchen\n---\n",
+    );
+
+    await moveMemoryFrontMatterToStore(root, device());
+
+    await expect(fs.stat(path.join(dir, "empty.md"))).rejects.toThrow();
+    expect(await fs.readFile(path.join(dir, "tagged.md"), "utf8")).toBe(
+      "---\nproject: Kitchen\n---\n\n",
+    );
+  });
+
   it("lets a memory saved since the file was written outrank it", async () => {
     await saveMemory(dir, { name: "roofer", text: "Your roofer is Dave." });
     const { at } = (await readMemory(dir, "roofer")) ?? { at: 0 };

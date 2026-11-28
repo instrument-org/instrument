@@ -428,7 +428,8 @@ export interface MemoryFrontMatterMoved {
  * Takes the front matter earlier builds wrote into each memory file (the
  * `chat` it was learned in and when it was `updated`) into the memory store,
  * and writes the file back as the memory's text alone, under any front
- * matter of anyone else's. A file left with no text is deleted.
+ * matter of anyone else's. A file left with neither text nor anyone else's
+ * front matter is deleted.
  *
  * Every launch, since a build before this one, on another computer sharing
  * the workspace, writes front matter back; a file with none is read and left
@@ -472,7 +473,7 @@ export async function moveMemoryFrontMatterToStore(
         [{ at: stat.mtime.getTime(), fileName, record }],
         device,
       );
-      if (!text) {
+      if (!text && Object.keys(othersIn(raw)).length === 0) {
         await fs.rm(filePath, { force: true });
       } else {
         rewriteFileSync(filePath, (held) => {

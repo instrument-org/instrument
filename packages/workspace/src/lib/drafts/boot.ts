@@ -30,9 +30,12 @@ export interface DraftsSettled {
  */
 export async function settleDrafts(
   {
+    deviceId,
     machineDir,
     rootDir,
   }: {
+    /** This computer's device id, for a draft it was sending. */
+    deviceId: string;
     /** This computer's folder for the workspace, for the paths a move rewrites. */
     machineDir: string;
     rootDir: string;
@@ -46,6 +49,7 @@ export async function settleDrafts(
   });
   const finished = await finishSentDrafts({
     chatsDir: workspaceLayout(rootDir).chatsDir,
+    deviceId,
     moveToTrash,
     rootDir,
   });

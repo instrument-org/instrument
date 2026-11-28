@@ -135,7 +135,9 @@ export interface Draft {
  *   as soon as it has it, a reply left on a phone (`send-asked-drafts.ts`).
  *   Its file's `send`.
  * - `sending`: claimed for `chatId`, its message not yet written. Its file's
- *   `sending`, so a launch after a crash knows where to look for the message.
+ *   `sending`, so a launch after a crash knows where to look for the message,
+ *   and `sender`, the computer sending it (`device`), so a launch on another
+ *   one leaves it to that computer while its message may still be syncing.
  * - `sent`: the message (`messageId`) is in the chat and not yet answered.
  *   Its file's `sending` and `sent`. The draft is kept, folder and all, so a
  *   Stop before any answer can put it back as it was (`release`); once the
@@ -148,8 +150,8 @@ export interface Draft {
  */
 export type DraftSend =
   | { device: string; stage: "asked" }
-  | { chatId: ChatId; stage: "sending" }
-  | { chatId: ChatId; messageId: string; stage: "sent" };
+  | { chatId: ChatId; device?: string; stage: "sending" }
+  | { chatId: ChatId; device?: string; messageId: string; stage: "sent" };
 
 /** What of a draft's folder its message carried, by path: files, and folders innermost first. */
 export interface DraftCarried {
@@ -171,8 +173,19 @@ type DraftFields = Omit<
 export type DraftOp =
   /** A draft made, with an id the window minted. Ignored where the id is taken. */
   | { draft: Draft; type: "create" }
-  /** Pointed at the chat it is about to be sent into, with the words it is sent with: `sending`. */
-  | { at: number; chatId: ChatId; id: string; type: "claim"; words: string }
+  /**
+   * Pointed at the chat it is about to be sent into, with the words it is
+   * sent with: `sending`. `device` is the computer sending it, which main
+   * fills in.
+   */
+  | {
+      at: number;
+      chatId: ChatId;
+      device?: string;
+      id: string;
+      type: "claim";
+      words: string;
+    }
   /**
    * Its message is written (`messageId`): `sent`. `carried` is what of its
    * folder the message took, for main to take out once the draft finishes.
@@ -288,7 +301,11 @@ function applyDraftOp(drafts: Draft[], op: DraftOp): Draft[] {
     case "claim": {
       return changeDraft(drafts, op.id, (draft) => ({
         ...draft,
-        send: { chatId: op.chatId, stage: "sending" },
+        send: {
+          chatId: op.chatId,
+          ...(op.device === undefined ? {} : { device: op.device }),
+          stage: "sending",
+        },
         updatedAt: op.at,
         words: op.words,
       }));
@@ -300,6 +317,9 @@ function applyDraftOp(drafts: Draft[], op: DraftOp): Draft[] {
               ...draft,
               send: {
                 chatId: draft.send.chatId,
+                ...(draft.send.device === undefined
+                  ? {}
+                  : { device: draft.send.device }),
                 messageId: op.messageId,
                 stage: "sent",
               },

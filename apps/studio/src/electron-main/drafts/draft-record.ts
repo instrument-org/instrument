@@ -174,10 +174,10 @@ export function withFolderOf(current: Draft, read: Draft, dir: string): Draft {
   };
 }
 
-/** A draft's send as its file writes it: `send`, else `sending` and, once its message is written, `sent`. */
+/** A draft's send as its file writes it: `send`, else `sending` with its `sender` and, once its message is written, `sent`. */
 function sendLinesOf(
   send: DraftSend | undefined,
-): Pick<DraftFile, "send" | "sending" | "sent"> {
+): Pick<DraftFile, "send" | "sender" | "sending" | "sent"> {
   switch (send?.stage) {
     case undefined: {
       return {};
@@ -186,10 +186,10 @@ function sendLinesOf(
       return { send: send.device };
     }
     case "sending": {
-      return { sending: send.chatId };
+      return { ...senderOf(send), sending: send.chatId };
     }
     case "sent": {
-      return { sending: send.chatId, sent: send.messageId };
+      return { ...senderOf(send), sending: send.chatId, sent: send.messageId };
     }
   }
 }
@@ -202,13 +202,23 @@ function sendLinesOf(
 function sendOf(draft: DraftFile): DraftSend | undefined {
   const sending = ChatIdSchema.safeParse(draft.sending);
   if (sending.success) {
+    const device = draft.sender === undefined ? {} : { device: draft.sender };
     return draft.sent === undefined
-      ? { chatId: sending.data, stage: "sending" }
-      : { chatId: sending.data, messageId: draft.sent, stage: "sent" };
+      ? { chatId: sending.data, ...device, stage: "sending" }
+      : {
+          chatId: sending.data,
+          ...device,
+          messageId: draft.sent,
+          stage: "sent",
+        };
   }
   return draft.send === undefined
     ? undefined
     : { device: draft.send, stage: "asked" };
+}
+
+function senderOf({ device }: { device?: string }): Pick<DraftFile, "sender"> {
+  return device === undefined ? {} : { sender: device };
 }
 
 /** What in the draft's folder goes with it, as a composer shows it. */

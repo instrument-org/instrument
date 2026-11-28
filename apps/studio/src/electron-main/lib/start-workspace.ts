@@ -55,7 +55,9 @@ export function startWorkspace(): Promise<void> {
     // taken most of a minute.
     void timeBootStep("serveBookmarks", () => openBookmarks(deviceId));
     await timeBootStep("adoptFinderView", adoptFinderViewOnce);
-    timeBootStepSync("openDrafts", openDrafts);
+    timeBootStepSync("openDrafts", () => {
+      openDrafts(deviceId);
+    });
     // Their session is in the workspace's machine folder, and a window's
     // extension buttons ask for them as soon as a tab's row is drawn.
     timeBootStepSync("startBrowserExtensions", startBrowserExtensions);

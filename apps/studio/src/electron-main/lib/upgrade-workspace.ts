@@ -194,7 +194,9 @@ export async function upgradeWorkspace({
   );
   // And the drafts come into `.instrument/drafts/`, where a send the app was
   // interrupted partway through is finished from the records just converted.
-  await timeBootStep("upgrade.moveDraftsIn", () => moveDraftsIn(rootDir));
+  await timeBootStep("upgrade.moveDraftsIn", () =>
+    moveDraftsIn(deviceId, rootDir),
+  );
   // Last, the guide for another coding agent opened in the workspace, once
   // `.instrument/` is in this build's shape.
   await timeBootStep("upgrade.writeDataDirReadme", () => writeGuide(rootDir));
@@ -255,7 +257,10 @@ function nameChatDatabases(rootDir: string) {
  * at this format writes either. A file that cannot be read reads as nothing
  * finished, so the steps run.
  */
-function settledChats(rootDir: string): { records: boolean; settings: boolean } {
+function settledChats(rootDir: string): {
+  records: boolean;
+  settings: boolean;
+} {
   const identity = readWorkspaceIdentity(rootDir);
   const records =
     identity.chatRecordsConverted === true &&
@@ -468,10 +473,10 @@ function workspaceOutputDir({
  * its folder was left behind. Runs after the converter, so that message can
  * be read. Idempotent; a failure must not block boot.
  */
-async function moveDraftsIn(rootDir: string) {
+async function moveDraftsIn(deviceId: DeviceId, rootDir: string) {
   try {
     const { converted, finished, movedIn } = await settleDrafts(
-      { machineDir: workspaceMachineDir(), rootDir },
+      { deviceId, machineDir: workspaceMachineDir(), rootDir },
       { moveToTrash: (target) => shell.trashItem(target) },
     );
     for (const moved of [movedIn, converted]) {

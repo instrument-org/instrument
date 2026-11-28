@@ -27,8 +27,13 @@ import {
  *
  * So one rule settles a draft on its way wherever the app stops: its chat
  * holds its message, and the draft is finished; it does not (never written,
- * or taken back), and the draft is the person's again.
+ * or taken back), and the draft is the person's again. A draft another
+ * computer is sending (its `sender`) is the exception for a day: its
+ * message may be written there and not yet synced here.
  */
+
+/** How long a launch leaves a draft another computer is sending to that computer. */
+export const OTHER_SENDER_WAIT_MS = 24 * 60 * 60 * 1000;
 
 /** What finishing the drafts a message already names came to. */
 export interface DraftsFinished {
@@ -56,13 +61,18 @@ export interface DraftsFinished {
  */
 export async function finishSentDrafts({
   chatsDir,
+  deviceId,
   moveToTrash,
+  now = Date.now(),
   rootDir,
 }: {
   /** The workspace's record folders, `.instrument/chats/`. */
   chatsDir: string;
+  /** This computer's device id, which a draft it is sending names as its `sender`. */
+  deviceId: string;
   /** Moves a file or folder to the system's Trash. */
   moveToTrash: (target: string) => Promise<void>;
+  now?: number;
   /** The workspace's own folder, whose `.instrument/drafts/` the drafts are in. */
   rootDir: string;
 }): Promise<DraftsFinished> {
@@ -94,10 +104,28 @@ export async function finishSentDrafts({
       continue;
     }
     if (!sent.has(entry.draft.id)) {
+      const { sender, updated } = entry.draft;
+      if (
+        entry.draft.sending !== undefined &&
+        sender !== undefined &&
+        sender !== deviceId &&
+        now - updated.getTime() < OTHER_SENDER_WAIT_MS
+      ) {
+        left.push({
+          id: entry.draft.id,
+          reason: `${sender} is sending it into ${chat}`,
+        });
+        continue;
+      }
       // A send that never landed, or a message taken back: the draft is the
       // person's again, as the kind of draft it was.
       if (entry.draft.sending !== undefined || entry.draft.sent !== undefined) {
-        const { sending: _stopped, sent: _taken, ...draft } = entry.draft;
+        const {
+          sender: _sender,
+          sending: _stopped,
+          sent: _taken,
+          ...draft
+        } = entry.draft;
         writeDraftFile(entry.file, draft);
       }
       left.push({

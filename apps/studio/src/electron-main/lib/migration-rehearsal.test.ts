@@ -357,7 +357,7 @@ async function runLaunchMigrations(): Promise<void> {
   });
   // A rehearsal moves nothing out of the clone: what a draft left stays.
   await settleDrafts(
-    { machineDir, rootDir: clone },
+    { deviceId, machineDir, rootDir: clone },
     { moveToTrash: () => Promise.resolve() },
   );
 }

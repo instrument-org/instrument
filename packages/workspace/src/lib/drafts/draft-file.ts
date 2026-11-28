@@ -33,6 +33,7 @@ const OWN_KEYS = new Set([
   "created",
   "id",
   "send",
+  "sender",
   "sending",
   "sent",
   "project",
@@ -85,6 +86,12 @@ export interface DraftFile {
    * computers from both sending it. Written by the asking device only.
    */
   send?: string;
+  /**
+   * The computer sending the draft, by its device id, written beside
+   * `sending`: a launch on another computer leaves the draft to it, since
+   * the message naming the draft may not have synced in yet.
+   */
+  sender?: string;
   /**
    * The chat the draft is on its way into, by its id, from the press until
    * the message naming it is written: what a launch after a crash looks in
@@ -160,6 +167,7 @@ export function parseDraftFile(
   const chat = chatOf(front.chat);
   const sending = chatOf(front.sending);
   const send = typeof front.send === "string" ? front.send.trim() : "";
+  const sender = typeof front.sender === "string" ? front.sender.trim() : "";
   const sent = typeof front.sent === "string" ? front.sent.trim() : "";
   const context = linesOf(front.context);
   const asks = asksOf(front.asks);
@@ -172,6 +180,7 @@ export function parseDraftFile(
     id,
     ...(Object.keys(others).length > 0 ? { others } : {}),
     ...(send === "" ? {} : { send }),
+    ...(sender === "" ? {} : { sender }),
     ...(sending === undefined ? {} : { sending }),
     ...(sent === "" ? {} : { sent }),
     ...(projectOf(front) === undefined ? {} : { project: projectOf(front) }),
@@ -204,6 +213,9 @@ export function renderDraftFile(draft: DraftFile): string {
   }
   if (draft.sent !== undefined) {
     lines.push(`sent: ${JSON.stringify(draft.sent)}`);
+  }
+  if (draft.sender !== undefined) {
+    lines.push(`sender: ${JSON.stringify(draft.sender)}`);
   }
   if (draft.project !== undefined) {
     lines.push(`project: ${JSON.stringify(draft.project)}`);

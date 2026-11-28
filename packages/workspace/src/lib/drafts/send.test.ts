@@ -11,6 +11,7 @@ import {
   assistantMessage,
   at,
   DEVICE_A,
+  DEVICE_B,
   header,
   messageId,
   messageRecord,
@@ -28,7 +29,11 @@ import {
   readDrafts,
   writeDraftFile,
 } from "./draft-folder";
-import { draftMessagesInFolder, finishSentDrafts } from "./send";
+import {
+  draftMessagesInFolder,
+  finishSentDrafts,
+  OTHER_SENDER_WAIT_MS,
+} from "./send";
 
 /**
  * A send, step by step, with the app stopped between each: the person must
@@ -57,14 +62,16 @@ afterEach(() => {
   fs.rmSync(trashDir, { force: true, recursive: true });
 });
 
-/** The launch's sweep over the drafts, with the test's Trash. */
-function finish() {
+/** The launch's sweep over the drafts on DEVICE_A, with the test's Trash. */
+function finish({ now }: { now?: number } = {}) {
   return finishSentDrafts({
     chatsDir: chatsDir(),
+    deviceId: DEVICE_A,
     moveToTrash: (target) => {
       fs.renameSync(target, path.join(trashDir, path.basename(target)));
       return Promise.resolve();
     },
+    ...(now === undefined ? {} : { now }),
     rootDir,
   });
 }
@@ -93,11 +100,15 @@ function waitingDraft(more: Partial<DraftFile> = {}) {
  * Step 2 of a send: the draft names the chat it is going into, as the app's
  * draft store writes it when it claims the draft.
  */
-async function pointAtChat(draftId: string) {
+async function pointAtChat(
+  draftId: string,
+  { sender = DEVICE_A }: { sender?: string } = {},
+) {
   const found = await findDraft(rootDir, draftId);
   if (found) {
     writeDraftFile(found.file, {
       ...found.draft,
+      sender,
       sending: CHAT,
       updated: new Date(),
     });
@@ -318,6 +329,38 @@ describe("finishing the sends a launch finds", () => {
       "its chat's records could not be read",
     );
     expect(await drafts()).toEqual([{ id: "d1", words: WORDS }]);
+  });
+
+  it("leaves a draft another computer is sending to it, its message maybe still syncing", async () => {
+    const made = waitingDraft();
+    await pointAtChat("d1", { sender: DEVICE_B });
+
+    const finished = await finish();
+
+    expect(finished.left).toMatchInlineSnapshot(`
+      [
+        {
+          "id": "d1",
+          "reason": "dev_BBBBBBBB is sending it into 2026-10-14-quiet-dishwashers",
+        },
+      ]
+    `);
+    expect((await findDraft(rootDir, "d1"))?.draft).toMatchObject({
+      sender: DEVICE_B,
+      sending: CHAT,
+    });
+    expect(pastedStillThere(made.dir)).toBe(true);
+  });
+
+  it("gives the person back a draft another computer claimed over a day ago", async () => {
+    waitingDraft();
+    await pointAtChat("d1", { sender: DEVICE_B });
+
+    await finish({ now: Date.now() + OTHER_SENDER_WAIT_MS });
+
+    const found = (await findDraft(rootDir, "d1"))?.draft;
+    expect(found?.sending).toBeUndefined();
+    expect(found?.sender).toBeUndefined();
   });
 
   it("leaves a draft pointed at something that is no chat's id", async () => {

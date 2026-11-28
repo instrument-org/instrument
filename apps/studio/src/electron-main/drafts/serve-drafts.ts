@@ -8,7 +8,10 @@ import {
   type DraftOp,
   type DraftsSnapshot,
 } from "@/shared/drafts";
-import { whenWorkspaceHasPhone } from "@instrument-org/workspace/electron";
+import {
+  type DeviceId,
+  whenWorkspaceHasPhone,
+} from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import { BrowserWindow, ipcMain, shell } from "electron";
 
@@ -50,11 +53,12 @@ function getStore() {
  * Opens the drafts in the workspace's `.instrument/drafts/` and watches them, once the
  * workspace has a folder: at launch, or once setup's first step places it.
  */
-export function openDrafts() {
+export function openDrafts(deviceId: DeviceId) {
   if (STORE) {
     return;
   }
   STORE = createDraftStore({
+    deviceId,
     moveToTrash: (target) => shell.trashItem(target),
     onChange: (snapshot) => {
       tell(shown(snapshot));

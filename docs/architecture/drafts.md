@@ -4,7 +4,7 @@ A draft is a chat not yet started, or a reply waiting in a chat. Both live in th
 
 Every launch moves the folders in a top-level `Drafts/`, where builds before kept the drafts and where another device or an older build can still put one, into `.instrument/drafts/` under their own names, numbered where one is taken (`moveTopLevelDrafts`, `move-in.ts`), and removes `Drafts/` once only a file manager's records are left in it. A folder there in an early beta's shape (its words in `draft.md`, its record in `.instrument/settings.json`) is then converted where it is (`convertBetaDrafts`, `migrate.ts`). `settleDrafts` runs both before any window reads a draft.
 
-The front matter is `id`, `created` and `updated` (ISO 8601 UTC to the second), `chat`, `send`, `sending`, `sent`, `project` (the project's id, written only when the person picked one), `context`, and `asks`. Every key but `id` is optional: a `DRAFT.md` with no `id`, or with no front matter at all, is a draft someone wrote by hand, and the first read gives it an id and writes it into the file (`readDrafts`). An empty file is not a draft, since that is what an editor partway through a save leaves. A key this build does not write is kept as it was found.
+The front matter is `id`, `created` and `updated` (ISO 8601 UTC to the second), `chat`, `send`, `sending`, `sent`, `sender`, `project` (the project's id, written only when the person picked one), `context`, and `asks`. Every key but `id` is optional: a `DRAFT.md` with no `id`, or with no front matter at all, is a draft someone wrote by hand, and the first read gives it an id and writes it into the file (`readDrafts`). An empty file is not a draft, since that is what an editor partway through a save leaves. A key this build does not write is kept as it was found.
 
 ## Layers
 
@@ -64,8 +64,8 @@ A message names the draft it came from (`fromDraft`), and that message is what s
 | --- | --- | --- |
 | none | being written: a new chat in its tab, a reply in its chat's box, a row in Drafts | nothing |
 | `asked` (device) | another device asked this one to send it (below) | `send:` the device |
-| `sending` (chat) | claimed, its message not yet written | `sending:` the chat |
-| `sent` (chat, message) | its message is written and the turn it started has not ended | `sending:` the chat and `sent:` the message |
+| `sending` (chat, device) | claimed, its message not yet written | `sending:` the chat and `sender:` the computer sending it |
+| `sent` (chat, device, message) | its message is written and the turn it started has not ended | `sending:` the chat, `sent:` the message and `sender:` |
 
 `sent` keeps `sending:` beside it, so a build or a phone that knows only `sending:` still leaves the draft alone. While a draft is `sending` or `sent` (`isOnItsWay`) it is neither a reply waiting (`repliesOf`), nor a draft in the inbox list, nor whose asks are staged in a window: it is the message. A file read meanwhile does not take a draft this app is sending off its way. The person loses nothing whichever step the app stops at:
 
@@ -73,7 +73,7 @@ A message names the draft it came from (`fromDraft`), and that message is what s
 2. **Message.** The message is appended with `fromDraft`. Each file in the draft's folder is copied into the chat's `attachments/`, and so is each folder in it, which the chat is then granted at that copy. Before the message's turn starts, the route tells the host (`draftSent` in `WorkspaceConfig`), and main applies `sent` with the message's id and what the send took from the folder. The folder stays whole.
 3. **Finished, taken back, or released.** At the end of each turn in a chat (`session.done`, which `turnEnds` hands main), main settles the drafts `sent` into it (`settleAfterTurn`, `electron-main/drafts/finish-answered-drafts.ts`), whichever window or device sent them. A draft whose message is in the session whose turn ended is finished: `finish` takes what the send took out of its folder (`removeSentFromDraft`), moves whatever the folder still has to the Trash, since it arrived after the send read the folder, and the store refuses that id for as long as it runs, so a sync engine bringing the file back cannot offer it again. A draft whose message is gone from the chat, retracted or the chat gone, is released. A turn a Stop ended while asking to take back its unanswered message leaves that draft to the take-back (`takesBack` on the stop notice), which retracts the message and has the window release it. On a failure before the message is written, `release` takes the draft off its way, and it is the person's again, as it was.
 
-A launch applies the same rule to every draft still `sending` or `sent` (`finishSentDrafts`): one whose message is in its chat is finished, moving everything its folder has to the Trash, since what the send took is not recorded; one whose chat has no message from it, never written or retracted, loses both marks and is the person's again, as the kind of draft it was.
+A launch applies the same rule to every draft still `sending` or `sent` (`finishSentDrafts`): one whose message is in its chat is finished, moving everything its folder has to the Trash, since what the send took is not recorded; one whose chat has no message from it, never written or retracted, loses its marks and is the person's again, as the kind of draft it was. The exception is a draft whose `sender` is another computer, claimed less than a day ago (`OTHER_SENDER_WAIT_MS`): its message may be written there and not synced here yet, so it is left to that computer, whose own launch settles it.
 
 ### Stop takes back an unanswered message
 

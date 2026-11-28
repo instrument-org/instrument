@@ -100,11 +100,14 @@ interface OnDisk {
  * rather than offered to be sent again.
  */
 export function createDraftStore({
+  deviceId,
   onChange,
   rootDir,
   timeZone,
   moveToTrash,
 }: {
+  /** This computer's device id, written as the `sender` of each draft it sends. */
+  deviceId: string;
   /** Called with the drafts each time they change, from a window or from disk. */
   onChange: (snapshot: DraftsSnapshot) => void;
   /** The workspace's own folder, whose `.instrument/drafts/` the drafts are in. */
@@ -457,7 +460,12 @@ export function createDraftStore({
         batch.ops.map((op) => (op.type === "create" ? op.draft.id : op.id)),
       );
       const before = drafts;
-      drafts = applyDraftOps(drafts, batch.ops);
+      drafts = applyDraftOps(
+        drafts,
+        batch.ops.map((op) =>
+          op.type === "claim" ? { ...op, device: deviceId } : op,
+        ),
+      );
       for (const op of batch.ops) {
         switch (op.type) {
           case "claim": {

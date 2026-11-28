@@ -68,6 +68,7 @@ const draft = (id: string, more: Partial<Draft> = {}): Draft => ({
 async function open() {
   const told: DraftsSnapshot[] = [];
   const store = createDraftStore({
+    deviceId: "dev_here",
     moveToTrash: (target) => {
       fs.renameSync(target, path.join(trashDir, path.basename(target)));
       return Promise.resolve();
@@ -369,6 +370,7 @@ describe("a window's ops", () => {
     });
 
     expect(read()).toContain(`sending: instrument://chat/${CHAT}`);
+    expect(read()).toContain('sender: "dev_here"');
     expect(read()).not.toContain("chat:");
     expect(read()).toContain("what's my latest tweet");
   });

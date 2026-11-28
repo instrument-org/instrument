@@ -451,7 +451,23 @@ function answerStorePage(guestSession: Session): void {
     await setBrowserExtensionEnabled(id, on === true);
     return true;
   });
+  // Asked first, as Chrome does, since the page decides when to call it.
   answer("chrome.management.uninstall", async ({ sender }, id) => {
+    const installed = (await listBrowserExtensions()).find(
+      (extension) => extension.id === id,
+    );
+    if (
+      installed &&
+      !(await askWindows({
+        icon: installed.icon,
+        kind: "remove",
+        lines: [],
+        name: installed.name,
+        unsupported: [],
+      }))
+    ) {
+      return "user_cancelled";
+    }
     try {
       await removeBrowserExtension(id);
     } catch (error) {
@@ -895,7 +911,7 @@ const OptionalManifestSchema = z.object({
  */
 function askWindows(question: {
   icon: null | string;
-  kind: "add" | "allow-more";
+  kind: "add" | "allow-more" | "remove";
   lines: string[];
   name: string;
   unsupported: string[];

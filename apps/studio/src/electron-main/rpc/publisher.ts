@@ -47,12 +47,13 @@ interface PublisherEvents {
   "browser.extensions-changed": null;
   // An extension's side panel opened, closed or moved to another page in a tab.
   "browser.extension-side-panels-changed": null;
-  // The Chrome Web Store's install button was pressed, or an extension asked
-  // to be allowed more: the window asks, and answers by the ask's id.
+  // The Chrome Web Store's install or remove button was pressed, or an
+  // extension asked to be allowed more: the window asks, and answers by the
+  // ask's id.
   "browser.extension-install-asked": {
     askId: string;
     icon: null | string;
-    kind: "add" | "allow-more";
+    kind: "add" | "allow-more" | "remove";
     lines: string[];
     name: string;
     /** Its features that will not work in the in-app browser. */

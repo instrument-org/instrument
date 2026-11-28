@@ -17,10 +17,11 @@ import { useAtom } from "jotai";
 import { useEffect } from "react";
 
 /**
- * The question before an extension is added, or when one asks to be allowed
- * more, as Chrome's own: the extension by icon and name, what it will be able
- * to do in a person's words, what of it does not work here, and Add or
- * Allow beside Cancel. Main asks every window; this one opens
+ * The question before an extension is added or removed from the Chrome Web
+ * Store's page, or when one asks to be allowed more, as Chrome's own: the
+ * extension by icon and name, what it will be able to do in a person's
+ * words, what of it does not work here, and Add, Remove or Allow beside
+ * Cancel. Main asks every window; this one opens
  * on the ask, answers it, and closes when any window has.
  */
 export function ExtensionInstallModal() {
@@ -97,13 +98,17 @@ export function ExtensionInstallModal() {
                 <DialogTitle>
                   {content.kind === "add"
                     ? `Add “${content.name}” to ${APP_NAME}?`
-                    : `Allow “${content.name}” to do more?`}
+                    : content.kind === "remove"
+                      ? `Remove “${content.name}”?`
+                      : `Allow “${content.name}” to do more?`}
                 </DialogTitle>
-                <DialogDescription>
-                  {content.lines.length > 0
-                    ? "It will be able to:"
-                    : "It doesn't require any special permissions."}
-                </DialogDescription>
+                {content.kind !== "remove" && (
+                  <DialogDescription>
+                    {content.lines.length > 0
+                      ? "It will be able to:"
+                      : "It doesn't require any special permissions."}
+                  </DialogDescription>
+                )}
                 {content.lines.length > 0 && (
                   <ul className="list-disc space-y-1 pl-5 text-sm">
                     {content.lines.map((line) => (
@@ -139,9 +144,13 @@ export function ExtensionInstallModal() {
               onClick={() => {
                 answer(true);
               }}
-              variant="brand"
+              variant={content.kind === "remove" ? "destructive" : "brand"}
             >
-              {content.kind === "add" ? "Add extension" : "Allow"}
+              {content.kind === "add"
+                ? "Add extension"
+                : content.kind === "remove"
+                  ? "Remove"
+                  : "Allow"}
             </Button>
           </DialogFooter>
         </DialogContent>

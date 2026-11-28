@@ -11,10 +11,19 @@ const EOCD = 0x06054b50;
 const CENTRAL = 0x02014b50;
 const LOCAL = 0x04034b50;
 
+/**
+ * The most a part inflates to: well past any real sheet's XML, and short of
+ * what a crafted package inflating to gigabytes would take the process down
+ * with.
+ */
+const MAX_PART_BYTES = 1024 * 1024 * 1024;
+
 type Entry = {
   centralHeader: Buffer;
   compressedSize: number;
   method: number;
+  /** What the central directory says the part inflates to. */
+  size: number;
   name: string;
   offset: number;
 };
@@ -69,6 +78,7 @@ export class ZipPackage {
         method: buffer.readUInt16LE(at + 10),
         name: buffer.toString("utf8", at + 46, at + 46 + nameLength),
         offset: buffer.readUInt32LE(at + 42),
+        size: buffer.readUInt32LE(at + 24),
       });
       at += length;
     }
@@ -107,7 +117,12 @@ export class ZipPackage {
       return Buffer.from(data);
     }
     if (entry.method === 8) {
-      return inflateRawSync(data);
+      if (entry.size > MAX_PART_BYTES) {
+        throw new Error(`ZIP part ${name} is too large to read`);
+      }
+      // No larger than the directory says, so a part that claims to be small
+      // and inflates without end stops there.
+      return inflateRawSync(data, { maxOutputLength: Math.max(entry.size, 1) });
     }
     throw new Error(`unsupported ZIP compression in ${name}`);
   }

@@ -343,7 +343,7 @@ describe("instrument activity", () => {
       expect(result.exitCode).toBe(1);
       expect(result.stdout).toBe("");
       expect(result.stderr).toMatchInlineSnapshot(`
-        "instrument activity: the user turned this off in Settings › History, so what they do in the app is not shared.
+        "instrument activity: the user turned off "Chats can see this" in Settings › History, so what they do in the app is not shared. They can turn it back on there.
         "
       `);
     } finally {

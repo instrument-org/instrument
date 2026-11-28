@@ -1584,7 +1584,7 @@ describe("window group, move, history and restore", () => {
       expect(onSite.exitCode).toBe(1);
       expect(closed.exitCode).toBe(0);
       expect(refused.stderr).toMatchInlineSnapshot(`
-        "instrument window: the user turned this off in Settings › History, so what they do in the app is not shared. \`instrument window history --closed\` still lists what was closed.
+        "instrument window: the user turned off "Chats can see this" in Settings › History, so what they do in the app is not shared. They can turn it back on there. \`instrument window history --closed\` still lists what was closed.
         "
       `);
     } finally {
@@ -1773,6 +1773,22 @@ describe("sites", () => {
       "tasky.example",
       "notes.example",
     ]);
+  });
+
+  it("refuses while the user keeps their history from chats", async () => {
+    const config = getWorkspaceConfig();
+    setWorkspaceConfig({ ...config, mayShareActions: () => false });
+    try {
+      const result = await run({}, "sites");
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toMatchInlineSnapshot(`
+        "instrument window: the user turned off "Chats can see this" in Settings › History, so what they do in the app is not shared. They can turn it back on there.
+        "
+      `);
+    } finally {
+      setWorkspaceConfig(config);
+    }
   });
 
   it("says when there is no site, or only sites that set cookies from other sites' pages", async () => {

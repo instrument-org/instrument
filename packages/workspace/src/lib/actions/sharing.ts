@@ -9,6 +9,6 @@ export function mayShareActions(): boolean {
   return getWorkspaceConfig().mayShareActions?.() ?? true;
 }
 
-/** Why `instrument activity` lists nothing while the person keeps it to themselves. */
+/** Why `instrument activity`, `window history` and `window sites` refuse while the person keeps what they do to themselves. */
 export const ACTIONS_NOT_SHARED =
-  "the user turned this off in Settings › History, so what they do in the app is not shared.";
+  'the user turned off "Chats can see this" in Settings › History, so what they do in the app is not shared. They can turn it back on there.';

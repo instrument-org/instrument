@@ -1756,6 +1756,11 @@ export const windowSites = defineCapability({
   name: "window.sites",
   output: SitesSchema,
   async run({ all }) {
+    // Each site's visits and when it was last used are the person's history,
+    // which "Chats can see this" keeps from every chat.
+    if (!mayShareActions()) {
+      throw new Error(ACTIONS_NOT_SHARED);
+    }
     const read = getWorkspaceConfig().readBrowserSites;
     if (!read) {
       throw new Error("there is no in-app browser here to read.");

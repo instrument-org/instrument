@@ -116,6 +116,9 @@
         // crumb goes, climbing from it until the row that holds the others.
         const crumbs = "button[data-slot=context-menu-trigger]";
         for (const trigger of document.querySelectorAll(crumbs)) {
+          // The side panel's rows are context-menu triggers too, and the one for the
+          // workspace's folder has the crumb's name, with the panel's sections before it.
+          if (trigger.closest('aside[aria-label="Side Panel"]')) continue;
           const row = trigger.parentElement;
           const own = [...(row?.children ?? [])].find((child) => squash(child.textContent) === rootCrumb);
           let node = own;

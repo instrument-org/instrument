@@ -24,3 +24,14 @@ it("reads the chat from the link in a transcript written before the key", () => 
 it("reads nothing from a person's own notes", () => {
   expect(chatLinkedInText("# My own notes\n")).toBeUndefined();
 });
+
+it.each([
+  "# Notes\n\nchat: 2026-09-16-kyoto\n",
+  "# Notes\n\n[Kyoto](instrument://chat/2026-09-16-kyoto)\n",
+  "---\ntitle: Notes\n---\n\nSome text\n\n[Kyoto](instrument://chat/2026-09-16-kyoto)\n",
+])(
+  "reads nothing from a chat named outside the front matter and the line under it: %j",
+  (text) => {
+    expect(chatLinkedInText(text)).toBeUndefined();
+  },
+);

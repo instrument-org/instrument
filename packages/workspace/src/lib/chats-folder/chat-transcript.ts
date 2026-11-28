@@ -12,7 +12,12 @@ export const CHAT_FILE_NAME = "CHAT.md";
 /** How much of a transcript's head is read to find the chat it links to. */
 export const LINK_HEAD_BYTES = 2048;
 
-/** The chat a `CHAT.md` names, in its front matter and then in its link. */
+/**
+ * A transcript's front matter, then the first line under it: where the app
+ * wrote the chat's key and its link, and the only place either is read.
+ */
+const TRANSCRIPT_HEAD =
+  /^\uFEFF?---\r?\n(?<front>[\s\S]*?)\r?\n---\r?\n\s*(?<line>[^\n]*)/;
 const CHAT_KEY = /^chat:\s*"?([^"\n]+?)"?\s*$/m;
 const CHAT_LINK = new RegExp(`${APP_NAME_SLUG}://chat/([^)\\s]+)`);
 
@@ -22,12 +27,16 @@ const CHAT_LINK = new RegExp(`${APP_NAME_SLUG}://chat/([^)\\s]+)`);
  * of ours.
  */
 export function chatLinkedInText(head: string): ChatId | undefined {
+  const parts = TRANSCRIPT_HEAD.exec(head)?.groups;
+  if (parts?.front === undefined || parts.line === undefined) {
+    return undefined;
+  }
   // The key first, since that is where the chat is named; the link after it
   // for a file written before the key was.
-  const key = CHAT_KEY.exec(head)?.[1];
+  const key = CHAT_KEY.exec(parts.front)?.[1];
   const named =
     (key === undefined ? undefined : chatIdNamedBy(key)) ??
-    CHAT_LINK.exec(head)?.[1];
+    CHAT_LINK.exec(parts.line)?.[1];
   if (named === undefined) {
     return undefined;
   }

@@ -139,12 +139,14 @@ import {
 } from "./chats";
 import { useShowChatGroup } from "./chat-group";
 import { DeleteChatDialog } from "./delete-chat-dialog";
+import { holds } from "./drag/landing";
 import {
   pressBookmark,
   pressFolder,
   pressPlace,
   pressShortcut,
 } from "./drag/press-bookmark";
+import { dragAtom, dragPoint, useDragFrame } from "./drag/session";
 import { DROP_TONE } from "./drag/tone";
 import { DraftRow } from "./draft-row";
 import { TAGS, ViewButton } from "./filter-head";
@@ -486,12 +488,14 @@ export function SidePanel({
   };
   const columnRef = useRef<HTMLDivElement>(null);
   const pointer = usePointerInColumn(columnRef);
-  // Gray and a little faint until the pointer or the keyboard is on it, or
-  // a menu of its own is open, so its icons draw no eye away from the page.
+  const isHeldOver = useHeldOverColumn(columnRef);
+  // Gray and a little faint until the pointer or the keyboard is on it,
+  // something is held over it, or a menu of its own is open, so its icons
+  // draw no eye away from the page.
   return (
     <div
       className="@container flex min-h-0 flex-1 flex-col opacity-85 grayscale transition-[filter,opacity] duration-200 has-focus-visible:opacity-100 has-focus-visible:grayscale-0 has-data-[state=open]:opacity-100 has-data-[state=open]:grayscale-0 data-pointer-in:opacity-100 data-pointer-in:grayscale-0"
-      data-pointer-in={pointer.isIn || undefined}
+      data-pointer-in={pointer.isIn || isHeldOver || undefined}
       onPointerEnter={pointer.onPointerEnter}
       ref={columnRef}
     >
@@ -997,6 +1001,21 @@ function usePointerInColumn(ref: RefObject<HTMLElement | null>) {
       setIn(true);
     },
   };
+}
+
+/**
+ * Whether something held is over the panel's column: a tab, a bookmark or
+ * a link the pointer holds, or files the system's drag does, which sends the
+ * page none of the pointer events `usePointerInColumn` goes by.
+ */
+function useHeldOverColumn(ref: RefObject<HTMLElement | null>) {
+  const isHeld = useAtomValue(dragAtom) !== undefined;
+  const [isOver, setOver] = useState(false);
+  useDragFrame(() => {
+    const column = ref.current?.closest("aside")?.getBoundingClientRect();
+    setOver(column !== undefined && holds(column, dragPoint));
+  });
+  return isHeld && isOver;
 }
 
 /** What each list the panel opens over the rest is called in its head. */

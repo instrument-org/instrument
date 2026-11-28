@@ -190,5 +190,7 @@ describe("windows scripts", () => {
       expect(exit).toBe(4);
       expect(await fs.readFile(outFile, "utf8")).toMatch(/it's\r?\n2/u);
     },
+    // PowerShell takes seconds to start on a CI runner.
+    30_000,
   );
 });

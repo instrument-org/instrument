@@ -65,7 +65,7 @@ export const AGENT_SETTINGS = {
   "block-ads": {
     afterChange: "Pages already open change once reloaded.",
     changeable: true,
-    detail: `Ads and trackers are blocked on every page in ${APP_NAME}'s browser. A page already open follows once it is reloaded. For your own tabs alone, use agent-browser adblock.`,
+    detail: `Ads and trackers are blocked in ${APP_NAME}'s browser, except on sites the user turned blocking off for with the shield in the site's toolbar. A page already open follows once it is reloaded. For your own tabs alone, use agent-browser adblock.`,
     row: false,
     title: "Block ads",
   },

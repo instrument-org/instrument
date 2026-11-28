@@ -337,22 +337,22 @@ export function FilesScreen({
       setLayoutWidth(layout.offsetWidth);
     };
     measure();
-    let isFirst = true;
-    const observer = new ResizeObserver(() => {
-      if (!isFirst) {
-        measure();
-        return;
-      }
-      isFirst = false;
-      // Ahead of the frame's paint, so a file is first seen with the folder
-      // fitted to the width it is shown at.
+    // Read in the animation callbacks of the first frame the screen is drawn
+    // in and committed ahead of its paint, so a file is first seen with the
+    // folder fitted to the width it is shown at. Not in that frame's observer
+    // step: the commit flushes every update pending in the window, and a box
+    // one of them begins observing there (a sidebar row, a tooltip) waits for
+    // the next frame, which Chromium reports as a ResizeObserver loop.
+    const frame = requestAnimationFrame(() => {
       flushSync(() => {
         measure();
         setLaidOut(true);
       });
     });
+    const observer = new ResizeObserver(measure);
     observer.observe(layout);
     return () => {
+      cancelAnimationFrame(frame);
       observer.disconnect();
     };
   }, [layout]);

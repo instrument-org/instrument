@@ -132,6 +132,7 @@ export function isAllowedLocalDownload(
   const requested = hostPathOf(url);
   return (
     requested !== undefined &&
+    !namesHost(url) &&
     !isRefusedByName(requested) &&
     sitsBesidePage(requested, hostPathOf(pageUrl))
   );
@@ -152,6 +153,9 @@ export function isAllowedLocalRequest(
   }
   if (details.resourceType === "mainFrame") {
     return true;
+  }
+  if (namesHost(details.url)) {
+    return false;
   }
   const page = hostPathOf(
     guests.documentOf(details.webContentsId, details.frame),
@@ -257,11 +261,29 @@ export function mayPageNavigateTo(
   if (agentRoots === null || to === undefined) {
     return true;
   }
+  if (namesHost(toUrl)) {
+    return false;
+  }
   if (isUnderAnyRoot(to, agentRoots)) {
     return true;
   }
   const from = hostPathOf(fromUrl);
   return from !== undefined && !isUnderAnyRoot(from, agentRoots);
+}
+
+/**
+ * Whether a `file:` address names another computer (`file://server/share/…`),
+ * which Windows opens over the network, signing in to that server as the
+ * person. The paths here are read without the host, so it would otherwise be
+ * judged as the same path on this computer.
+ */
+function namesHost(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    return hostname !== "" && hostname !== "localhost";
+  } catch {
+    return false;
+  }
 }
 
 /** The path a `file://` address names, normalized; nothing for any other address. */

@@ -155,6 +155,11 @@ describe("isAllowedLocalRequest", () => {
       "file:///Users/casey/Pictures/private.jpg",
       "image",
     ],
+    [
+      "a picture on another computer named like one beside it",
+      "file://server.example/Users/casey/Documents/Instrument/report/chart.png",
+      "image",
+    ],
   ] as const)("refuses a page %s", (_case, url, resourceType) => {
     const { main, read } = pageGuest();
     expect(read(main, url, resourceType)).toBe(false);
@@ -707,6 +712,14 @@ describe("mayPageNavigateTo", () => {
         at("task/index.html"),
       ),
     ).toBe(true);
+  });
+
+  it("keeps the agent's page from a file on another computer", () => {
+    const named = new URL(at("task/index.html"));
+    named.hostname = "server.example";
+    expect(
+      mayPageNavigateTo(roots(), at("task/output/confine.html"), named.href),
+    ).toBe(false);
   });
 
   it("lets the agent's page go anywhere that is not a file", () => {

@@ -5,6 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import { openPathOnComputer } from "../lib/open-path";
+import { windowsSystemProgram } from "../lib/windows-system-program";
 import { log } from "./log";
 
 const execFileAsync = promisify(execFile);
@@ -200,7 +201,11 @@ async function manifestPaths(host: string): Promise<string[]> {
 /** The default value of a registry key, which is where Chrome on Windows is told a host manifest's path. */
 async function readRegistryDefault(key: string): Promise<null | string> {
   try {
-    const { stdout } = await execFileAsync("reg", ["query", key, "/ve"]);
+    const { stdout } = await execFileAsync(windowsSystemProgram("reg"), [
+      "query",
+      key,
+      "/ve",
+    ]);
     return /REG_SZ\s+(.+)$/m.exec(stdout)?.[1]?.trim() ?? null;
   } catch {
     return null;

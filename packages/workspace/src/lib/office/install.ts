@@ -14,6 +14,7 @@ import {
 } from "../native-sandbox";
 import { runtimeLayout } from "../runtime-dir";
 import { getWorkspaceConfig } from "../workspace-config";
+import { windowsSystemProgram } from "../windows-system-program";
 import {
   atLeastPinnedMajor,
   type OfficeArtifact,
@@ -215,7 +216,7 @@ async function windowsOwnOffice(): Promise<
 > {
   const query = async (key: string, args: string[]) =>
     (
-      await execa("reg", ["query", key, ...args], {
+      await execa(windowsSystemProgram("reg"), ["query", key, ...args], {
         reject: false,
         stdin: "ignore",
       })

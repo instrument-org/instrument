@@ -2,6 +2,8 @@ import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import { promisify } from "node:util";
 
+import { windowsSystemProgram } from "../windows-system-program";
+
 /**
  * The machine's own id, which stays the same across reinstalls of the app
  * and differs on other hardware: macOS's `IOPlatformUUID`, Windows'
@@ -57,7 +59,7 @@ export async function readMachineId(
       case "win32":
         return found(
           /MachineGuid\s+REG_SZ\s+(\S+)/.exec(
-            await sources.run("reg", [
+            await sources.run(windowsSystemProgram("reg"), [
               "query",
               "HKLM\\SOFTWARE\\Microsoft\\Cryptography",
               "/v",

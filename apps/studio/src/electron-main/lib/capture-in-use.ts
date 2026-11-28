@@ -1,5 +1,7 @@
 import { execFile } from "node:child_process";
 
+import { windowsSystemProgram } from "./windows-system-program";
+
 /**
  * Where Windows records each app's use of the microphone and the camera.
  * Every app that used one has a key under these, and its `LastUsedTimeStop`
@@ -42,14 +44,19 @@ export function captureInUseFromRegistry(output: string): boolean {
 
 function queryRegistry(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile("reg", args, { windowsHide: true }, (error, stdout) => {
-      // `reg` exits 1 when a device has never been used, which means
-      // nothing is using it.
-      if (error && error.code !== 1) {
-        reject(new Error("Could not read the registry", { cause: error }));
-        return;
-      }
-      resolve(stdout);
-    });
+    execFile(
+      windowsSystemProgram("reg"),
+      args,
+      { windowsHide: true },
+      (error, stdout) => {
+        // `reg` exits 1 when a device has never been used, which means
+        // nothing is using it.
+        if (error && error.code !== 1) {
+          reject(new Error("Could not read the registry", { cause: error }));
+          return;
+        }
+        resolve(stdout);
+      },
+    );
   });
 }

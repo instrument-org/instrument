@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { windowsSystemProgram } from "../windows-system-program";
 import { type MachineIdSources, readMachineId } from "./machine-id";
 
 const IOREG = `+-o J316sAP  <class IOPlatformExpertDevice, id 0x100000202, registered, matched, active, busy 0 (0 ms), retain 39>
@@ -62,7 +63,7 @@ describe("readMachineId", () => {
     });
     expect(pc.commands).toEqual([
       [
-        "reg",
+        windowsSystemProgram("reg"),
         "query",
         "HKLM\\SOFTWARE\\Microsoft\\Cryptography",
         "/v",

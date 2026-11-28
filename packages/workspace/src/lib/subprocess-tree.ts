@@ -7,6 +7,7 @@ import { noop } from "radashi";
 
 import { getCurrentDate } from "./get-current-date";
 import { parseProcStat } from "./own-processes";
+import { windowsSystemProgram } from "./windows-system-program";
 
 const GRACEFUL_EXIT_MS = ms("1 second");
 const FORCE_EXIT_MS = ms("4 seconds");
@@ -60,10 +61,14 @@ export function currentSubprocessTreeListener():
 /** Ends a process tree, resolving whether it was confirmed stopped. */
 export async function terminateSubprocessTree(pid: number): Promise<boolean> {
   if (process.platform === "win32") {
-    const result = await execa("taskkill", ["/pid", String(pid), "/t", "/f"], {
-      reject: false,
-      windowsHide: true,
-    });
+    const result = await execa(
+      windowsSystemProgram("taskkill"),
+      ["/pid", String(pid), "/t", "/f"],
+      {
+        reject: false,
+        windowsHide: true,
+      },
+    );
     if (result.exitCode === 0) {
       return true;
     }

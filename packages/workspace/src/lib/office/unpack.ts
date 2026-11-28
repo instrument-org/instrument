@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
 
+import { windowsSystemProgram } from "../windows-system-program";
 import { TDF_TEAM_ID } from "./manifest";
 
 /**
@@ -103,13 +104,17 @@ export function msiAdminInstallArgs(msi: string, dest: string): string[] {
 
 export async function unpackMsi(msi: string, dest: string): Promise<void> {
   await fs.mkdir(dest, { recursive: true });
-  const result = await execa("msiexec", msiAdminInstallArgs(msi, dest), {
-    all: true,
-    cancelSignal: AbortSignal.timeout(UNPACK_TIMEOUT_MS),
-    reject: false,
-    stdin: "ignore",
-    windowsVerbatimArguments: true,
-  });
+  const result = await execa(
+    windowsSystemProgram("msiexec"),
+    msiAdminInstallArgs(msi, dest),
+    {
+      all: true,
+      cancelSignal: AbortSignal.timeout(UNPACK_TIMEOUT_MS),
+      reject: false,
+      stdin: "ignore",
+      windowsVerbatimArguments: true,
+    },
+  );
   if (result.exitCode !== 0) {
     throw new Error(
       `msiexec /a exited ${String(result.exitCode)}${result.all ? `: ${result.all.trim()}` : ""}`,

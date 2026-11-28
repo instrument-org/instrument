@@ -94,7 +94,7 @@ function Overlay({
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
       <div className="page-glow" />
-      <BorderSweep className="[--border-sweep-color:var(--muted-foreground)]" />
+      <BorderSweep />
       <div className="absolute inset-x-0 bottom-4 flex justify-center">
         <div
           className="pointer-events-auto flex h-8 items-center gap-1 rounded-full border border-border bg-background/95 pr-1 pl-3 text-[12.5px] shadow-md"

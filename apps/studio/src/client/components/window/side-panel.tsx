@@ -1022,10 +1022,6 @@ function AllChats({ group, open }: { group: string; open: OpenAddress }) {
   const projectNames = new Map(
     projects.map((project) => [project.id, project.name]),
   );
-  const searchRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    searchRef.current?.focus();
-  }, []);
   const matched = byLastUserMessage(
     chats.filter((chat) => matchesFilters(chat, filters, projectNames)),
   );
@@ -1076,7 +1072,6 @@ function AllChats({ group, open }: { group: string; open: OpenAddress }) {
       <div className="mb-1 flex shrink-0 items-center gap-1 pl-1 [&_button]:[-webkit-app-region:no-drag]">
         <SearchField
           className="h-8 pl-7 text-[13px] [-webkit-app-region:no-drag] [&>svg]:left-2.5"
-          inputRef={searchRef}
           offered={offered}
           onChange={(search) => {
             setFilters({ ...filters, search });
@@ -1247,7 +1242,7 @@ function ProjectFilter({
           className={cn(
             "flex h-7 min-w-0 cursor-default items-center gap-1.5 rounded-md px-2 text-[13px]",
             project
-              ? "project-tint bg-(--project-tint-surface)/70 font-medium text-(--project-tint-ink) hover:bg-(--project-tint-surface)"
+              ? "bg-(--project-tint-surface)/70 font-medium text-(--project-tint-ink) project-tint hover:bg-(--project-tint-surface)"
               : chosen === NO_PROJECT
                 ? "bg-foreground/10 font-medium text-foreground"
                 : "bg-foreground/4 text-foreground/65 hover:bg-foreground/7 hover:text-foreground data-[state=open]:bg-foreground/10",
